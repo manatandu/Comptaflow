@@ -3509,60 +3509,37 @@ model TauxTva {
 // duquel le petit matériel/outillage/matériel de bureau passe directement
 // en charges plutôt qu'en immobilisation).
 //
-// Hors scope MVP, explicitement (voir §3.3 du roadmap) :
-// - Gestion des composants (le texte SYCEBNL ne l'autorise de toute façon
-//   que pour des catégories limitées : bâtiments/ouvrages, avions, bateaux,
-//   camions, autocars, bus, véhicules blindés, matériels d'entités
-//   industrielles/minières/agricoles/hospitalières/pétrolières · pas un
-//   mécanisme généralisable à toute immobilisation).
+// CE QUE LE MODULE PORTE AUJOURD'HUI (relu le 2026-09-30, passe R1 A8 et
+// R5 B6) · le bloc « Hors scope MVP » écrit ici à l'origine annonçait comme
+// absents des mécanismes livrés depuis. Une garantie négative vieillit, et un
+// commentaire de schéma qui dit « non couvert » se lit comme une dispense.
+// - Composants · `immobilisationPrincipaleId` et `TypeComposant` (composant
+//   physique, démantèlement, révisions majeures, pièce de rechange, pièce de
+//   sécurité), renouvellement par l'opération `renouveler` (AUDCIF art. 38-1
+//   et Titre VIII ch. 4 à 6 · SYCEBNL, Partie 2 ch. 3, classe 2).
+// - Dépréciation (29) · `DepreciationImmobilisation`, plan ré-étalé après une
+//   perte de valeur, 29 soldé par reprise à la sortie (AUDCIF art. 46 et
+//   Titre VIII ch. 12 · SYCEBNL, fiche du compte 29). Le contrôle
+//   `DEPRECIATION_IMMO_HORS_MODULE` ne signale plus que ce qui a été doté à
+//   la main hors du module.
+// - Unités d'œuvre (`UNITES_DOEUVRE`, AUDCIF art. 45) et, au SYSCOHADA, plan
+//   fiscal dégressif avec amortissement dérogatoire au 151 (loi n° 23/053,
+//   art. 31 à 35 ; AUDCIF, fiche du compte 68), tenu à côté du plan comptable
+//   et non comme un mode de plus.
+// - Biens que le plan ne fait pas amortir · refusés à la dotation et à zéro au
+//   tableau (`comptes-du-bien.ts`, `motifNonAmortissable`).
 //
-//   CE QUE CETTE LIGNE DISAIT TROP PEU · la liste est juste, mais « autorisé »
-//   l'est moins : DANS ces catégories, le texte écrit « une entité VENTILE …
-//   dès lors que » les quatre conditions sont réunies, et « chaque élément
-//   DOIT être comptabilisé séparément dès son acquisition ou son
-//   remplacement » (SYCEBNL, Partie 2 ch. 3, introduction de la classe 2 ;
-//   AUDCIF art. 38-1 et Titre VIII ch. 4, en termes identiques). Un bâtiment
-//   suffit à y entrer, et le plan SYCEBNL en porte plusieurs (231 bâtiments,
-//   2381 édifices religieux) : ce n'est pas un cas de niche pour transporteurs.
-//
-//   TROIS MÉCANISMES OBLIGATOIRES REPOSENT SUR CE SOUS-COMPTE COMPOSANT, et
-//   n'ont donc aujourd'hui aucune place dans le module :
-//    · coûts de démantèlement, d'enlèvement et de remise en état du site ·
-//      entrent dans la valeur d'entrée, « comptabilisés dans un sous-compte
-//      composant de l'immobilisation principale », provision 1984 dotée par
-//      6914 (Titre VIII ch. 6). Le tableau des flux SYSCOHADA les connaît
-//      déjà (correspondance-tft-syscohada.ts) · le module qui devrait les
-//      produire, non ;
-//    · révisions majeures · sous-compte composant amorti sur la durée
-//      séparant deux révisions, la valeur résiduelle de la précédente étant
-//      décomptabilisée (Titre VIII ch. 5) ;
-//    · pièces de rechange principales et de sécurité · immobilisations dès
-//      lors qu'elles servent plus d'un exercice, avec deux départs
-//      d'amortissement distincts selon leur nature.
-//
-//   Relevé dans docs/releve-de-manques-referentiels.md, passe 8.
-// - Amortissement dégressif et dérogatoire (fiscal vs comptable) · seul le
-//   linéaire est couvert ; plus pertinent pour SYSCOHADA (Phase 3).
-// - Dépréciation (compte 29, perte de valeur exceptionnelle distincte de
-//   l'amortissement) · non couverte, à traiter par un futur enrichissement.
-//
-//   ET « NON COUVERTE » NE VEUT PAS DIRE « SANS CONSÉQUENCE ». Les deux textes
-//   OBLIGENT à doter dès qu'un indice de perte de valeur existe, même sans
-//   bénéfice (SYCEBNL, Partie 2 ch. 3, fiche du compte 29 · AUDCIF art. 46 et
-//   Titre VIII ch. 12), et les comptes 29 sont semés et mouvementables. Un
-//   cabinet qui dote donc à la main installe deux divergences muettes :
-//    · `baseAmortissable` reste valeur d'origine moins valeur résiduelle · elle
-//      ignore la dépréciation, alors que l'art. 46 impose de recalculer le plan
-//      sur la valeur brute diminuée AUSSI de la dépréciation ;
-//    · `sortir` crédite le compte d'immobilisation pour la valeur d'origine et
-//      débite l'amortissement cumulé SANS solder le 29 · la valeur comptable
-//      nette portée au 81 est surévaluée du montant déprécié, la plus ou
-//      moins-value de cession fausse d'autant, et le 29 garde un solde pour un
-//      bien qui n'existe plus.
-//   Le contrôle `DEPRECIATION_IMMO_HORS_MODULE` signale la situation tant que
-//   le module ne la porte pas. Relevé : docs/releve-de-manques-referentiels.md,
-//   passe 13.
+// CE QUI RESTE HORS DU MODULE, et c'est dit :
+// - Dégressif COMPTABLE · aucun mode de ce nom dans l'énumération ci-dessous ;
+//   le seul dégressif servi est le plan fiscal du SYSCOHADA, porté à part.
 // - Plans d'amortissement multiples (National/IFRS) · vision §3.6.
+//
+// HISTORIQUE, sous bandeau · les passes 8 et 13 du relevé de manques
+// (docs/releve-de-manques-referentiels.md) décrivaient les composants et la
+// dépréciation comme absents, avec les divergences muettes qu'une dotation à
+// la main produisait (base amortissable ignorant le 29, sortie qui ne soldait
+// pas le 29). Elles sont fermées par les mécanismes nommés ci-dessus ; le
+// relevé en garde la trace.
 // ---------------------------------------------------------------------------
 
 enum ModeAmortissement {
@@ -3576,7 +3553,8 @@ enum ModeAmortissement {
   /// 71 et 73 à 113), le mode vaut donc des deux côtés.
   UNITES_DOEUVRE
 
-  // DEGRESSIF non couvert par ce MVP · voir le commentaire ci-dessus.
+  // DEGRESSIF COMPTABLE non servi · le dégressif FISCAL du SYSCOHADA vit à
+  // part (plan fiscal et dérogatoire au 151), voir le commentaire ci-dessus.
   //
   // ET DEUX MODES QUE L'ARTICLE 45 INTERDIT, qui ne doivent jamais entrer
   // ici : « un mode d'amortissement basé sur les REVENUS générés par

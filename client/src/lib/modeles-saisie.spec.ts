@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA } from './modeles-saisie';
+import {
+  MODELES_SIMPLES_SMT_SYSCOHADA,
+  MODELES_SIMPLES_SYCEBNL,
+  MODELES_SIMPLES_SYSCOHADA,
+  modelesSimplesDuDossier,
+} from './modeles-saisie';
 
 // Pas d'import de « vitest » · convention du dépôt, describe/it/expect par les
 // globales, pour que le fichier tourne sous les deux lanceurs.
@@ -188,3 +193,47 @@ describe('modèles de saisie · chaque modèle vise un compte de SON plan', () =
     }
   });
 });
+
+/**
+ * PASSE R2, CONSTAT C3 · un dossier SYSCOHADA au Système minimal de trésorerie
+ * tient une COMPTABILITÉ DE TRÉSORERIE (Titre X ch. 1 § 1, AUDCIF art. 21). Le
+ * jeu du Système normal y vidait « Recettes sur ventes » et « Dépenses sur
+ * achats », le compte de résultat SMT lisant la contrepartie immédiate du
+ * mouvement de trésorerie.
+ */
+describe('modèles de saisie · Système minimal de trésorerie SYSCOHADA', () => {
+  it('le dossier au S.M.T reçoit le jeu de trésorerie, le Système normal et le système non dit gardent le leur', () => {
+    expect(modelesSimplesDuDossier({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'MINIMAL_TRESORERIE' })).toBe(
+      MODELES_SIMPLES_SMT_SYSCOHADA,
+    );
+    expect(modelesSimplesDuDossier({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' })).toBe(
+      MODELES_SIMPLES_SYSCOHADA,
+    );
+    expect(modelesSimplesDuDossier({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: null })).toBe(
+      MODELES_SIMPLES_SYSCOHADA,
+    );
+    expect(modelesSimplesDuDossier({ referentiel: 'SYCEBNL' })).toBe(MODELES_SIMPLES_SYCEBNL);
+  });
+
+  it('la vente et l’achat vont droit à la trésorerie, sur un 70 et un 60 semés en Détail', () => {
+    const contrepartie = (code: string) => {
+      const m = MODELES_SIMPLES_SMT_SYSCOHADA.find((x) => x.code === code)!;
+      expect(m.lignes.some((l) => l.role === 'TRESORERIE')).toBe(true);
+      expect(m.lignes.some((l) => l.role === 'TIERS')).toBe(false);
+      return m.lignes.find((l) => l.role === 'NATURE')!.numero!;
+    };
+    expect(contrepartie('vente-comptant')).toMatch(/^70/);
+    expect(contrepartie('service-comptant')).toMatch(/^70/);
+    expect(contrepartie('achat-comptant')).toMatch(/^60/);
+    const absents = MODELES_SIMPLES_SMT_SYSCOHADA.flatMap((m) =>
+      m.lignes.filter((l) => l.numero && !semePar('SYSCOHADA', l.numero)).map((l) => `${m.code} → ${l.numero}`),
+    );
+    expect(absents).toEqual([]);
+  });
+
+  it('le composant de saisie demande le jeu au dossier, jamais au seul référentiel', () => {
+    const composant = readFileSync(join(__dirname, '..', 'components', 'ModelesSaisie.tsx'), 'utf8');
+    expect(composant).toContain('modelesSimplesDuDossier(utilisateur?.tenant)');
+  });
+});
+

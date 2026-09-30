@@ -40,6 +40,24 @@ export function naturesTiersProposees(type: TypeRegularisation): NatureTiers[] {
 }
 
 /**
+ * LE RATTACHEMENT QUI PEUT PORTER SA TVA · la même règle que le serveur
+ * (`RegularisationService.compteTvaRattachement`, passe R1, B4). SYSCOHADA
+ * seul · 4455 pour une charge à payer sur un fournisseur, 4435 pour un
+ * produit à recevoir sur un client (AUDCIF, Titre VII, fiches des comptes 40
+ * et 41). Le montant est déclaré par le comptable, jamais calculé.
+ */
+export function compteTvaRattachement(
+  referentiel: Referentiel | undefined,
+  type: TypeRegularisation,
+  nature: NatureTiers | '',
+): '4455' | '4435' | null {
+  if (referentiel !== 'SYSCOHADA') return null;
+  if (type === 'CHARGE_A_PAYER' && nature === 'FOURNISSEURS') return '4455';
+  if (type === 'PRODUIT_A_RECEVOIR' && nature === 'CLIENTS') return '4435';
+  return null;
+}
+
+/**
  * LES EXERCICES OÙ UNE RÉGULARISATION SE REPREND · ouverts et POSTÉRIEURS à
  * celui de la constatation (audit final F79), la règle que le serveur oppose
  * (`RegularisationService.exercicePosterieur`). La liste proposait tout autre

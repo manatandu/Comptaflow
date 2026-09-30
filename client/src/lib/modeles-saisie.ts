@@ -285,3 +285,84 @@ export const MODELES_SIMPLES_SYSCOHADA: ModeleSimple[] = [
       'trésorerie. OmegaX ne chiffre aucune de ces trois écritures · les barèmes dépendent du dossier.',
   },
 ];
+
+/**
+ * LE JEU DU SYSTÈME MINIMAL DE TRÉSORERIE, SYSCOHADA (passe R2, constat C3).
+ *
+ * Le Titre X ch. 1 § 1 dresse l'état des recettes et des dépenses « à partir
+ * d'une COMPTABILITÉ DE TRÉSORERIE que doivent tenir les entités relevant de
+ * ce système » (AUDCIF art. 21 : elles « tiennent une comptabilité de
+ * trésorerie »), les impayés étant suivis HORS du livre, au « journal de suivi
+ * des créances impayées » et au « journal de suivi des dettes à payer ».
+ *
+ * Servir à un tel dossier les factures 411 / 70 et 60 / 401 du Système normal
+ * vidait les lignes « Recettes sur ventes ou prestations de services » et
+ * « Dépenses sur achats » de son compte de résultat, et les colonnes « Ventes »
+ * et « Achats » de la NOTE 4 · le compte de résultat SMT lit la contrepartie
+ * IMMÉDIATE du mouvement de trésorerie, qui était alors un compte de tiers.
+ * G restait juste, les rubriques par nature étaient fausses sur la liasse.
+ *
+ * Le jeu propose donc l'écriture de trésorerie directe · recette au 70, achat
+ * au 60, contre la trésorerie choisie à l'écran. Les règlements restent
+ * servis, pour les créances et dettes déjà nées au livre. Le salaire garde le
+ * modèle du Système normal · aucune source lue ne dit comment une comptabilité
+ * de trésorerie ventile un brut entre le net payé et les retenues reversées,
+ * et le logiciel ne l'invente pas.
+ */
+export const MODELES_SIMPLES_SMT_SYSCOHADA: ModeleSimple[] = [
+  {
+    code: 'vente-comptant',
+    libelle: 'Vente de marchandises encaissée',
+    journal: 'Trésorerie',
+    lignes: [
+      { role: 'TRESORERIE', sens: 'DEBIT' },
+      { role: 'NATURE', numero: '70110000', sens: 'CREDIT' },
+    ],
+    suite:
+      "Comptabilité de trésorerie (Titre X ch. 1 § 1) · la vente s'enregistre à l'encaissement. Une vente non " +
+      'encaissée à la clôture se porte au journal de suivi des créances impayées, et entre au bilan par ' +
+      "l'inventaire extra-comptable de fin d'exercice.",
+  },
+  {
+    code: 'service-comptant',
+    libelle: 'Prestation de services encaissée',
+    journal: 'Trésorerie',
+    lignes: [
+      { role: 'TRESORERIE', sens: 'DEBIT' },
+      { role: 'NATURE', numero: '70610000', sens: 'CREDIT' },
+    ],
+    suite:
+      "Comptabilité de trésorerie (Titre X ch. 1 § 1) · la prestation s'enregistre à l'encaissement ; une " +
+      'prestation non encaissée se porte au journal de suivi des créances impayées.',
+  },
+  {
+    code: 'achat-comptant',
+    libelle: 'Achat de marchandises payé',
+    journal: 'Trésorerie',
+    lignes: [
+      { role: 'NATURE', numero: '60110000', sens: 'DEBIT' },
+      { role: 'TRESORERIE', sens: 'CREDIT' },
+    ],
+    suite:
+      "Comptabilité de trésorerie (Titre X ch. 1 § 1) · l'achat s'enregistre au paiement. Une facture non payée " +
+      'à la clôture se porte au journal de suivi des dettes à payer.',
+  },
+  ...MODELES_SIMPLES_SYSCOHADA.filter((m) =>
+    ['encaissement-client', 'reglement-fournisseur', 'salaire'].includes(m.code),
+  ),
+];
+
+/**
+ * LE JEU DU DOSSIER · le référentiel, puis, au SYSCOHADA, le système. Un
+ * dossier au Système minimal de trésorerie reçoit le jeu de trésorerie ; un
+ * dossier dont le système n'est pas encore dit garde celui du Système normal,
+ * qui est la règle (AUDCIF art. 11).
+ */
+export function modelesSimplesDuDossier(
+  tenant: { referentiel?: string | null; systemeComptableSyscohada?: string | null } | null | undefined,
+): ModeleSimple[] {
+  if (tenant?.referentiel !== 'SYSCOHADA') return MODELES_SIMPLES_SYCEBNL;
+  return tenant.systemeComptableSyscohada === 'MINIMAL_TRESORERIE'
+    ? MODELES_SIMPLES_SMT_SYSCOHADA
+    : MODELES_SIMPLES_SYSCOHADA;
+}

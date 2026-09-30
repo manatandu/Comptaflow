@@ -352,7 +352,9 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
           Promise.resolve(
             where.id === 'gestion'
               ? { id: 'gestion', numero: CLASSE_GESTION[type] === 'CLASSE_6' ? '60500000' : '70100000', classe: CLASSE_GESTION[type] }
-              : { id: 'contrepartie', numero: '47600000', classe: 'CLASSE_4' },
+              : ['4455', '4435'].includes((where.numero as { startsWith?: string } | undefined)?.startsWith ?? '')
+                ? { id: 'tva', numero: `${(where.numero as { startsWith: string }).startsWith}0000`, classe: 'CLASSE_4' }
+                : { id: 'contrepartie', numero: '47600000', classe: 'CLASSE_4' },
           ),
         ),
       },
@@ -361,6 +363,14 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
         findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }),
       },
       journal: { findMany: jest.fn().mockResolvedValue([{ id: 'od', code: 'OD', type: 'GENERAL' }]) },
+      // La reprise d'un rattachement relit les lignes de sa constatation · la
+      // doublure honore l'identifiant ET le dossier.
+      ecriture: {
+        findFirst: jest.fn(({ where }: { where: { id: string; tenantId: string } }) => {
+          const rang = Number(where.id.slice(1)) - 1;
+          return Promise.resolve(where.tenantId === 't1' && ecritures[rang] ? { lignes: ecritures[rang].lignes } : null);
+        }),
+      },
       regularisation: {
         create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
           enregistree = { id: 'r1', ecritureRepriseId: null, ...data };
@@ -399,6 +409,58 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
     // Un montant non nul à la constatation, sinon un solde nul ne prouverait rien.
     expect(ecritures[0].lignes.some((l) => (l.debit ?? 0) > 0)).toBe(true);
     expect(solde).toEqual({ gestion: 0, contrepartie: 0 });
+  });
+
+  it.each([
+    [TypeRegularisation.CHARGE_A_PAYER, 'FOURNISSEURS', '44550000'],
+    [TypeRegularisation.PRODUIT_A_RECEVOIR, 'CLIENTS', '44350000'],
+  ])('%s · la TVA déclarée va au %s, le tiers porte le toutes taxes, et la reprise la contre-passe (passe R1, B4)', async (type, nature, compteTva) => {
+    const { svc, ecritures } = monde(type);
+    await svc.creer('t1', 'u1', {
+      exerciceId: 'n',
+      type,
+      libelle: 'Électricité de décembre',
+      compteChargeProduitId: 'gestion',
+      montantTotal: 1_000,
+      montantTva: 160,
+      periodeDebut: '2026-12-01',
+      periodeFin: '2026-12-31',
+      natureTiers: nature,
+    } as never);
+    const constatation = ecritures[0].lignes;
+    const tva = constatation.find((l) => l.compteId === 'tva');
+    const tiers = constatation.find((l) => l.compteId === 'contrepartie');
+    expect(tva).toBeDefined();
+    expect((tva!.debit ?? 0) + (tva!.credit ?? 0)).toBe(160);
+    expect((tiers!.debit ?? 0) + (tiers!.credit ?? 0)).toBe(1_160);
+    // La charge ou le produit reste HORS TAXES.
+    const gestion = constatation.find((l) => l.compteId === 'gestion');
+    expect((gestion!.debit ?? 0) + (gestion!.credit ?? 0)).toBe(1_000);
+    await svc.reprendre('t1', 'u1', 'r1', 'n1');
+    const solde: Record<string, number> = {};
+    for (const e of ecritures) for (const l of e.lignes) solde[l.compteId] = (solde[l.compteId] ?? 0) + (l.debit ?? 0) - (l.credit ?? 0);
+    expect(solde).toEqual({ gestion: 0, contrepartie: 0, tva: 0 });
+    expect(`${RegularisationService.compteTvaRattachement(Referentiel.SYSCOHADA, nature as never, type)}0000`).toBe(compteTva);
+  });
+
+  it('la TVA est refusée là où la fiche ne la prévoit pas · ni au personnel, ni au SYCEBNL', async () => {
+    expect(RegularisationService.compteTvaRattachement(Referentiel.SYSCOHADA, 'PERSONNEL', TypeRegularisation.CHARGE_A_PAYER)).toBeNull();
+    expect(RegularisationService.compteTvaRattachement(Referentiel.SYCEBNL, 'FOURNISSEURS', TypeRegularisation.CHARGE_A_PAYER)).toBeNull();
+    const { svc, ecritures } = monde(TypeRegularisation.CHARGE_A_PAYER);
+    await expect(
+      svc.creer('t1', 'u1', {
+        exerciceId: 'n',
+        type: TypeRegularisation.CHARGE_A_PAYER,
+        libelle: 'Primes',
+        compteChargeProduitId: 'gestion',
+        montantTotal: 1_000,
+        montantTva: 160,
+        periodeDebut: '2026-12-01',
+        periodeFin: '2026-12-31',
+        natureTiers: 'PERSONNEL',
+      } as never),
+    ).rejects.toThrow(/4455/);
+    expect(ecritures).toHaveLength(0);
   });
 
   it('la reprise est DATÉE par dateReprise · le 476 et le 477 à l’ouverture, la subvention à la fin', async () => {

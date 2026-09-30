@@ -85,6 +85,9 @@ async function dotation(c: Cas): Promise<number> {
         unitesOeuvrePrevues: c.unitesOeuvrePrevues ?? 400_000,
         compteDotationId: 'cd',
         compteAmortissementId: 'ca',
+        // `trouver` charge le compte du bien · la dotation lit sa nature
+        // (comptes-du-bien.ts, bien que le plan ne fait pas amortir).
+        compteImmobilisation: { numero: '24510000' },
         dotations: [],
         depreciations: c.depreciations ?? [],
       }),

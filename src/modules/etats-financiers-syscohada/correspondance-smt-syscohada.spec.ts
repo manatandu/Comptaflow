@@ -13,6 +13,9 @@ import {
   COMPTES_TRESORERIE_SMT_SYSCOHADA,
   CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA,
   CONTREPARTIES_RESULTAT_SMT_SYSCOHADA,
+  TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA,
+  dansPerimetreResultatSmt,
+  estTiersHorsExploitationSmt,
   DEFINITION_VARIATION_SMT_SYSCOHADA,
   DOCUMENTS_SMT_SYSCOHADA,
   JOURNAUX_DE_SUIVI_SMT_SYSCOHADA,
@@ -312,7 +315,7 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
     const avecVariation = RETRAITEMENTS_SMT_SYSCOHADA.map((r) => r.posteBilan).filter((r): r is string => r !== null);
     expect(avecVariation).toEqual(['SA2', 'SA3', 'SP4']);
     for (const c of FEUILLES_1_A_8) {
-      const dansPerimetre = correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA);
+      const dansPerimetre = dansPerimetreResultatSmt(c.numero);
       if (/^[6-8]/.test(c.numero)) {
         // Produits et charges : toujours dedans, ce sont les « recettes sur
         // produits » et les « dépenses sur charges » de la maquette.
@@ -323,14 +326,18 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
       // ligne de variation le réclame au bilan · sans quoi G serait faux
       // (correction appliquée à un montant jamais compté, ou flux de
       // financement compté sans correction).
-      const corrige = postesReclamant(c.numero).some((p) => avecVariation.includes(p.ref));
+      // Les tiers hors exploitation (461, 465, 467, 4493, 4494, 481, 482)
+      // restent au bilan mais ne sont corrigés par aucune variation · passe
+      // R2, constat C1.
+      const corrige =
+        !estTiersHorsExploitationSmt(c.numero) && postesReclamant(c.numero).some((p) => avecVariation.includes(p.ref));
       expect({ numero: c.numero, dansPerimetre }).toEqual({ numero: c.numero, dansPerimetre: corrige });
     }
   });
 
   it("toute contrepartie DU PÉRIMÈTRE tombe dans EXACTEMENT un poste de recette et un poste de dépense ; aucune autre n'entre dans un poste de flux", () => {
     for (const c of FEUILLES_1_A_8) {
-      const attendu = correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA) ? 1 : 0;
+      const attendu = dansPerimetreResultatSmt(c.numero) ? 1 : 0;
       expect(POSTES_RECETTES_SMT_SYSCOHADA.filter((p) => correspond(c.numero, p.comptes, p.exclusions)).length).toBe(attendu);
       expect(POSTES_DEPENSES_SMT_SYSCOHADA.filter((p) => correspond(c.numero, p.comptes, p.exclusions)).length).toBe(attendu);
     }
@@ -354,14 +361,14 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
     }
     // Aucun compte de trésorerie ni sa dépréciation n'entre dans un poste de flux.
     for (const c of FEUILLES_1_A_8.filter((c) => correspond(c.numero, [...COMPTES_TRESORERIE_SMT_SYSCOHADA, ...COMPTES_DEPRECIATION_TRESORERIE_SMT_SYSCOHADA]))) {
-      expect(correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA)).toBe(false);
+      expect(dansPerimetreResultatSmt(c.numero)).toBe(false);
     }
   });
 
   it('chaque feuille des classes 1 à 8 appartient à un seul des quatre périmètres exportés · rien n’est laissé sans nom', () => {
     for (const c of FEUILLES_1_A_8) {
       const appartenances = [
-        correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA),
+        dansPerimetreResultatSmt(c.numero),
         CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA.some((b) => correspond(c.numero, b.comptes)),
         correspond(c.numero, COMPTES_TRESORERIE_SMT_SYSCOHADA),
         correspond(c.numero, COMPTES_DEPRECIATION_TRESORERIE_SMT_SYSCOHADA),
@@ -369,8 +376,8 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
       expect({ numero: c.numero, appartenances }).toEqual({ numero: c.numero, appartenances: 1 });
     }
     expect(CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA.map((b) => [b.cle, b.comptes])).toEqual([
-      ['financement', ['1']],
-      ['investissement', ['2']],
+      ['financement', ['1', '461', '465', '467', '4493', '4494']],
+      ['investissement', ['2', '481', '482']],
     ]);
     for (const b of CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA) expect(b.fondement).toMatch(/Titre X|Titre VII/);
   });
@@ -591,5 +598,19 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
   it('aucun cadratin nulle part dans la source (CLAUDE.md §4) · le caractère est écrit échappé pour ne pas le réintroduire', () => {
     const source = readFileSync(join(__dirname, 'correspondance-smt-syscohada.ts'), 'utf8');
     expect(source).not.toMatch(/\u2014/);
+  });
+
+  it('passe R2, C1 · chaque tiers hors exploitation est ouvert au plan semé, en classe 4, et hors du périmètre de A et de B', () => {
+    for (const t of TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA) {
+      const semes = FEUILLES_1_A_8.filter((c) => c.numero.startsWith(t.prefixe));
+      expect({ prefixe: t.prefixe, ouvert: semes.length > 0 }).toEqual({ prefixe: t.prefixe, ouvert: true });
+      for (const c of semes) {
+        expect(dansPerimetreResultatSmt(c.numero)).toBe(false);
+        // Toujours au bilan, en SA3 ou SP4 · la NOTE 3 le détaille.
+        expect(postesReclamant(c.numero).some((p) => p.ref === 'SA3' || p.ref === 'SP4')).toBe(true);
+      }
+    }
+    // Le 485 reste une créance que SV2 corrige · sa contrepartie 82 est un produit.
+    expect(dansPerimetreResultatSmt('48510000')).toBe(true);
   });
 });

@@ -199,8 +199,8 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  *    elle se CALCULE depuis les trois états. Déclarée `horsBalance` pour que
  *    le moteur générique la présente sans inventer de chiffre, et doublée
  *    de `FICHE_SYNTHESE_SYSCOHADA`, description terme à terme (postes du
- *    compte de résultat, du bilan, du tableau des flux, comptes) que le
- *    service des états SYSCOHADA calcule à part. Quatre points signalés :
+ *    compte de résultat, du bilan, du tableau des flux, comptes) · AUCUN
+ *    service ne la calcule encore, la note reste en saisie (passe R2, B3). Quatre points signalés :
  *    - « Dettes financières* » = « emprunts et dettes financières diverses
  *      + dettes de location acquisition », soit DA + DB SEULEMENT : les
  *      provisions pour risques et charges (DC) en sont EXCLUES alors que DD
@@ -1232,16 +1232,20 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
   },
 
   // ======================================================================
-  // NOTE 34 · fiche de synthèse · calculée par le service des états, hors
-  // balance pour le moteur des notes (anomalie n° 10, FICHE_SYNTHESE_SYSCOHADA)
+  // NOTE 34 · fiche de synthèse · EN SAISIE, hors balance pour le moteur
+  // des notes (anomalie n° 10, FICHE_SYNTHESE_SYSCOHADA)
   // ======================================================================
   {
     code: '34',
     titre: 'FICHE DE SYNTHÈSE DES PRINCIPAUX INDICATEURS FINANCIERS',
-    // Servie par le service des états financiers SYSCOHADA depuis
-    // `FICHE_SYNTHESE_SYSCOHADA` (bilan, compte de résultat, tableau des
-    // flux) : le moteur des notes ne lit pas les états, il ne doit rien
-    // inventer ici.
+    // AUCUN SERVICE NE LA CALCULE ENCORE (passe R2, constat B3) · ses lignes
+    // sont des rubriques EN SAISIE, à reporter à la main depuis le bilan, le
+    // compte de résultat et le tableau des flux de la même liasse, et rien ne
+    // signale un chiffre ressaisi qui divergerait d'eux. `FICHE_SYNTHESE_
+    // SYSCOHADA` décrit chaque terme pour le jour où l'injection sera écrite
+    // (`NoteAnnexeService.injecterIndicateursFinanciers` ne sert aujourd'hui
+    // que la note 33 des associations SYCEBNL). Le moteur des notes ne lit
+    // pas les états, il ne doit rien inventer ici.
     horsBalance: true,
     colonnes: COLONNES_N_N1_POURCENT,
     // Le marqueur `horsMaquette` ne survivrait pas à ce map : il est reversé
@@ -1370,8 +1374,9 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Libellé' },
     ],
     // AUCUN `renvoyeeDepuis` (passe R3). Les lettres qui renvoient ici sont
-    // celles des fiches R1 et R2 de l'AUDCIF (Titre IX ch. 2), que cette
-    // liasse ne produit pas · sa Fiche 1 suit le gabarit ETAFI, qui donne à
+    // celles des fiches R1 et R2 de l'AUDCIF (Titre IX ch. 2) · la fiche R2
+    // est produite depuis la passe R2, et lit ici ses codes ZK, ZL et ZM ; la
+    // Fiche 1 suit le gabarit ETAFI, qui donne à
     // ZK, ZL, ZM et ZE un AUTRE contenu (téléphone, adresse, activité,
     // registre). Imprimé tel quel, « renvoyée depuis ZK » aurait désigné la
     // case du téléphone de la même liasse. La précision le dit.
@@ -1379,7 +1384,8 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
       "Les codes qui renvoient à ces tables sont ceux de l'AUDCIF · fiche R2 : ZK forme juridique, ZL régime " +
       "fiscal, ZM pays du siège, colonne « code nomenclature d'activité » (le renvoi (¹) officiel imprime NOTE 34) ; " +
       "fiche R1 : ZE code activité principale, rattachement lu par OmegaX. La Fiche 1 de cette liasse suit le gabarit " +
-      "ETAFI, où le code activité principale est en ZI, et la fiche R2 n'est pas produite.",
+      "ETAFI, où le code activité principale est en ZI. La fiche R2 de la liasse du Système normal lit ses codes ZK, " +
+      'ZL et ZM dans les trois premières rubriques de cette note.',
     rubriques: [
       saisie('1-code-forme-juridique-1', '1 · Code forme juridique (1)', RENVOI_1_FORME_JURIDIQUE_SYSCOHADA),
       saisie('2-code-regime-fiscal', '2 · Code régime fiscal'),

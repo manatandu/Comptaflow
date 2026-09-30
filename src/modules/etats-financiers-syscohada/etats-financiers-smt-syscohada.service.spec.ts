@@ -265,7 +265,25 @@ function service(
     // testeraient que la doublure. Une borne qu'elle ne sait pas lire la fait
     // tomber, plutôt que de rendre une somme qui l'ignorerait.
     ligneEcriture: { groupBy: sommesDesLignesTiers(options.lignesTiers ?? []) },
-    immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
+    // Honore le dossier, la borne d'acquisition et l'exclusion des biens
+    // sortis avant l'ouverture (passe R6, E15) · une doublure qui rendrait
+    // tout validerait une note qui compterait un bien sorti depuis des années.
+    immobilisation: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          ((options.immobilisations ?? []) as any[]).filter((i) => {
+            if (where?.tenantId !== 't1') return false;
+            if (where.dateAcquisition?.lte && i.dateAcquisition > where.dateAcquisition.lte) return false;
+            if (where.OR) {
+              return where.OR.some((o: any) =>
+                o.dateSortie === null ? i.dateSortie === null : i.dateSortie !== null && i.dateSortie >= o.dateSortie.gte,
+              );
+            }
+            return true;
+          }),
+        ),
+      ),
+    },
     // La campagne d'inventaire lue par la note 2 · la doublure honore le
     // dossier et l'exercice, et l'exigence d'un stock compté (audit final F85).
     campagneInventaire: {
@@ -883,6 +901,51 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     expect(note.amortissement).toEqual({ mode: 'LINEAIRE', prorataTemporis: false });
   });
 
+  it('NOTE 1 · ne totalise que les biens détenus, présente à part ceux sortis dans l’exercice (passe R6, E15)', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('24410000', ClasseCompte.CLASSE_2, 3_000_000, 0),
+          ligne('27510000', ClasseCompte.CLASSE_2, 90_000, 0),
+        ],
+      },
+      {
+        immobilisations: [
+          { designation: 'Camionnette', valeurOrigine: 3_000_000, compteImmobilisationId: 'id-24410000', dateAcquisition: new Date('2025-02-01'), dateSortie: null, prixCession: null },
+          { designation: 'Ordinateur cédé', valeurOrigine: 800_000, compteImmobilisationId: 'id-24410000', dateAcquisition: new Date('2024-02-01'), dateSortie: new Date('2026-06-30'), prixCession: 200_000 },
+          { designation: 'Chaise sortie en 2025', valeurOrigine: 50_000, compteImmobilisationId: 'id-24410000', dateAcquisition: new Date('2023-02-01'), dateSortie: new Date('2025-06-30'), prixCession: null },
+        ],
+      },
+    );
+    const note = await s.note1MaterielMobilierCautions('t1', 'e1');
+    expect(note.lignes.filter((l) => l.origine === 'REGISTRE').map((l) => l.designation)).toEqual(['Camionnette']);
+    expect(note.totalRegistre).toBe(3_000_000);
+    expect(note.total).toBe(3_090_000);
+    expect(note.sortiesDeLExercice.map((l) => [l.designation, l.prixCession])).toEqual([['Ordinateur cédé', 200_000]]);
+    // Le registre recoupe la balance compte par compte · aucun écart ici.
+    expect(note.ecartsImmobilisations).toEqual([]);
+    expect(note.motifEcartsImmobilisations).toBeNull();
+  });
+
+  it('NOTE 1 · nomme le compte de classe 2 que les fiches ne reconstituent pas, et la fiche sans solde', async () => {
+    const s = service(
+      { e1: [ligne('24410000', ClasseCompte.CLASSE_2, 3_500_000, 0), ligne('28440000', ClasseCompte.CLASSE_2, 0, 600_000)] },
+      {
+        immobilisations: [
+          { designation: 'Camionnette', valeurOrigine: 3_000_000, compteImmobilisationId: 'id-24410000', dateAcquisition: new Date('2026-02-01'), dateSortie: null, prixCession: null },
+          { designation: 'Logiciel', valeurOrigine: 100_000, compteImmobilisationId: 'id-21300000', dateAcquisition: new Date('2026-02-01'), dateSortie: null, prixCession: null },
+        ],
+      },
+    );
+    const note = await s.note1MaterielMobilierCautions('t1', 'e1');
+    // Le 28 n'est pas confronté · un amortissement n'a pas de fiche à lui.
+    expect(note.ecartsImmobilisations).toEqual([
+      { numero: '24410000', intitule: 'Compte 24410000', soldeBalance: 3_500_000, valeurFiches: 3_000_000, ecart: 500_000 },
+    ]);
+    expect(note.fichesSansSolde).toEqual([{ designation: 'Logiciel', montant: 100_000 }]);
+    expect(note.motifEcartsImmobilisations).toContain('Immobilisations');
+  });
+
   it('NOTE 2 · le stock final moins le stock initial EST la ligne SV1', async () => {
     const s = negoce();
     const [note, cr] = await Promise.all([s.note2Stocks('t1', 'e2026'), s.compteDeResultat('t1', 'e2026')]);
@@ -1400,5 +1463,205 @@ describe('le 130 est un orphelin VOULU du bilan S.M.T · audit final F218', () =
     expect(poste(bilan, 'SA4').montant).toBe(50_000);
     expect(poste(bilan, 'SP2').montant).toBe(0);
     expect(bilan.equilibre).toBe(false);
+  });
+});
+
+/**
+ * PASSE R2, CONSTAT C1 · SV2 et SV3 ne corrigent que les créances et dettes
+ * D'EXPLOITATION (Titre X ch. 1 § 1, ch. 2 § 2). Un tiers que le Titre VII
+ * fait naître contre la classe 1 ou 2 (465 dividendes, 4812 fournisseur
+ * d'investissement) reste au bilan mais ne fait plus bouger G.
+ */
+describe('Compte de résultat S.M.T SYSCOHADA · tiers hors exploitation (passe R2, C1)', () => {
+  it('un dividende décidé puis payé ne touche pas G · G égale le résultat du bilan', async () => {
+    // Report : caisse 500 000 contre report à nouveau. Dans l'exercice, une
+    // vente comptant de 100 000, un dividende décidé de 200 000 (Dr 12 / Cr
+    // 465, COMPTE 46) dont 150 000 payés en caisse. Résultat : 100 000.
+    const s = service(
+      {
+        e1: [
+          ligne('57110000', ClasseCompte.CLASSE_5, 600_000, 150_000, { debit: 500_000 }),
+          ligne('12110000', ClasseCompte.CLASSE_1, 200_000, 500_000, { credit: 500_000 }),
+          ligne('46500000', ClasseCompte.CLASSE_4, 150_000, 200_000),
+          ligne('70110000', ClasseCompte.CLASSE_7, 0, 100_000),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('v1', '2026-02-01', 'Vente comptant', [
+            { numero: '57110000', debit: 100_000 },
+            { numero: '70110000', credit: 100_000 },
+          ]),
+          ecriture('d1', '2026-05-01', 'Dividende décidé', [
+            { numero: '12110000', debit: 200_000 },
+            { numero: '46500000', credit: 200_000 },
+          ]),
+          ecriture('d2', '2026-06-01', 'Dividende payé', [
+            { numero: '46500000', debit: 150_000 },
+            { numero: '57110000', credit: 150_000 },
+          ]),
+        ],
+      },
+    );
+    const [cr, bilan, note3] = await Promise.all([
+      s.compteDeResultat('t1', 'e1'),
+      s.bilan('t1', 'e1'),
+      s.note3CreancesDettes('t1', 'e1'),
+    ]);
+    expect(cr.totalDepenses).toBe(0);
+    expect(ligneCr(cr, 'SV3').montant).toBe(0);
+    expect(cr.resultatExercice).toBe(100_000);
+    expect(poste(bilan, 'SP2').montant).toBe(100_000);
+    expect(cr.controle.concordant).toBe(true);
+    expect(cr.controle.residuel).toBe(0);
+    // Le 465 naît contre le 12 · il se range avec la classe 1, jamais en
+    // « autres comptes », où il passerait pour un compte hors plan.
+    expect(cr.controle.composantesEcart.classe1).toBe(0);
+    expect(cr.controle.composantesEcart.autresComptes).toBe(0);
+    // Le paiement est un flux de financement, exposé hors du résultat.
+    expect(cr.fluxHorsResultat.find((r) => r.cle === 'financement')!.montant).toBe(-150_000);
+    // Le 465 reste au bilan et à la NOTE 3, mais pas dans la variation.
+    expect(poste(bilan, 'SP4').montant).toBe(50_000);
+    expect(note3.dettes.map((d) => d.numero)).toEqual(['46500000']);
+    expect(note3.variationSv3).toBe(ligneCr(cr, 'SV3').montant);
+  });
+
+  it('une immobilisation achetée à crédit puis payée ne pèse qu’une fois, par F', async () => {
+    // Report : banque 500 000 contre capital. Matériel de 300 000 acheté à
+    // crédit (Dr 24 / Cr 4812), 200 000 payés, dotation de 60 000.
+    const s = service(
+      {
+        e1: [
+          ligne('52110000', ClasseCompte.CLASSE_5, 500_000, 200_000, { debit: 500_000 }),
+          ligne('10300000', ClasseCompte.CLASSE_1, 0, 500_000, { credit: 500_000 }),
+          ligne('24410000', ClasseCompte.CLASSE_2, 300_000, 0),
+          ligne('28440000', ClasseCompte.CLASSE_2, 0, 60_000),
+          ligne('48120000', ClasseCompte.CLASSE_4, 200_000, 300_000),
+          ligne('68130000', ClasseCompte.CLASSE_6, 60_000, 0),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('i1', '2026-03-01', 'Achat matériel à crédit', [
+            { numero: '24410000', debit: 300_000 },
+            { numero: '48120000', credit: 300_000 },
+          ]),
+          ecriture('i2', '2026-04-01', 'Règlement du fournisseur', [
+            { numero: '48120000', debit: 200_000 },
+            { numero: '52110000', credit: 200_000 },
+          ]),
+          ecriture('i3', '2026-12-31', 'Dotation', [
+            { numero: '68130000', debit: 60_000 },
+            { numero: '28440000', credit: 60_000 },
+          ]),
+        ],
+      },
+    );
+    const [cr, bilan] = await Promise.all([s.compteDeResultat('t1', 'e1'), s.bilan('t1', 'e1')]);
+    expect(cr.totalDepenses).toBe(0);
+    expect(ligneCr(cr, 'SV3').montant).toBe(0);
+    expect(ligneCr(cr, 'SF').montant).toBe(60_000);
+    expect(cr.resultatExercice).toBe(-60_000);
+    expect(poste(bilan, 'SP2').montant).toBe(-60_000);
+    expect(cr.fluxHorsResultat.find((r) => r.cle === 'investissement')!.montant).toBe(-200_000);
+    expect(cr.controle.residuel).toBe(0);
+  });
+});
+
+/**
+ * PASSE R2, CONSTAT C4 · les deux journaux de suivi du Titre X ch. 3, servis
+ * depuis les factures du livre-journal aux comptes 41 et 40.
+ */
+describe('Journaux de suivi S.M.T SYSCOHADA (passe R2, C4)', () => {
+  type LigneSuivi = {
+    id: string;
+    tenantId: string;
+    exerciceId: string;
+    statut: string;
+    compteId: string;
+    numero: string;
+    debit: number;
+    credit: number;
+    lettre: string | null;
+    lettrageId: string | null;
+    date: string;
+    reference: string | null;
+  };
+  const L = (o: Partial<LigneSuivi> & Pick<LigneSuivi, 'id' | 'numero' | 'date'>): LigneSuivi => ({
+    tenantId: 't1',
+    exerciceId: 'e1',
+    statut: 'VALIDEE',
+    compteId: `id-${o.numero}`,
+    debit: 0,
+    credit: 0,
+    lettre: null,
+    lettrageId: null,
+    reference: null,
+    ...o,
+  });
+  const LIGNES: LigneSuivi[] = [
+    L({ id: 'f1', numero: '41110000', debit: 500_000, date: '2026-02-01', reference: 'FV-001', lettre: 'A', lettrageId: 'g1' }),
+    L({ id: 'r1', numero: '41110000', credit: 500_000, date: '2026-03-15', lettre: 'A', lettrageId: 'g1' }),
+    L({ id: 'f2', numero: '41110000', debit: 200_000, date: '2026-04-01', reference: 'FV-002', lettrageId: 'g2' }),
+    L({ id: 'r2', numero: '41110000', credit: 50_000, date: '2026-05-01', lettrageId: 'g2' }),
+    L({ id: 'f3', numero: '40110000', credit: 150_000, date: '2026-06-01', reference: 'FA-77' }),
+    L({ id: 'x1', numero: '41110000', debit: 999, date: '2026-06-01', statut: 'BROUILLARD' }),
+    L({ id: 'x2', numero: '41110000', debit: 888, date: '2026-06-01', tenantId: 'autre' }),
+  ];
+
+  function serviceSuivi() {
+    // La doublure honore le dossier, l'exercice, le statut, les deux branches
+    // (41 au débit, 40 au crédit) et le filtre par groupe de lettrage.
+    const findMany = jest.fn().mockImplementation(({ where }: any) => {
+      const surEcriture = (l: LigneSuivi) =>
+        l.tenantId === where.ecriture.tenantId &&
+        (where.ecriture.exerciceId === undefined || l.exerciceId === where.ecriture.exerciceId) &&
+        (where.ecriture.statut === undefined || l.statut === where.ecriture.statut);
+      const vers = (l: LigneSuivi) => ({
+        id: l.id,
+        compteId: l.compteId,
+        debit: l.debit,
+        credit: l.credit,
+        lettre: l.lettre,
+        lettrageId: l.lettrageId,
+        compte: { numero: l.numero, intitule: `Compte ${l.numero}` },
+        ecriture: { date: new Date(l.date), reference: l.reference, numeroPiece: null },
+      });
+      if (where.lettrageId) {
+        return Promise.resolve(LIGNES.filter((l) => surEcriture(l) && l.lettrageId && where.lettrageId.in.includes(l.lettrageId)).map(vers));
+      }
+      return Promise.resolve(
+        LIGNES.filter(
+          (l) =>
+            surEcriture(l) &&
+            where.OR.some(
+              (o: any) =>
+                l.numero.startsWith(o.compte.numero.startsWith) &&
+                (o.debit ? l.debit > o.debit.gt : true) &&
+                (o.credit ? l.credit > o.credit.gt : true),
+            ),
+        ).map(vers),
+      );
+    });
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }) },
+      ligneEcriture: { findMany },
+      tiersCompte: { findMany: jest.fn().mockResolvedValue([{ compteId: 'id-41110000', tiers: { nom: 'Client Mbala' } }]) },
+    } as unknown as PrismaService;
+    return new EtatsFinanciersSmtSyscohadaService({} as EcritureService, {} as ExerciceService, prisma);
+  }
+
+  it('sert les factures aux colonnes du texte, la date de paiement du groupe soldé seulement', async () => {
+    const j = await serviceSuivi().journauxDeSuivi('t1', 'e1');
+    const creances = j.journaux.find((x) => x.cle === 'creancesImpayees')!;
+    const dettes = j.journaux.find((x) => x.cle === 'dettesAPayer')!;
+    expect(creances.colonnes).toEqual(['Date', 'N° facture', 'Nom du client', 'Montant', 'Date paiement']);
+    expect(creances.lignes.map((l) => [l.numeroFacture, l.nom, l.montant, l.datePaiement?.toISOString().slice(0, 10) ?? null, l.paiementPartiel])).toEqual([
+      ['FV-001', 'Client Mbala', 500_000, '2026-03-15', false],
+      // Lettrage partiel · la facture n'est pas payée, la date reste vide.
+      ['FV-002', 'Client Mbala', 200_000, null, true],
+    ]);
+    expect(dettes.lignes.map((l) => [l.numeroFacture, l.montant, l.datePaiement])).toEqual([['FA-77', 150_000, null]]);
+    expect(j.limite).toContain('comptabilité de trésorerie pure');
   });
 });

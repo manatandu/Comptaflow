@@ -64,3 +64,22 @@ describe('éligibilité SMT SYSCOHADA · la monnaie du jeu légal est nommée (a
     expect(service).toContain('deviseDossier: monnaieDuJeuLegal(tenant.devise),');
   });
 });
+
+describe('états SMT SYSCOHADA · NOTE 1, biens détenus et biens sortis (passe R6, E15)', () => {
+  it('le total est celui des biens détenus, et les biens sortis passent par le même rendu, sous le total', () => {
+    const total = page.indexOf('TOTAL DES BIENS DÉTENUS À LA CLÔTURE');
+    const sorties = page.indexOf("Biens sortis pendant l'exercice · hors du total");
+    expect(total).toBeGreaterThan(-1);
+    expect(sorties).toBeGreaterThan(total);
+    expect(page).toContain('{notes.note1.sortiesDeLExercice.map((l, i) => ligneNote1(l, i))}');
+    expect(page).toContain('{notes.note1.ecartsImmobilisations.map((e) => (');
+  });
+});
+
+describe('états SMT SYSCOHADA · les deux journaux de suivi (passe R2, C4)', () => {
+  it('l’onglet des notes sert les lignes des journaux de suivi, la limite de leur source en infobulle', () => {
+    expect(page).toContain('{notes.journauxDeSuivi.journaux.map((j) =>');
+    expect(page).toContain('notes.journauxDeSuivi.limite,');
+    expect(page).toContain("{l.datePaiement ? jour(l.datePaiement) : l.paiementPartiel ? 'En partie' : '·'}");
+  });
+});

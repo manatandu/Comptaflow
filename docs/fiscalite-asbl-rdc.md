@@ -149,12 +149,23 @@ La réforme de 2026 n'a pas touché les impôts réels, de compétence provincia
 ASBL, toutes formulées de la même façon : institutions religieuses,
 scientifiques ou philanthropiques et associations assimilées.
 
-| Impôt | Base | Exonération ASBL |
+| Impôt | Base | Régime ASBL / EUP |
 |---|---|---|
-| Impôt foncier | O.-L. n° 69-006, art. 2, 2° | Oui, institutions et ASBL à œuvres religieuses, sociales, scientifiques ou philanthropiques dotées de la personnalité civile |
-| Impôt sur les véhicules | O.-L. n° 69-006, art. 39 | Oui, mêmes catégories (attestation d'exemption délivrée par le Receveur des Impôts) |
+| Impôt foncier | O.-L. n° 69-006, art. 2, 2° | Exemption (art. 2, 2°), sur quatre litterae : a) institutions religieuses, scientifiques ou philanthropiques créées par application de l'art. 1er du décret du 28 décembre 1888 ; b) associations privées à œuvres religieuses, scientifiques ou philanthropiques ayant reçu la personnalité civile par application de l'art. 2 du même décret ; c) établissements d'utilité publique créés par application du décret du 19 juillet 1926, **sans aucune condition d'objet** ; d) associations sans but lucratif à œuvres religieuses, sociales, scientifiques ou philanthropiques « qui ont reçu la personnalité civile en vertu de décrets spéciaux ». Voie indépendante du régime de la personnalité : exonération des immeubles qu'un propriétaire sans but de lucre affecte au culte, à l'enseignement, à la recherche ou à des œuvres de bienfaisance (art. 3, 2° a), et non-établissement sur la superficie des terrains ainsi affectés (art. 4) |
+| Impôt foncier · obligation | O.-L. n° 69-006, art. 36 §2 | Déclarer à l'Administration des Impôts, **dans le mois**, l'acquisition ou la perte d'une des exemptions des art. 2 à 5 |
+| Impôt sur les véhicules | O.-L. n° 69-006, art. 39, 2° | Non-établissement de l'impôt pour les véhicules des institutions, associations et établissements visés à l'art. 2, 2° (renvoi) (attestation d'exemption délivrée par le Receveur des Impôts) |
 | Taxe spéciale de circulation routière | O.-L. n° 88-029, art. 3 bis | Oui, mêmes catégories |
 | Impôt sur les revenus locatifs | O.-L. n° 69/009, art. 12, 2° à 5° | Oui, mêmes catégories |
+
+**Non tranché · la correspondance des régimes de personnalité.** Les litterae
+a), b) et d) de l'art. 2, 2° visent des régimes de personnalité civile
+antérieurs à la loi n° 004/2001 (décret du 28 décembre 1888, décrets
+spéciaux). La loi n° 004/2001 reconnaît les entités déjà dotées de la
+personnalité (art. 74) et abroge les dispositions contraires (art. 75), mais
+aucune source lue ne dit qu'une ASBL dotée de la personnalité juridique sous
+cette loi entre dans l'un de ces litterae. Cette note ne répond donc pas
+« oui » par principe : le c) (EUP) et la voie des art. 3, 2° a) et 4, qui ne
+dépend pas du régime de la personnalité, sont les seuls lus sans réserve.
 
 L'**impôt sur les revenus locatifs reste en vigueur** : la loi 23/053 l'exclut
 explicitement des revenus catégoriels de l'IRPP tout en organisant une retenue
@@ -167,7 +178,7 @@ cinquième de trop sur chaque loyer payé :
 | | Taux | Qui le supporte | Texte |
 |---|---|---|---|
 | Impôt sur les revenus locatifs | **22 %** (taux national) | le **bailleur**, sur son revenu | art. 11 de l'O.-L. n° 69/009 |
-| Retenue opérée par le locataire | **20 % du loyer brut** (taux national) | avancé par le **locataire**, pour le compte du bailleur | art. 11 de la loi n° 83/004 du 23 février 1983, modifié par le D.-L. n° 109/2000 |
+| Retenue opérée par le locataire | **20 % du loyer brut** (taux national) | avancé par le **locataire**, pour le compte du bailleur | art. 11 de la loi n° 83/004 du 23 février 1983, tel que modifié par le D.-L. n° 109/2000 |
 
 La retenue est un **acompte** : elle s'impute sur l'impôt dû par le bailleur
 (art. 13 de la loi n° 83/004), elle ne s'y ajoute pas et ne s'y substitue pas.

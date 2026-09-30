@@ -195,6 +195,8 @@ type SaisieStub = { exerciceId: string; codeNote: string; cleRubrique: string; c
 function fabriquerExport(
   systeme: SystemeComptableSyscohada = SystemeComptableSyscohada.NORMAL,
   saisies: SaisieStub[] = [],
+  immobilisations: Array<Record<string, unknown>> = [],
+  mandats: Array<Record<string, unknown>> = [],
 ): ExportService {
   const smt = systeme === SystemeComptableSyscohada.MINIMAL_TRESORERIE;
   const balances: Record<string, LigneBalanceStub[]> = smt
@@ -258,10 +260,53 @@ function fabriquerExport(
     // `groupBy` sert la NOTE 3 du S.M.T, qui demande ses deux parts sommées à
     // la base (audit final F258) · aucune ligne datée dans ce jeu d'essai.
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
-    immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Honore le dossier, la borne d'acquisition et l'exclusion des biens
+    // sortis avant l'ouverture, comme la base (passe R6, E15).
+    immobilisation: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          immobilisations.filter((i: any) => {
+            if (where?.tenantId !== 't1') return false;
+            if (where.dateAcquisition?.lte && i.dateAcquisition > where.dateAcquisition.lte) return false;
+            if (where.OR) {
+              return where.OR.some((o: any) =>
+                o.dateSortie === null ? i.dateSortie === null : i.dateSortie !== null && i.dateSortie >= o.dateSortie.gte,
+              );
+            }
+            return true;
+          }),
+        ),
+      ),
+    },
     // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
     campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
+    // Les mandats du contrôleur · la doublure honore le dossier et écarte les
+    // mandats terminés par anticipation, comme la base (passe D3, A2).
+    mandatAuditeur: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          mandats
+            .filter((m: any) => m.tenantId === where.tenantId && (where.finAnticipeeLe !== null || m.finAnticipeeLe === null))
+            .sort((a: any, b: any) => b.premierExercice - a.premierExercice),
+        ),
+      ),
+    },
+    // Les RIB du dossier, bornés au dossier comme la base les bornerait · un
+    // RIB d'un autre cabinet ne doit pas sortir en case ZW (passe R2, A7).
+    ribBanque: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { tenantId: string } }) =>
+        Promise.resolve(
+          [
+            { tenantId: 't1', numeroCompte: '00011-0123456-78', iban: null, banque: { intitule: 'RAWBANK' } },
+            { tenantId: 't1', numeroCompte: null, iban: 'CD0800011000123456789', banque: { intitule: 'EQUITY BCDC' } },
+            { tenantId: 'autre', numeroCompte: '999', iban: null, banque: { intitule: 'VOISINE' } },
+          ]
+            .filter((r) => r.tenantId === where.tenantId)
+            .map(({ tenantId: _t, ...r }) => r),
+        ),
+      ),
+    },
   } as unknown as PrismaService;
 
   const syscohada = new EtatsFinanciersSyscohadaService(ecritureService, exerciceService);
@@ -517,13 +562,15 @@ describe('liasse complète · Système normal SYSCOHADA', () => {
     const wb = await ouvrir(buffer);
     const noms = wb.worksheets.map((w) => w.name);
 
-    expect(noms.slice(0, 13)).toEqual([
+    expect(noms.slice(0, 14)).toEqual([
       'BALANCE N',
       'BALANCE N-1',
       'CONTROLE BALANCE',
       'Couverture',
       'Garde',
       'Fiche 1',
+      // La fiche R2 de l'AUDCIF, après la Fiche 1 (passe R2, A3).
+      'Fiche R2',
       'Fiche 2',
       'Bilan paysage',
       'Bilan-Actif',
@@ -537,7 +584,7 @@ describe('liasse complète · Système normal SYSCOHADA', () => {
     // LES 36 NOTES, dans l'ordre officiel du ch. 6 · 46 codes pour 36 numéros
     // de tête (3A à 3F, 15A/15B, 16A/16B/16B bis/16C, 27A/27B). Une seule
     // feuille par code, les sous-tableaux empilés dessus.
-    const feuillesNotes = noms.slice(13, -3);
+    const feuillesNotes = noms.slice(14, -3);
     expect(new Set(feuillesNotes).size).toBe(feuillesNotes.length);
     expect(feuillesNotes).toEqual(CODES_NOTES_CH6.map((c) => `NOTE ${c}`));
     expect(feuillesNotes).toContain('NOTE 16B bis');
@@ -641,6 +688,8 @@ describe('liasse complète · Système minimal de trésorerie SYSCOHADA', () => 
       'NOTE 2 STOCKS',
       'NOTE 3 CREANCES-DETTES',
       'NOTE 4 JOURNAL TRESORERIE',
+      // Les deux journaux de suivi du ch. 3 (passe R2, C4).
+      'JOURNAUX DE SUIVI',
       'TABLE COMMENTAIRE',
       'CONTROLES',
       'ANOMALIES',
@@ -694,6 +743,12 @@ describe('liasse complète · Système minimal de trésorerie SYSCOHADA', () => 
 
     // Une note sans ligne porte la bande NEANT (aucun stock dans ce dossier).
     expect(texteFeuille(wb, 'NOTE 2 STOCKS')).toContain('NEANT');
+    // Journaux de suivi · aux colonnes du texte, NEANT en tenue de trésorerie
+    // pure, la limite de la source dite sous eux (passe R2, C4).
+    const suivi = texteFeuille(wb, 'JOURNAUX DE SUIVI');
+    expect(suivi).toContain('Journal de suivi des créances impayées SMT');
+    expect(suivi).toContain('Date paiement');
+    expect(suivi).toContain('NEANT');
 
     // CONTROLES · les trois seuils de l'art. 13, jamais convertis.
     const ctlSmt = texteFeuille(wb, 'CONTROLES');
@@ -869,3 +924,258 @@ describe('NOTE 1 · les sûretés réelles saisies sortent dans la liasse (passe
     expect(ligneDette.getCell(2).value).toBe('17');
   });
 });
+
+/**
+ * PASSE R2 · la liasse SYSCOHADA confrontée au Titre IX ch. 1 et 2 de l'AUDCIF.
+ */
+describe('Passe R2 · liasse SYSCOHADA et Titre IX ch. 2', () => {
+  it('A1 · la fiche R4 porte en pied le renvoi (1) de l’AUDCIF, pas celui du SYCEBNL', async () => {
+    for (const buffer of [
+      (await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer,
+      (await fabriquerExport().notesSyscohadaExcel('t1', 'e1')).buffer,
+    ]) {
+      const texte = texteFeuille(await ouvrir(buffer), 'NOTES ANNEXES');
+      expect(texte).toContain(
+        '(1) Les Notes non documentées ne doivent pas être jointes aux états financiers. Leur contenu peut être amélioré par les entités.',
+      );
+    }
+  });
+});
+
+describe('Passe R2, C2 · l’écart de G se décompose comme à l’écran', () => {
+  it('nomme les écritures sans trésorerie, jamais les flux hors résultat qui ne participent pas à l’écart', () => {
+    const texte: string = (fabriquerExport() as unknown as {
+      decompositionEcartSmtSyscohada: (c: unknown) => string;
+    }).decompositionEcartSmtSyscohada({
+      residuel: 0,
+      composantesEcart: { classe1: 0, classe2: 320_000, depreciationsTresorerie: 0, autresComptes: 0, dotations: 0 },
+    });
+    expect(texte).toContain('investissement enregistré sans passer par la trésorerie 320');
+    expect(texte).toContain('résiduel 0.');
+  });
+
+  it('la feuille ANOMALIES et l’export du compte de résultat appellent cette décomposition', () => {
+    // Propriété du câblage · les deux documents remis lisent le même texte.
+    const source = require('fs').readFileSync(require('path').join(__dirname, 'export.service.ts'), 'utf8') as string;
+    expect(source.match(/this\.decompositionEcartSmtSyscohada\(cr\.controle\)/g)?.length).toBe(2);
+  });
+});
+
+describe('Passe R2, A2 · l’unité monétaire sur chaque page de la liasse', () => {
+  it('le cartouche de Bilan-Actif, Résultat, TFT et des notes porte « Montants en CDF », sans écraser la date d’arrêté', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    for (const nom of ['Bilan-Actif', 'Bilan-Passif', 'Résultat', 'TFT', 'NOTES ANNEXES', 'NOTE 1']) {
+      const ligne6: string[] = [];
+      wb.getWorksheet(nom)!.getRow(6).eachCell((c) => ligne6.push(String(c.value ?? '')));
+      expect({ nom, monnaie: ligne6.some((t) => t.includes('Montants en CDF')) }).toEqual({ nom, monnaie: true });
+      expect({ nom, arrete: ligne6.some((t) => t.includes("Date d'arrêté des comptes non renseignée")) }).toEqual({
+        nom,
+        arrete: true,
+      });
+    }
+  });
+});
+
+describe('Passe R2, A2 · page étroite', () => {
+  it('sur trois colonnes, la monnaie suit la date d’arrêté dans la même cellule, jamais par-dessus', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { ecrireCartouche } = require('./theme-etafi') as typeof import('./theme-etafi');
+    const ws = new ExcelJS.Workbook().addWorksheet('X');
+    ecrireCartouche(
+      ws,
+      { entite: 'E', nif: '', exercice: '2026', dateDebut: '', dateFin: '', duree: '12', adresse: '', sigle: '', ntd: '', dateArrete: '15/03/2027', monnaie: 'CDF' },
+      'P',
+      3,
+    );
+    expect(String(ws.getCell(6, 3).value)).toBe('Comptes arrêtés le 15/03/2027 · Montants en CDF');
+  });
+});
+
+describe('Passe R2, A4 et A5 · Fiche 2 et page de garde du Système normal SYSCOHADA', () => {
+  it('A4 · la Fiche 2 porte les deux blocs de la fiche R3 et le renvoi (1) qui définit les dirigeants', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    const texte = texteFeuille(wb, 'Fiche 2');
+    expect(texte).toContain('DIRIGEANTS (1)');
+    expect(texte).toContain("MEMBRES DU CONSEIL D'ADMINISTRATION");
+    expect(texte).toContain(
+      '(1) Dirigeants = Président Directeur Général, Directeur Général, Administrateur Général, Gérant, Autres.',
+    );
+  });
+
+  it('A5 · la page de garde porte les quatre mentions et la zone réservée à la DGI, rangs du bandeau inchangés', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    const texte = texteFeuille(wb, 'Garde');
+    for (const m of ['REPUBLIQUE', 'MINISTERE', 'DIRECTION', 'CENTRE DE DEPOT DE']) expect(texte).toContain(m);
+    expect(texte).toContain('Réservé à la Direction Générale des Impôts');
+    expect(texte).toContain("Nom de l'agent de la DGI ayant réceptionné le dépôt");
+    const garde = wb.getWorksheet('Garde')!;
+    expect(String(garde.getCell(12, 2).value)).toContain('SYSTEME COMPTABLE OHADA (SYSCOHADA)');
+    expect(String(garde.getCell(32, 2).value)).toBe('SYSTEME NORMAL');
+  });
+
+  it('A5 · la garde du S.M.T SYSCOHADA ne reçoit pas la contexture du Titre IX', async () => {
+    const wb = await ouvrir(
+      (await fabriquerExport(SystemeComptableSyscohada.MINIMAL_TRESORERIE).liasseCompleteExcel('t1', 'e1')).buffer,
+    );
+    expect(texteFeuille(wb, 'Garde')).toContain("Réservé à l'administration");
+  });
+});
+
+describe('Passe R2, A7 · domiciliations bancaires en case ZW', () => {
+  it('la Fiche 1 du Système normal porte les RIB du dossier, banque et numéro ou IBAN', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    let zw = '';
+    wb.getWorksheet('Fiche 1')!.eachRow((row) => {
+      if (row.getCell(1).value === 'ZW') zw = String(row.getCell(7).value ?? '');
+    });
+    expect(zw).toBe('RAWBANK 00011-0123456-78 · EQUITY BCDC CD0800011000123456789');
+  });
+});
+
+describe('Passe R6, E15 · NOTE 1 du S.M.T SYSCOHADA dans le classeur', () => {
+  it('le total ne porte que les biens détenus, le bien sorti dans l’exercice est présenté à part', async () => {
+    const exportService = fabriquerExport(SystemeComptableSyscohada.MINIMAL_TRESORERIE, [], [
+      { designation: 'Vitrine', valeurOrigine: 400_000, compteImmobilisationId: 'id-24440000', dateAcquisition: new Date('2025-03-01'), dateSortie: null, prixCession: null },
+      { designation: 'Balance cédée', valeurOrigine: 150_000, compteImmobilisationId: 'id-24440000', dateAcquisition: new Date('2024-03-01'), dateSortie: new Date('2026-05-31'), prixCession: 60_000 },
+    ]);
+    const wb = await ouvrir((await exportService.notesSmtSyscohadaExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 1 MATERIEL-CAUTIONS')!;
+    let rangTotal = 0;
+    let rangSorties = 0;
+    let rangCede = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(2).value === 'TOTAL DES BIENS DÉTENUS À LA CLÔTURE') rangTotal = n;
+      if (row.getCell(1).value === "Biens sortis pendant l'exercice · hors du total") rangSorties = n;
+      if (row.getCell(2).value === 'Balance cédée') rangCede = n;
+    });
+    expect(ws.getCell(rangTotal, 3).value).toBe(400_000);
+    expect(rangSorties).toBeGreaterThan(rangTotal);
+    expect(rangCede).toBeGreaterThan(rangSorties);
+    expect(ws.getCell(rangCede, 5).value).toBe(60_000);
+    // Aucune écriture 24 dans ce jeu d'essai · la fiche détenue est nommée
+    // sans solde, le rapprochement est dit sous la note.
+    expect(texteFeuille(wb, 'NOTE 1 MATERIEL-CAUTIONS').join(' ')).toContain('Fiche sans solde au compte : Vitrine');
+  });
+});
+
+describe('Passe D3, A2 · commissaire aux comptes en case ZR de la Fiche 1', () => {
+  const caseFiche = async (mandats: Array<Record<string, unknown>>) => {
+    const wb = await ouvrir((await fabriquerExport(SystemeComptableSyscohada.NORMAL, [], [], mandats).liasseCompleteExcel('t1', 'e1')).buffer);
+    let zr = '';
+    wb.getWorksheet('Fiche 1')!.eachRow((row) => {
+      if (row.getCell(1).value === 'ZR') zr = String(row.getCell(7).value ?? '');
+    });
+    return zr;
+  };
+
+  it('préremplit le mandat qui couvre l’exercice, jamais un mandat échu, terminé ou d’un autre dossier', async () => {
+    const zr = await caseFiche([
+      { tenantId: 't1', nom: 'Cabinet Ancien', inscriptionOrdre: 'ONEC-001', premierExercice: 2020, nombreExercices: 3, finAnticipeeLe: null },
+      { tenantId: 't1', nom: 'Cabinet Révoqué', inscriptionOrdre: 'ONEC-009', premierExercice: 2026, nombreExercices: 3, finAnticipeeLe: new Date('2026-04-01') },
+      { tenantId: 't1', nom: 'Cabinet Kasongo', inscriptionOrdre: 'ONEC-042', premierExercice: 2025, nombreExercices: 3, finAnticipeeLe: null },
+      { tenantId: 'autre', nom: 'Voisin', inscriptionOrdre: 'ONEC-777', premierExercice: 2026, nombreExercices: 6, finAnticipeeLe: null },
+    ]);
+    expect(zr).toBe("Cabinet Kasongo · inscription à l'Ordre : ONEC-042");
+  });
+
+  it('sans mandat couvrant, la case reste vide', async () => {
+    expect(
+      await caseFiche([{ tenantId: 't1', nom: 'Cabinet Ancien', inscriptionOrdre: 'ONEC-001', premierExercice: 2020, nombreExercices: 3, finAnticipeeLe: null }]),
+    ).toBe('');
+  });
+});
+
+
+describe('Passe R2, C5 · la NOTE 4 du S.M.T SYSCOHADA est un journal mensuel', () => {
+  it('un bloc par mois mouvementé, titré comme le texte, le report d’un mois étant le solde à reporter du précédent', async () => {
+    const wb = await ouvrir((await fabriquerExport(SystemeComptableSyscohada.MINIMAL_TRESORERIE).notesSmtSyscohadaExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 4 JOURNAL TRESORERIE')!;
+    const rangs = (texte: string, col: number) => {
+      const t: number[] = [];
+      ws.eachRow((row, n) => {
+        if (row.getCell(col).value === texte) t.push(n);
+      });
+      return t;
+    };
+    const [mars] = rangs('Journal de trésorerie SMT · mois de mars Année 2026', 1);
+    const [juin] = rangs('Journal de trésorerie SMT · mois de juin Année 2026', 1);
+    expect(mars).toBeGreaterThan(0);
+    expect(juin).toBeGreaterThan(mars);
+    const reports = rangs('Report à nouveau', 2);
+    const soldes = rangs('Solde à reporter', 2);
+    expect(reports.length).toBe(2);
+    expect(soldes.length).toBe(2);
+    // Le premier report est l'ouverture, le second relit le solde de mars.
+    expect(ws.getCell(reports[0], 5).value).toBe(50_000);
+    expect(formuleDe(ws.getCell(reports[1], 5))).toBe(`E${soldes[0]}`);
+  });
+});
+
+describe('Passe R2, A3 et B6 · fiche R2 du Système normal SYSCOHADA', () => {
+  const caseR2 = (wb: ExcelJS.Workbook, code: string) => {
+    let v = '';
+    wb.getWorksheet('Fiche R2')!.eachRow((row) => {
+      if (row.getCell(1).value === code && !v) v = String(row.getCell(7).value ?? '');
+    });
+    return v;
+  };
+
+  it('lit ZK, ZL et ZM dans les rubriques en saisie de la NOTE 36, seul porteur des codes', async () => {
+    const exportService = fabriquerExport(SystemeComptableSyscohada.NORMAL, [
+      { exerciceId: 'e1', codeNote: '36', cleRubrique: '1-code-forme-juridique-1', colonne: 0, valeurTexte: '12' },
+      { exerciceId: 'e1', codeNote: '36', cleRubrique: '2-code-regime-fiscal', colonne: 0, valeurTexte: '1' },
+      { exerciceId: 'e1', codeNote: '36', cleRubrique: '3-code-pays-du-siege-social-2', colonne: 0, valeurTexte: '17' },
+    ]);
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    expect(caseR2(wb, 'ZK')).toBe('12');
+    expect(caseR2(wb, 'ZL')).toBe('1');
+    expect(caseR2(wb, 'ZM')).toBe('17');
+  });
+
+  it('non déclarés, rien n’est présumé · ZK proposé en clair pour une forme univoque, ZL et ZM non renseignés', async () => {
+    // La doublure du tenant ne porte pas de forme · SARL posée ici.
+    const e = fabriquerExport();
+    const prisma = (e as unknown as { prisma: { tenant: { findUniqueOrThrow: jest.Mock } } }).prisma;
+    prisma.tenant.findUniqueOrThrow.mockResolvedValue({ ...TENANT, formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE' });
+    const wb = await ouvrir((await e.liasseCompleteExcel('t1', 'e1')).buffer);
+    expect(caseR2(wb, 'ZK')).toBe('Non renseigné · la NOTE 36 donne 02 (12 avec agrément prioritaire)');
+    expect(caseR2(wb, 'ZL')).toBe('Non renseigné · à déclarer à la NOTE 36');
+    const texte = texteFeuille(wb, 'Fiche R2');
+    expect(texte).toContain("Contrôle de l'entreprise : entreprise sous contrôle privé national [texte officiel : code ZQ employé deux fois]");
+    expect(texte).toContain('(3) Rayer la mention inutile (utiliser de préférence la VA).');
+  });
+
+  it('une SA n’est jamais codée d’office · 00 ou 01 dépend d’une participation publique que le dossier ne porte pas', async () => {
+    const e = fabriquerExport();
+    const prisma = (e as unknown as { prisma: { tenant: { findUniqueOrThrow: jest.Mock } } }).prisma;
+    prisma.tenant.findUniqueOrThrow.mockResolvedValue({ ...TENANT, formeJuridiqueSyscohada: 'SOCIETE_ANONYME' });
+    const wb = await ouvrir((await e.liasseCompleteExcel('t1', 'e1')).buffer);
+    expect(caseR2(wb, 'ZK')).toBe('Non renseigné · à déclarer à la NOTE 36');
+  });
+
+  it('le CA HT et la VA de la liasse sont relus sur la feuille Résultat, par leur code REF', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('Fiche R2')!;
+    const formules: string[] = [];
+    ws.eachRow((row) => {
+      const f = (row.getCell(7).value as { formula?: string } | null)?.formula;
+      if (f) formules.push(f);
+    });
+    expect(formules).toEqual([
+      `INDEX('Résultat'!D:D,MATCH("XB",'Résultat'!A:A,0))`,
+      `INDEX('Résultat'!D:D,MATCH("XC",'Résultat'!A:A,0))`,
+    ]);
+    // La colonne D de la feuille Résultat porte bien le montant de N sur XB.
+    const rangs = rangsParRef(wb.getWorksheet('Résultat')!);
+    expect(wb.getWorksheet('Résultat')!.getCell(rangs.get('XB')!, 4).value).not.toBeNull();
+    expect(wb.getWorksheet('Résultat')!.getCell(8, 4).value).toBe('EXERCICE AU 31/12/N');
+  });
+
+  it('le S.M.T SYSCOHADA ne reçoit pas de fiche R2 · le Titre X n’en porte pas', async () => {
+    const wb = await ouvrir(
+      (await fabriquerExport(SystemeComptableSyscohada.MINIMAL_TRESORERIE).liasseCompleteExcel('t1', 'e1')).buffer,
+    );
+    expect(wb.worksheets.map((w) => w.name)).not.toContain('Fiche R2');
+  });
+});
+

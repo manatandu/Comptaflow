@@ -1,3 +1,4 @@
+import { renvoisDuPlanSyscohada } from './renvois-plan-syscohada';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
@@ -67,6 +68,16 @@ export class CompteService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  /**
+   * Les renvois annexés au plan, pour un dossier SYSCOHADA seul
+   * (renvois-plan-syscohada.ts) · le plan SYCEBNL n'en porte aucun, et ses
+   * numéros ne disent pas la même chose.
+   */
+  async renvoisDuPlan(tenantId: string) {
+    const dossier = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { referentiel: true } });
+    return dossier?.referentiel === Referentiel.SYSCOHADA ? renvoisDuPlanSyscohada() : [];
   }
 
   async lister(

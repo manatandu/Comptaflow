@@ -207,12 +207,26 @@ describe('Nomenclature des stocks · ce qui est NOMMÉ hors de la variation auto
     expect(variationDuCompte('34100000', Referentiel.SYSCOHADA)?.variation).toBe('7341');
   });
 
-  it('les stocks en cours de route disent que le 603 dépend de la NATURE du bien', () => {
-    // SYSCOHADA au 38, SYCEBNL au 37 · le même objet sous deux numéros.
-    const route = motifHorsVariation('38100000', Referentiel.SYSCOHADA);
-    expect(route?.motif).toContain('CONCERNÉS');
+  it('les stocks en cours de route 381 à 383 du SYSCOHADA ont LEUR 603 · la nature est dans le numéro', () => {
+    // Passe R1, B2 · AUDCIF Titre VII, compte 38 : 381 marchandises, 382
+    // matières premières, 383 autres approvisionnements en cours de route,
+    // « par le crédit des sous-comptes 603 concernés », que les fiches 31,
+    // 32 et 33 nomment (6031, 6032, 6033).
+    for (const [compte, variation] of [
+      ['38100000', '6031'],
+      ['38200000', '6032'],
+      ['38300000', '6033'],
+    ]) {
+      expect(motifHorsVariation(compte, Referentiel.SYSCOHADA)).toBeNull();
+      expect(variationDuCompte(compte, Referentiel.SYSCOHADA)?.variation).toBe(variation);
+    }
+    // Le 386 et le 387, eux, restent à la main, chacun avec son motif.
+    expect(motifHorsVariation('38600000', Referentiel.SYSCOHADA)?.motif).toContain('ANOMALIE DU TEXTE');
+    expect(motifHorsVariation('38710000', Referentiel.SYSCOHADA)?.racine).toBe('387');
+    // Rien n'est transposé au SYCEBNL · son 37 garde son refus.
     const routeEbnl = motifHorsVariation('37200000', Referentiel.SYCEBNL);
     expect(routeEbnl?.motif).toContain('603');
+    expect(variationDuCompte('38100000', Referentiel.SYCEBNL)).toBeNull();
   });
 
   it('la dépréciation n’est pas une variation · elle passe par le 6593 et le 7593', () => {
@@ -230,8 +244,8 @@ describe('388 · hors de la variation automatique, avec SON mécanisme', () => {
     const m = motifHorsVariation('38800000', Referentiel.SYSCOHADA);
     expect(m?.racine).toBe('388');
     expect(m?.motif).toContain('le compte 388 est SOLDÉ par le débit du compte 603');
-    // Le 381 reste, lui, un stock en cours de route.
-    expect(motifHorsVariation('38100000', Referentiel.SYSCOHADA)?.racine).toBe('38');
+    // Le 381 reste, lui, un stock en cours de route, servi par le 6031.
+    expect(variationDuCompte('38100000', Referentiel.SYSCOHADA)?.variation).toBe('6031');
   });
 
   it('le 378 du SYCEBNL est le même objet, avec son motif propre et sans la règle de l’AUDCIF', () => {

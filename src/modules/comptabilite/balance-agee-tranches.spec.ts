@@ -221,9 +221,12 @@ describe('balance âgée · les périmètres et ce que l’antériorité y signi
       expect(PERIMETRES_BALANCE_AGEE[cle].lecture).toContain('AUCUN CRÉDIT COMMERCIAL');
     }
     // Le 47 est le seul des nouveaux où l'antériorité garde tout son sens ·
-    // « les dettes et créances AUTRES que celles liées à l'activité » ne
-    // sortent pas toutes seules.
+    // des opérations « en instance de régularisation » (Contenu du COMPTE 47)
+    // n'ont pas vocation à rester ouvertes.
     expect(PERIMETRES_BALANCE_AGEE.DIVERS_47.lecture).not.toContain('AUCUN CRÉDIT COMMERCIAL');
+    // Passe R1, B1 · la citation est celle du Contenu du COMPTE 47, lue à
+    // l'AUDCIF Titre VII (titre-7-comptes-classe-4.md), et non celle du 45.
+    expect(PERIMETRES_BALANCE_AGEE.DIVERS_47.lecture).toContain('EN INSTANCE DE RÉGULARISATION');
   });
 
   it('la lecture voyage avec l’état · sans elle le même tableau se lit de travers', async () => {

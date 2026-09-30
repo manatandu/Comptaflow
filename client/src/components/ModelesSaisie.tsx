@@ -37,7 +37,7 @@ export interface LigneInseree {
  *    l'API /operations-specifiques qui les chiffre contre le référentiel.
  */
 
-import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
+import { modelesSimplesDuDossier, type ModeleSimple } from '../lib/modeles-saisie';
 import { ordonnerLignes } from '../lib/ordre-ecriture';
 import { construireLigneTva, montantTva } from '../lib/tva-saisie';
 import { PortailModale } from './PortailModale';
@@ -107,7 +107,9 @@ export function ModelesSaisieModale({
 }) {
   const { utilisateur } = useAuth();
   const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
-  const modelesSimples = estSyscohada ? MODELES_SIMPLES_SYSCOHADA : MODELES_SIMPLES_SYCEBNL;
+  // Le jeu suit le référentiel ET le système · un dossier au S.M.T tient une
+  // comptabilité de trésorerie (passe R2, constat C3).
+  const modelesSimples = modelesSimplesDuDossier(utilisateur?.tenant);
   const [catalogue, setCatalogue] = useState<CatalogueOperations | null>(null);
   // LES TAUX PARTENT DE null ET LEUR REFUS SE DIT (audit final F255) · lu
   // comme une liste vide, un refus laissait la liste des taux vide sans un

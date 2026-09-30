@@ -449,3 +449,23 @@ export function fondementInscription(
         : ''),
   };
 }
+
+/**
+ * LE MANDAT QUI COUVRE UN EXERCICE · le premier des mandats servis dont la
+ * période (premier exercice, puis `nombreExercices` années, bornes incluses)
+ * contient l'année de clôture. Une seule règle pour le contrôle 28 et la
+ * Fiche 1 de la liasse (case du commissaire aux comptes) · deux lectures
+ * écrites à part auraient divergé au premier correctif. Les mandats arrivent
+ * triés par premier exercice décroissant et privés de ceux terminés par
+ * anticipation, comme le contrôle les lit. Un mandat échu mais prorogé n'est
+ * PAS « couvrant » · la prorogation se lit à part (`estDansLaProrogation`).
+ */
+export function mandatCouvrant<T extends { premierExercice: number; nombreExercices: number }>(
+  mandats: readonly T[],
+  anneeExercice: number,
+): T | undefined {
+  return mandats.find(
+    (m) => m.premierExercice <= anneeExercice && dernierExerciceCouvert(m.premierExercice, m.nombreExercices) >= anneeExercice,
+  );
+}
+

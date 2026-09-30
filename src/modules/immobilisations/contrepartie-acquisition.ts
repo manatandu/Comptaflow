@@ -1,4 +1,4 @@
-import { Referentiel } from '@prisma/client';
+import { Referentiel, TypeComposant } from '@prisma/client';
 
 /**
  * LA CONTREPARTIE D'UNE ACQUISITION D'IMMOBILISATION · une liste FERMÉE, lue
@@ -17,15 +17,49 @@ import { Referentiel } from '@prisma/client';
  * SYCEBNL, Partie 2 ch. 3, comptes 21 à 24 · « par le crédit du compte 10 –
  * Dotation, ou du compte 16 – Fonds affectés aux investissements du projet de
  * développement et assimilés, ou du compte 45 – Fondateurs, ou des comptes de
- * tiers, ou des comptes de trésorerie ». Pas de 72 dans ces fiches.
+ * tiers, ou des comptes de trésorerie ». Le 72 n'y figure pas, mais la fiche du
+ * compte 72 le fait créditer par le débit des 21, 23 ou 24 (voir plus bas).
  *
  * LA NATURE DU BIEN CHOISIT LE SOUS-COMPTE DU FOURNISSEUR · 4811 et 4821
  * (et 4041, 4046 au SYSCOHADA) pour un incorporel (21), 4812 et 4822 (4042,
- * 4047) pour un corporel. Les 4813 (titres non libérés) et 4817 (retenues de
- * garantie) ne sont pas des contreparties d'acquisition d'un bien.
+ * 4047) pour un corporel. Le 4817 (retenues de garantie) n'est pas une
+ * contrepartie d'acquisition d'un bien.
  *
- * Les en-cours (219, 229, 239, 249) qui se soldent à l'achèvement ne passent
- * pas par la création d'une fiche · ils ne sont pas ici.
+ * CE QUE LES FICHES DU BIEN AJOUTENT À CE SOCLE (passe R1, A2 et R5, B2 ·
+ * 2026-09-30), chacune lue dans la fiche du compte du bien et servie à lui
+ * seul. Jusque-là, ce commentaire affirmait que le 4813 « n'est pas une
+ * contrepartie d'acquisition d'un bien » et que les en-cours « ne passent
+ * pas par la création d'une fiche » · les deux étaient contraires au texte,
+ * et un bâtiment achevé depuis le 2391 ne pouvait naître au registre que sur
+ * une contrepartie fausse, le 2391 restant au bilan à côté du bien.
+ *
+ *   · L'EN-COURS ACHEVÉ · AUDCIF, fiches 21 à 24 (« ou du 219 / 229 / 239 /
+ *     249, lorsque [les travaux] sont terminés ») ; SYCEBNL, fiches 23 et 24
+ *     seulement (« ou du compte 239 », « ou du compte 249 »), ses fiches 21
+ *     et 22 n'en disent rien. Jamais pour un bien porté lui-même sur l'en-cours.
+ *   · L'AVANCE SOLDÉE · fiche 25 des deux textes, « crédité, pour solde, à la
+ *     réception de la facture définitive […] par le débit du compte
+ *     d'immobilisation concerné » · 251 pour un incorporel, 252 pour un
+ *     corporel (subdivisions semées aux deux plans).
+ *   · LA PART NON LIBÉRÉE DES TITRES · fiches 26 et 27 des deux textes, « ou
+ *     du 4813 […], pour la partie non libérée des titres » · pour un 26 ou un
+ *     27 seulement.
+ *   · LE DÉMANTÈLEMENT · AUDCIF, introduction de la classe 2 (bien acquis à
+ *     titre onéreux) : « le SYSCOHADA autorise que le sous-compte composant
+ *     démantèlement soit débité directement par le crédit du 1984 » · pour
+ *     un composant de type DEMANTELEMENT seulement, au SYSCOHADA seulement.
+ *   · LA SUBVENTION EN NATURE · SYCEBNL, fiche 14 : « crédité […] par le
+ *     débit du compte approprié de la classe 2, sur la base de l'évaluation
+ *     des immobilisations transférées gratuitement ».
+ *   · LE FONDS REPORTÉ · SYCEBNL, fiche 20 : « débité le compte 20 de la
+ *     valeur actuelle ; par le crédit du compte 17 – Fonds reportés » · pour
+ *     un bien de la division 20 seulement, 171 (donation temporaire
+ *     d'usufruit) pour le 2011, 172 (legs et donations non encore reçus
+ *     d'immobilisations destinées à la vente) pour les autres, d'après les
+ *     intitulés semés.
+ *   · LA PRODUCTION IMMOBILISÉE · SYCEBNL, fiche 72 : « crédité […] par le
+ *     débit : du compte 21 […] du compte 23 […] ou 24 » · pour ces trois
+ *     divisions seulement.
  */
 const TRESORERIE = ['52', '53', '55', '57'];
 
@@ -66,27 +100,87 @@ const PROPRES: Record<Referentiel, readonly string[]> = {
   [Referentiel.SYSCOHADA]: ['101', '102', '103', '104', '46', '72'],
   // Dotations (101, 102, 104) · le 103 est le droit d'entrée des membres,
   // le 106 les écarts de réévaluation. Fonds affectés aux investissements
-  // (162 à 165) et dons et legs d'immobilisations (167) · jamais le 161,
-  // avances de fonds à justifier, ni le 169, fonds à recevoir.
+  // (162 à 164), fonds affectés à un projet spécifique (165, que sa fiche
+  // fait créditer « par le débit du compte 52 lors de la mise à disposition »
+  // et reprendre par le 7925 · admis tel quel, sans rien trancher ici) et
+  // dons et legs d'immobilisations (167) · jamais le 161, avances de fonds à
+  // justifier, ni le 169, fonds à recevoir.
   [Referentiel.SYCEBNL]: ['101', '102', '104', '162', '163', '164', '165', '167', '45'],
 };
 
-export function racinesContrepartieAcquisition(referentiel: Referentiel, compteImmobilisation: string): string[] {
+export interface OptionsContrepartie {
+  /** Le type du composant créé, pour la seule contrepartie qu'il ouvre (1984). */
+  typeComposant?: TypeComposant | null;
+}
+
+/** Ce que la fiche du compte du bien ajoute au socle commun (voir l'en-tête). */
+function racinesDeLaFiche(referentiel: Referentiel, compte: string, options: OptionsContrepartie): string[] {
+  const division = compte.slice(0, 2);
+  const ajouts: string[] = [];
+  const enCours = `${division}9`;
+  const enCoursAdmis =
+    referentiel === Referentiel.SYSCOHADA ? ['21', '22', '23', '24'] : ['23', '24'];
+  if (enCoursAdmis.includes(division) && !compte.startsWith(enCours)) ajouts.push(enCours);
+  if (['21', '22', '23', '24'].includes(division)) ajouts.push(division === '21' ? '251' : '252');
+  if (division === '26' || division === '27') ajouts.push('4813');
+  if (referentiel === Referentiel.SYSCOHADA) {
+    if (options.typeComposant === TypeComposant.DEMANTELEMENT) ajouts.push('1984');
+  } else {
+    ajouts.push('14');
+    if (division === '20') ajouts.push(compte.startsWith('2011') ? '171' : '172');
+    if (['21', '23', '24'].includes(division)) ajouts.push('72');
+  }
+  return ajouts;
+}
+
+export function racinesContrepartieAcquisition(
+  referentiel: Referentiel,
+  compteImmobilisation: string,
+  options: OptionsContrepartie = {},
+): string[] {
   const incorporel = compteImmobilisation.startsWith('21');
   const fournisseurs = incorporel ? [...FOURNISSEURS_INCORPORELS[referentiel]] : [...FOURNISSEURS_CORPORELS[referentiel]];
   if (referentiel === Referentiel.SYSCOHADA) fournisseurs.push(...(incorporel ? ['4041', '4046'] : ['4042', '4047']));
-  return [...PROPRES[referentiel], ...fournisseurs, ...TRESORERIE];
+  return [
+    ...PROPRES[referentiel],
+    ...fournisseurs,
+    ...TRESORERIE,
+    ...racinesDeLaFiche(referentiel, compteImmobilisation, options),
+  ];
 }
 
-export function contrepartieAcquisitionAdmise(referentiel: Referentiel, compteImmobilisation: string, contrepartie: string): boolean {
-  return racinesContrepartieAcquisition(referentiel, compteImmobilisation).some((r) => contrepartie.startsWith(r));
+export function contrepartieAcquisitionAdmise(
+  referentiel: Referentiel,
+  compteImmobilisation: string,
+  contrepartie: string,
+  options: OptionsContrepartie = {},
+): boolean {
+  return racinesContrepartieAcquisition(referentiel, compteImmobilisation, options).some((r) =>
+    contrepartie.startsWith(r),
+  );
 }
 
-export function motifRefusContrepartie(referentiel: Referentiel, compteImmobilisation: string, contrepartie: string): string | null {
-  if (contrepartieAcquisitionAdmise(referentiel, compteImmobilisation, contrepartie)) return null;
-  const texte =
+/**
+ * Le refus nomme la FICHE DU COMPTE DU BIEN et la liste que le logiciel en
+ * tire pour lui · jusqu'au 2026-09-30, il citait un résumé commun aux 21 à
+ * 24 comme s'il était exhaustif, et attribuait au Titre VII une exclusion
+ * qu'il n'écrit pas.
+ */
+export function motifRefusContrepartie(
+  referentiel: Referentiel,
+  compteImmobilisation: string,
+  contrepartie: string,
+  options: OptionsContrepartie = {},
+): string | null {
+  if (contrepartieAcquisitionAdmise(referentiel, compteImmobilisation, contrepartie, options)) return null;
+  const division = compteImmobilisation.slice(0, 2);
+  const fiche =
     referentiel === Referentiel.SYSCOHADA
-      ? 'AUDCIF, Titre VII, comptes 21 à 24 : capital (10), apporteurs (46), fournisseurs d’investissements (481, 482, 404), trésorerie, production immobilisée (72)'
-      : 'SYCEBNL, Partie 2 ch. 3, comptes 21 à 24 : dotation (10), fonds affectés aux investissements (16), fondateurs (45), fournisseurs d’investissements (481), trésorerie';
-  return `Le compte ${contrepartie} n'est pas une contrepartie d'acquisition d'immobilisation · ${texte}.`;
+      ? `AUDCIF, Titre VII, fiche du compte ${division}`
+      : `SYCEBNL, Partie 2 ch. 3, fiche du compte ${division}`;
+  const racines = racinesContrepartieAcquisition(referentiel, compteImmobilisation, options);
+  return (
+    `Le compte ${contrepartie} n'est pas une contrepartie d'acquisition admise pour un bien au ${compteImmobilisation} · ` +
+    `${fiche}. Racines admises : ${racines.join(', ')}.`
+  );
 }

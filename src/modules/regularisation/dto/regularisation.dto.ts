@@ -1,3 +1,4 @@
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 import { IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import type { NatureTiersRattachement } from '../regularisation.service';
 import { PeriodiciteAbonnement, TypeRegularisation } from '@prisma/client';
@@ -59,6 +60,17 @@ export class CreerRegularisationDto {
   @IsOptional()
   @IsIn(['FOURNISSEURS', 'CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'])
   natureTiers?: NatureTiersRattachement;
+
+  /**
+   * TVA d'une charge à payer (4455) ou d'un produit à recevoir (4435), au
+   * SYSCOHADA · DÉCLARÉE par le comptable (AUDCIF, Titre VII, fiches des
+   * comptes 40 et 41, « si la TVA est récupérable », « si le bien entre dans
+   * le champ d'application de la TVA »), jamais posée d'office.
+   */
+  @FacultatifNonNul('La TVA du rattachement ne peut pas être nulle · omettez le champ, ou indiquez 0.')
+  @IsNumber()
+  @Min(0)
+  montantTva?: number;
 }
 
 export class CreerAbonnementDto {

@@ -392,6 +392,14 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
       expect(n34.horsBalance).toBe(true);
     });
 
+    it('passe R2, B3 · la spécification dit que la note reste EN SAISIE, jamais qu’un service la calcule', () => {
+      // Le commentaire affirmait un calcul qu'aucun service ne fait · un
+      // lecteur le prenait pour acquis. Chaque rubrique est bien en saisie.
+      expect(noteUnique('34').rubriques.every((r) => r.saisie === true)).toBe(true);
+      const source = require('fs').readFileSync(require('path').join(__dirname, 'correspondance-notes-syscohada-3.ts'), 'utf8') as string;
+      expect(source).toContain('AUCUN SERVICE NE LA CALCULE ENCORE (passe R2, constat B3)');
+    });
+
     it('chaque terme vise un poste qui existe dans les états SYSCOHADA codés, une feuille du plan, ou une ligne ANTÉRIEURE', () => {
       FICHE_SYNTHESE_SYSCOHADA.forEach((l, i) => {
         const termes = [...(l.termes ?? []), ...(l.ratio?.numerateur ?? []), ...(l.ratio?.denominateur ?? [])];

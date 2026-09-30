@@ -431,6 +431,39 @@ export class RegularisationService {
   }
 
   /** Charge à payer ou produit à recevoir · la règle que `simuler` et `creer` lisent. */
+  /**
+   * LE COMPTE DE LA TVA D'UN RATTACHEMENT · SYSCOHADA seul, et pour deux
+   * natures seulement (passe R1, B4).
+   *
+   * AUDCIF, Titre VII, compte 40 · « utiliser le compte 408 […] en
+   * contrepartie des comptes de la classe 6 et du compte 4455 si la TVA est
+   * récupérable » ; compte 41 · « utiliser le compte 418 […] en contrepartie
+   * des comptes de la classe 7 et du compte 4435 si le bien entre dans le
+   * champ d'application de la TVA ». Sans place pour elle, le comptable
+   * saisissait un TTC en charge (charge surévaluée de la taxe) ou un HT au 408
+   * (dette sous-évaluée), et l'extourne reproduisait le défaut.
+   *
+   * La TVA est DÉCLARÉE par le comptable, jamais posée d'office · « si la TVA
+   * est récupérable », « si le bien entre dans le champ » sont des
+   * conditions que seul le dossier connaît. La ligne ne porte aucun taux ·
+   * son sort dans la déclaration de TVA relève du module fiscal et n'est pas
+   * supposé ici.
+   *
+   * Le SYCEBNL écrit la même règle à ses fiches 40 et 41, mais son plan
+   * n'ouvre ni 4435 ni 4455 (443 et 445 non subdivisés) · rien n'est
+   * transposé, un compte absent de son plan serait refusé à la saisie.
+   */
+  static compteTvaRattachement(
+    referentiel: Referentiel,
+    nature: NatureTiersRattachement | undefined,
+    type: TypeRegularisation,
+  ): string | null {
+    if (referentiel !== Referentiel.SYSCOHADA) return null;
+    if (type === TypeRegularisation.CHARGE_A_PAYER && nature === 'FOURNISSEURS') return '4455';
+    if (type === TypeRegularisation.PRODUIT_A_RECEVOIR && nature === 'CLIENTS') return '4435';
+    return null;
+  }
+
   static estRattachement(type: TypeRegularisation): boolean {
     return type === TypeRegularisation.CHARGE_A_PAYER || type === TypeRegularisation.PRODUIT_A_RECEVOIR;
   }
@@ -505,6 +538,32 @@ export class RegularisationService {
       throw new BadRequestException('La part différée dépasse le montant total.');
     }
 
+    // LA TVA DU RATTACHEMENT (`compteTvaRattachement`) · refusée là où la
+    // fiche ne la prévoit pas, plutôt qu'ignorée, qui passerait une écriture
+    // différente de celle que le comptable a saisie.
+    const montantTva = dto.montantTva ?? 0;
+    let compteTva: { id: string } | null = null;
+    if (montantTva > 0) {
+      const dossier = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { referentiel: true } });
+      if (!dossier) throw new BadRequestException('Dossier introuvable');
+      const racineTva = RegularisationService.compteTvaRattachement(dossier.referentiel, dto.natureTiers, dto.type);
+      if (!racineTva) {
+        throw new BadRequestException(
+          "La TVA ne s'ajoute qu'à une charge à payer sur un fournisseur (4455) ou à un produit à recevoir sur un " +
+            'client (4435), au SYSCOHADA · AUDCIF, Titre VII, fiches des comptes 40 et 41.',
+        );
+      }
+      compteTva = await this.prisma.compte.findFirst({
+        where: { tenantId, numero: { startsWith: racineTva } },
+        orderBy: { numero: 'asc' },
+        select: { id: true },
+      });
+      if (!compteTva) {
+        throw new BadRequestException(`Le compte ${racineTva} n'existe pas dans le plan de ce dossier.`);
+      }
+    }
+    const montantTiers = Math.round((montantDiffere + montantTva) * 100) / 100;
+
     const journal = await this.journalAccueil(tenantId, dto.journalId);
 
     // SENS DE L'ÉCRITURE · et il S'INVERSE entre l'étalement et le
@@ -521,14 +580,19 @@ export class RegularisationService {
     // boucherait. Deux fois le montant d'erreur, dans le bon sens pour
     // personne.
     const sensEntrant = RegularisationService.debiteLeCompteDeGestion(dto.type);
+    // Avec la TVA, le tiers porte le toutes taxes, la taxe sa propre ligne,
+    // débits d'abord puis crédits, la taxe après le compte de nature.
+    const ligneTva = compteTva ? { compteId: compteTva.id, montant: montantTva } : null;
     const lignes = sensEntrant
       ? [
           { compteId: compteChargeProduit.id, debit: montantDiffere, libelle: dto.libelle },
-          { compteId: compteDiffere.id, credit: montantDiffere, libelle: dto.libelle },
+          ...(ligneTva ? [{ compteId: ligneTva.compteId, debit: ligneTva.montant, libelle: dto.libelle }] : []),
+          { compteId: compteDiffere.id, credit: montantTiers, libelle: dto.libelle },
         ]
       : [
-          { compteId: compteDiffere.id, debit: montantDiffere, libelle: dto.libelle },
+          { compteId: compteDiffere.id, debit: montantTiers, libelle: dto.libelle },
           { compteId: compteChargeProduit.id, credit: montantDiffere, libelle: dto.libelle },
+          ...(ligneTva ? [{ compteId: ligneTva.compteId, credit: ligneTva.montant, libelle: dto.libelle }] : []),
         ];
 
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
@@ -560,6 +624,24 @@ export class RegularisationService {
         compteDiffere: { select: { numero: true, intitule: true } },
       },
     });
+  }
+
+  /**
+   * L'inverse exact d'une écriture, ligne à ligne · débits et crédits
+   * échangés, débits d'abord. Aucun montant n'est recalculé.
+   */
+  static contrePassation(
+    lignes: Array<{ compteId: string; debit: unknown; credit: unknown }>,
+    libelle: string,
+  ): Array<{ compteId: string; debit?: number; credit?: number; libelle: string }> {
+    const inversees = lignes.map((l) => {
+      const debit = Number(l.debit ?? 0);
+      const credit = Number(l.credit ?? 0);
+      return credit > 0
+        ? { compteId: l.compteId, debit: credit, libelle }
+        : { compteId: l.compteId, credit: debit, libelle };
+    });
+    return [...inversees.filter((l) => l.debit !== undefined), ...inversees.filter((l) => l.debit === undefined)];
   }
 
   /** Un exercice commence après celui de la constatation · la règle de la reprise. */
@@ -627,7 +709,23 @@ export class RegularisationService {
     // l'extourner. La créance doublait, le produit était compté deux fois sur
     // deux exercices, et chaque écriture s'équilibrait.
     const constatationDebiteLaGestion = RegularisationService.debiteLeCompteDeGestion(regul.type);
-    const lignes = constatationDebiteLaGestion
+    // UN RATTACHEMENT SE CONTRE-PASSE LIGNE À LIGNE, sur l'écriture de
+    // constatation elle-même (fiches des comptes 40 et 41 · « À l'ouverture
+    // de l'exercice, ces écritures sont contre-passées »). Elle peut porter une
+    // ligne de TVA (4455 ou 4435) que la régularisation ne garde pas à part ·
+    // la reprendre depuis le seul montant laisserait la taxe et le toutes
+    // taxes du tiers au bilan de l'exercice suivant.
+    const lignesConstatation = RegularisationService.estRattachement(regul.type)
+      ? (
+          await this.prisma.ecriture.findFirst({
+            where: { id: regul.ecritureConstatationId, tenantId },
+            select: { lignes: { select: { compteId: true, debit: true, credit: true } } },
+          })
+        )?.lignes ?? null
+      : null;
+    const lignes = lignesConstatation
+      ? RegularisationService.contrePassation(lignesConstatation, regul.libelle)
+      : constatationDebiteLaGestion
       ? [
           { compteId: regul.compteDifferId, debit: montant, libelle: regul.libelle },
           { compteId: regul.compteChargeProduitId, credit: montant, libelle: regul.libelle },

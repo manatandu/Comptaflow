@@ -174,12 +174,14 @@ export class EtatsFinanciersSyscohadaController {
    */
   @Get('smt/notes')
   async notesSmt(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
-    const [note1, note2, note3] = await Promise.all([
+    const [note1, note2, note3, journauxDeSuivi] = await Promise.all([
       this.etatsFinanciersSmtSyscohadaService.note1MaterielMobilierCautions(user.tenantId, exerciceId),
       this.etatsFinanciersSmtSyscohadaService.note2Stocks(user.tenantId, exerciceId),
       this.etatsFinanciersSmtSyscohadaService.note3CreancesDettes(user.tenantId, exerciceId),
+      // Les deux journaux de suivi, pièces de base du ch. 1 § 1 (passe R2, C4).
+      this.etatsFinanciersSmtSyscohadaService.journauxDeSuivi(user.tenantId, exerciceId),
     ]);
-    return { fiche: this.etatsFinanciersSmtSyscohadaService.ficheNotes(), note1, note2, note3 };
+    return { fiche: this.etatsFinanciersSmtSyscohadaService.ficheNotes(), note1, note2, note3, journauxDeSuivi };
   }
 
   /**

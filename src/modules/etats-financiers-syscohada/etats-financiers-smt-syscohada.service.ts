@@ -51,7 +51,10 @@ import {
   TOTAUX_COMPTE_RESULTAT_SMT_SYSCOHADA,
   VENTILATION_DEPENSES_SMT_SYSCOHADA,
   VENTILATION_RECETTES_SMT_SYSCOHADA,
+  TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA,
   calculerResultatSmt,
+  dansPerimetreResultatSmt,
+  estTiersHorsExploitationSmt,
 } from './correspondance-smt-syscohada';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from '../etats-financiers/stocks-depuis-inventaire';
@@ -594,7 +597,7 @@ export class EtatsFinanciersSmtSyscohadaService {
     ];
     for (const [contreparties, signe] of signes) {
       for (const c of contreparties.values()) {
-        if (correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA)) continue; // déjà en A ou en B
+        if (dansPerimetreResultatSmt(c.numero)) continue; // déjà en A ou en B
         const bucket = CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA.find((b) => correspond(c.numero, b.comptes));
         cumuler(bucket ? parCle.get(bucket.cle)! : nonRattachees, c, signe * c.montant);
       }
@@ -672,10 +675,19 @@ export class EtatsFinanciersSmtSyscohadaService {
     let depreciationsTresorerie = 0;
     let autresComptes = 0;
     for (const [numero, k] of kSansEffet) {
-      if (numero.startsWith('1')) classe1 += k;
+      // Un tiers hors exploitation (461, 465, 467, 4493, 4494, 481, 482)
+      // n'est plus corrigé par SV2 ni SV3 (passe R2, constat C1) · il naît
+      // contre la classe 1 ou 2 et se range avec elle. Sans cela, le
+      // dividende décidé (Dr 13 / Cr 465), neutre sur G comme sur le
+      // résultat, laisserait un résiduel qui n'existe pas.
+      const tiers = TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA.find((t) => numero.startsWith(t.prefixe));
+      if (tiers) {
+        if (tiers.cle === 'financement') classe1 += k;
+        else classe2 += k;
+      } else if (numero.startsWith('1')) classe1 += k;
       else if (numero.startsWith('2')) classe2 += k;
       else if (correspond(numero, COMPTES_DEPRECIATION_TRESORERIE_SMT_SYSCOHADA)) depreciationsTresorerie += k;
-      else if (!correspond(numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA) && !this.estTresorerie(numero)) {
+      else if (!dansPerimetreResultatSmt(numero) && !this.estTresorerie(numero)) {
         // Ni dans le périmètre de A/B, ni une classe 1 ou 2, ni de la
         // trésorerie : classe 9, ou compte hors plan. Compté à part pour
         // que le résiduel reste nul et que l'anomalie se voie.
@@ -713,7 +725,9 @@ export class EtatsFinanciersSmtSyscohadaService {
       else parNumero.set(c.numero, { numero: c.numero, intitule: c.intitule, montant: -c.montant });
     }
     return [...parNumero.values()]
-      .filter((c) => Math.abs(c.montant) > 0.005)
+      // Les tiers hors exploitation restent au poste de bilan mais sortent de
+      // la ligne de variation · même règle que `montantExploitation`.
+      .filter((c) => Math.abs(c.montant) > 0.005 && !estTiersHorsExploitationSmt(c.numero))
       .sort((a, b) => a.numero.localeCompare(b.numero));
   }
 
@@ -734,6 +748,13 @@ export class EtatsFinanciersSmtSyscohadaService {
     const { parRef: cloture } = this.resoudreBilan(lignesN);
     const { parRef: ouverture } = this.resoudreBilan(this.aLOuverture(lignesN));
     const montantDe = (source: Map<string, PosteCalculeSmtSyscohada>, ref: string) => source.get(ref)?.montant ?? 0;
+    // SV2 et SV3 ne corrigent que les créances et dettes D'EXPLOITATION
+    // (Titre X ch. 1 § 1 et ch. 2 § 2) · le poste de bilan moins ses tiers
+    // hors exploitation (passe R2, constat C1).
+    const montantExploitation = (source: Map<string, PosteCalculeSmtSyscohada>, ref: string) =>
+      (source.get(ref)?.comptes ?? [])
+        .filter((c) => !estTiersHorsExploitationSmt(c.numero))
+        .reduce((s, c) => s + c.montant, 0);
 
     /*
       LIGNE F · DOTATIONS AMORTISSEMENTS, lue dans les MOUVEMENTS propres de
@@ -761,8 +782,8 @@ export class EtatsFinanciersSmtSyscohadaService {
       recettes: recettes.total,
       depenses: depenses.total,
       stocks: { n: montantDe(cloture, 'SA2'), n1: montantDe(ouverture, 'SA2') },
-      creances: { n: montantDe(cloture, 'SA3'), n1: montantDe(ouverture, 'SA3') },
-      dettes: { n: montantDe(cloture, 'SP4'), n1: montantDe(ouverture, 'SP4') },
+      creances: { n: montantExploitation(cloture, 'SA3'), n1: montantExploitation(ouverture, 'SA3') },
+      dettes: { n: montantExploitation(cloture, 'SP4'), n1: montantExploitation(ouverture, 'SP4') },
       dotations,
     });
 
@@ -1045,6 +1066,115 @@ export class EtatsFinanciersSmtSyscohadaService {
   }
 
   // -------------------------------------------------------------------------
+  // JOURNAUX DE SUIVI (Titre X ch. 1 § 1 et ch. 3)
+  // -------------------------------------------------------------------------
+
+  /**
+   * LES DEUX JOURNAUX DE SUIVI · « Journal de suivi des créances impayées
+   * SMT » et « Journal de suivi des dettes à payer SMT », colonnes Date, N°
+   * facture, Nom, Montant, Date paiement (Titre X ch. 3). Avec la NOTE 4, ce
+   * sont « les trois pièces de base dont l'existence conditionne la fiabilité
+   * du SMT » (ch. 1 § 1). Passe R2, constat C4 · OmegaX n'en servait que les
+   * intitulés.
+   *
+   * CE QUI LES ALIMENTE, ET SA LIMITE. Les factures que le livre-journal porte
+   * au 41 (débit, créance) et au 40 (crédit, dette) de l'exercice · date de
+   * la pièce, référence de la pièce comme N° facture, tiers rattaché au
+   * compte comme nom, montant. La DATE DE PAIEMENT est celle de la dernière
+   * ligne de sens contraire du groupe de lettrage, et seulement quand le
+   * groupe est SOLDÉ (lettre posée) · un lettrage partiel ne dit pas que la
+   * facture est payée, la date reste vide et `paiementPartiel` le dit. Dans
+   * la tenue de trésorerie pure que le Titre X suppose, les impayés ne sont
+   * pas au livre-journal : ces journaux sont alors vides, et l'entité tient
+   * les siens hors du logiciel · `limite` le dit.
+   *
+   * Un plafond déclaré, jamais une troncature (§ 8 bis) · au-delà de celui du
+   * grand livre, la pièce est refusée en disant par où passer.
+   */
+  async journauxDeSuivi(tenantId: string, exerciceId: string) {
+    await this.exerciceDuDossier(tenantId, exerciceId);
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
+        OR: [
+          { compte: { numero: { startsWith: '41' } }, debit: { gt: 0 } },
+          { compte: { numero: { startsWith: '40' } }, credit: { gt: 0 } },
+        ],
+      },
+      select: {
+        id: true,
+        compteId: true,
+        debit: true,
+        credit: true,
+        lettre: true,
+        lettrageId: true,
+        compte: { select: { numero: true, intitule: true } },
+        ecriture: { select: { date: true, reference: true, numeroPiece: true } },
+      },
+      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+      take: PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA + 1,
+    });
+    if (lignes.length > PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA) {
+      throw new BadRequestException(
+        `Les journaux de suivi de cet exercice portent plus de ${PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA.toLocaleString('fr-FR')} ` +
+          'factures, au-delà de leur plafond, qui est celui du grand livre complet. Une pièce ne se tronque pas : ' +
+          'ouvrez la balance âgée des clients et des fournisseurs, qui en porte les mêmes lignes.',
+      );
+    }
+
+    // Date de paiement · les lignes de sens contraire des groupes SOLDÉS.
+    const groupesSoldes = [...new Set(lignes.filter((l) => l.lettre !== null && l.lettrageId).map((l) => l.lettrageId!))];
+    const reglements = groupesSoldes.length
+      ? await this.prisma.ligneEcriture.findMany({
+          where: { lettrageId: { in: groupesSoldes }, ecriture: { tenantId } },
+          select: { lettrageId: true, debit: true, credit: true, ecriture: { select: { date: true } } },
+        })
+      : [];
+    const dernierPaiement = (groupe: string, sensReglement: 'DEBIT' | 'CREDIT'): Date | null => {
+      let d: Date | null = null;
+      for (const r of reglements) {
+        if (r.lettrageId !== groupe) continue;
+        const montant = sensReglement === 'DEBIT' ? Number(r.debit) : Number(r.credit);
+        if (montant <= 0) continue;
+        if (!d || r.ecriture.date > d) d = r.ecriture.date;
+      }
+      return d;
+    };
+
+    const rattachements = await this.prisma.tiersCompte.findMany({
+      where: { tiers: { tenantId } },
+      include: { tiers: { select: { nom: true } } },
+    });
+    const nomParCompte = new Map(rattachements.map((r) => [r.compteId, r.tiers.nom]));
+
+    const construire = (creance: boolean) =>
+      lignes
+        .filter((l) => l.compte.numero.startsWith(creance ? '41' : '40'))
+        .map((l) => ({
+          date: l.ecriture.date,
+          numeroFacture: l.ecriture.reference ?? (l.ecriture.numeroPiece !== null ? String(l.ecriture.numeroPiece) : null),
+          nom: nomParCompte.get(l.compteId) ?? `${l.compte.numero} ${l.compte.intitule}`,
+          montant: creance ? Number(l.debit) : Number(l.credit),
+          datePaiement:
+            l.lettre !== null && l.lettrageId ? dernierPaiement(l.lettrageId, creance ? 'CREDIT' : 'DEBIT') : null,
+          paiementPartiel: l.lettre === null && l.lettrageId !== null,
+        }));
+
+    const creancesImpayees = construire(true);
+    const dettesAPayer = construire(false);
+    return {
+      journaux: JOURNAUX_DE_SUIVI_SMT_SYSCOHADA.map((j) => ({
+        cle: j.cle,
+        intitule: j.intitule,
+        colonnes: [...j.colonnes],
+        lignes: j.cle === 'creancesImpayees' ? creancesImpayees : dettesAPayer,
+      })),
+      limite:
+        "Tirés des factures que le livre-journal porte aux comptes 41 et 40 de l'exercice. Dans une comptabilité de trésorerie pure (Titre X ch. 1 § 1), les impayés ne sont pas au livre-journal : l'entité tient alors ces journaux elle-même. La date de paiement n'est portée que sur une facture dont le lettrage est soldé.",
+    };
+  }
+
+  // -------------------------------------------------------------------------
   // NOTES 1, 2 et 3 (Titre X ch. 3)
   // -------------------------------------------------------------------------
 
@@ -1078,20 +1208,37 @@ export class EtatsFinanciersSmtSyscohadaService {
     const exercice = await this.exerciceDuDossier(tenantId, exerciceId);
     const [immobilisations, lignes] = await Promise.all([
       this.prisma.immobilisation.findMany({
-        where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
+        where: {
+          tenantId,
+          dateAcquisition: { lte: exercice.dateFin },
+          // Un bien sorti AVANT l'ouverture n'est plus au bilan depuis un
+          // exercice au moins · il n'a rien à faire dans la note de celui-ci.
+          OR: [{ dateSortie: null }, { dateSortie: { gte: exercice.dateDebut } }],
+        },
         orderBy: [{ dateAcquisition: 'asc' }],
       }),
       this.chargerLignes(tenantId, exerciceId),
     ]);
 
-    const lignesRegistre = immobilisations.map((i) => ({
+    const versLigne = (i: (typeof immobilisations)[number]) => ({
       origine: 'REGISTRE' as const,
-      date: i.dateAcquisition,
+      date: i.dateAcquisition as Date | null,
       designation: i.designation,
       montant: Number(i.valeurOrigine),
       dateSortie: i.dateSortie,
       prixCession: i.prixCession === null ? null : Number(i.prixCession),
-    }));
+    });
+    // UN BIEN SORTI N'EST PLUS AU BILAN (passe R6, constat E15, même règle
+    // que la NOTE 1 du S.M.T SYCEBNL et que le tableau des immobilisations,
+    // audit final F31). Le Titre X ch. 3 fait de la note le « registre des
+    // immobilisations », une ligne par bien, « la date et le prix de cession
+    // ne sont renseignés qu'à la sortie du bien » · le bien sorti dans
+    // l'exercice y figure donc, mais À PART, hors du total, qui ne porte que
+    // les biens DÉTENUS à la clôture, ceux que le poste « Immobilisations »
+    // du bilan lit.
+    const detenus = immobilisations.filter((i) => !i.dateSortie || i.dateSortie > exercice.dateFin);
+    const sortis = immobilisations.filter((i) => i.dateSortie && i.dateSortie <= exercice.dateFin);
+    const lignesRegistre = detenus.map(versLigne);
 
     const lignesCautions = lignes
       .filter((l) => correspond(l.numero, COMPTES_CAUTIONS_NOTE_1) && Math.abs(l.solde) > 0.005)
@@ -1105,15 +1252,49 @@ export class EtatsFinanciersSmtSyscohadaService {
         prixCession: null,
       }));
 
+    // RAPPROCHEMENT AVEC LE POSTE « IMMOBILISATIONS » · SA1 lit la classe 2
+    // entière, la note le seul registre. Une écriture 2x passée au journal
+    // sans fiche entrait au bilan et restait hors de la note, sans que rien
+    // le dise. Rien n'est ventilé : chaque compte de la classe 2 (hors
+    // amortissements 28, dépréciations 29 et cautions 275, que la note lit
+    // à la balance) est confronté à la valeur d'origine des fiches encore
+    // détenues qui le portent, et le compte qui ne se recoupe pas est NOMMÉ
+    // avec son écart. Même parti que la NOTE 1 du S.M.T SYCEBNL.
+    const fichesParCompte = new Map<string, number>();
+    for (const i of detenus) {
+      fichesParCompte.set(i.compteImmobilisationId, (fichesParCompte.get(i.compteImmobilisationId) ?? 0) + Number(i.valeurOrigine));
+    }
+    const comptesBruts = lignes.filter(
+      (l) => l.classe === ClasseCompte.CLASSE_2 && !correspond(l.numero, ['28', '29', ...COMPTES_CAUTIONS_NOTE_1]),
+    );
+    const ecartsImmobilisations = comptesBruts
+      .map((l) => {
+        const valeurFiches = fichesParCompte.get(l.compteId) ?? 0;
+        return { numero: l.numero, intitule: l.intitule, soldeBalance: l.solde, valeurFiches, ecart: l.solde - valeurFiches };
+      })
+      .filter((c) => Math.abs(c.ecart) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+    const comptesVus = new Set(comptesBruts.map((l) => l.compteId));
+    const fichesSansSolde = detenus
+      .filter((i) => !comptesVus.has(i.compteImmobilisationId))
+      .map((i) => ({ designation: i.designation, montant: Number(i.valeurOrigine) }));
+
     const toutes = [...lignesRegistre, ...lignesCautions];
     return {
       lignes: toutes,
+      sortiesDeLExercice: sortis.map(versLigne),
       total: toutes.reduce((s, l) => s + l.montant, 0),
       totalRegistre: lignesRegistre.reduce((s, l) => s + l.montant, 0),
       totalCautions: lignesCautions.reduce((s, l) => s + l.montant, 0),
       amortissement: AMORTISSEMENT_SMT,
       motifCautions:
         "Le titre officiel de la NOTE 1 vise « le matériel, le mobilier et les cautions ». Les cautions et dépôts de garantie ne sont pas des biens amortissables et ne figurent pas au registre des immobilisations : ils sont repris ici depuis le solde du compte 275 « Dépôts et cautionnements versés », sans date d'entrée ni prix de cession, que la comptabilité ne porte pas au niveau du compte.",
+      ecartsImmobilisations,
+      fichesSansSolde,
+      motifEcartsImmobilisations:
+        ecartsImmobilisations.length > 0 || fichesSansSolde.length > 0
+          ? "Le poste « Immobilisations » du bilan lit toute la classe 2, la NOTE 1 le seul registre des immobilisations. Les comptes nommés ici portent un solde brut que les fiches détenues à la clôture ne reconstituent pas (écriture passée au journal sans fiche, fiche sans écriture, titre ou prêt) : ils sont au bilan et hors de la note."
+          : null,
     };
   }
 
@@ -1449,8 +1630,10 @@ export class EtatsFinanciersSmtSyscohadaService {
         ? null
         : "Le Titre X intitule cette note « État des créances et des dettes non échues au 31 décembre » (ch. 1 § 2 et ch. 3). Une ligne de tiers sans date d'échéance n'est ni échue ni non échue : elle est portée à part, jamais rangée d'office dans le non échu. Renseignez la date d'échéance sur les lignes de tiers, et tenez les comptes de tiers en report à-nouveau mode DÉTAIL, pour que la ventilation soit complète. Les dépréciations 49 et 59 et les provisions 499 et 599, qui n'ont aucun terme à porter, restent par nature en part non ventilée.",
       // Les deux lignes du compte de résultat que cette note justifie.
-      variationSv2: creances.reduce((s, c) => s + c.variationValeur, 0),
-      variationSv3: dettes.reduce((s, d) => s + d.variationValeur, 0),
+      // La NOTE 3 détaille TOUT le poste, mais la variation portée au compte
+      // de résultat ne prend que les tiers d'exploitation (passe R2, C1).
+      variationSv2: creances.filter((c) => !estTiersHorsExploitationSmt(c.numero)).reduce((s, c) => s + c.variationValeur, 0),
+      variationSv3: dettes.filter((d) => !estTiersHorsExploitationSmt(d.numero)).reduce((s, d) => s + d.variationValeur, 0),
       reserveVariationPourcent:
         "Le Titre X ch. 3 écrit que « la variation en pourcentage » alimente les lignes « variation des créances » et « variation des dettes d'exploitation » du compte de résultat. Un pourcentage ne s'additionne pas à des montants : la formule G = C - D + E - F ne boucle qu'avec la variation EN VALEUR, qui est celle portée au compte de résultat. La colonne « Variation % » de la maquette est servie telle quelle pour l'impression. Anomalie du texte officiel, signalée et non corrigée.",
     };

@@ -143,6 +143,10 @@ function harnais(
             ? { id: 'c29', numero: options.compte29 ?? '29410000', intitule: 'Dépréciations du matériel' }
             : where.id === 'c69'
               ? { id: 'c69', numero: '69130000', intitule: 'Dotations pour dépréciation' }
+              : where.id === 'c79'
+                ? { id: 'c79', numero: '79140000', intitule: 'Reprises de dépréciations des immobilisations corporelles' }
+              : where.id === 'c681'
+                ? { id: 'c681', numero: '68130000', intitule: 'Dotations aux amortissements' }
               : where.id === 'c853'
                 ? { id: 'c853', numero: '85300000', intitule: 'Dotations H.A.O. aux dépréciations' }
                 : { id: where.id, numero: '81200000', intitule: 'Valeur comptable des cessions' },
@@ -261,10 +265,11 @@ describe('l’écriture de dépréciation, dans le sens que la fiche du COMPTE 2
       ...DEPRECIATION,
       sens: SensDepreciation.REPRISE,
       montant: 600_000,
+      compteContrepartieId: 'c79',
     } as never);
     expect(ecrituresPostees[0].lignes).toEqual([
       { compteId: 'c29', debit: 600_000, credit: 0 },
-      { compteId: 'c69', debit: 0, credit: 600_000 },
+      { compteId: 'c79', debit: 0, credit: 600_000 },
     ]);
   });
 
@@ -280,6 +285,7 @@ describe('l’écriture de dépréciation, dans le sens que la fiche du COMPTE 2
         ...DEPRECIATION,
         sens: SensDepreciation.REPRISE,
         montant: 2_000_000,
+        compteContrepartieId: 'c79',
       } as never),
     ).rejects.toThrow(/reprise ne peut pas dépasser/i);
   });
@@ -427,11 +433,15 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
     // la vente provenant des dons et legs » · le 795 se subdivise en 7951
     // (usufruit temporaire) et 7952 (destinées à la vente), et c'est bien le
     // second que vise un legs destiné à la vente.
-    const lignes = await lignesDeSortie(BIEN_DEPRECIE, {
+    // Un bien reçu en don destiné à la vente « ne doit pas être amorti »
+    // (SYCEBNL, classe 2) · il n'a aucune dotation, et la fiche du compte 81
+    // porte alors « la valeur d'entrée, sans déduction des éventuelles
+    // dépréciations ».
+    const lignes = await lignesDeSortie({ ...BIEN_DEPRECIE, dotations: [] }, {
       compteImmobilisation: '20300000',
       referentiel: Referentiel.SYCEBNL,
     });
-    expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(3_400_000);
+    expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(10_000_000);
     expect(lignes.find((l) => l.compteId === 'n79520000')!.credit).toBe(1_600_000);
   });
 });
@@ -456,7 +466,54 @@ describe('le Système minimal de trésorerie n’a pas de poste de dépréciatio
       ...DEPRECIATION,
       sens: SensDepreciation.REPRISE,
       montant: 500_000,
+      compteContrepartieId: 'c79',
     } as never);
     expect(ecrituresPostees).toHaveLength(1);
   });
 });
+
+describe('les comptes du bien · passe R1 (A1, A4, A5) et R5 (B1)', () => {
+  const bien = { valeurOrigine: 10_000_000, dureeAns: 5, dateMiseEnService: '2023-01-15', dotations: [6_000_000] };
+
+  it('SYSCOHADA · le 29 suit la division du bien (Titre VII ch. 2)', async () => {
+    // Un matériel (24) déprécié au 293 (bâtiments) est refusé, rien n'est posté.
+    const { svc, ecrituresPostees } = harnais(bien, { compte29: '29310000' });
+    await expect(svc.enregistrerDepreciation('t1', 'u1', 'i1', DEPRECIATION as never)).rejects.toThrow(
+      /attendu un 294/,
+    );
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+
+  it('SYSCOHADA · la contrepartie est celle que la fiche du compte 29 nomme', async () => {
+    const { svc, ecrituresPostees } = harnais(bien);
+    await expect(
+      svc.enregistrerDepreciation('t1', 'u1', 'i1', { ...DEPRECIATION, compteContrepartieId: 'c681' } as never),
+    ).rejects.toThrow(/nomme 691, 697, 853/);
+    expect(ecrituresPostees).toHaveLength(0);
+    // La voie H.A.O. est ouverte, comme la fiche l'écrit.
+    const h = harnais(bien);
+    await h.svc.enregistrerDepreciation('t1', 'u1', 'i1', { ...DEPRECIATION, compteContrepartieId: 'c853' } as never);
+    expect(h.ecrituresPostees).toHaveLength(1);
+  });
+
+  it('SYCEBNL · un bien reçu en don destiné à la vente ne se dote pas, il se déprécie', async () => {
+    const { svc, ecrituresPostees } = harnais(bien, {
+      compteImmobilisation: '20300000',
+      referentiel: Referentiel.SYCEBNL,
+      compte29: '29020000',
+    });
+    await expect(svc.passerDotation('t1', 'u1', 'i1', { exerciceId: 'exN', journalId: 'j1' } as never)).rejects.toThrow(
+      /ne doivent pas être amortis/,
+    );
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+
+  it('SYSCOHADA · un terrain nu ne se dote pas', async () => {
+    const { svc, ecrituresPostees } = harnais(bien, { compteImmobilisation: '22210000', compte29: '29220000' });
+    await expect(svc.passerDotation('t1', 'u1', 'i1', { exerciceId: 'exN', journalId: 'j1' } as never)).rejects.toThrow(
+      /2824 travaux de mise en valeur/,
+    );
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+});
+

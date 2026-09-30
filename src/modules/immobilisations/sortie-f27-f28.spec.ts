@@ -85,6 +85,11 @@ function harnais(
         const numero = where.tenantId_numero.numero;
         return Promise.resolve(options.comptesAbsents?.includes(numero) ? null : { id: `n${numero}`, numero });
       }),
+      // La contrepartie d'une cession est relue au SYSCOHADA (passe R1, B6 ·
+      // 485 pour une cession H.A.O., 414 pour une cession courante).
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve({ id: where.id, numero: where.id === 'c485' ? '48520000' : where.id === 'c411' ? '41110000' : '52110000' }),
+      ),
     },
     dotationAmortissement: {
       create: jest.fn().mockResolvedValue({ id: 'dot1' }),
@@ -177,6 +182,24 @@ describe('F28 · un refus ne laisse jamais le bien sorti sans écriture', () => 
   it('le compte du produit de cession absent refuse aussi avant le verrou', async () => {
     const { svc, updateMany } = harnais({ comptesAbsents: ['82200000'] });
     await expect(svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30', 'CESSION') as never)).rejects.toThrow(/82200000/);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it('une cession H.A.O. portée sur un client est refusée avant le verrou (fiche du compte 41, Exclusions)', async () => {
+    // Passe R1, B6 · la créance née d'une cession H.A.O. va au 485.
+    const { svc, updateMany, ecrituresPostees } = harnais();
+    await expect(
+      svc.sortir('t1', 'u1', 'i1', { ...sortie('2026-09-30', 'CESSION'), compteContrepartieId: 'c411' } as never),
+    ).rejects.toThrow(/485/);
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('une cession courante portée au 485 est refusée · elle va au 414 (fiche du compte 48)', async () => {
+    const { svc, updateMany } = harnais();
+    await expect(
+      svc.sortir('t1', 'u1', 'i1', { ...sortie('2026-09-30', 'CESSION'), cessionCourante: true } as never),
+    ).rejects.toThrow(/414/);
     expect(updateMany).not.toHaveBeenCalled();
   });
 

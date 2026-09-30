@@ -32,6 +32,13 @@ import {
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
+import {
+  motifNonAmortissable,
+  motifRefusCompteAmortissement,
+  motifRefusCompteDepreciation,
+  motifRefusContrepartieCession,
+  motifRefusContrepartieDepreciation,
+} from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
 
 const EPSILON = 0.005;
@@ -497,6 +504,16 @@ export class ImmobilisationService {
     if (compteDotation.classe !== 'CLASSE_6' || !compteDotation.numero.startsWith('68')) {
       throw new BadRequestException(`Le compte de dotation ${compteDotation.numero} doit être un compte de dotations aux amortissements (68)`);
     }
+    // LE 28 SUIT LA DIVISION DU BIEN (comptes-du-bien.ts). Un bien que le
+    // plan ne fait pas amortir n'a pas de 28 de sa division · la famille garde
+    // les deux comptes que le schéma exige, mais ils restent INERTES, la
+    // dotation étant refusée (`passerDotation`). Limite du module, dite ici :
+    // une famille sans plan d'amortissement n'existe pas encore.
+    const { referentiel } = await this.regimeComptable(tenantId);
+    if (!motifNonAmortissable(compteImmo.numero, referentiel)) {
+      const motif = motifRefusCompteAmortissement(referentiel, compteImmo.numero, compteAmort.numero);
+      if (motif) throw new BadRequestException(motif);
+    }
   }
 
   // ---- Lieux des biens ------------------------------------------------
@@ -956,7 +973,7 @@ export class ImmobilisationService {
    * famille choisie · la même règle que le refus de `creer`
    * (`contrepartie-acquisition.ts`), servie une fois.
    */
-  async contrepartiesAcquisition(tenantId: string, familleId: string) {
+  async contrepartiesAcquisition(tenantId: string, familleId: string, typeComposant: TypeComposant | null = null) {
     const [dossier, famille] = await Promise.all([
       this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } }),
       this.prisma.familleImmobilisation.findFirst({
@@ -965,7 +982,9 @@ export class ImmobilisationService {
       }),
     ]);
     if (!dossier || !famille) throw new BadRequestException('Famille introuvable pour ce tenant');
-    const racines = racinesContrepartieAcquisition(dossier.referentiel, famille.compteImmobilisation.numero);
+    const racines = racinesContrepartieAcquisition(dossier.referentiel, famille.compteImmobilisation.numero, {
+      typeComposant,
+    });
     return this.prisma.compte.findMany({
       where: {
         tenantId,
@@ -1099,7 +1118,11 @@ export class ImmobilisationService {
         this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
       ]);
       if (!compteImmo) throw new BadRequestException("Compte d'immobilisation de la famille introuvable pour ce tenant");
-      const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero);
+      // Le type ne compte que pour un composant · sans principal, il n'est
+      // pas retenu (le bien est une structure ordinaire).
+      const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero, {
+        typeComposant: dto.immobilisationPrincipaleId ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
+      });
       if (motif) throw new BadRequestException(motif);
     }
 
@@ -1794,7 +1817,8 @@ export class ImmobilisationService {
     // Le tableau doit annoncer ce que `passerDotation` postera · au SMT c'est
     // l'annuité pleine, sans quoi l'état affiché et l'écriture se
     // contrediraient sur la première annuité.
-    const sansProrata = this.sansProrataTemporis(await this.regimeComptable(tenantId));
+    const regimeTableau = await this.regimeComptable(tenantId);
+    const sansProrata = this.sansProrataTemporis(regimeTableau);
     // Un exercice d'un autre dossier, ou inconnu, est un 404 nommé (jumeau de
     // l'audit final F222) · jamais l'erreur brute de Prisma servie en 500.
     const exercice = exerciceDuDossierOuRefus(
@@ -1885,9 +1909,12 @@ export class ImmobilisationService {
       // (le complément arrêté à la date de sortie), jamais un calcul · sans
       // dotation passée, il n'en porte aucune (F30).
       const sortiDansLExercice = !!immo.dateSortie && immo.dateSortie <= exercice.dateFin;
+      // Un bien que le plan ne fait pas amortir n'annonce aucune annuité ·
+      // `passerDotation` la refuserait (comptes-du-bien.ts).
+      const nonAmortissable = !!motifNonAmortissable(immo.compteImmobilisation.numero, regimeTableau.referentiel);
       const dotation = dejaPassee
         ? Number(dejaPassee.montant)
-        : sortiDansLExercice
+        : sortiDansLExercice || nonAmortissable
           ? 0
           : this.calculerDotation(
             Number(immo.valeurOrigine),
@@ -2123,6 +2150,13 @@ export class ImmobilisationService {
           'Indiquez sa date de mise en service depuis la liste des biens.',
       );
     }
+    // UN BIEN QUE LE PLAN NE FAIT PAS AMORTIR NE SE DOTE PAS (passe R1, A1 et
+    // R5, B1 · comptes-du-bien.ts). La dépréciation reste ouverte.
+    const nonAmortissable = motifNonAmortissable(
+      immo.compteImmobilisation.numero,
+      (await this.regimeComptable(tenantId)).referentiel,
+    );
+    if (nonAmortissable) throw new BadRequestException(nonAmortissable);
 
     const uniteOeuvre = await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, exercice.dateFin);
     const montant = this.calculerDotation(
@@ -2221,6 +2255,13 @@ export class ImmobilisationService {
           'celui des tiers et le 59 celui de la trésorerie.',
       );
     }
+    // SYSCOHADA · le 29 suit la division du bien, et la contrepartie est celle
+    // que la fiche du compte 29 nomme (comptes-du-bien.ts, passe R1, A4 et A5).
+    const { referentiel } = await this.regimeComptable(tenantId);
+    const refusCompte =
+      motifRefusCompteDepreciation(referentiel, immo.compteImmobilisation.numero, compte29.numero) ??
+      motifRefusContrepartieDepreciation(referentiel, dto.sens, contrepartie.numero);
+    if (refusCompte) throw new BadRequestException(refusCompte);
 
     const cumul = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
@@ -2741,6 +2782,17 @@ export class ImmobilisationService {
       }
       comptes = courants;
     }
+    // LA CRÉANCE DE CESSION SUIT SON RÉGIME (comptes-du-bien.ts, passe R1,
+    // B6) · 485 pour une cession H.A.O., 414 pour une cession courante.
+    if (dto.type === TypeSortie.CESSION && dto.compteContrepartieId && referentiel === Referentiel.SYSCOHADA) {
+      const contrepartieCession = await this.prisma.compte.findFirst({
+        where: { id: dto.compteContrepartieId, tenantId },
+        select: { numero: true },
+      });
+      if (!contrepartieCession) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+      const refus = motifRefusContrepartieCession(referentiel, !!dto.cessionCourante, contrepartieCession.numero);
+      if (refus) throw new BadRequestException(refus);
+    }
 
     /*
       TOUT CE QUI PEUT REFUSER SE FAIT AVANT LE VERROU (audit final F28).
@@ -2766,7 +2818,9 @@ export class ImmobilisationService {
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
     // Un bien jamais mis en service n'a rien à compléter · et la lecture des
     // unités d'œuvre, qui réclame un relevé, ne doit pas bloquer sa sortie.
-    const montantComplement = dejaDoteCetExercice || !immo.dateMiseEnService
+    // Un bien que le plan ne fait pas amortir n'a pas de complément non plus.
+    const montantComplement = dejaDoteCetExercice || !immo.dateMiseEnService ||
+      motifNonAmortissable(immo.compteImmobilisation.numero, referentiel)
       ? 0
       : this.calculerDotation(
           Number(immo.valeurOrigine),

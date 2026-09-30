@@ -71,3 +71,17 @@ describe('F228 · la mention de l’art. 60 se saisit aussi sur une facture reç
     expect(cellule).toContain("{f.sens === 'ACHAT' && f.mentionTvaDebits && (");
   });
 });
+
+describe('facturation · portée du verdict des mentions (passe F14, constat A1)', () => {
+  it('le verdict « tous servis » porte sa réserve du Code des accises en bulle Aide, avec les deux articles', () => {
+    const source = readFileSync(join(__dirname, 'FacturationPage.tsx'), 'utf8');
+    const verdict = source.indexOf('Tous les groupes exigibles sont servis.');
+    const aide = source.indexOf('texte={RESERVE_ACCISES_VERDICT}', verdict);
+    expect(verdict).toBeGreaterThan(-1);
+    // L'Aide suit le verdict dans le même élément · jamais un paragraphe à l'écran.
+    expect(aide).toBeGreaterThan(verdict);
+    expect(source.indexOf('</td>', verdict)).toBeGreaterThan(aide);
+    expect(source).toContain("droits d'accises et le droit d'accises spécial");
+    expect(source).toContain('Code des accises, art. 19, 3 et art. 20, 4');
+  });
+});

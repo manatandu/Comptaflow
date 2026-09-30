@@ -17,6 +17,7 @@ import type {
 import {
   LIBELLE_NATURE_TIERS,
   aideDateReprise,
+  compteTvaRattachement,
   estRattachement,
   exercicesDeReprise,
   momentDeReprise,
@@ -156,6 +157,7 @@ export function RegularisationPage() {
   const [compteId, setCompteId] = useState('');
   const [natureTiers, setNatureTiers] = useState<NatureTiers | ''>('');
   const [montantTotal, setMontantTotal] = useState('');
+  const [montantTva, setMontantTva] = useState('');
   const [periodeDebut, setPeriodeDebut] = useState('');
   const [periodeFin, setPeriodeFin] = useState('');
   const [simulation, setSimulation] = useState<SimulationRegularisation | null>(null);
@@ -217,6 +219,9 @@ export function RegularisationPage() {
     }
   }, [exerciceCourant, periodeDebut]);
 
+  // TVA d'une charge à payer ou d'un produit à recevoir · la règle du serveur.
+  const compteTva = compteTvaRattachement(utilisateur?.tenant.referentiel, type, natureTiers);
+
   const corps = () => ({
     exerciceId: exerciceCourant!.id,
     type,
@@ -226,6 +231,7 @@ export function RegularisationPage() {
     periodeDebut,
     periodeFin,
     ...(estRattachement(type) && natureTiers ? { natureTiers } : {}),
+    ...(compteTva && Number(montantTva) > 0 ? { montantTva: Number(montantTva) } : {}),
   });
 
   const simuler = async () => {
@@ -490,6 +496,20 @@ export function RegularisationPage() {
                     className={`${champ} font-mono`}
                   />
                 </label>
+
+                {compteTva && (
+                  <label className="text-[11.5px] font-semibold text-text-dim" title={`Compte ${compteTva} · AUDCIF, Titre VII, fiches des comptes 40 et 41`}>
+                    TVA ({compteTva}), si applicable
+                    <input
+                      value={montantTva}
+                      onChange={(e) => {
+                        setMontantTva(e.target.value);
+                        setSimulation(null);
+                      }}
+                      className={`${champ} font-mono`}
+                    />
+                  </label>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="text-[11.5px] font-semibold text-text-dim">

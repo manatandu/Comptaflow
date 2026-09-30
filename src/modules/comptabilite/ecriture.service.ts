@@ -1,3 +1,4 @@
+import { ecartClasse9, motifRefusClasse9 } from './classe-9-equilibree';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LOT_ECRITURES, LOT_LECTURE, PremiersSelon, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { regrouperSurCollectifs } from '../tiers/collectifs-tiers';
@@ -277,10 +278,14 @@ export const PERIMETRES_BALANCE_AGEE: Record<
     exclusions: [],
     libelle: 'Débiteurs et créditeurs divers (47)',
     lecture:
-      "C'est ici que l'antériorité dit le plus. Le compte 47 porte « les dettes et créances AUTRES que celles " +
-      "liées à l'activité » (AUDCIF Titre VII, compte 47) : rien ne les fait sortir toutes seules. Une ligne " +
-      'ouverte depuis plusieurs exercices y est le cas ordinaire, et la question du réviseur est de savoir ' +
-      "si elle correspond encore à quelque chose.",
+      // Citation du Contenu du COMPTE 47 (AUDCIF Titre VII ; même phrase à la
+      // fiche 47 du SYCEBNL). « Autres que celles liées à l'activité » est la
+      // phrase du COMPTE 45 (organismes internationaux), qu'on lui prêtait à
+      // tort jusqu'au 2026-09-30 (passe R1, B1).
+      "C'est ici que l'antériorité dit le plus. Le compte 47 enregistre « les opérations EN INSTANCE DE " +
+      "RÉGULARISATION » (AUDCIF Titre VII, compte 47) : elles n'ont pas vocation à rester ouvertes. Une " +
+      'ligne ouverte depuis plusieurs exercices y appelle la question du réviseur · correspond-elle encore ' +
+      "à quelque chose ?",
   },
 };
 
@@ -696,6 +701,17 @@ export class EcritureService {
           `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) · ` +
             'ce sont des comptes de regroupement, saisissez sur le compte Détail concerné',
         );
+      }
+      // LA CLASSE 9 S'ÉQUILIBRE EN ELLE-MÊME (classe-9-equilibree.ts) · une
+      // pièce D 90 / C 571 boucle et fait tomber le bilan sans cause nommée.
+      // Le référentiel n'est lu que sur l'écart, pour citer SON texte.
+      const numeroParId = new Map(comptes.map((c) => [c.id, c.numero]));
+      const ecart = ecartClasse9(
+        piece.lignes.map((l) => ({ numero: numeroParId.get(l.compteId) ?? '', debit: l.debit, credit: l.credit })),
+      );
+      if (ecart !== 0) {
+        const dossier = await db.tenant.findFirst({ where: { id: tenantId }, select: { referentiel: true } });
+        throw new BadRequestException(motifRefusClasse9(dossier?.referentiel ?? Referentiel.SYSCOHADA, ecart));
       }
     }
 

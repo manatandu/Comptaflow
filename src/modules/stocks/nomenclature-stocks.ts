@@ -141,6 +141,34 @@ const SYSCOHADA_CORRESPONDANCES: CorrespondanceStock[] = [
     variation: '736',
     intituleVariation: 'Variations des stocks de produits finis',
   },
+  // LES STOCKS EN COURS DE ROUTE 381 À 383 · le COMPTE 38 de l'AUDCIF
+  // (Titre VII) les subdivise PAR NATURE, et son fonctionnement en inventaire
+  // intermittent est celui des 31 à 33 (« débité, en fin d'exercice, des
+  // stocks en cours de route à cette date […] par le crédit des sous-comptes
+  // 603 concernés » ; « crédité […] du montant des stocks en cours de route
+  // de début d'exercice […], pour solde, par le débit des sous-comptes 603
+  // concernés »). Le sous-compte concerné est celui que les fiches 31, 32 et
+  // 33 nomment pour la même nature · 6031, 6032, 6033. Jusqu'au 2026-09-30
+  // (passe R1, B2), tout le 38 était refusé au motif que « le numéro ne porte
+  // pas la nature », ce qui était faux de ces trois-là.
+  {
+    racine: '381',
+    intitule: 'Marchandises en cours de route',
+    variation: '6031',
+    intituleVariation: 'Variations des stocks de marchandises',
+  },
+  {
+    racine: '382',
+    intitule: 'Matières premières et fournitures liées en cours de route',
+    variation: '6032',
+    intituleVariation: 'Variations des stocks de matières premières et fournitures liées',
+  },
+  {
+    racine: '383',
+    intitule: 'Autres approvisionnements en cours de route',
+    variation: '6033',
+    intituleVariation: "Variations des stocks d'autres approvisionnements",
+  },
   {
     racine: '371',
     intitule: 'Produits intermédiaires',
@@ -266,15 +294,25 @@ export const STOCKS_HORS_VARIATION_AUTOMATIQUE: StockHorsVariation[] = [
       'lit pas au même endroit que les variations ordinaires.',
   },
   {
-    racine: '38',
+    racine: '386',
     referentiels: [Referentiel.SYSCOHADA],
-    intitule: 'Stocks en cours de route, en consignation ou en dépôt',
+    intitule: 'Produits finis en cours de route',
     motif:
-      "Les deux textes répondent au compte des stocks en cours de route par « les sous-comptes 603 " +
-      "CONCERNÉS », au pluriel et sans en nommer un seul : le compte de variation dépend de la NATURE " +
-      'de la marchandise en route, que le numéro du 38 ne porte pas. OmegaX ne la devine pas. ' +
-      "L'écriture se passe à la main, et le contrôle STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION la réclame " +
-      'déjà quand elle manque.',
+      "ANOMALIE DU TEXTE, signalée et non comblée. Le compte 38 répond aux stocks en cours de route par " +
+      "« les sous-comptes 603 concernés » (AUDCIF Titre VII, compte 38), mais le 603 ne s'ouvre que sur les " +
+      "biens ACHETÉS (6031 marchandises, 6032 matières premières, 6033 autres approvisionnements) et n'a " +
+      "aucune subdivision de produits finis, dont la variation est au 736. OmegaX ne tranche pas entre les " +
+      "deux : l'écriture se passe à la main.",
+  },
+  {
+    racine: '387',
+    referentiels: [Referentiel.SYSCOHADA],
+    intitule: 'Stock en consignation ou en dépôt',
+    motif:
+      "Le 387 porte un stock par sa SITUATION (en consignation, en dépôt), pas par sa nature · le sous-compte " +
+      "603 concerné dépend de ce qui est consigné ou déposé, que le numéro ne dit pas. OmegaX ne le devine " +
+      "pas : l'écriture se passe à la main, et le contrôle STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION la " +
+      "réclame quand elle manque.",
   },
   {
     racine: '388',
@@ -306,9 +344,10 @@ export const STOCKS_HORS_VARIATION_AUTOMATIQUE: StockHorsVariation[] = [
     referentiels: [Referentiel.SYCEBNL],
     intitule: 'Stocks en cours de route, en consignation ou en dépôt',
     motif:
-      "Même raison qu'au 38 du SYSCOHADA, sous le numéro que le SYCEBNL donne au même objet · « par le " +
-      "crédit : des sous-comptes 603 concernés ». C'est la nature du bien en route qui décide, pas son " +
-      'compte de passage.',
+      "Le texte répond au stock en cours de route « par le crédit : des sous-comptes 603 concernés » " +
+      "(Partie 2 ch. 3, compte 37), sans en nommer un, et son 372 réunit marchandises et matières, qui " +
+      "répondent à deux comptes de variation distincts (6032 et 6033). OmegaX ne transpose pas ici la " +
+      "correspondance du 38 de l'AUDCIF : l'écriture se passe à la main.",
   },
   {
     racine: '343',

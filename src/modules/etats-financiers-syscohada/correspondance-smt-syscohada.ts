@@ -1,5 +1,6 @@
 import { COMPTES_RESULTAT_DE_L_EXERCICE } from '../etats-financiers/resultat-de-l-exercice';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from './correspondance-compte-resultat-syscohada';
+import { correspond } from '../etats-financiers/etats-financiers.communs';
 /**
  * Maquettes officielles du SYSTÈME MINIMAL DE TRÉSORERIE (S.M.T) du
  * SYSCOHADA révisé et rattachement DÉRIVÉ des comptes.
@@ -87,13 +88,17 @@ import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from './correspondance-compte-res
  *
  * OmegaX tient un livre-journal en partie double quel que soit le système.
  * Choisir le SMT (`systemeComptableSyscohada`) change la PRÉSENTATION des
- * états et le jeu produit, pas le moteur. Les deux tenues fonctionnent :
- * achat saisi 60 / 57 (trésorerie pure : classe 4 vide, variations nulles),
- * ou facture 60 / 401 puis règlement 401 / 57 (le règlement est la dépense
- * de caisse, la variation des dettes rétablit la charge non payée · le
- * résultat G est le même, mais la ventilation par nature se dégrade : un
- * règlement fournisseur tombe en « Autres dépenses » faute de dire de quelle
- * charge il s'agit ; le drill-down le montre compte par compte).
+ * états et le jeu produit, pas le moteur. Deux tenues donnent le même G,
+ * mais UNE SEULE est celle du texte : achat saisi 60 / 57 (trésorerie pure,
+ * la « comptabilité de trésorerie » du ch. 1 § 1 et de l'art. 21, classe 4
+ * vide, impayés tenus aux journaux de suivi). La facture 60 / 401 puis le
+ * règlement 401 / 57 rend un G juste, la variation des dettes rétablissant
+ * la charge non payée, mais des rubriques par nature FAUSSES : le règlement
+ * tombe en « Autres dépenses » et « Dépenses sur achats » reste vide, faute
+ * de dire de quelle charge il s'agit. Les modèles de saisie servent donc au
+ * dossier S.M.T l'écriture de trésorerie directe
+ * (`client/src/lib/modeles-saisie.ts`, `MODELES_SIMPLES_SMT_SYSCOHADA`,
+ * passe R2, constat C3).
  *
  * ## ANOMALIES ET CHOIX · rien n'est corrigé en silence (CLAUDE.md §9)
  *
@@ -773,6 +778,64 @@ const TOUTES_CLASSES_1_A_8 = ['1', '2', '3', '4', '5', '6', '7', '8'];
 export const CONTREPARTIES_RESULTAT_SMT_SYSCOHADA = ['3', '4', '50', '51', '590', '591', '599', '6', '7', '8'];
 
 /**
+ * LES COMPTES DE TIERS QUI NE SONT PAS D'EXPLOITATION (passe R2, constat
+ * C1). Le Titre X ne corrige le solde de caisse que des créances et dettes
+ * « D'EXPLOITATION » · ch. 1 § 1 (« le montant des créances et des dettes
+ * d'exploitation ») et ch. 2 § 2 (« + Variation des dettes d'exploitation
+ * N / N-1 »). Or la classe 4 porte aussi des tiers que le Titre VII fait
+ * NAÎTRE contre les classes 1 et 2, sans trésorerie ni résultat :
+ *
+ *  - 461 et 467 · COMPTE 46, opérations sur le capital (apports souscrits,
+ *    capital appelé), contre le 101 ou le 109 ;
+ *  - 465 · COMPTE 46, « crédité des sommes dues à titre de dividendes, par
+ *    le débit des comptes Résultat, Réserves, Report à nouveau » ;
+ *  - 4493 et 4494 · COMPTE 44, fonds de dotation et subventions
+ *    d'investissement à recevoir, débités « par le crédit des comptes
+ *    concernés des classes 1 et 4 » ;
+ *  - 481 et 482 · COMPTE 48, fournisseurs d'investissements, dettes « n'ayant
+ *    pas de lien direct avec l'activité ordinaire » (acquisition en classe 2).
+ *
+ * Laissés dans SV2 et SV3, ils faisaient bouger G d'un montant qui n'est ni
+ * une recette ni une charge · un dividende décidé (Dr 13 / Cr 465) minorait
+ * G pour de bon, une immobilisation achetée à crédit (Dr 24 / Cr 4812)
+ * pesait deux fois, par SV3 puis par F. Ils restent AU BILAN (SA3 et SP4
+ * inchangés, la NOTE 3 les détaille), mais sortent des lignes de variation
+ * et du périmètre de A et de B · leur règlement en trésorerie est un flux de
+ * financement ou d'investissement (`CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA`).
+ *
+ * Le 485 « Créances sur cessions d'immobilisations » N'EST PAS ici · sa
+ * contrepartie est le 82, un produit que G doit porter. Le 484 et le 488
+ * non plus · COMPTE 48, ils se soldent « par le débit des comptes de
+ * trésorerie ou des comptes de la classe 8 ». Chaque numéro est relu contre
+ * le plan semé par le spec.
+ */
+export const TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA: ReadonlyArray<{
+  prefixe: string;
+  cle: 'financement' | 'investissement';
+}> = [
+  { prefixe: '461', cle: 'financement' },
+  { prefixe: '465', cle: 'financement' },
+  { prefixe: '467', cle: 'financement' },
+  { prefixe: '4493', cle: 'financement' },
+  { prefixe: '4494', cle: 'financement' },
+  { prefixe: '481', cle: 'investissement' },
+  { prefixe: '482', cle: 'investissement' },
+];
+
+/** Exclusions du périmètre de A et de B · à passer avec `CONTREPARTIES_RESULTAT_SMT_SYSCOHADA`. */
+export const EXCLUSIONS_CONTREPARTIES_RESULTAT_SMT_SYSCOHADA = TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA.map((t) => t.prefixe);
+
+/** Vrai si le compte est une contrepartie qui entre en A ou en B. */
+export function dansPerimetreResultatSmt(numero: string): boolean {
+  return correspond(numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA, EXCLUSIONS_CONTREPARTIES_RESULTAT_SMT_SYSCOHADA);
+}
+
+/** Vrai si le compte est un tiers que le Titre X ne corrige pas (voir plus haut). */
+export function estTiersHorsExploitationSmt(numero: string): boolean {
+  return correspond(numero, EXCLUSIONS_CONTREPARTIES_RESULTAT_SMT_SYSCOHADA);
+}
+
+/**
  * Les contreparties de trésorerie qui restent HORS de A et de B. Elles ne
  * disparaissent pas pour autant : le journal de la NOTE 4 les enregistre
  * (anomalie n° 21) et le bilan les porte. Le service les présente à part,
@@ -782,14 +845,14 @@ export const CONTREPARTIES_RESULTAT_SMT_SYSCOHADA = ['3', '4', '50', '51', '590'
 export const CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA = [
   {
     cle: 'financement',
-    comptes: ['1'],
+    comptes: ['1', ...TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA.filter((t) => t.cle === 'financement').map((t) => t.prefixe)],
     intitule: "Financement · apports et prélèvements de l'exploitant, emprunts",
     fondement:
       "Classe 1 : 103 « Capital personnel » et 104 « Compte de l'exploitant » (Titre VII COMPTE 103 et 104), 16 « Emprunts et dettes assimilées » (COMPTE 16), 14 « Subventions d'investissement », qui figurent « au passif du bilan, parmi les capitaux propres » et non en produit (COMPTE 14). Le Titre X ch. 1 § 1 range « le montant des emprunts souscrits ou remboursés » parmi les QUATRE éléments de l'inventaire extra-comptable, à côté des immobilisations et distinctement des recettes et des dépenses. Ces mouvements se lisent aux postes de bilan SP1 et SP3.",
   },
   {
     cle: 'investissement',
-    comptes: ['2'],
+    comptes: ['2', ...TIERS_HORS_EXPLOITATION_SMT_SYSCOHADA.filter((t) => t.cle === 'investissement').map((t) => t.prefixe)],
     intitule: 'Investissement · immobilisations acquises ou cédées',
     fondement:
       "Classe 2 : le Titre X ch. 1 § 1 range « le montant des immobilisations acquises ou cédées au cours de l'exercice » parmi les quatre éléments de l'inventaire extra-comptable et impose le registre des immobilisations (NOTE 1) avec son tableau d'amortissement ; l'usure du bien entre au compte de résultat par la ligne F « DOTATIONS AMORTISSEMENTS », jamais son prix d'achat. Ces mouvements se lisent au poste de bilan SA1 et à la NOTE 1.",
@@ -816,7 +879,7 @@ export const POSTES_RECETTES_SMT_SYSCOHADA: PosteFluxSmtSyscohada[] = [
     // encaissé, un apport de l'exploitant ou le prix d'une immobilisation
     // encaissé en classe 2 n'y sont PAS : ils sont hors A et B.
     comptes: CONTREPARTIES_RESULTAT_SMT_SYSCOHADA,
-    exclusions: ['70'],
+    exclusions: ['70', ...EXCLUSIONS_CONTREPARTIES_RESULTAT_SMT_SYSCOHADA],
     fondement:
       "Toute autre contrepartie d'un encaissement qui entre en A : 71 Subventions d'exploitation, 75 Autres produits, 77 Revenus financiers, 82 Produits des cessions d'immobilisations (Titre VII COMPTE 82 : « crédité des produits de cession d'actif… par le débit d'un compte de trésorerie »), 84 Produits H.A.O., 88 Subventions d'équilibre (plan de comptes SYSCOHADA), et le recouvrement d'une créance (classe 4) ou l'encaissement d'un titre de placement (50, 51), que la variation SV2 corrige ensuite. Les produits calculés (78 Transferts de charges, 79 Reprises, 86 Reprises H.A.O., 849 Reprises de charges H.A.O.) restent dans les préfixes captés pour qu'une écriture aberrante ne disparaisse pas, mais ils n'ont par construction aucune contrepartie de trésorerie (Titre VII COMPTE 19, 29, 49, 59 : les reprises se font par le débit du compte de dépréciation, jamais par la caisse) : ils ne se présentent pas ici. Colonne « Autres » de la NOTE 4, dont le périmètre est plus large (anomalie n° 21).",
   },
@@ -898,7 +961,7 @@ export const POSTES_DEPENSES_SMT_SYSCOHADA: PosteFluxSmtSyscohada[] = [
     // tomber dans un poste de recette ET un poste de dépense · c'est le SENS
     // du mouvement de trésorerie, lu par le service, qui tranche lequel des
     // deux s'applique (le spec vérifie cette symétrie).
-    exclusions: ['60', '622', '64', '66', '67', '89'],
+    exclusions: ['60', '622', '64', '66', '67', '89', ...EXCLUSIONS_CONTREPARTIES_RESULTAT_SMT_SYSCOHADA],
     fondement:
       "Tout autre décaissement qui entre en B : 61 Transports, 62 hors 622, 63 Services extérieurs, 65 Autres charges, 83 Charges H.A.O., 87 Participation des travailleurs (plan de comptes SYSCOHADA), et le règlement d'une dette (classe 4) ou l'acquisition d'un titre de placement (50, 51), que la variation SV3 ou SV2 corrige ensuite. Le 81 « Valeurs comptables des cessions d'immobilisations » reste dans les préfixes captés mais ne se présente jamais : il est « débité… par le crédit du compte d'immobilisation concerné (classe 2) » (Titre VII COMPTE 81), sans contrepartie de trésorerie · d'où l'écart de l'anomalie n° 22. Le 70 y retombe aussi, du côté des dépenses seulement : un remboursement de vente est un décaissement, et la maquette n'ouvre aucune autre ligne pour le loger. Colonne « Autres » de la NOTE 4, dont le périmètre est plus large (anomalie n° 21).",
   },

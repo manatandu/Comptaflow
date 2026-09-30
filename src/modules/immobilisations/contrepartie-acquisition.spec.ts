@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { Referentiel } from '@prisma/client';
+import { Referentiel, TypeComposant } from '@prisma/client';
 import {
   contrepartieAcquisitionAdmise,
   motifRefusContrepartie,
@@ -32,10 +32,10 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '48110000')).toBe(false);
   });
 
-  it('chaque texte ses propres comptes · 16 et 45 au SYCEBNL, 72 et 46 au SYSCOHADA seulement', () => {
+  it('chaque texte ses propres comptes · 16 et 45 au SYCEBNL, 46 au SYSCOHADA seulement', () => {
     expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '16200000')).toBe(true);
     expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '45110000')).toBe(true);
-    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '72200000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '46110000')).toBe(false);
     expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '16100000')).toBe(false);
     expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '10300000')).toBe(false);
     // Le 16 du SYSCOHADA est un emprunt · jamais la contrepartie directe.
@@ -54,10 +54,10 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '48181000')).toBe(true);
     // La liste proposée à l'écran est celle que le serveur admet.
     expect(racinesContrepartieAcquisition(EBNL, '24420000')).toEqual(
-      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4812', '48162', '48182', '4822', '52', '53', '55', '57'],
+      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4812', '48162', '48182', '4822', '52', '53', '55', '57', '249', '252', '14', '72'],
     );
     expect(racinesContrepartieAcquisition(EBNL, '21300000')).toEqual(
-      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4811', '48161', '48181', '4821', '52', '53', '55', '57'],
+      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4811', '48161', '48181', '4821', '52', '53', '55', '57', '251', '14', '72'],
     );
   });
 
@@ -68,9 +68,54 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     }
   });
 
-  it('le refus cite le texte du dossier', () => {
-    expect(motifRefusContrepartie(SYSCO, '24420000', '60100000')).toContain('AUDCIF, Titre VII');
-    expect(motifRefusContrepartie(EBNL, '24420000', '60100000')).toContain('SYCEBNL, Partie 2');
+  it('ce que la fiche du bien ajoute · AUDCIF Titre VII, classe 2 (passe R1, A2)', () => {
+    // L'en-cours achevé, de la MÊME division que le bien (fiches 21 à 24).
+    expect(contrepartieAcquisitionAdmise(SYSCO, '23110000', '23910000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '21300000', '21930000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '22200000', '22920000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '24910000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '23910000')).toBe(false);
+    // Un bien porté sur l'en-cours ne se finance pas par lui-même.
+    expect(contrepartieAcquisitionAdmise(SYSCO, '23910000', '23910000')).toBe(false);
+    // L'avance soldée (fiche 25) · 251 incorporel, 252 corporel.
+    expect(contrepartieAcquisitionAdmise(SYSCO, '21300000', '25100000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '21300000', '25200000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '25200000')).toBe(true);
+    // La part non libérée des titres (fiches 26 et 27) · pour eux seuls.
+    expect(contrepartieAcquisitionAdmise(SYSCO, '26110000', '48130000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '27400000', '48130000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '48130000')).toBe(false);
+    // Le démantèlement, et lui seul, au 1984.
+    const demantelement = { typeComposant: TypeComposant.DEMANTELEMENT };
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000', demantelement)).toBe(true);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000', { typeComposant: TypeComposant.COMPOSANT })).toBe(false);
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '19840000', demantelement)).toBe(false);
+  });
+
+  it('ce que la fiche du bien ajoute · SYCEBNL Partie 2 ch. 3 (passe R5, B2)', () => {
+    // Subvention en nature (fiche 14), pour tout bien.
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '14110000')).toBe(true);
+    // Fonds reportés (fiche 20) · division 20 seulement, 171 pour l'usufruit.
+    expect(contrepartieAcquisitionAdmise(EBNL, '20300000', '17200000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '20300000', '17100000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '20110000', '17100000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '17200000')).toBe(false);
+    // En-cours achevé · fiches 23 et 24 seulement.
+    expect(contrepartieAcquisitionAdmise(EBNL, '23110000', '23910000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '24910000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '21930000')).toBe(false);
+    // Avance soldée, titres non libérés.
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '25200000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '26100000', '48130000')).toBe(true);
+    // Production immobilisée (fiche 72) · 21, 23 ou 24, jamais un terrain.
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '72200000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '22200000', '72200000')).toBe(false);
+  });
+
+  it('le refus cite la fiche du compte du bien', () => {
+    expect(motifRefusContrepartie(SYSCO, '24420000', '60100000')).toContain('AUDCIF, Titre VII, fiche du compte 24');
+    expect(motifRefusContrepartie(EBNL, '26100000', '60100000')).toContain('SYCEBNL, Partie 2 ch. 3, fiche du compte 26');
     expect(motifRefusContrepartie(EBNL, '24420000', '52110000')).toBeNull();
   });
 
@@ -114,5 +159,23 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
       } as never),
     ).rejects.toThrow("n'est pas une contrepartie d'acquisition");
     expect(creerEcriture).not.toHaveBeenCalled();
+  });
+
+  it('la liste servie à l’écran reçoit le type du composant · câblage du 1984', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: SYSCO }) },
+      familleImmobilisation: {
+        findFirst: jest.fn().mockResolvedValue({ compteImmobilisation: { numero: '24420000' } }),
+      },
+      compte: { findMany },
+    };
+    const svc = new ImmobilisationService(prisma as never, {} as never);
+    await svc.contrepartiesAcquisition('t1', 'f1', TypeComposant.DEMANTELEMENT);
+    const racines = (findMany.mock.calls[0][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
+    expect(racines).toContain('1984');
+    await svc.contrepartiesAcquisition('t1', 'f1');
+    const sans = (findMany.mock.calls[1][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
+    expect(sans).not.toContain('1984');
   });
 });

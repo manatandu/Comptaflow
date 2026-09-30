@@ -38,13 +38,17 @@ import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma
  * l'entité. Ils ne servent qu'en comptabilité analytique, nulle part
  * ailleurs · c'est au cabinet d'y créer ses propres comptes de coûts.
  *
- * Deux points où le plan et le chapitre 3 divergent, tranchés en faveur du
- * PLAN puisque c'est lui la nomenclature :
+ * Trois points où le plan et le chapitre 3 divergent, tranchés en faveur du
+ * PLAN puisque c'est lui la nomenclature (le troisième, relevé par la passe
+ * R5, B5, que l'en-tête taisait) :
  *  - 654 · le plan donne « 6541 non affectés, 6545 affectés », le chapitre 3
  *    écrit « 6541 non affectés, 6542 affectés ». Retenu 6541/6545.
  *  - 479 · le plan numérote 4797 « Différences d'évaluation sur instruments
  *    de trésorerie » là où le 478 symétrique porte 4786. L'asymétrie est
  *    celle du texte, page 90 ; elle est reproduite telle quelle.
+ *  - 184 · la fiche du compte 18 énumère « 184 Avances reçues et comptes
+ *    courants bloqués », que ni le plan (181, 182, 183, 185) ni la table DA
+ *    de la Partie 4 ne portent. Non semé, faute d'un poste qui le lise.
  *
  * Report à-nouveau (§3.1) : SOLDE pour les comptes de bilan (classes 1,2,3,5,
  * et les subdivisions non-tiers de la classe 4) ; DETAIL pour les comptes de
@@ -881,6 +885,9 @@ const classe6: LigneSeed[] = c(ClasseCompte.CLASSE_6, AUCUN, [
   ['62730000', 'Congrès, universités et assimilés'],
   ['62740000', 'Manifestations'],
   ['62750000', 'Publications'],
+  // 6276 et 6344 · la fiche du compte 62 (Partie 2 ch. 3, classe 6) les
+  // énumère avec leurs frères ; le semis les avait omis (passe R5, C3).
+  ['62760000', 'Cadeaux à la clientèle'],
   ['62770000', 'Frais de colloques, séminaires, conférences'],
   ['62780000', 'Autres charges de publicité et relations publiques'],
   ['62810000', 'Frais de téléphone'],
@@ -902,6 +909,7 @@ const classe6: LigneSeed[] = c(ClasseCompte.CLASSE_6, AUCUN, [
   ['63300000', 'Frais de formation'],
   ['63420000', 'Redevances pour brevets, licences'],
   ['63430000', 'Redevances pour logiciels'],
+  ['63440000', 'Redevances pour marques'],
   ['63450000', 'Redevances pour sites internet'],
   ['63460000', 'Redevances pour concessions, droits et valeurs similaires'],
   ['63480000', 'Autres redevances'],

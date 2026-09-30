@@ -214,6 +214,28 @@ export function EtatsSmtSyscohadaPage() {
   // au centime comme un montant.
   const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
+  // Une ligne de la NOTE 1, bien détenu ou bien sorti · même rendu des deux
+  // côtés du total (passe R6, E15).
+  const ligneNote1 = (l: NotesSmtSyscohada['note1']['lignes'][number], i: number) => (
+    <div
+      key={`${l.designation}-${i}`}
+      title={
+        l.origine === 'BALANCE'
+          ? "Repris depuis le solde du compte de dépôts et cautionnements versés : une caution n'est pas un bien amortissable et ne figure pas au registre des immobilisations."
+          : undefined
+      }
+      className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1 text-[11.5px]"
+    >
+      <span className="font-mono text-[11.5px]">{jour(l.date)}</span>
+      <span className="break-words">
+        {l.designation}
+        {l.origine === 'BALANCE' && <span className="ml-1.5 text-[11px] text-text-dim">caution</span>}
+      </span>
+      <span className="font-mono text-right">{montant(l.montant)}</span>
+      <span className="font-mono text-[11.5px]">{jour(l.dateSortie)}</span>
+      <span className="font-mono text-right">{montant(l.prixCession)}</span>
+    </div>
+  );
   /** Infobulle de traçabilité · quels comptes composent le montant affiché. */
   const infoComptes = (comptes: CompteDuPoste[]) =>
     comptes.length > 0 ? `Comptes : ${comptes.map((c) => c.numero).join(', ')}` : undefined;
@@ -797,38 +819,47 @@ export function EtatsSmtSyscohadaPage() {
                 <span>DATE DE SORTIE</span>
                 <span className="text-right">PRIX DE CESSION</span>
               </div>
-              {notes.note1.lignes.length === 0 && (
+              {notes.note1.lignes.length === 0 && notes.note1.sortiesDeLExercice.length === 0 && (
                 <div className="px-3 py-2 text-[11.5px] text-text-dim">
                   Aucune immobilisation ni caution enregistrée.
                 </div>
               )}
-              {notes.note1.lignes.map((l, i) => (
-                <div
-                  key={`${l.designation}-${i}`}
-                  title={
-                    l.origine === 'BALANCE'
-                      ? "Repris depuis le solde du compte de dépôts et cautionnements versés : une caution n'est pas un bien amortissable et ne figure pas au registre des immobilisations."
-                      : undefined
-                  }
-                  className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1 text-[11.5px]"
-                >
-                  <span className="font-mono text-[11.5px]">{jour(l.date)}</span>
-                  <span className="break-words">
-                    {l.designation}
-                    {l.origine === 'BALANCE' && <span className="ml-1.5 text-[11px] text-text-dim">caution</span>}
-                  </span>
-                  <span className="font-mono text-right">{montant(l.montant)}</span>
-                  <span className="font-mono text-[11.5px]">{jour(l.dateSortie)}</span>
-                  <span className="font-mono text-right">{montant(l.prixCession)}</span>
-                </div>
-              ))}
+              {notes.note1.lignes.map((l, i) => ligneNote1(l, i))}
               <div className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1.5 border-t border-border text-[11.5px] font-bold">
                 <span>·</span>
-                <span>TOTAL</span>
+                <span title="Le total ne porte que les biens au bilan à la clôture (Titre X ch. 3, registre des immobilisations).">
+                  TOTAL DES BIENS DÉTENUS À LA CLÔTURE
+                </span>
                 <span className="font-mono text-right">{montant(notes.note1.total)}</span>
                 <span />
                 <span />
               </div>
+              {notes.note1.sortiesDeLExercice.length > 0 && (
+                <>
+                  <div className="px-3 py-1 bg-surface-alt border-t border-border text-[11px] font-bold text-text-dim">
+                    Biens sortis pendant l'exercice · hors du total
+                  </div>
+                  {notes.note1.sortiesDeLExercice.map((l, i) => ligneNote1(l, i))}
+                </>
+              )}
+              {(notes.note1.ecartsImmobilisations.length > 0 || notes.note1.fichesSansSolde.length > 0) && (
+                <div
+                  className="px-3 py-2 text-[11px] border-t border-border text-warning"
+                  title={notes.note1.motifEcartsImmobilisations ?? undefined}
+                >
+                  {notes.note1.ecartsImmobilisations.map((e) => (
+                    <div key={e.numero}>
+                      {e.numero} {e.intitule} · solde brut {montant(e.soldeBalance)}, fiches {montant(e.valeurFiches)},
+                      écart {montant(e.ecart)}
+                    </div>
+                  ))}
+                  {notes.note1.fichesSansSolde.map((f, i) => (
+                    <div key={`${f.designation}-${i}`}>
+                      Fiche sans solde au compte : {f.designation} ({montant(f.montant)})
+                    </div>
+                  ))}
+                </div>
+              )}
               {notes.note1.totalCautions !== 0 && (
                 <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                   Dont registre des immobilisations {montant(notes.note1.totalRegistre)} et cautions{' '}
@@ -991,6 +1022,41 @@ export function EtatsSmtSyscohadaPage() {
               </p>
             </div>,
           )}
+
+          {/* Les deux journaux de suivi du Titre X ch. 3 (passe R2, C4) · la
+              limite de leur source passe dans l'infobulle du cadre. */}
+          {notes.journauxDeSuivi.journaux.map((j) => (
+            <div key={j.cle}>
+            {bloc(
+              j.intitule.toUpperCase(),
+              <div>
+                <div className="grid grid-cols-[86px_110px_minmax(150px,1fr)_110px_96px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+                  {j.colonnes.map((c, i) => (
+                    <span key={c} className={i === 3 ? 'text-right' : undefined}>
+                      {c.toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+                {j.lignes.length === 0 && (
+                  <div className="px-3 py-2 text-[11.5px] text-text-dim">Aucune facture au livre-journal.</div>
+                )}
+                {j.lignes.map((l, i) => (
+                  <div
+                    key={`${j.cle}-${i}`}
+                    className="grid grid-cols-[86px_110px_minmax(150px,1fr)_110px_96px] min-w-[560px] gap-2 px-3 py-1 text-[11.5px]"
+                  >
+                    <span className="font-mono">{jour(l.date)}</span>
+                    <span className="break-words">{l.numeroFacture ?? '·'}</span>
+                    <span className="break-words">{l.nom}</span>
+                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                    <span className="font-mono">{l.datePaiement ? jour(l.datePaiement) : l.paiementPartiel ? 'En partie' : '·'}</span>
+                  </div>
+                ))}
+              </div>,
+              notes.journauxDeSuivi.limite,
+            )}
+            </div>
+          ))}
         </div>
       )}
 

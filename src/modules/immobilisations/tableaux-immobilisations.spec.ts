@@ -211,6 +211,23 @@ describe('tableau des amortissements · douze colonnes', () => {
     expect(somme).toBe(ligne.dotation);
   });
 
+  it('un bien que le plan ne fait pas amortir n’annonce aucune annuité (passe R1, A1)', async () => {
+    // Terrain nu · le 282 ne s'ouvre que sur le 2824 (comptes-du-bien.ts), et
+    // `passerDotation` refuserait ce que le tableau annoncerait.
+    const s = service([
+      bien({
+        id: 't',
+        designation: 'Terrain à bâtir',
+        compte: { id: 'c2221', numero: '22210000', intitule: 'Terrains à bâtir' },
+        valeurOrigine: 50_000_000,
+        dureeAns: 20,
+        dateAcquisition: '2024-01-01',
+      }),
+    ]);
+    const t = await s.tableauAmortissements('tn', 'ex2025');
+    expect(t.groupes[0].lignes[0].dotation).toBe(0);
+  });
+
   it('ne sert que les mois où le bien est en service · entrée en cours d’exercice', async () => {
     const s = service([
       bien({

@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   aideDateReprise,
+  compteTvaRattachement,
   estRattachement,
   exercicesDeReprise,
   momentDeReprise,
@@ -186,5 +187,21 @@ describe('la liste des régularisations · « aucune » sur une liste lue', () =
     const garde = page.slice(page.lastIndexOf('{', page.lastIndexOf('&& (', vide)), vide);
     expect(garde).toContain('{regularisations?.length === 0 && (');
     expect(page).toContain('Liste des régularisations illisible · {erreurLecture}');
+  });
+});
+
+/** Passe R1, B4 · la TVA d'un rattachement, la même règle aux deux bouts. */
+describe('R1-B4 · la TVA d’une charge à payer ou d’un produit à recevoir', () => {
+  it('4455 pour un fournisseur, 4435 pour un client, au SYSCOHADA seul', () => {
+    expect(compteTvaRattachement('SYSCOHADA', 'CHARGE_A_PAYER', 'FOURNISSEURS')).toBe('4455');
+    expect(compteTvaRattachement('SYSCOHADA', 'PRODUIT_A_RECEVOIR', 'CLIENTS')).toBe('4435');
+    expect(compteTvaRattachement('SYSCOHADA', 'CHARGE_A_PAYER', 'PERSONNEL')).toBeNull();
+    expect(compteTvaRattachement('SYCEBNL', 'CHARGE_A_PAYER', 'FOURNISSEURS')).toBeNull();
+  });
+
+  it('le serveur porte la même table, et l’écran envoie le montant déclaré', () => {
+    expect(service).toContain("if (type === TypeRegularisation.CHARGE_A_PAYER && nature === 'FOURNISSEURS') return '4455';");
+    expect(service).toContain("if (type === TypeRegularisation.PRODUIT_A_RECEVOIR && nature === 'CLIENTS') return '4435';");
+    expect(page).toContain('...(compteTva && Number(montantTva) > 0 ? { montantTva: Number(montantTva) } : {}),');
   });
 });

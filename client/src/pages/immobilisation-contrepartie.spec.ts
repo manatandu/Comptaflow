@@ -7,8 +7,24 @@ import { join } from 'node:path';
 describe('immobilisation · contrepartie d’acquisition', () => {
   const page = readFileSync(join(__dirname, 'ImmobilisationsPage.tsx'), 'utf8');
   it('la liste vient du serveur, pour la famille choisie', () => {
-    expect(page).toContain('`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}`');
+    expect(page).toContain('`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}${type}`');
     const debut = page.indexOf('value={iCompteContrepartie}');
     expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('(contrepartiesAdmises ?? []).map');
+  });
+
+  it('le type du composant voyage avec la demande · il ouvre le 1984 d’un démantèlement', () => {
+    // Passe R1, A2 · la liste servie doit être recalculée quand le type change.
+    expect(page).toContain('}, [iFamilleId, typeComposantServi]);');
+    expect(page).toContain('`&typeComposant=${typeComposantServi}`');
+  });
+});
+
+/** Passe R1, A5 · la contrepartie d'une dépréciation suit la fiche du compte 29. */
+describe('immobilisation · contrepartie d’une dépréciation', () => {
+  const page = readFileSync(join(__dirname, 'ImmobilisationsPage.tsx'), 'utf8');
+  it('SYSCOHADA · 691, 697, 853 à la dotation, 791, 797, 863 à la reprise', () => {
+    expect(page).toContain("if (syscohada) return sens === 'DOTATION' ? ['691', '697', '853'] : ['791', '797', '863'];");
+    const debut = page.indexOf('value={dContrepartie}');
+    expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('racinesContrepartieDepreciation(syscohada, dSens)');
   });
 });

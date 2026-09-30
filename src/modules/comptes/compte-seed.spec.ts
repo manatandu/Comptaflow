@@ -154,8 +154,9 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
     ['47120000', 'Créditeurs divers'],
     // 4421 est l'impôt d'État, par opposition à 4422 (collectivités publiques).
     ['44210000', "État, impôts et taxes d'État"],
-    // 4133 · « autres valeurs impayées » ; les chèques et effets impayés sont
-    // en 4131 et 4132. Passe R6 : la fiche du COMPTE 41 dit « 4133 Adhérents,
+    // 4133 · « autres valeurs impayées » ; les chèques impayés sont en 4131
+    // (adhérents) et 4132 (clients-usagers), la fiche ne leur donnant que les
+    // chèques (passe R5, A2). Passe R6 : la fiche du COMPTE 41 dit « 4133 Adhérents,
     // autres valeurs impayées » · l'intitulé gelé ici (« Adhérents,
     // clients-usagers ») avait perdu la nature de tiers que le tableau des
     // flux lit. Même correction pour les 413 et 419 de la fiche.
@@ -227,5 +228,17 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
       expect(parNumero.has('50100000')).toBe(false);
       expect(parNumero.has('50600000')).toBe(false);
     });
+  });
+});
+
+describe('passe R5, C3 · les subdivisions que la fiche du compte énumère sont semées', () => {
+  it('6276 « Cadeaux à la clientèle » et 6344 « Redevances pour marques » (Partie 2 ch. 3, classe 6)', () => {
+    const intitule = (numero: string) => PLAN_COMPTES_SYCEBNL.find((c) => c.numero === numero)?.intitule;
+    expect(intitule('62760000')).toBe('Cadeaux à la clientèle');
+    expect(intitule('63440000')).toBe('Redevances pour marques');
+    // Tous les frères que la fiche énumère sont désormais au semis.
+    for (const n of ['6271', '6272', '6273', '6274', '6275', '6276', '6277', '6278', '6342', '6343', '6344', '6345', '6346', '6348']) {
+      expect([n, !!intitule(`${n}0000`)]).toEqual([n, true]);
+    }
   });
 });

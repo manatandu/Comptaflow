@@ -89,6 +89,13 @@ interface RegleCompte {
   elementsDeControle: string | null;
 }
 
+/** Un renvoi annexé au plan SYSCOHADA, servi par /comptes/renvois. */
+interface RenvoiDuPlan {
+  numero: string;
+  renvoi: number;
+  texte: string;
+}
+
 /** Un modèle de saisie du dossier, servi par /modeles-saisie. */
 interface ModeleSaisie {
   id: string;
@@ -293,6 +300,10 @@ export function SaisiePage() {
   const [reglesLues, setReglesLues] = useState<RegleCompte[] | null>(null);
   const [erreurRegles, setErreurRegles] = useState<string | null>(null);
   const regles = reglesLues ?? AUCUNE_REGLE;
+  // RENVOIS ANNEXÉS AU PLAN SYSCOHADA (« [8] » et les autres), servis par
+  // /comptes/renvois et lus sur le numéro semé · un dossier SYCEBNL n'en
+  // reçoit aucun. Un échec de lecture laisse la saisie intacte.
+  const [renvoisDuPlan, setRenvoisDuPlan] = useState<RenvoiDuPlan[]>([]);
   const [calculetteOuverte, setCalculetteOuverte] = useState(false);
   // LES TAUX DE TAXE · chargés une fois, pour proposer la ligne de TVA d'un
   // compte qui porte un code taxe par défaut. Null tant qu'ils ne sont pas lus
@@ -933,6 +944,14 @@ export function SaisiePage() {
         setErreurRegles(e instanceof Error ? e.message : "Les fiches du référentiel n'ont pas pu être lues.");
       },
     );
+    api.get<RenvoiDuPlan[]>('/comptes/renvois').then(
+      (r) => {
+        if (!annule) setRenvoisDuPlan(r);
+      },
+      () => {
+        if (!annule) setRenvoisDuPlan([]);
+      },
+    );
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(
       (t) => {
         if (annule) return;
@@ -961,6 +980,7 @@ export function SaisiePage() {
    * fiche 659 et non de la fiche 65, qui dit autre chose · prendre la
    * première trouvée afficherait l'avertissement du compte père.
    */
+  const renvoiDuCompte = compteChoisi ? renvoisDuPlan.find((r) => r.numero === compteChoisi.numero) : undefined;
   const regleDuCompte = compteChoisi
     ? regles
         .filter((r) => compteChoisi.numero.startsWith(r.numero))
@@ -1536,6 +1556,12 @@ export function SaisiePage() {
         {erreurRegles && (
           <div className="border-t border-border/50 px-3 py-1.5 text-[11.5px] text-danger">
             Fiches du référentiel illisibles · {erreurRegles}
+          </div>
+        )}
+        {renvoiDuCompte && (
+          <div className="border-t border-border/50 bg-surface-2 px-3 py-1.5 text-[11px] leading-[1.5]">
+            <span className="font-bold">Compte {renvoiDuCompte.numero} · renvoi [{renvoiDuCompte.renvoi}] du plan : </span>
+            {renvoiDuCompte.texte}
           </div>
         )}
         {regleDuCompte?.exclusions && (

@@ -469,7 +469,10 @@ function fabriquerExportSyscohada(lignesTiers: LigneTiersStub[]): ExportService 
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     // Le jumeau SYSCOHADA demande lui aussi ses deux parts sommées à la base
     // (audit final F258) · même doublure, borne d'échéance comprise.
-    ligneEcriture: { groupBy: sommesParEcheance(lignesTiers) },
+    // `findMany` sert les journaux de suivi (passe R2, C4) · aucune écriture
+    // n'est servie par ce jeu d'essai (`ecriture.findMany` vide), les lignes
+    // d'écriture qu'il lirait sont donc vides elles aussi.
+    ligneEcriture: { groupBy: sommesParEcheance(lignesTiers), findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
     campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },

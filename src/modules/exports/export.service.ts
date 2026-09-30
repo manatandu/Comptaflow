@@ -103,6 +103,7 @@ import {
   TOTAUX_SYSCOHADA,
 } from './etat-etafi';
 import { libelleExercice } from '../../common/libelle-exercice';
+import { mandatCouvrant } from '../mandat-auditeur/duree-mandat';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -166,6 +167,21 @@ export interface ClasseurExporte {
 function dureeEnMoisCartouche(debut: Date, fin: Date): number {
   return Math.max(1, Math.round((fin.getTime() - debut.getTime()) / (30.44 * 86_400_000)));
 }
+
+/**
+ * NOTE 36, table 1 · les seules formes dont le code est UNIVOQUE, second
+ * chiffre compris (passe R2, A3). La SA se partage entre 00 (participation
+ * publique) et 01, et les autres formes du dossier (coopérative, entreprise
+ * individuelle, entreprenant, succursale, entité publique, autre) n'ont pas
+ * de code propre · elles se déclarent.
+ */
+const CODE_FORME_UNIVOQUE_FICHE_R2: Record<string, string> = {
+  SOCIETE_RESPONSABILITE_LIMITEE: '02',
+  SOCIETE_COMMANDITE_SIMPLE: '03',
+  SOCIETE_NOM_COLLECTIF: '04',
+  GROUPEMENT_INTERET_ECONOMIQUE: '06',
+  SOCIETE_PAR_ACTIONS_SIMPLIFIEE: '08',
+};
 
 @Injectable()
 export class ExportService {
@@ -1988,6 +2004,8 @@ export class ExportService {
       dateArrete: exercice.dateArreteComptes
         ? exercice.dateArreteComptes.toLocaleDateString('fr-FR', { timeZone: 'UTC' })
         : '',
+      // Troisième mention du § 2.4 · le porteur des états périodiques.
+      monnaie: monnaieDuJeuLegal(tenant.devise),
     };
   }
 
@@ -2013,6 +2031,14 @@ export class ExportService {
       ville?: string | null;
       activite?: string | null;
     },
+    /**
+     * Case ZR · le commissaire aux comptes du mandat qui couvre l'exercice
+     * (passe D3, constat A2), lu par la MÊME règle que le contrôle 28
+     * (`mandatCouvrant`). Servie aux liasses SYSCOHADA seulement. Sans
+     * mandat couvrant, la case reste vide · un mandat échu, même prorogé,
+     * n'y est pas imprimé comme s'il était en cours.
+     */
+    avecCommissaire = false,
   ): Promise<Record<string, string>> {
     const courant = await this.exerciceDuDossier(tenantId, exerciceId);
     const precedent = await this.prisma.exercice.findFirst({
@@ -2020,13 +2046,44 @@ export class ExportService {
       orderBy: { dateDebut: 'desc' },
       select: { dateDebut: true, dateFin: true },
     });
+    let zr = '';
+    if (avecCommissaire) {
+      const mandats = await this.prisma.mandatAuditeur.findMany({
+        where: { tenantId, finAnticipeeLe: null },
+        orderBy: { premierExercice: 'desc' },
+        select: { nom: true, inscriptionOrdre: true, premierExercice: true, nombreExercices: true },
+      });
+      const couvrant = mandatCouvrant(mandats, courant.dateFin.getUTCFullYear());
+      if (couvrant) zr = `${couvrant.nom} · inscription à l'Ordre : ${couvrant.inscriptionOrdre}`;
+    }
     return {
+      ...(avecCommissaire ? { ZR: zr } : {}),
       ZC: precedent ? precedent.dateFin.toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '',
       ZD: precedent ? String(dureeEnMoisCartouche(precedent.dateDebut, precedent.dateFin)) : '',
       ZG: tenant.numeroAffiliationCnssEmployeur ?? '',
       ZK: [tenant.telephone, tenant.email, tenant.ville].filter((v) => v && v.trim()).join(' · '),
       ZM: tenant.activite ?? '',
     };
+  }
+
+  /**
+   * CASE ZW · « Domiciliations bancaires : banque ; numéro de compte »
+   * (AUDCIF Titre IX ch. 2, fiche R1 ; passe R2, constat A7). Le dossier les
+   * tient dans Structure > Banques · intitulé de la banque et numéro de
+   * compte, ou IBAN à défaut, séparés par « · ». Sans RIB, la case reste
+   * vide, à compléter par l'entité · rien n'est déduit d'un compte 52.
+   */
+  private async domiciliationsBancaires(tenantId: string): Promise<string> {
+    const ribs = await this.prisma.ribBanque.findMany({
+      where: { tenantId },
+      select: { numeroCompte: true, iban: true, banque: { select: { intitule: true } } },
+      orderBy: { abrege: 'asc' },
+      take: 50,
+    });
+    return ribs
+      .map((r) => [r.banque.intitule, r.numeroCompte || r.iban].filter((v) => v && v.trim()).join(' '))
+      .filter(Boolean)
+      .join(' · ');
   }
 
   /** Lignes ETAFI d'un côté du bilan ou du compte de résultat. */
@@ -2867,6 +2924,7 @@ export class ExportService {
     fiche: Array<{ code: string; titre: string; applicable: boolean }>,
     ident: IdentiteLiasse,
     parties?: Array<[string, string[]]>,
+    notePied?: string,
   ) {
     const parCode = new Map(fiche.map((n) => [n.code, n]));
     const groupes: PartiesNotes = (parties ?? [['NOTES ANNEXES', fiche.map((n) => n.code)]]).map(([titre, codes]) => [
@@ -2876,7 +2934,7 @@ export class ExportService {
         .map((code) => [`NOTE ${code}`, parCode.get(code)!.titre] as [string, string]),
     ]);
     const applicables = new Set(fiche.filter((n) => n.applicable).map((n) => `NOTE ${n.code}`));
-    construireFicheNotes(classeur, groupes, ident, applicables);
+    construireFicheNotes(classeur, groupes, ident, applicables, undefined, notePied);
   }
 
   /** Tri des codes de notes : par l'ordre officiel des parties quand il est
@@ -2907,9 +2965,12 @@ export class ExportService {
     /** Feuilles dont la forme n'est pas celle du moteur de notes (la NOTE 9
      *  des projets, une colonne par bailleur) · construites à leur rang. */
     feuillesPropres: Record<string, (cible: ExcelJS.Workbook, tableaux: NoteCalculee[]) => void> = {},
+    /** Renvoi (1) du pied de la fiche récapitulative, quand le référentiel
+     *  ne l'écrit pas comme le SYCEBNL (voir `PIED_FICHE_R4_SYSCOHADA`). */
+    notePied?: string,
   ): ExcelJS.Workbook {
     const cible = classeur ?? this.nouveauClasseur();
-    this.feuilleFicheRecapitulative(cible, resultat.ficheRecapitulative, ident, parties);
+    this.feuilleFicheRecapitulative(cible, resultat.ficheRecapitulative, ident, parties, notePied);
 
     // Une feuille par CODE de note, les sous-tableaux empilés dessus, dans
     // l'ordre officiel · le classeur se feuillette comme le texte se lit.
@@ -5873,6 +5934,21 @@ export class ExportService {
    * seul membre de phrase : une liasse à laquelle il manque des notes ne dit
    * pas au lecteur si elles étaient sans objet ou si on les a oubliées.
    */
+  /**
+   * Renvoi (1) de la fiche R4 de l'AUDCIF, recopié MOT POUR MOT (Titre IX
+   * ch. 2, fiche R4 ; ch. 6 § 1.2). Le pied par défaut de
+   * `construireFicheNotes` est celui du SYCEBNL (« dans une note, les lignes
+   * non chiffrées DOIVENT être supprimées ») et du gabarit de la compétence ·
+   * servi à une liasse SYSCOHADA, il prêtait à l'AUDCIF une obligation qu'il
+   * ne pose pas. Le ch. 2 rend au contraire la suppression FACULTATIVE (« les
+   * Notes annexes non chiffrés PEUVENT être supprimés »), et le renvoi dit
+   * autre chose : le contenu « peut être amélioré par les entités ». L'écart
+   * assumé (toutes les notes jointes, mention NEANT) s'écarte aussi de ce
+   * renvoi-ci, pour la raison écrite plus haut.
+   */
+  private static readonly PIED_FICHE_R4_SYSCOHADA =
+    '(1) Les Notes non documentées ne doivent pas être jointes aux états financiers. Leur contenu peut être amélioré par les entités.';
+
   private static readonly PARTIES_NOTES_SYSCOHADA: Array<[string, string[]]> = [
     ['Liste officielle des Notes annexes · AUDCIF Titre IX ch. 6 section 2 (NOTE 1 à NOTE 36)', [...CODES_NOTES_CH6]],
   ];
@@ -5883,7 +5959,14 @@ export class ExportService {
       this.noteAnnexeService.notesSyscohada(tenantId, exerciceId),
       this.identiteLiasse(tenantId, exerciceId),
     ]);
-    const classeur = this.construireClasseurNotes(resultat, ident, ExportService.PARTIES_NOTES_SYSCOHADA);
+    const classeur = this.construireClasseurNotes(
+      resultat,
+      ident,
+      ExportService.PARTIES_NOTES_SYSCOHADA,
+      undefined,
+      {},
+      ExportService.PIED_FICHE_R4_SYSCOHADA,
+    );
     numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
@@ -6083,6 +6166,36 @@ export class ExportService {
     return rangs;
   }
 
+  /**
+   * L'ÉCART ENTRE G ET LE RÉSULTAT DU BILAN, dit comme l'écran le dit (passe
+   * R2, constat C2). Le message renvoyait aux « flux de trésorerie hors
+   * résultat », qui ne participent PAS à l'écart · ils sont exclus à la fois
+   * de G et du résultat comptable (`fluxHorsResultat`). L'écart vient des
+   * écritures SANS trésorerie des classes 1 et 2, des 592 à 594 et de F
+   * (`composantesEcartConcordance`), typiquement la valeur comptable d'un
+   * bien cédé saisie en deux écritures (Titre X ch. 2 § 2, anomalie n° 22).
+   */
+  private decompositionEcartSmtSyscohada(controle: {
+    residuel: number;
+    composantesEcart: {
+      classe1: number;
+      classe2: number;
+      depreciationsTresorerie: number;
+      autresComptes: number;
+      dotations: number;
+    };
+  }): string {
+    const m = (n: number) => n.toLocaleString('fr-FR');
+    const c = controle.composantesEcart;
+    return (
+      `Décomposition : financement enregistré sans passer par la trésorerie ${m(c.classe1)} ; ` +
+      `investissement enregistré sans passer par la trésorerie ${m(c.classe2)} ; ` +
+      `dépréciations des comptes de trésorerie ${m(c.depreciationsTresorerie)} ; ` +
+      `autres comptes ${m(c.autresComptes)} ; dotations reprises en F ${m(-c.dotations)} ; ` +
+      `résiduel ${m(controle.residuel)}.`
+    );
+  }
+
   /** Compte de résultat SMT SYSCOHADA · export individuel. */
   async compteDeResultatSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const [cr, ident] = await Promise.all([
@@ -6096,7 +6209,7 @@ export class ExportService {
       Math.max(...rangs.values()) + 4,
       cr.controle.concordant
         ? 'Contrôle : le résultat G recoupe le résultat logé au bilan (poste « Résultat exercice »).'
-        : `CONTRÔLE : écart de ${cr.controle.ecart.toLocaleString('fr-FR')} avec le résultat du bilan · voir les flux de trésorerie hors résultat (financement, investissement) que le compte de résultat SMT écarte.`,
+        : `CONTRÔLE : écart de ${cr.controle.ecart.toLocaleString('fr-FR')} avec le résultat du bilan · ${this.decompositionEcartSmtSyscohada(cr.controle)}`,
     );
     numeroterPages(classeur);
     return {
@@ -6145,31 +6258,57 @@ export class ExportService {
       });
       entetesBande(ws, debutTableau, r, 1, ncols);
       ws.getRow(r).height = 30;
-      r += 1;
-      ws.getCell(r, 2).value = 'Report à nouveau';
-      ws.getCell(r, 5).value = j.reportANouveau;
-      styleLigne(ws, r, 1, ncols, 'rubrique', [3, 4, 5]);
+      // UN JOURNAL MENSUEL (passe R2, constat C5) · la NOTE 4 s'intitule
+      // « Journal de trésorerie SMT · mois de ……… Année ……… » et « ouvre sur
+      // un "report à nouveau" et se clôt sur un "solde à reporter" » (Titre X
+      // ch. 3). Chaque mois mouvementé a son bloc ; le report d'un mois est le
+      // solde à reporter du précédent (formule), le premier part de
+      // l'ouverture de l'exercice. Aucun montant ne change.
       const colsMontant = [3, 4, 5, ...colonnes.map((_, i) => 6 + i)];
+      const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+      const parMois = new Map<string, typeof j.operations>();
       for (const operation of j.operations) {
-        r += 1;
-        ws.getCell(r, 1).value = new Date(operation.date);
-        ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
-        ws.getCell(r, 2).value = operation.virementInterne
-          ? `${operation.libelle} (virement interne)`
-          : operation.libelle;
-        if (operation.recette) ws.getCell(r, 3).value = operation.recette;
-        if (operation.depense) ws.getCell(r, 4).value = operation.depense;
-        ws.getCell(r, 5).value = { formula: `E${r - 1}+C${r}-D${r}` };
-        colonnes.forEach((col, i) => {
-          const v = ventilationDeLaColonne(operation, col);
-          if (v) ws.getCell(r, 6 + i).value = v;
-        });
-        styleLigne(ws, r, 1, ncols, 'normal', colsMontant);
+        const d = new Date(operation.date);
+        const cle = `${d.getUTCFullYear()}-${String(d.getUTCMonth()).padStart(2, '0')}`;
+        parMois.set(cle, [...(parMois.get(cle) ?? []), operation]);
       }
-      r += 1;
-      ws.getCell(r, 2).value = 'Solde à reporter';
-      ws.getCell(r, 5).value = { formula: `E${r - 1}` };
-      styleLigne(ws, r, 1, ncols, 'inter', [3, 4, 5]);
+      // Un compte sans mouvement garde un bloc, ouvert et clos sur son report.
+      const mois = parMois.size > 0 ? [...parMois.keys()].sort() : [null];
+      let rangSoldePrecedent: number | null = null;
+      for (const cle of mois) {
+        if (cle) {
+          r += 1;
+          const [annee, m] = cle.split('-').map(Number);
+          ws.getCell(r, 1).value = `Journal de trésorerie SMT · mois de ${MOIS[m]} Année ${annee}`;
+          ws.getCell(r, 1).font = { name: 'Arial', size: 8, bold: true };
+          fusion(ws, r, 1, r, ncols);
+        }
+        r += 1;
+        ws.getCell(r, 2).value = 'Report à nouveau';
+        ws.getCell(r, 5).value = rangSoldePrecedent === null ? j.reportANouveau : { formula: `E${rangSoldePrecedent}` };
+        styleLigne(ws, r, 1, ncols, 'rubrique', [3, 4, 5]);
+        for (const operation of cle ? parMois.get(cle)! : []) {
+          r += 1;
+          ws.getCell(r, 1).value = new Date(operation.date);
+          ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+          ws.getCell(r, 2).value = operation.virementInterne
+            ? `${operation.libelle} (virement interne)`
+            : operation.libelle;
+          if (operation.recette) ws.getCell(r, 3).value = operation.recette;
+          if (operation.depense) ws.getCell(r, 4).value = operation.depense;
+          ws.getCell(r, 5).value = { formula: `E${r - 1}+C${r}-D${r}` };
+          colonnes.forEach((col, i) => {
+            const v = ventilationDeLaColonne(operation, col);
+            if (v) ws.getCell(r, 6 + i).value = v;
+          });
+          styleLigne(ws, r, 1, ncols, 'normal', colsMontant);
+        }
+        r += 1;
+        ws.getCell(r, 2).value = 'Solde à reporter';
+        ws.getCell(r, 5).value = { formula: `E${r - 1}` };
+        styleLigne(ws, r, 1, ncols, 'inter', [3, 4, 5]);
+        rangSoldePrecedent = r;
+      }
       cadre(ws, debutTableau, 1, r, ncols, MOYEN);
       if (!j.boucle) {
         r += 1;
@@ -6200,6 +6339,56 @@ export class ExportService {
       spec[String.fromCharCode(70 + i)] = 14;
     });
     largeurs(ws, spec);
+    return ws;
+  }
+
+  /**
+   * LES DEUX JOURNAUX DE SUIVI DU S.M.T SYSCOHADA (Titre X ch. 3, passe R2,
+   * constat C4) · créances impayées et dettes à payer, aux colonnes du texte,
+   * sur une feuille. Sans facture au livre-journal, chaque tableau porte
+   * NEANT, et la limite de leur source est dite sous eux.
+   */
+  private feuilleJournauxDeSuiviSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    suivi: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['journauxDeSuivi']>>,
+    ident: IdentiteLiasse,
+  ) {
+    const NB = 5;
+    const ws = classeur.addWorksheet('JOURNAUX DE SUIVI');
+    ecrireCartouche(ws, ident, 'JOURNAUX DE SUIVI\nSMT SYSCOHADA', NB);
+    titreNote(ws, 'JOURNAUX DE SUIVI DES CREANCES IMPAYEES ET DES DETTES A PAYER', NB);
+    let r = 7;
+    for (const j of suivi.journaux) {
+      r += 1;
+      ws.getCell(r, 1).value = j.intitule;
+      ws.getCell(r, 1).font = { name: 'Arial', size: 9, bold: true };
+      fusion(ws, r, 1, r, NB);
+      r += 1;
+      const debut = r;
+      j.colonnes.forEach((h, i) => (ws.getCell(r, i + 1).value = h));
+      entetesBande(ws, r, r, 1, NB);
+      if (j.lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
+      for (const l of j.lignes) {
+        r += 1;
+        ws.getCell(r, 1).value = new Date(l.date);
+        ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+        ws.getCell(r, 2).value = l.numeroFacture ?? '';
+        ws.getCell(r, 3).value = l.nom;
+        ws.getCell(r, 4).value = l.montant;
+        if (l.datePaiement) {
+          ws.getCell(r, 5).value = new Date(l.datePaiement);
+          ws.getCell(r, 5).numFmt = 'DD/MM/YYYY';
+        } else if (l.paiementPartiel) {
+          ws.getCell(r, 5).value = 'Payée en partie';
+        }
+        styleLigne(ws, r, 1, NB, 'normal', [4]);
+      }
+      cadre(ws, debut, 1, r, NB, MOYEN);
+      r += 1;
+    }
+    r += 1;
+    ligneControleSousEtat(ws, r, suivi.limite);
+    largeurs(ws, { A: 12, B: 16, C: 36, D: 16, E: 14 });
     return ws;
   }
 
@@ -6247,8 +6436,16 @@ export class ExportService {
       }
       entetesBande(ws, r, r, 1, NB);
       ws.getRow(r).height = 26;
-      if (note1.lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
-      for (const l of note1.lignes) {
+      // NEANT seulement si rien n'est à dire (passe R6, E15) · une classe 2
+      // soldée hors fiches n'est pas une note sans objet.
+      if (
+        note1.lignes.length === 0 &&
+        note1.sortiesDeLExercice.length === 0 &&
+        note1.ecartsImmobilisations.length === 0
+      ) {
+        r = bandeNeant(ws, r + 1, NB) - 1;
+      }
+      const ligneBien = (l: (typeof note1.lignes)[number]) => {
         r += 1;
         if (l.date) {
           ws.getCell(r, 1).value = new Date(l.date);
@@ -6266,11 +6463,21 @@ export class ExportService {
         // cession : l'origine est portée en commentaire de cellule plutôt
         // que par une date inventée.
         if (l.origine === 'BALANCE') ws.getCell(r, 2).note = note1.motifCautions;
-      }
+      };
+      for (const l of note1.lignes) ligneBien(l);
       r += 1;
-      ws.getCell(r, 2).value = 'TOTAL';
+      // Le TOTAL est un ajout d'OmegaX (la maquette n'en porte pas) · il ne
+      // somme que ce qui est au bilan à la clôture (passe R6, E15).
+      ws.getCell(r, 2).value = 'TOTAL DES BIENS DÉTENUS À LA CLÔTURE';
       ws.getCell(r, 3).value = note1.total;
       styleLigne(ws, r, 1, NB, 'inter', [3]);
+      if (note1.sortiesDeLExercice.length > 0) {
+        r += 1;
+        ws.getCell(r, 1).value = "Biens sortis pendant l'exercice · hors du total";
+        fusion(ws, r, 1, r, NB);
+        styleLigne(ws, r, 1, NB, 'bande');
+        for (const l of note1.sortiesDeLExercice) ligneBien(l);
+      }
       cadre(ws, 8, 1, r, NB, MOYEN);
       ligneControleSousEtat(
         ws,
@@ -6278,6 +6485,18 @@ export class ExportService {
         `Registre des immobilisations (${note1.totalRegistre.toLocaleString('fr-FR')}) et cautions relevées au compte 275 (${note1.totalCautions.toLocaleString('fr-FR')}). ` +
           `Amortissement ${note1.amortissement.mode.toLowerCase()}${note1.amortissement.prorataTemporis ? '' : ' sans prorata temporis'} (Titre X ch. 1 § 1). ${note1.motifCautions}`,
       );
+      let rc = r + 3;
+      if (note1.motifEcartsImmobilisations) ligneControleSousEtat(ws, rc++, note1.motifEcartsImmobilisations);
+      for (const e of note1.ecartsImmobilisations) {
+        ligneControleSousEtat(
+          ws,
+          rc++,
+          `${e.numero} ${e.intitule} · solde brut ${e.soldeBalance.toLocaleString('fr-FR')}, fiches ${e.valeurFiches.toLocaleString('fr-FR')}, écart ${e.ecart.toLocaleString('fr-FR')}.`,
+        );
+      }
+      for (const f of note1.fichesSansSolde) {
+        ligneControleSousEtat(ws, rc++, `Fiche sans solde au compte : ${f.designation} (${f.montant.toLocaleString('fr-FR')}).`);
+      }
       largeurs(ws, { A: 15, B: 52, C: 17, D: 15, E: 17 });
     }
 
@@ -6486,17 +6705,19 @@ export class ExportService {
 
   /** Notes annexes SMT SYSCOHADA · export individuel : fiche + notes 1 à 4. */
   async notesSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const [ident, note1, note2, note3, journal] = await Promise.all([
+    const [ident, note1, note2, note3, journal, suivi] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
       this.smtSyscohada.note1MaterielMobilierCautions(tenantId, exerciceId),
       this.smtSyscohada.note2Stocks(tenantId, exerciceId),
       this.smtSyscohada.note3CreancesDettes(tenantId, exerciceId),
       this.smtSyscohada.journalTresorerie(tenantId, exerciceId),
+      this.smtSyscohada.journauxDeSuivi(tenantId, exerciceId),
     ]);
     const classeur = this.nouveauClasseur();
     this.ficheNotesSmtSyscohadaEtafi(classeur, this.smtSyscohada.ficheNotes(), ident);
     this.feuillesNotesSmtSyscohadaEtafi(classeur, { note1, note2, note3 }, ident);
     this.feuilleJournalTresorerieSmtSyscohadaEtafi(classeur, journal, ident);
+    this.feuilleJournauxDeSuiviSmtSyscohadaEtafi(classeur, suivi, ident);
     numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
@@ -6517,6 +6738,146 @@ export class ExportService {
    * tout indissociable ». C'est pourquoi la liasse est le seul export qui les
    * réunit tous, et pourquoi aucune de ses feuilles n'est optionnelle.
    */
+  /**
+   * FICHE R2 · « Identification et renseignements divers 2 » (AUDCIF Titre IX
+   * ch. 2, codes ZK à ZS et tableau des activités ; passe R2, constats A3 et
+   * B6). SYSTÈME NORMAL SEULEMENT · le Titre X ne porte aucune fiche R2.
+   *
+   * UN SEUL PORTEUR DES CODES · ZK, ZL et ZM se lisent dans les trois
+   * rubriques EN SAISIE de la NOTE 36 (code forme juridique, code régime
+   * fiscal, code pays du siège), jamais dans un second champ qui divergerait
+   * d'elles. Rien n'est présumé :
+   *  - ZK non saisi · la table 1 de la NOTE 36 n'est univoque que pour cinq
+   *    formes (SARL 02, SCS 03, SNC 04, GIE 06, SAS 08), et encore sur le
+   *    second chiffre seulement, le premier passant à 1 « si l'entité
+   *    bénéficie d'un agrément prioritaire » (renvoi (1)), fait que le dossier
+   *    ne porte pas. Le code est donc PROPOSÉ en clair, jamais imprimé comme
+   *    déclaré ; la SA (00 ou 01) et les autres formes restent à déclarer ;
+   *  - ZL et ZM non saisis · « Non renseigné », jamais déduits du dossier
+   *    (ZM ne se lit pas dans l'adresse, voir `CODES_PAYS_OHADA_SYSCOHADA`) ;
+   *  - ZN à ZS · aucun champ du dossier ne les porte, cases à compléter.
+   * Les codes ZK à ZS sont ceux de l'AUDCIF · la Fiche 1 de cette liasse,
+   * au gabarit ETAFI, emploie les mêmes lettres pour d'autres cases, et la
+   * fiche le dit (Titre IX ch. 2, l'ambiguïté se lève par l'état).
+   *
+   * LE TABLEAU DES ACTIVITÉS est à déclarer, ligne par ligne, « dans l'ordre
+   * décroissant » (renvoi (2)) ; aucune ventilation n'est tirée de la
+   * balance. Le TOTAL ne se remplit pas d'office · la mention CA HT ou VA se
+   * raye (renvoi (3), « utiliser de préférence la VA »). Les deux montants de
+   * la liasse sont donnés dessous, en formule vers la feuille Résultat (XB,
+   * XC), pour que le total déclaré s'y rapproche.
+   */
+  private feuilleFicheR2Syscohada(
+    classeur: ExcelJS.Workbook,
+    ident: IdentiteLiasse,
+    forme: string | null | undefined,
+    notes: { notes: NoteCalculee[] },
+  ) {
+    const NB = 10;
+    const ws = classeur.addWorksheet('Fiche R2');
+    ecrireCartouche(ws, ident, 'FICHE R2', NB);
+    fusion(ws, 7, 1, 7, NB);
+    let c = ws.getCell(7, 1);
+    c.value = 'FICHE D\'IDENTIFICATION ET RENSEIGNEMENTS DIVERS 2 (FICHE R2)';
+    c.font = { name: 'Arial', size: 11, bold: true };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    fusion(ws, 8, 1, 8, NB);
+    ws.getCell(8, 1).value =
+      'Codes ZK à ZS de l\'AUDCIF (Titre IX ch. 2) · distincts des cases homonymes de la Fiche 1 au gabarit ETAFI.';
+    ws.getCell(8, 1).font = { name: 'Arial', size: 8, italic: true };
+
+    const n36 = notes.notes.find((n) => n.code === '36');
+    const saisi = (cle: string): string | null => {
+      const v = n36?.lignes.find((l) => l.cle === cle)?.saisie?.[0];
+      return v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim();
+    };
+    const zk = saisi('1-code-forme-juridique-1');
+    const proposition = forme ? CODE_FORME_UNIVOQUE_FICHE_R2[forme] : undefined;
+    const valeurZk =
+      zk ??
+      (proposition
+        ? `Non renseigné · la NOTE 36 donne ${proposition} (1${proposition.slice(1)} avec agrément prioritaire)`
+        : 'Non renseigné · à déclarer à la NOTE 36');
+    const lignes: Array<[string, string, string]> = [
+      ['ZK', 'Forme juridique (1)', valeurZk],
+      ['ZL', 'Régime fiscal (1)', saisi('2-code-regime-fiscal') ?? 'Non renseigné · à déclarer à la NOTE 36'],
+      ['ZM', 'Pays du siège social (1)', saisi('3-code-pays-du-siege-social-2') ?? 'Non renseigné · à déclarer à la NOTE 36'],
+      ['ZN', "Nombre d'établissements dans le pays", ''],
+      ['ZO', "Nombre d'établissements hors du pays pour lesquels une comptabilité distincte est tenue", ''],
+      ['ZP', "Première année d'exercice dans le pays", ''],
+      ['ZQ', "Contrôle de l'entreprise : entreprise sous contrôle public", ''],
+      // [texte officiel] Le code ZQ est employé deux fois, ZR n'apparaît pas ·
+      // transcrit tel quel, sans créer de ZR.
+      ['ZQ', "Contrôle de l'entreprise : entreprise sous contrôle privé national [texte officiel : code ZQ employé deux fois]", ''],
+      ['ZS', "Contrôle de l'entreprise : entreprise sous contrôle privé étranger", ''],
+    ];
+    let r = 9;
+    for (const [code, lab, val] of lignes) {
+      r += 1;
+      ws.getCell(r, 1).value = code;
+      ws.getCell(r, 1).font = { name: 'Arial', size: 8, bold: true };
+      fusion(ws, r, 2, r, 6);
+      ws.getCell(r, 2).value = lab;
+      ws.getCell(r, 2).font = { name: 'Arial', size: 8 };
+      fusion(ws, r, 7, r, NB);
+      ws.getCell(r, 7).value = val;
+      ws.getCell(r, 7).font = { name: 'Arial', size: 8, bold: true };
+      ws.getRow(r).height = 22;
+    }
+    r += 2;
+    fusion(ws, r, 1, r, NB);
+    ws.getCell(r, 1).value = "ACTIVITE DE L'ENTREPRISE";
+    ws.getCell(r, 1).font = { name: 'Arial', size: 10, bold: true };
+    r += 1;
+    const entetes: Array<[string, number, number]> = [
+      ["Désignation de l'activité (2)", 1, 4],
+      ["Code nomenclature d'activité (1)", 5, 6],
+      ['Chiffre d\'affaires HT (CA HT) ou valeur ajoutée (VA) (3)', 7, 8],
+      ['% activité dans le CA HT ou la VA', 9, 10],
+    ];
+    for (const [lab, c1, c2] of entetes) {
+      fusion(ws, r, c1, r, c2);
+      ws.getCell(r, c1).value = lab;
+    }
+    entetesBande(ws, r, r, 1, NB);
+    for (let i = 0; i < 8; i++) {
+      r += 1;
+      for (const [, c1, c2] of entetes) fusion(ws, r, c1, r, c2);
+    }
+    for (const lib of ['Divers', 'TOTAL']) {
+      r += 1;
+      for (const [, c1, c2] of entetes) fusion(ws, r, c1, r, c2);
+      ws.getCell(r, 1).value = lib;
+      ws.getCell(r, 1).font = { name: 'Arial', size: 8, bold: lib === 'TOTAL' };
+    }
+    r += 2;
+    for (const [ref, lib] of [
+      ['XB', "Chiffre d'affaires HT de l'exercice (XB, feuille Résultat)"],
+      ['XC', "Valeur ajoutée de l'exercice (XC, feuille Résultat)"],
+    ] as Array<[string, string]>) {
+      fusion(ws, r, 1, r, 6);
+      ws.getCell(r, 1).value = lib;
+      ws.getCell(r, 1).font = { name: 'Arial', size: 8 };
+      fusion(ws, r, 7, r, 8);
+      ws.getCell(r, 7).value = { formula: `INDEX('Résultat'!D:D,MATCH("${ref}",'Résultat'!A:A,0))` };
+      ws.getCell(r, 7).numFmt = '#,##0';
+      r += 1;
+    }
+    r += 1;
+    for (const renvoi of [
+      '(1) Voir les tables des codes, NOTE 36 [texte officiel : le renvoi imprime NOTE 34].',
+      "(2) Lister de manière précise les activités dans l'ordre décroissant du CA HT, ou de la valeur ajoutée (VA).",
+      '(3) Rayer la mention inutile (utiliser de préférence la VA).',
+    ]) {
+      fusion(ws, r, 1, r, NB);
+      ws.getCell(r, 1).value = renvoi;
+      ws.getCell(r, 1).font = { name: 'Arial', size: 8 };
+      r += 1;
+    }
+    largeurs(ws, { A: 8, B: 12, C: 12, D: 12, E: 10, F: 10, G: 12, H: 12, I: 9, J: 9 });
+    return ws;
+  }
+
   private async liasseSyscohadaEtafi(tenantId: string, exerciceId: string): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, cr, tft, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
@@ -6539,9 +6900,10 @@ export class ExportService {
 
     // 4-7 · pages d'identification · page de garde, Fiche 1 au gabarit ETAFI
     // (le contenu de la fiche R1 de l'AUDCIF, sous d'autres lettres) et
-    // Fiche 2 (les dirigeants, contenu de la fiche R3). La fiche R2 (Titre IX
-    // ch. 2 · forme juridique, régime fiscal, pays du siège, établissements,
-    // contrôle, activités) N'EST PAS produite (passe R3), et la R4 vient
+    // Fiche 2 (les dirigeants et le conseil d'administration, contenu de la
+    // fiche R3). La fiche R2 (Titre IX ch. 2 · forme juridique, régime
+    // fiscal, pays du siège, établissements, contrôle, activités) suit la
+    // Fiche 1 depuis la passe R2 (`feuilleFicheR2Syscohada`), et la R4 vient
     // avec les notes (étape 13).
     construireCouverture(classeur, ident, 'LIASSE SYSTEME NORMAL', tenant.pays ?? '');
     construireGarde(classeur, ident, {
@@ -6559,9 +6921,11 @@ export class ExportService {
         'Tableau des flux de trésorerie',
         'Notes annexes',
       ],
+      // Mentions et zone DGI de la page de garde du ch. 2 (passe R2, A5).
+      contextureAudcif: true,
     });
     construireFiche1(classeur, ident, 'SYSCOHADA', 'Système normal', {
-      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant, true)),
       // Le code activité principale du dossier (NOTE 36, nomenclature à six
       // chiffres) · en ZI du gabarit ETAFI, qui est la case que le libellé
       // nomme, là où la fiche R1 de l'AUDCIF le range en ZE (passe R3).
@@ -6580,8 +6944,12 @@ export class ExportService {
       // présentation de toute la liasse, et le LIBELLÉ de la case dit ce
       // qu'elle contient. Ne pas lire ZE ici comme le ZE de la fiche R1.
       ZE: numeroRegistreLiasse(tenant),
+      ZW: await this.domiciliationsBancaires(tenantId),
     });
-    construireFiche2(classeur, ident, 'DIRIGEANTS');
+    // Fiche R2 de l'AUDCIF, après la Fiche 1 (passe R2, A3 et B6).
+    this.feuilleFicheR2Syscohada(classeur, ident, tenant.formeJuridiqueSyscohada, notes);
+    // Fiche R3 · dirigeants ET membres du conseil d'administration (passe R2, A4).
+    construireFiche2(classeur, ident, 'DIRIGEANTS (1)', [], 'FICHE 2', 20, true);
 
     // 8 · Bilan paysage · c'est le « Modèle 1 » du ch. 3 section 2 (actif et
     // passif en vis-à-vis), les deux modèles portant « les mêmes rubriques,
@@ -6626,7 +6994,14 @@ export class ExportService {
     ligneControleSousEtat(classeur.getWorksheet('TFT')!, dernier + 1, this.controlesTftSyscohada(tft));
 
     // 13 · fiche récapitulative (fiche R4) et les 36 notes du ch. 6.
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_SYSCOHADA, classeur);
+    this.construireClasseurNotes(
+      notes,
+      ident,
+      ExportService.PARTIES_NOTES_SYSCOHADA,
+      classeur,
+      {},
+      ExportService.PIED_FICHE_R4_SYSCOHADA,
+    );
 
     // 14 · TABLE COMMENTAIRE, sur la même liste que la fiche.
     const parCode = new Map(
@@ -6802,6 +7177,8 @@ export class ExportService {
       this.smtSyscohada.eligibilite(tenantId, exerciceId),
       this.exerciceN1Id(tenantId, exerciceId),
     ]);
+    // Les deux journaux de suivi, pièces de base du ch. 1 § 1 (passe R2, C4).
+    const suivi = await this.smtSyscohada.journauxDeSuivi(tenantId, exerciceId);
     const lignesBalN = await this.lignesBalanceLiasse(tenantId, exerciceId);
     const lignesBalN1 = exerciceN1Id ? await this.lignesBalanceLiasse(tenantId, exerciceN1Id) : [];
 
@@ -6824,7 +7201,7 @@ export class ExportService {
       ],
     });
     construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', {
-      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant, true)),
       ZE: numeroRegistreLiasse(tenant),
       // Même case que la liasse du Système normal (passe R3).
       ZI: tenant.codeActivitePrincipale ?? '',
@@ -6877,6 +7254,7 @@ export class ExportService {
     const parties = this.ficheNotesSmtSyscohadaEtafi(classeur, this.smtSyscohada.ficheNotes(), ident);
     this.feuillesNotesSmtSyscohadaEtafi(classeur, { note1, note2, note3 }, ident);
     this.feuilleJournalTresorerieSmtSyscohadaEtafi(classeur, journal, ident);
+    this.feuilleJournauxDeSuiviSmtSyscohadaEtafi(classeur, suivi, ident);
     construireTableCommentaires(classeur, parties, ident);
 
     const ctl = classeur.addWorksheet('CONTROLES');
@@ -6942,7 +7320,7 @@ export class ExportService {
         'G',
         'Compte de résultat SMT',
         `Écart de ${cr.controle.ecart.toFixed(2)} avec le résultat du bilan (résidu inexpliqué : ${cr.controle.residuel.toFixed(2)}).`,
-        'Examiner les flux de trésorerie hors résultat (financement, investissement) que le compte de résultat SMT écarte.',
+        this.decompositionEcartSmtSyscohada(cr.controle),
       ]);
     }
     for (const c of bilan.comptesNonRattaches) {

@@ -49,6 +49,9 @@ async function dotation(c: {
         modeAmortissement: 'LINEAIRE',
         compteDotationId: 'cd',
         compteAmortissementId: 'ca',
+        // `trouver` charge le compte du bien · la dotation lit sa nature
+        // (comptes-du-bien.ts, bien que le plan ne fait pas amortir).
+        compteImmobilisation: { numero: '24510000' },
         dotations: [],
         depreciations: [],
       }),

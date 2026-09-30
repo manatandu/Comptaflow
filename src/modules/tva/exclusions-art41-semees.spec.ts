@@ -49,13 +49,13 @@ describe('les comptes que l’article 41 fait reconnaître sont bien semés, aux
     });
   }
 
-  it('le 62760000 « Cadeaux à la clientèle » n’est semé QU’au SYSCOHADA, et cela reste sans effet', () => {
-    // C'est le cas qui justifie de ne plus lire le référentiel : une racine
-    // qui ne rencontre aucun compte du plan ne déclenche rien. Si le semis
-    // SYCEBNL l'ouvrait un jour sous le même intitulé, la règle s'y
-    // appliquerait d'elle-même, ce qui est le comportement voulu.
+  it('le 62760000 « Cadeaux à la clientèle » est semé aux DEUX plans, et la règle s’y applique d’elle-même', () => {
+    // La fiche du compte 62 du SYCEBNL (Partie 2 ch. 3, classe 6) ouvre
+    // 6276 « Cadeaux à la clientèle » · le semis l'avait omis, et ce spec
+    // gelait l'omission comme un fait du plan (passe R5, C3). Le service ne
+    // lit pas le référentiel · la racine s'applique dès que le compte existe.
     expect(seedSyscohada).toContain("'62760000', 'Cadeaux à la clientèle'");
-    expect(seedSycebnl).not.toContain("'62760000'");
+    expect(seedSycebnl).toContain("'62760000', 'Cadeaux à la clientèle'");
   });
 
   it('le service ne referme plus l’article 41 sur le seul SYSCOHADA', () => {

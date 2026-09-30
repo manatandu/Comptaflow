@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -20,7 +20,7 @@ import {
   MiseEnServiceDto,
 } from './dto/immobilisation.dto';
 import { baremeFiscal } from './bareme-fiscal';
-import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
+import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // Consultation ouverte aux trois rôles ; gestion (familles, création,
@@ -120,8 +120,21 @@ export class ImmobilisationController {
 
   /** Contreparties admises pour une acquisition de la famille donnée. */
   @Get('contreparties-acquisition')
-  async contrepartiesAcquisition(@CurrentUser() user: AuthenticatedUser, @Query('familleId', ParseUUIDPipe) familleId: string) {
-    return this.immobilisationService.contrepartiesAcquisition(user.tenantId, familleId);
+  async contrepartiesAcquisition(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('familleId', ParseUUIDPipe) familleId: string,
+    // Le type d'un composant ouvre sa propre contrepartie (1984 pour un
+    // démantèlement, AUDCIF Titre VII, classe 2) · un type inconnu est refusé.
+    @Query('typeComposant') typeComposant?: string,
+  ) {
+    if (typeComposant !== undefined && !(Object.values(TypeComposant) as string[]).includes(typeComposant)) {
+      throw new BadRequestException(`Type de composant inconnu : ${typeComposant}`);
+    }
+    return this.immobilisationService.contrepartiesAcquisition(
+      user.tenantId,
+      familleId,
+      (typeComposant as TypeComposant | undefined) ?? null,
+    );
   }
 
   @Get()

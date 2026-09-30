@@ -63,6 +63,9 @@ async function dotation(c: Cas): Promise<number> {
         amortissementAnterieur: c.amortissementAnterieur ?? 0,
         compteDotationId: 'cd',
         compteAmortissementId: 'ca',
+        // `trouver` charge le compte du bien · la dotation lit sa nature
+        // (comptes-du-bien.ts, bien que le plan ne fait pas amortir).
+        compteImmobilisation: { numero: '24510000' },
         dotations: (c.dotations ?? []).map((m, i) => ({ montant: m, exerciceId: `ex${i}` })),
         // Le module charge désormais les dépréciations avec le bien · elles
         // changent la base amortissable (AUDCIF Titre VIII ch. 12 § 2.4.1).

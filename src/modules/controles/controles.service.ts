@@ -27,7 +27,7 @@ import { sourceManuel } from '../documents-obligatoires/manuel-procedures.servic
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
 import { ancienneteJours, enRetardDeCentralisation } from '../comptabilite/centralisation-brouillard';
-import { dernierExerciceCouvert, estDansLaProrogation, regleDeProrogation } from '../mandat-auditeur/duree-mandat';
+import { dernierExerciceCouvert, estDansLaProrogation, mandatCouvrant, regleDeProrogation } from '../mandat-auditeur/duree-mandat';
 import {
   articleTrenteSeptApplicable,
   etatAccordCadre,
@@ -3601,9 +3601,7 @@ export class ControlesService {
       select: { id: true, nom: true, premierExercice: true, nombreExercices: true, refusDeProrogation: true },
     });
     const anneeExercice = ex.dateFin.getUTCFullYear();
-    const couvrant = mandats.find(
-      (m) => m.premierExercice <= anneeExercice && dernierExerciceCouvert(m.premierExercice, m.nombreExercices) >= anneeExercice,
-    );
+    const couvrant = mandatCouvrant(mandats, anneeExercice);
     // Le plus récent mandat échu · candidat à la prorogation.
     const echu = mandats.find((m) => dernierExerciceCouvert(m.premierExercice, m.nombreExercices) < anneeExercice);
     const prorogation = regleDeProrogation(tenant.referentiel, tenant.formeJuridiqueSyscohada);

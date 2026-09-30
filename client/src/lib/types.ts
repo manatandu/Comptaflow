@@ -3273,6 +3273,12 @@ export interface NotesSmtSyscohada {
     totalCautions: number;
     amortissement: { mode: string; prorataTemporis: boolean };
     motifCautions: string;
+    /** Biens sortis pendant l'exercice · présentés à part, hors du total (passe R6, E15). */
+    sortiesDeLExercice: LigneNote1SmtSyscohada[];
+    /** Comptes de classe 2 que les fiches détenues ne reconstituent pas. */
+    ecartsImmobilisations: Array<{ numero: string; intitule: string; soldeBalance: number; valeurFiches: number; ecart: number }>;
+    fichesSansSolde: Array<{ designation: string; montant: number }>;
+    motifEcartsImmobilisations: string | null;
   };
   note2: {
     lignes: LigneNote2SmtSyscohada[];
@@ -3306,6 +3312,23 @@ export interface NotesSmtSyscohada {
     variationSv3: number;
     /** Anomalie du texte officiel : « la variation en pourcentage » alimenterait le compte de résultat. */
     reserveVariationPourcent: string;
+  };
+  /** Les deux journaux de suivi du Titre X ch. 3 (passe R2, C4). */
+  journauxDeSuivi: {
+    journaux: Array<{
+      cle: string;
+      intitule: string;
+      colonnes: string[];
+      lignes: Array<{
+        date: string;
+        numeroFacture: string | null;
+        nom: string;
+        montant: number;
+        datePaiement: string | null;
+        paiementPartiel: boolean;
+      }>;
+    }>;
+    limite: string;
   };
 }
 

@@ -146,6 +146,18 @@ export interface IdentiteLiasse {
    * ligne décalerait toutes les références de page du classeur.
    */
   dateArrete: string;
+  /**
+   * UNITÉ MONÉTAIRE · la troisième mention du § 2.4 (AUDCIF Titre IX ch. 1,
+   * « l'unité monétaire dans laquelle sont exprimés les états financiers »,
+   * « dans chacune des pages des états financiers publiés »). Les états
+   * périodiques l'imprimaient, la liasse déposée non (passe R2, constat A2).
+   * Lue par `monnaieDuJeuLegal`, le même porteur que les états périodiques,
+   * jamais écrite en dur. Servie aux deux référentiels ; au SYCEBNL, la règle
+   * « dans chacune des pages » n'est pas reprise (CLAUDE.md, « Date d'arrêté
+   * des comptes »), la mention n'y est donc pas dite obligatoire. Facultative
+   * dans le type pour les gabarits qui n'impriment qu'une feuille isolée.
+   */
+  monnaie?: string;
 }
 
 export function texteExercice(exercice: string): string {
@@ -264,6 +276,19 @@ export function ecrireCartouche(ws: ExcelJS.Worksheet, ident: IdentiteLiasse, pa
     ? `Comptes arrêtés le ${ident.dateArrete}`
     : "Date d'arrêté des comptes non renseignée";
   c.font = F_CARTOUCHE;
+
+  // L'unité monétaire · même ligne 6, sous la durée, pour ne décaler aucune
+  // référence de page (voir `IdentiteLiasse.monnaie`).
+  // Sur une page étroite, les deux colonnes se confondent · la monnaie suit
+  // alors la date d'arrêté dans la même cellule, jamais par-dessus.
+  if (ident.monnaie) {
+    const colDate = Math.max(3, colMax - 3);
+    const colMonnaie = Math.max(3, colMax - 1);
+    c = ws.getCell(6, colMonnaie);
+    c.value =
+      colMonnaie === colDate ? `${String(c.value ?? '')} · Montants en ${ident.monnaie}` : `Montants en ${ident.monnaie}`;
+    c.font = F_CARTOUCHE;
+  }
 
   hauteurs(ws, { 1: 12, 2: 26, 3: 15, 4: 15, 5: 15, 6: 15, 7: 28 });
   return 7;
@@ -450,7 +475,26 @@ export function construireCouverture(wb: ExcelJS.Workbook, ident: IdentiteLiasse
 export function construireGarde(
   wb: ExcelJS.Workbook,
   ident: IdentiteLiasse,
-  options: { bandeau: string; sousBandeau: string; systeme: string; documents: string[]; lignesAdmin?: string[]; centreDepot?: string },
+  options: {
+    bandeau: string;
+    sousBandeau: string;
+    systeme: string;
+    documents: string[];
+    lignesAdmin?: string[];
+    centreDepot?: string;
+    /**
+     * CONTEXTURE DE LA PAGE DE GARDE DE L'AUDCIF (Titre IX ch. 2, passe R2,
+     * constat A5) · les quatre mentions « RÉPUBLIQUE, MINISTÈRE, DIRECTION,
+     * CENTRE DE DÉPÔT DE » sont imprimées TOUJOURS, chacune suivie d'une zone
+     * à remplir, et la zone de réception est celle « Réservé à la Direction
+     * Générale des Impôts ». Les conditions de recevabilité veulent qu'on
+     * reproduise « à l'identique la contexture des imprimés normalisés ».
+     * Rien n'est déduit du dossier (ni ministère, ni direction, ni centre).
+     * SYSCOHADA, Système normal seulement · le SYCEBNL ne porte pas ces
+     * mentions, et le Titre X n'a pas cette page de garde.
+     */
+    contextureAudcif?: boolean;
+  },
 ) {
   const ws = wb.addWorksheet('Garde');
   masquerQuadrillage(ws);
@@ -465,7 +509,27 @@ export function construireGarde(
     c.alignment = AL_CENTRE;
     r += 1;
   }
-  if (options.centreDepot) {
+  if (options.contextureAudcif) {
+    for (const [rr, mention] of [
+      [2, 'REPUBLIQUE'],
+      [3, 'MINISTERE'],
+      [4, 'DIRECTION'],
+    ] as Array<[number, string]>) {
+      fusion(ws, rr, 2, rr, 3);
+      const cm = ws.getCell(rr, 2);
+      cm.value = mention;
+      cm.font = { name: 'Arial', size: 10, bold: true };
+      fusion(ws, rr, 4, rr, 10);
+      for (let cc = 4; cc < 11; cc++) ws.getCell(rr, cc).border = B_SOULIGNE;
+    }
+    fusion(ws, 8, 3, 8, 10);
+    const cc8 = ws.getCell(8, 3);
+    cc8.value = 'CENTRE DE DEPOT DE';
+    cc8.font = { name: 'Arial', size: 10 };
+    cc8.alignment = AL_CENTRE;
+    fusion(ws, 9, 3, 9, 10);
+    for (let cc = 3; cc < 11; cc++) ws.getCell(9, cc).border = B_SOULIGNE;
+  } else if (options.centreDepot) {
     fusion(ws, 8, 3, 8, 10);
     let c = ws.getCell(8, 3);
     c.value = 'CENTRE DE DEPOT DE';
@@ -532,7 +596,9 @@ export function construireGarde(
   for (let cc = 2; cc < 12; cc++) ws.getCell(32, cc).border = { top: POINTILLE };
   ws.getCell(34, 2).value = 'Documents déposés';
   ws.getCell(34, 2).font = { name: 'Arial', size: 10, bold: true };
-  ws.getCell(34, 8).value = "Réservé à l'administration";
+  ws.getCell(34, 8).value = options.contextureAudcif
+    ? 'Réservé à la Direction Générale des Impôts'
+    : "Réservé à l'administration";
   ws.getCell(34, 8).font = { name: 'Arial', size: 10, bold: true };
   r = 35;
   for (const doc of options.documents) {
@@ -551,7 +617,12 @@ export function construireGarde(
   const zone: Array<[string, number]> = [
     ['Date de dépôt', 1],
     ['', 3],
-    ["Nom de l'agent ayant réceptionné le dépôt", 1],
+    [
+      options.contextureAudcif
+        ? "Nom de l'agent de la DGI ayant réceptionné le dépôt"
+        : "Nom de l'agent ayant réceptionné le dépôt",
+      1,
+    ],
     ['', 3],
     ["Signature de l'agent et cachet du service", 1],
     ['', 3],
@@ -679,6 +750,16 @@ export function construireFiche2(
   dirigeants: Array<{ nom: string; qualite: string; nif?: string }> = [],
   pageRef = 'FICHE 2',
   lignes = 20,
+  /**
+   * FICHE R3 DE L'AUDCIF (Titre IX ch. 2, passe R2, constat A4) · deux
+   * blocs, « Dirigeants (¹) » et « Membres du Conseil d'administration », et
+   * le renvoi (¹) qui définit les dirigeants. Le second bloc est imprimé pour
+   * tous, vide et à compléter · le texte l'imprime sans condition de forme,
+   * et une entité sans conseil le laisse vide. Rien n'est prérempli, le
+   * dossier ne tenant ni dirigeants ni administrateurs. SYSCOHADA, Système
+   * normal seulement · les Fiches 2 du SYCEBNL ne changent pas.
+   */
+  ficheR3Audcif = false,
 ) {
   const ws = wb.addWorksheet('Fiche 2');
   const NB = 10;
@@ -726,9 +807,41 @@ export function construireFiche2(
     for (let cc = 1; cc <= NB; cc++) ws.getCell(r, cc).border = B_FIN;
   }
   r += 2;
+  if (ficheR3Audcif) {
+    c = ws.getCell(r, 1);
+    c.value = '(1) Dirigeants = Président Directeur Général, Directeur Général, Administrateur Général, Gérant, Autres.';
+    c.font = { name: 'Arial', size: 8 };
+    r += 1;
+  }
   c = ws.getCell(r, 1);
   c.value = '(2) Mentionner les autres nationalités le cas échéant.';
   c.font = { name: 'Arial', size: 8 };
+  if (ficheR3Audcif) {
+    r += 2;
+    fusion(ws, r, 1, r, NB);
+    c = ws.getCell(r, 1);
+    c.value = "MEMBRES DU CONSEIL D'ADMINISTRATION";
+    c.font = { name: 'Arial', size: 11, bold: true };
+    c.alignment = AL_CENTRE;
+    r += 1;
+    const colonnesCa: Array<[string, number, number]> = [
+      ['Nom et Prénoms', 1, 3],
+      ['Qualité', 4, 5],
+      ['Adresse (BP, ville, pays)', 6, 10],
+    ];
+    for (const [lab, c1, c2] of colonnesCa) {
+      fusion(ws, r, c1, r, c2);
+      ws.getCell(r, c1).value = lab;
+    }
+    entetesBande(ws, r, r, 1, NB);
+    ws.getRow(r).height = 24;
+    for (let i = 0; i < 10; i++) {
+      r += 1;
+      ws.getRow(r).height = 22;
+      for (const [, c1, c2] of colonnesCa) fusion(ws, r, c1, r, c2);
+      for (let cc = 1; cc <= NB; cc++) ws.getCell(r, cc).border = B_FIN;
+    }
+  }
   largeurs(ws, { A: 12, B: 16, C: 13, D: 13, E: 13, F: 8, G: 8, H: 11, I: 11, J: 11 });
   return ws;
 }

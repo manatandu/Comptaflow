@@ -26,6 +26,18 @@ import {
  * la décomposition n'est de toute façon autorisée que pour des catégories
  * de biens limitées).
  */
+/**
+ * LA CONTREPARTIE D'UNE DÉPRÉCIATION · la liste que le serveur admet
+ * (`immobilisations/comptes-du-bien.ts`). SYSCOHADA, fiche du compte 29 :
+ * dotation au 691, 697 ou 853, reprise au 791, 797 ou 863 · la voie H.A.O.,
+ * que le serveur sait reprendre, était inatteignable depuis l'écran (passe
+ * R1, A5). Le SYCEBNL garde les 69 et 79, sa fiche n'étant pas transposée.
+ */
+function racinesContrepartieDepreciation(syscohada: boolean, sens: string): string[] {
+  if (syscohada) return sens === 'DOTATION' ? ['691', '697', '853'] : ['791', '797', '863'];
+  return sens === 'DOTATION' ? ['69'] : ['79'];
+}
+
 export function ImmobilisationsPage() {
   const { estAdmin, peutEcrire, utilisateur } = useAuth();
   // Au SMT, la Note 1 ne connaît que le bien · ni composant ni révision
@@ -245,19 +257,23 @@ export function ImmobilisationsPage() {
   // LA CONTREPARTIE SE LIT DANS LA FICHE DES COMPTES 21 À 24 · liste fermée,
   // servie par le serveur pour la famille choisie
   // (`immobilisations/contrepartie-acquisition.ts`), la même règle que son refus.
+  // Le type d'un composant ouvre sa propre contrepartie (1984 pour un
+  // démantèlement, AUDCIF Titre VII, classe 2) · la même règle que le serveur.
+  const typeComposantServi = estComposant && iPrincipal ? iTypeComposant : '';
   const [contrepartiesAdmises, setContrepartiesAdmises] = useState<Compte[] | null>(null);
   useEffect(() => {
     setContrepartiesAdmises(null);
     if (!iFamilleId) return;
     let vivant = true;
+    const type = typeComposantServi ? `&typeComposant=${typeComposantServi}` : '';
     api
-      .get<Compte[]>(`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}`)
+      .get<Compte[]>(`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}${type}`)
       .then((c) => vivant && setContrepartiesAdmises(c))
       .catch(() => vivant && setContrepartiesAdmises([]));
     return () => {
       vivant = false;
     };
-  }, [iFamilleId]);
+  }, [iFamilleId, typeComposantServi]);
   const modeRetenu = iMode || familleChoisie?.modeAmortissement || 'LINEAIRE';
   const unitesServies = !(utilisateur?.tenant?.referentiel === 'SYSCOHADA' && utilisateur?.tenant?.systemeComptableSyscohada === 'MINIMAL_TRESORERIE');
 
@@ -1447,11 +1463,11 @@ export function ImmobilisationsPage() {
                       </select>
                     </label>
                     <label className="text-[11.5px] font-semibold text-text-dim">
-                      Contrepartie ({dSens === 'DOTATION' ? '69' : '79'})
+                      Contrepartie ({racinesContrepartieDepreciation(syscohada, dSens).join(', ')})
                       <select required value={dContrepartie} onChange={(e) => setDContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                         <option value="" />
                         {comptesFinancement
-                          .filter((c) => c.numero.startsWith(dSens === 'DOTATION' ? '69' : '79'))
+                          .filter((c) => racinesContrepartieDepreciation(syscohada, dSens).some((r) => c.numero.startsWith(r)))
                           .map((c) => (
                             <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                           ))}

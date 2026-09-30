@@ -42,6 +42,12 @@ export class CompteController {
     });
   }
 
+  /** Les renvois annexés au plan SYSCOHADA (« [1] » à « [10] ») · voir renvois-plan-syscohada.ts. */
+  @Get('renvois')
+  async renvois(@CurrentUser() user: AuthenticatedUser) {
+    return this.compteService.renvoisDuPlan(user.tenantId);
+  }
+
   /** Ne retenir que les comptes utilisés · voir CompteService. */
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post('ne-retenir-que-les-utilises')

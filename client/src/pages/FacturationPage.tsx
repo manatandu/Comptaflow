@@ -153,6 +153,19 @@ const AUCUN_TAUX: TauxTva[] = [];
 const enQuantite = (n: number | null | undefined) =>
   typeof n === 'number' ? n.toLocaleString('fr-FR', { maximumFractionDigits: 4 }) : '·';
 
+
+/**
+ * RÉSERVE DU VERDICT DES MENTIONS · Code des accises (loi n° 18-002 du 13 mars
+ * 2018, en vigueur à sa publication au J.O. du 18 avril 2018, art. 148). Le
+ * fabricant des marchandises de l'art. 3 (art. 19, 3) et le fournisseur des
+ * services de l'art. 3 (art. 20, 4) délivrent des factures « faisant ressortir
+ * les montants des droits d'accises et du droit d'accises spécial ». La pièce
+ * d'OmegaX ne porte qu'un montant global d'autres impôts et taxes · le verdict
+ * ne s'étend pas à ces articles, faute de savoir si l'émetteur est visé.
+ */
+export const RESERVE_ACCISES_VERDICT =
+  "Le verdict porte sur les mentions de l'art. 26 du décret n° 23/10 (ou de l'art. 100 du décret n° 011/42 avant le 3 mars 2023). Le fabricant d'une marchandise ou le fournisseur d'un service visé à l'art. 3 du Code des accises doit en outre faire ressortir séparément les droits d'accises et le droit d'accises spécial dont l'opération est passible (art. 19, 3 et art. 20, 4). La pièce ne porte qu'un montant global d'autres impôts et taxes : elle ne fait pas cette séparation, et OmegaX ne sait pas si l'émetteur est visé."
+
 export function FacturationPage() {
   const { peutEcrire, utilisateur } = useAuth();
   // Le serveur refuse l'écriture à la lecture seule ; l'écran ne la propose pas.
@@ -834,7 +847,20 @@ export function FacturationPage() {
                     <td className="py-1 pr-2 text-right">{montant(f.totaux.montantTTC)}</td>
                     <td className="py-1">
                       {f.mentions.conforme ? (
-                        <span>Tous les groupes exigibles sont servis.</span>
+                        <span className="inline-flex items-center gap-1">
+                          Tous les groupes exigibles sont servis.
+                          {/* PASSE F14, CONSTAT A1 · le verdict ne vaut que pour
+                              l'art. 26 du décret n° 23/10. Le Code des accises
+                              impose au fabricant ou au fournisseur de l'art. 3 une
+                              mention que le champ unique « autres impôts et taxes »
+                              ne sait pas servir · le logiciel ne sait pas si
+                              l'émetteur en est un, il le dit sans rien trancher. */}
+                          <Aide
+                            titre="Portée du verdict"
+                            texte={RESERVE_ACCISES_VERDICT}
+                            source="Loi n° 18-002 du 13 mars 2018 portant Code des accises, art. 19, 3 et art. 20, 4"
+                          />
+                        </span>
                       ) : (
                         <>
                           <span className="text-danger">Manque : {manquesDeLaPiece(f.mentions).join(' · ')}</span>
