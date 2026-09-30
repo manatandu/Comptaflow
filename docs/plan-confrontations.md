@@ -319,7 +319,7 @@ passes de sa fin.
 | 12 | **R5** | SYCEBNL Partie 2 · cadre comptable et plan des comptes | **2 203** | 3 |
 | 13 | **F11** | Impôts réels et cédulaires · O.-L. 69/006, 88/029, survivances du 69/009 | **1 987** | 3 |
 | 14 | **R2** | AUDCIF Titres IX et X · états financiers, Système normal et SMT | **1 888** | 3 |
-| 15 | **R6** | SYCEBNL Partie 4 · les trois jeux d'états et leurs notes | **1 715** | 2 |
+| 15 | **R6** | **FAITE le 2026-09-30** · SYCEBNL Partie 4, les trois jeux d'états et leurs notes. Cinq blocs, **74 constats retenus dont 39 FAUX**, corrigés en cinq lots (notes des associations, tableau des flux, SMT, projets). Les rattachements devenus orphelins sont désormais nommés. Journal : `docs/releve-de-manques-referentiels.md` | **1 715** | 2 |
 | 16 | **O3** | AUS · sûretés | **1 623** | 2 |
 | 17 | **R3** | AUDCIF Titre XI · nomenclatures NAEMA et NOPEMA | **1 493** | 2 |
 | 18 | **F12** | Le socle 2026 · sept arrêtés ministériels + `parametres-2026.md` | **1 308** | 2 |

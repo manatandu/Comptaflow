@@ -1904,3 +1904,52 @@ une case que la liasse veut numérique.
 **UN GABARIT DE COMPÉTENCE N'EST PAS LE TEXTE.** La date de début fausse en ZA
 venait du script de mise en forme de la compétence, recopié tel quel · même
 famille que les gloses de F12.
+
+## Passe R6 · SYCEBNL Partie 4, les trois jeux d'états et leurs notes (2026-09-30)
+
+Les modèles officiels du Journal officiel (Partie 4, ch. 2 à 4) confrontés aux
+tables de correspondance, aux notes et à la liasse · associations et ordres
+professionnels (45 notes), projets de développement (26 notes), Système minimal
+de trésorerie (5 notes). Cinq blocs, un confronteur par bloc et une réfutation
+groupée, puis une reprise après la limite d'usage. **74 constats retenus, dont
+39 FAUX**, corrigés en cinq lots (bloc B, puis A, E, C et D).
+
+### Corrigés
+
+| Lot | Retenus (FAUX) | L'essentiel |
+|---|---|---|
+| B · notes des associations | 14 (8) + 2 | Note 9 aux 413 et 416, 478 et 479 hors des notes 10 et 21, 4881 sur sa ligne de la note 7, date d'arrêté de la Note 3 servie par l'exercice, intitulés et titres des deux fiches récapitulatives transcrits, renvoi imprimé dans la colonne Note. |
+| A · tableau des flux des associations | 9 (4) | Ressources sans trésorerie (1049, 703) retirées, FQ sans le 1679 et nette du 792, FI nette des 239, 249, 25, 721 et 722, 413 et 419 ventilés entre FA et FE, 2949 en AL. Intitulés 4181, 4182, 4194 alignés sur la fiche du compte 41. |
+| E · SMT SYCEBNL | 14 (7) | Flux hors exploitation limités aux classes 1 et 2 et au 481, GC net des 49, renvois lus dans la table des postes, colonne N-1 du compte de résultat, apporteurs de la Note 5 sur liste fermée, Notes 3 et 4 à la maquette, Note 1 rapprochée de GA et limitée aux biens détenus. |
+| C · notes des associations, suite | 18 (9) | Note 24 aux subdivisions semées, note 25 aux 6181, 6183 et 619, note 20 aux 4334 et 4335, note 21 aux 499 et 599, note 22 aux 53 créditeurs, 791 et 797 sortis des notes 23 et 31, CAFG de la note 33 avec les 85 et 86. Un compte n'est jamais lu par deux lignes d'une note. Totaux saisis des notes 1 et 5G confrontés à leurs lignes. |
+| D · états des projets | 19 (11) | XB retranche TK, tous les rangs d'un même REF gardés au tableau emplois-ressources, liasse aux valeurs du serveur (77 compté une fois), renvoi (8) au 186, note 8 à six colonnes, notes 14 à 16 rattachées au plan, note 9 construite depuis les fonds du bailleur. |
+
+**LES RATTACHEMENTS DEVENUS ORPHELINS SONT NOMMÉS.** Lire par le plan des
+rubriques qui attendaient un rattachement laissait en base des rattachements que
+plus aucune rubrique ne relit · leur compte sortait de la note sans un mot.
+`rattachementsSansRubrique` les sert avec les notes, et l'écran les nomme avec
+un bouton de retrait.
+
+### Non faits, et pourquoi
+
+- **Note 33 en quatre tableaux** (C18) · la note est cherchée par son code
+  seul dans l'injection des indicateurs ; le découpage se fera avec elle.
+- **Tableau 20B à seize colonnes M/F** (D20) · les saisies sont ancrées par
+  rang de colonne ; passer de 8 à 16 colonnes exige une migration des saisies,
+  et le rang d'arrivée est une décision d'éditeur.
+- **Contrôle des totaux saisis sur 29B, 5H, 35 et 24 des projets** (B12) ·
+  cellules texte ou tableau injecté depuis le budget.
+- **Renvois de VA, VB et VC du SMT** (E5) · un caractère illisible au scan,
+  à lire sur le PDF du Journal officiel.
+- **Jumeaux projets restants du lot C** · note 13 (53 créditeurs) et colonnes
+  détaillées de la note 3A.
+
+### Ce que la passe apprend
+
+**UN MODÈLE SCANNÉ SE LIT PAR SA STRUCTURE, PAS PAR SES RENVOIS.**
+Les renvois de note d'un seul caractère étaient les seuls points faibles de la
+transcription ; les codes REF et les numéros de comptes, eux, ont tenu partout.
+
+**DEUX LOTS ONT CORRIGÉ LE MÊME DÉFAUT SANS SE VOIR** (le reliquat du 433, C4
+et D6) · la fusion l'a montré, et c'est la même règle écrite deux fois. Une
+correction se cherche aussi dans le lot voisin.
