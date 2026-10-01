@@ -1449,6 +1449,15 @@ TEXTE, non comblée ; les quatre mentions sont servies aux deux sans être dites
 obligatoires des deux. Le délai de quatre mois n'est PAS un refus ; seul un arrêté
 antérieur à la clôture est refusé, et null efface (§ 1.6, nouvel arrêté).
 
+**IMMOBILISATIONS · PLAN VERROUILLÉ (2026-10-01, arrêté avec Manasse).**
+`docs/plan-immobilisations-verrouille.md` fixe l'ordre des lots (défauts
+d'abord), leur périmètre, la définition de fini commune et les décisions
+closes D-1 à D-7 · projets de développement SANS dotation (Guide SYCEBNL
+App. 8), usufruit dépréciable avec reprise au 7951, rebut à la valeur nette
+au 81, barème proposé dans les deux sens et jamais refusé. Un lot ne
+commence qu'une fois le précédent vérifié en production ; ce qu'on découvre
+en route va au journal du plan, jamais dans le lot en cours.
+
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son
 PROPRE plan (AUDCIF ch. 4 § 1). L'opération unique `renouveler` sort la VCN de
