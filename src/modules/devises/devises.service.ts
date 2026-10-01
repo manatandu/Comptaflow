@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { motifHorsReevaluation } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -208,6 +209,13 @@ export interface RapportReevaluation {
    */
   avertissements: string[];
   coursManquants: string[];
+  /**
+   * Positions en devise que le texte ne réévalue pas (immobilisations,
+   * avances sur immobilisations, titres, stocks, fonds propres, gestion) ·
+   * montrées avec leur motif, jamais réévaluées ni tues
+   * (`perimetre-reevaluation.ts`).
+   */
+  positionsNonReevaluees: { numero: string; intitule: string; deviseCode: string; montantDevise: number; motif: string }[];
 }
 
 /**
@@ -327,6 +335,8 @@ export class DevisesService {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
     const date = dto.dateReevaluation ? new Date(dto.dateReevaluation) : exercice.dateFin;
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    if (!tenant) throw new BadRequestException('Dossier introuvable');
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
@@ -376,8 +386,23 @@ export class DevisesService {
 
     const coursManquants = new Set<string>();
     const resultat: PositionDevise[] = [];
+    const positionsNonReevaluees: RapportReevaluation['positionsNonReevaluees'] = [];
     for (const p of positions.values()) {
       if (Math.abs(p.montantDevise) < 0.005 && Math.abs(p.valeurComptable) < 0.005) continue;
+      // AUDCIF Titre VIII ch. 22 · seuls créances, dettes et disponibilités
+      // prennent le cours de clôture ; le reste garde le cours du jour de
+      // l'opération, et c'est dit plutôt que tu.
+      const motif = motifHorsReevaluation(p.numero, tenant.referentiel);
+      if (motif) {
+        positionsNonReevaluees.push({
+          numero: p.numero,
+          intitule: p.intitule,
+          deviseCode: p.deviseCode,
+          montantDevise: Math.round(p.montantDevise * 100) / 100,
+          motif,
+        });
+        continue;
+      }
       const cours = await this.coursA(p.deviseId, date);
       if (cours === null) {
         coursManquants.add(p.deviseCode);
@@ -492,6 +517,7 @@ export class DevisesService {
       positionGlobaleRetenue: positionGlobale,
       avertissements,
       coursManquants: [...coursManquants],
+      positionsNonReevaluees,
     };
   }
 

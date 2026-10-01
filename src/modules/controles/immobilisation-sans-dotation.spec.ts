@@ -52,7 +52,11 @@ function passeFiltreDate(d: Date | null, f: FiltreDate): boolean {
   return true;
 }
 
-function service(immobilisations: Immo[], referentiel: 'SYCEBNL' | 'SYSCOHADA' = 'SYSCOHADA') {
+function service(
+  immobilisations: Immo[],
+  referentiel: 'SYCEBNL' | 'SYSCOHADA' = 'SYSCOHADA',
+  jeuEtatsFinanciersSycebnl: string | null = null,
+) {
   const prisma = {
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
@@ -61,7 +65,7 @@ function service(immobilisations: Immo[], referentiel: 'SYCEBNL' | 'SYSCOHADA' =
         dateFin: new Date('2026-12-31'),
       }),
     },
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel, jeuEtatsFinanciersSycebnl }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
@@ -200,5 +204,31 @@ describe('immobilisation amortissable sans dotation sur l’exercice', () => {
       'SYCEBNL',
     ).analyser('t', 'ex');
     expect(a.anomalies.find((x) => x.code === 'IMMO_SANS_DOTATION')!.occurrences[0].reference).toBe('Usufruit temporaire');
+  });
+});
+
+/**
+ * UN PROJET DE DÉVELOPPEMENT N'AMORTIT RIEN · Acte uniforme SYCEBNL, art. 7
+ * et 9 (« les charges sans amortissement, ni dépréciation »), décision D-1 du
+ * 2026-10-01. Lui réclamer une dotation, ou un amortissement antérieur repris,
+ * serait un contrôle qui fabrique une anomalie (§ 10 bis).
+ */
+describe('projet de développement · aucun des deux contrôles d’amortissement', () => {
+  const projet = (immos: Immo[]) =>
+    service(immos, 'SYCEBNL', 'PROJETS_DEVELOPPEMENT').analyser('t', 'ex');
+
+  it('se tait sur un bien du projet sans dotation', async () => {
+    const r = await projet([bien({ designation: 'Véhicule du projet' })]);
+    expect(r.anomalies.find((a) => a.code === 'IMMO_SANS_DOTATION')).toBeUndefined();
+  });
+
+  it('se tait sur un bien du projet mis en service avant le dossier', async () => {
+    const r = await projet([bien({ designation: 'Groupe électrogène', dateMiseEnService: new Date('2020-01-01') })]);
+    expect(r.anomalies.find((a) => a.code === 'IMMO_REPRISE_SANS_ANTERIEUR')).toBeUndefined();
+  });
+
+  it('une association du même référentiel reste signalée', async () => {
+    const r = await service([bien({ designation: 'Véhicule' })], 'SYCEBNL', 'ASSOCIATIONS_ORDRES_PROFESSIONNELS').analyser('t', 'ex');
+    expect(r.anomalies.find((a) => a.code === 'IMMO_SANS_DOTATION')).toBeDefined();
   });
 });

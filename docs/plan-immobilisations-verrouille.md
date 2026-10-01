@@ -166,3 +166,5 @@ titres · trop rares pour un cabinet en RDC ; repris seulement sur demande.
 |---|---|---|
 | 2026-10-01 | · | Plan arrêté ; décisions D-1 à D-7 ; chantiers a, b1 à b3, c et d déjà livrés |
 | 2026-10-01 | D-1 | Fondement porté à l'Acte lui-même (art. 7 et 9), à la question de Manasse · décision inchangée |
+| 2026-10-01 | 1 | Livré · 1.1 réévaluation des devises limitée aux créances, dettes et disponibilités (`devises/perimetre-reevaluation.ts`, 16 et 17 du SYCEBNL hors champ, positions écartées montrées avec leur motif) ; 1.2 usufruit temporaire (2011) en nature propre, rétrocédé sans 81, cession refusée, dépréciation au 6951 et reprise au 7951 ; 1.3 refus de la pièce de sécurité cité au texte du dossier ; 1.4 projet de développement sans dotation ni complément de sortie, contrôles 12 et 13 muets |
+| 2026-10-01 | 1 | Relevé en route · le § 2.3.2 n'équilibre la rétrocession que si l'usufruit est entièrement amorti ; avec une dépréciation qui subsiste, aucun compte n'est donné pour la valeur nette · refus nommé (reprendre d'abord la dépréciation). Le 50 (titres de placement) reste réévalué comme avant, à trancher au regard du § 1.3 dans un lot ultérieur |

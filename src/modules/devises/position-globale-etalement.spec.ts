@@ -45,6 +45,7 @@ interface LigneTest {
 /** Un cours par devise, pour pouvoir opposer deux devises dans un même test. */
 function service(lignes: LigneTest[], cours: Record<string, number>) {
   const prisma = {
+    tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'ex1',

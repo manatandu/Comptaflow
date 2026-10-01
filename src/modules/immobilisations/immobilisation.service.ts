@@ -63,6 +63,8 @@ import {
   motifRefusCompteDepreciation,
   motifRefusContrepartieCession,
   motifRefusContrepartieDepreciation,
+  motifRefusContrepartieUsufruit,
+  motifSansAmortissementProjet,
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
 
@@ -216,9 +218,21 @@ function estConflitUnicite(err: unknown): boolean {
   La fiche AUDCIF du COMPTE 81 n'énumère, elle, que 811, 812 et 816 : le 818
   n'existe PAS au SYSCOHADA, et cette nature n'y est jamais rendue.
 */
-export type NatureImmobilisation = 'INCORPORELLE' | 'CORPORELLE' | 'FINANCIERE' | 'DONS_LEGS_VENTE';
+export type NatureImmobilisation = 'INCORPORELLE' | 'CORPORELLE' | 'FINANCIERE' | 'DONS_LEGS_VENTE' | 'USUFRUIT';
 
-export const COMPTES_SORTIE: Record<NatureImmobilisation, { valeurComptable: string; produitCession: string }> = {
+/*
+  L'USUFRUIT TEMPORAIRE (2011, SYCEBNL SEUL) N'EST NI VENDU NI CÉDÉ · IL EST
+  RÉTROCÉDÉ. SYCEBNL Partie 3 ch. 2 § 2.3.2 · « Lors de la rétrocession des
+  immobilisations au donateur au terme de la durée de la dotation temporaire,
+  l'entité doit procéder à une décomptabilisation de l'immobilisation et à une
+  reprise des éventuelles dépréciations antérieurement constatées » · D 280 /
+  C 2011, puis D 2901 / C 7951. AUCUN 81 · le 818 que la division 20 lui
+  prêtait est celui des biens « destinés à la vente », et le 7952 la reprise
+  de ces mêmes biens. Le 2011 a donc sa propre nature, sans compte de sortie.
+  (« dotation temporaire » est écrit pour « donation » dans le texte · coquille
+  relevée au relevé du 2026-10-01, non corrigée dans la citation.)
+*/
+export const COMPTES_SORTIE: Record<Exclude<NatureImmobilisation, 'USUFRUIT'>, { valeurComptable: string; produitCession: string }> = {
   INCORPORELLE: { valeurComptable: '81100000', produitCession: '82100000' },
   CORPORELLE: { valeurComptable: '81200000', produitCession: '82200000' },
   FINANCIERE: { valeurComptable: '81600000', produitCession: '82600000' },
@@ -288,6 +302,9 @@ export const REPRISE_DEPRECIATION_SORTIE: Record<
     CORPORELLE: '79140000',
     FINANCIERE: '79720000',
     DONS_LEGS_VENTE: '79520000',
+    // « D 2901 / C 7951 Reprises des dépréciations d'usufruit temporaire »
+    // (SYCEBNL Partie 3 ch. 2 § 2.3.2) · pas le 7952 des biens à vendre.
+    USUFRUIT: '79510000',
   },
   [Referentiel.SYSCOHADA]: {
     INCORPORELLE: '79130000',
@@ -334,6 +351,7 @@ export function natureImmobilisation(numeroCompte: string, referentiel: Referent
   // qui se lit différemment de part et d'autre, et un défaut aurait rendu
   // l'oubli silencieux · exactement le genre d'erreur que ce module produit
   // sans déséquilibrer une seule écriture.
+  if (referentiel === Referentiel.SYCEBNL && numeroCompte.startsWith('2011')) return 'USUFRUIT';
   if (referentiel === Referentiel.SYCEBNL && numeroCompte.startsWith('20')) return 'DONS_LEGS_VENTE';
   // Classe 2 : 21 incorporelles, 22 à 24 corporelles, 26 et 27 financières.
   // Le 20 reste rangé ici avec le 21 pour le SYSCOHADA, où aucun compte 20x
@@ -875,7 +893,8 @@ export class ImmobilisationService {
    *    valeur résiduelle, puisque, par définition, il est prévu qu'il soit
    *    remplacé avant la fin de l'utilisation de la structure ». Le § 4.3
    *    ouvre l'exception du DERNIER remplacement, d'où le drapeau ;
-   *  · la pièce de sécurité · SYCEBNL, classe 2, « pour les pièces de
+   *  · la pièce de sécurité · SYCEBNL, classe 2, et AUDCIF Titre VIII ch. 14
+   *    § 1.2.3, mêmes mots · « pour les pièces de
    *    sécurité, l'amortissement doit démarrer DÈS L'ACQUISITION DE
    *    L'IMMOBILISATION PRINCIPALE ». C'est la seule des cinq natures dont la
    *    date de départ soit entièrement déterminée par le principal, donc la
@@ -901,8 +920,18 @@ export class ImmobilisationService {
     },
     principal: { dateAcquisition: Date; dureeAmortissementAns: number },
     /** Le composant en REMPLACE un autre · voir la pièce de sécurité plus bas. */
-    renouvellement = false,
+    renouvellement: boolean,
+    /**
+     * La même règle est écrite aux deux textes, chacun à SA place · le refus
+     * cite celui du dossier, jamais le SYCEBNL à une société (relevé du
+     * 2026-10-01, D3).
+     */
+    referentiel: Referentiel,
   ) {
+    const sourceSecurite =
+      referentiel === Referentiel.SYSCOHADA
+        ? 'AUDCIF, Titre VIII ch. 14 § 1.2.3'
+        : 'SYCEBNL, Partie 2 ch. 3, classe 2';
     /*
       UNE RÉVISION MAJEURE S'AMORTIT SUR L'INTERVALLE, JAMAIS SUR LA STRUCTURE.
 
@@ -968,8 +997,8 @@ export class ImmobilisationService {
     */
     if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE && !dto.dateMiseEnService) {
       throw new BadRequestException(
-        "Une pièce de sécurité s'amortit dès l'acquisition, qu'elle serve ou non (SYCEBNL, Partie 2 ch. 3, " +
-          "classe 2) · elle ne reste pas « non mise en service ». Indiquez sa date de début d'amortissement.",
+        `Une pièce de sécurité s'amortit dès l'acquisition, qu'elle serve ou non (${sourceSecurite}) · ` +
+          "elle ne reste pas « non mise en service ». Indiquez sa date de début d'amortissement.",
       );
     }
     if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE && renouvellement) {
@@ -985,7 +1014,7 @@ export class ImmobilisationService {
       if (debut.getTime() !== principal.dateAcquisition.getTime()) {
         throw new BadRequestException(
           "Une pièce de sécurité s'amortit à compter de l'acquisition de l'immobilisation principale, qu'elle " +
-            `serve ou non (SYCEBNL, Partie 2 ch. 3, classe 2) : sa date de début est le ` +
+            `serve ou non (${sourceSecurite}) : sa date de début est le ` +
             `${principal.dateAcquisition.toISOString().slice(0, 10)}. Une pièce dont l'amortissement ne commence ` +
             "qu'à son intégration est une pièce de RECHANGE, pas une pièce de sécurité.",
         );
@@ -1518,6 +1547,7 @@ export class ImmobilisationService {
         { ...dto, dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns },
         principal,
         !!interne.composantRemplaceId,
+        referentiel,
       );
       if (!dto.justificationDecomposition?.trim()) {
         throw new BadRequestException(
@@ -2283,7 +2313,9 @@ export class ImmobilisationService {
       const sortiDansLExercice = !!immo.dateSortie && immo.dateSortie <= exercice.dateFin;
       // Un bien que le plan ne fait pas amortir n'annonce aucune annuité ·
       // `passerDotation` la refuserait (comptes-du-bien.ts).
-      const nonAmortissable = !!motifNonAmortissable(immo.compteImmobilisation.numero, regimeTableau.referentiel);
+      const nonAmortissable =
+        !!motifNonAmortissable(immo.compteImmobilisation.numero, regimeTableau.referentiel) ||
+        !!motifSansAmortissementProjet(regimeTableau.jeuEtatsFinanciersSycebnl);
       const dotation = dejaPassee
         ? Number(dejaPassee.montant)
         : sortiDansLExercice || nonAmortissable
@@ -2524,10 +2556,10 @@ export class ImmobilisationService {
     }
     // UN BIEN QUE LE PLAN NE FAIT PAS AMORTIR NE SE DOTE PAS (passe R1, A1 et
     // R5, B1 · comptes-du-bien.ts). La dépréciation reste ouverte.
-    const nonAmortissable = motifNonAmortissable(
-      immo.compteImmobilisation.numero,
-      (await this.regimeComptable(tenantId)).referentiel,
-    );
+    const regimeDotation = await this.regimeComptable(tenantId);
+    const nonAmortissable =
+      motifSansAmortissementProjet(regimeDotation.jeuEtatsFinanciersSycebnl) ??
+      motifNonAmortissable(immo.compteImmobilisation.numero, regimeDotation.referentiel);
     if (nonAmortissable) throw new BadRequestException(nonAmortissable);
 
     const uniteOeuvre = await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, exercice.dateFin);
@@ -2632,7 +2664,8 @@ export class ImmobilisationService {
     const { referentiel } = await this.regimeComptable(tenantId);
     const refusCompte =
       motifRefusCompteDepreciation(referentiel, immo.compteImmobilisation.numero, compte29.numero) ??
-      motifRefusContrepartieDepreciation(referentiel, dto.sens, contrepartie.numero);
+      motifRefusContrepartieDepreciation(referentiel, dto.sens, contrepartie.numero) ??
+      motifRefusContrepartieUsufruit(referentiel, immo.compteImmobilisation.numero, dto.sens, contrepartie.numero);
     if (refusCompte) throw new BadRequestException(refusCompte);
 
     const cumul = this.cumulDepreciation(
@@ -3237,7 +3270,16 @@ export class ImmobilisationService {
     const regime = await this.regimeComptable(tenantId);
     const { referentiel } = regime;
     const nature = natureImmobilisation(immo.compteImmobilisation.numero, referentiel);
-    let comptes = COMPTES_SORTIE[nature];
+    // L'usufruit temporaire se RÉTROCÈDE au donateur, il ne se vend pas · le
+    // texte ne lui donne ni cession ni compte 81 (SYCEBNL Partie 3 ch. 2
+    // § 2.3.2). Seule la mise hors service le sort, et sans 818.
+    if (nature === 'USUFRUIT' && dto.type === TypeSortie.CESSION) {
+      throw new BadRequestException(
+        "Un usufruit temporaire n'est pas cédé · il est rétrocédé au donateur au terme de la donation " +
+          '(D 280 / C 2011, SYCEBNL Partie 3 ch. 2 § 2.3.2). Sortez-le en mise hors service.',
+      );
+    }
+    let comptes = nature === 'USUFRUIT' ? null : COMPTES_SORTIE[nature];
     if (dto.cessionCourante) {
       if (referentiel !== Referentiel.SYSCOHADA) {
         throw new BadRequestException(
@@ -3294,7 +3336,8 @@ export class ImmobilisationService {
     // unités d'œuvre, qui réclame un relevé, ne doit pas bloquer sa sortie.
     // Un bien que le plan ne fait pas amortir n'a pas de complément non plus.
     const montantComplement = dejaDoteCetExercice || !immo.dateMiseEnService ||
-      motifNonAmortissable(immo.compteImmobilisation.numero, referentiel)
+      motifNonAmortissable(immo.compteImmobilisation.numero, referentiel) ||
+      motifSansAmortissementProjet(regime.jeuEtatsFinanciersSycebnl)
       ? 0
       : this.calculerDotation(
           Number(immo.valeurOrigine),
@@ -3374,7 +3417,19 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: compteDepreciationSortie, debit: cumulDepreciation, credit: 0 });
       lignesSortie.push({ compteId: compteReprise.id, debit: 0, credit: cumulDepreciation });
     }
-    if (valeurComptableNette > EPSILON) {
+    if (valeurComptableNette > EPSILON && !comptes) {
+      // La rétrocession a lieu « au terme de la durée » · l'usufruit est alors
+      // amorti en entier (linéaire sur la durée de la donation, même
+      // paragraphe). Une valeur nette qui subsiste dit une durée ou une date
+      // fausse, et le texte n'a aucun compte pour elle · refus nommé.
+      throw new BadRequestException(
+        `L'usufruit garde une valeur nette de ${valeurComptableNette.toFixed(2)} à cette date · la rétrocession ` +
+          "se fait au terme de la donation, l'usufruit entièrement amorti (SYCEBNL Partie 3 ch. 2 § 2.3.2). " +
+          "Vérifiez la durée d'amortissement ou la date de sortie ; une dépréciation qui subsiste se reprend " +
+          "d'abord (D 2901 / C 7951), et la dernière annuité amortit alors le reste.",
+      );
+    }
+    if (valeurComptableNette > EPSILON && comptes) {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);
       lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
     }
@@ -3382,7 +3437,7 @@ export class ImmobilisationService {
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
     // 82 "produit de cession"). Son compte est résolu ici, avant le verrou.
     const compteProduit =
-      dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId
+      comptes && dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId
         ? await this.compteDeSortie(tenantId, comptes.produitCession)
         : null;
 

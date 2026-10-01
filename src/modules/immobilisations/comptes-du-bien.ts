@@ -1,4 +1,4 @@
-import { Referentiel, SensDepreciation } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, SensDepreciation } from '@prisma/client';
 
 /**
  * LES COMPTES QUI SUIVENT LE BIEN · amortissement, dépréciation et leurs
@@ -74,6 +74,34 @@ export function motifNonAmortissable(numeroCompte: string, referentiel: Referent
 }
 
 /**
+ * UN PROJET DE DÉVELOPPEMENT NE S'AMORTIT PAS · décision de Manasse du
+ * 2026-10-01 (D-1, `docs/plan-immobilisations-verrouille.md`).
+ *
+ * Acte uniforme SYCEBNL, art. 7 · « Le Compte d'exploitation des projets de
+ * développement et entités assimilées récapitule en liste, les charges SANS
+ * AMORTISSEMENT, NI DÉPRÉCIATION » et « Le Tableau emplois-ressources
+ * récapitule tous les emplois, immobilisations et charges, sans amortissement
+ * ni dépréciation » ; art. 9, même phrase pour le Compte d'exploitation. Le
+ * Guide (Application 8) le suit · « aucune dotation aux amortissements n'est
+ * constatée », et les états de la Partie 4 ch. 3 n'ont aucune ligne
+ * d'amortissement.
+ *
+ * ÉCART ÉCRIT, NON TRANCHÉ EN SILENCE · le premier alinéa du même art. 7
+ * (« Il doit être procédé, dans l'exercice, à tous amortissements ») et le
+ * cadre conceptuel § 5.4.2.3 (fonds d'investissement repris « dans la même
+ * quotité que les dotations aux amortissements ») disent le contraire en
+ * termes généraux · les articles qui visent le cas l'emportent. La sortie de
+ * fin de projet par le 162 à 164 (P3 ch. 3 § 2.5) est le lot 3 du plan.
+ */
+export function motifSansAmortissementProjet(jeu: JeuEtatsFinanciersSycebnl | null | undefined): string | null {
+  if (jeu !== JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT) return null;
+  return (
+    "Un projet de développement ne constate aucune dotation aux amortissements · ses états récapitulent « les " +
+    "charges sans amortissement, ni dépréciation » (Acte uniforme SYCEBNL, art. 7 et 9 ; Guide, Application 8)."
+  );
+}
+
+/**
  * LE 28 ET LE 29 SUIVENT LA DIVISION DU BIEN · SYSCOHADA.
  *
  * AUDCIF, Titre VII ch. 2 · « les comptes 28 et 29 ont été développés selon
@@ -146,6 +174,32 @@ export function motifRefusContrepartieDepreciation(
   return (
     `Le compte ${numeroContrepartie} n'est pas une contrepartie de ${sens === SensDepreciation.DOTATION ? 'dotation' : 'reprise'} ` +
     `de dépréciation · la fiche du compte 29 (AUDCIF, Titre VII) nomme ${admises.join(', ')}.`
+  );
+}
+
+/**
+ * L'USUFRUIT TEMPORAIRE (2011) · SYCEBNL, ses deux comptes sont écrits.
+ *
+ * Partie 3 ch. 2 § 2.3.2 · dépréciation « 6951 Dotations aux dépréciations /
+ * 2901 Dépréciations d'usufruit temporaire », reprise « 2901 / 7951 Reprises
+ * des dépréciations d'usufruit temporaire ». Le 795 est partagé avec les biens
+ * reçus destinés à la vente (7952, 6952), et une reprise d'usufruit au 7952
+ * s'équilibrait sans un mot · Note 5D et compte de résultat faux d'autant.
+ * Décision de Manasse du 2026-10-01 (D-2) · la dépréciation reste permise,
+ * la simplification de l'Application 7 du Guide est dite en aide.
+ */
+export function motifRefusContrepartieUsufruit(
+  referentiel: Referentiel,
+  numeroBien: string,
+  sens: SensDepreciation,
+  numeroContrepartie: string,
+): string | null {
+  if (referentiel !== Referentiel.SYCEBNL || !numeroBien.startsWith('2011')) return null;
+  const attendu = sens === SensDepreciation.DOTATION ? '6951' : '7951';
+  if (numeroContrepartie.startsWith(attendu)) return null;
+  return (
+    `L'usufruit temporaire se ${sens === SensDepreciation.DOTATION ? 'déprécie' : 'reprend'} au ${attendu}, ` +
+    `pas au ${numeroContrepartie} (SYCEBNL Partie 3 ch. 2 § 2.3.2).`
   );
 }
 

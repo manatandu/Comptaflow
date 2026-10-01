@@ -55,10 +55,12 @@ describe('sortie d’immobilisation · compte de classe 8 selon la nature', () =
   /**
    * LE DÉFAUT LUI-MÊME · un legs n'est pas un incorporel.
    */
-  it('au SYCEBNL, TOUTE la division 20 sort en 818 / 828, terrains et titres compris', () => {
+  it('au SYCEBNL, la division 20 sort en 818 / 828, terrains et titres compris, l’usufruit (2011) excepté', () => {
     // Les quatre comptes 20x semés, plus les incorporelles 201x qui relèvent
-    // de la même division « destinées à la vente ».
-    for (const numero of ['20110000', '20200000', '20300000', '20400000', '20500000']) {
+    // de la même division « destinées à la vente ». Le 2011 se RÉTROCÈDE
+    // (Partie 3 ch. 2 § 2.3.2) et a sa propre nature, sans 81.
+    expect(natureImmobilisation('20110000', Referentiel.SYCEBNL)).toBe('USUFRUIT');
+    for (const numero of ['20120000', '20200000', '20300000', '20400000', '20500000']) {
       expect(`${numero} → ${natureImmobilisation(numero, Referentiel.SYCEBNL)}`).toBe(`${numero} → DONS_LEGS_VENTE`);
     }
     expect(COMPTES_SORTIE.DONS_LEGS_VENTE).toEqual({ valeurComptable: '81800000', produitCession: '82800000' });
@@ -120,10 +122,10 @@ describe('sortie d’immobilisation · compte de classe 8 selon la nature', () =
   });
 
   it('chaque nature atteignable a son compte de reprise, dans les deux référentiels', () => {
-    // SYCEBNL : les quatre natures. SYSCOHADA : les trois, le 818 n'y
+    // SYCEBNL : les cinq natures, l'usufruit au 7951. SYSCOHADA : les trois, le 818 n'y
     // existant pas.
     expect(Object.keys(REPRISE_DEPRECIATION_SORTIE[Referentiel.SYCEBNL]).sort()).toEqual(
-      ['CORPORELLE', 'DONS_LEGS_VENTE', 'FINANCIERE', 'INCORPORELLE'],
+      ['CORPORELLE', 'DONS_LEGS_VENTE', 'FINANCIERE', 'INCORPORELLE', 'USUFRUIT'],
     );
     expect(Object.keys(REPRISE_DEPRECIATION_SORTIE[Referentiel.SYSCOHADA]).sort()).toEqual(
       ['CORPORELLE', 'FINANCIERE', 'INCORPORELLE'],
@@ -141,7 +143,10 @@ describe('sortie d’immobilisation · compte de classe 8 selon la nature', () =
     for (const f of FAMILLES_IMMOBILISATION_DEFAUT) {
       const compteImmo = (f as { compteImmobilisation?: string }).compteImmobilisation;
       if (!compteImmo) continue;
-      const sortie = COMPTES_SORTIE[natureImmobilisation(compteImmo, Referentiel.SYSCOHADA)];
+      const nature = natureImmobilisation(compteImmo, Referentiel.SYSCOHADA);
+      // L'usufruit (2011) n'existe qu'au SYCEBNL · jamais rendu ici.
+      if (nature === 'USUFRUIT') throw new Error(`${compteImmo} rendu usufruit au SYSCOHADA`);
+      const sortie = COMPTES_SORTIE[nature];
       expect({ famille: f.code, compte: sortie.valeurComptable, existe: numeros.has(sortie.valeurComptable) }).toEqual({
         famille: f.code,
         compte: sortie.valeurComptable,

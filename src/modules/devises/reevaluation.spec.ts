@@ -28,6 +28,7 @@ interface LigneTest {
 
 function service(lignes: LigneTest[], coursCloture: number | null) {
   const prisma = {
+    tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'ex1',

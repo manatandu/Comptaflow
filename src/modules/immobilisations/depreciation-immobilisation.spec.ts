@@ -1,5 +1,6 @@
 import { Referentiel, SensDepreciation, SystemeComptableSyscohada } from '@prisma/client';
-import { ImmobilisationService } from './immobilisation.service';
+import { ImmobilisationService, natureImmobilisation, REPRISE_DEPRECIATION_SORTIE } from './immobilisation.service';
+import { motifRefusContrepartieUsufruit } from './comptes-du-bien';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
@@ -58,6 +59,8 @@ function harnais(
     referentiel?: Referentiel;
     /** Système minimal de trésorerie, au référentiel choisi. */
     smt?: boolean;
+    /** Jeu « projets de développement » (SYCEBNL). */
+    projets?: boolean;
   } = {},
 ) {
   const exercice = b.exercice ?? { dateDebut: '2026-01-01', dateFin: '2026-12-31' };
@@ -105,7 +108,9 @@ function harnais(
           options.referentiel === Referentiel.SYCEBNL
             ? options.smt
               ? 'SYSTEME_MINIMAL_TRESORERIE'
-              : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
+              : options.projets
+                ? 'PROJETS_DEVELOPPEMENT'
+                : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
             : null,
       }),
     },
@@ -517,3 +522,102 @@ describe('les comptes du bien · passe R1 (A1, A4, A5) et R5 (B1)', () => {
   });
 });
 
+
+/**
+ * L'USUFRUIT TEMPORAIRE · SYCEBNL Partie 3 ch. 2 § 2.3.2. Il se RÉTROCÈDE au
+ * donateur au terme de la donation (D 280 / C 2011, aucun 81), sa
+ * dépréciation se dote au 6951 et se reprend au 7951. La division 20 lui
+ * prêtait le 818 et le 7952 des biens reçus destinés à la vente.
+ */
+describe('usufruit temporaire (2011) · rétrocession sans 818, reprise au 7951', () => {
+  const USUFRUIT = { compteImmobilisation: '20110000', referentiel: Referentiel.SYCEBNL, compte29: '29010000' };
+  const AU_TERME = {
+    valeurOrigine: 5_000_000,
+    dureeAns: 5,
+    dateMiseEnService: '2022-01-01',
+    dotations: [1_000_000, 1_000_000, 1_000_000, 1_000_000],
+  };
+  const retrocession = (date: string, type = 'MISE_HORS_SERVICE') => ({
+    dateSortie: date,
+    type,
+    exerciceId: 'exN',
+    journalId: 'j1',
+    ...(type === 'CESSION' ? { prixCession: 1, compteContrepartieId: 'c52' } : {}),
+  });
+
+  it('au terme, la sortie solde le 280 contre le 2011, sans aucun compte 81', async () => {
+    const { svc, ecrituresPostees } = harnais(AU_TERME, USUFRUIT);
+    await svc.sortir('t1', 'u1', 'i1', retrocession('2026-12-31') as never);
+    const lignes = ecrituresPostees.find((e) => e.libelle.startsWith('Mise hors service'))!.lignes;
+    expect(lignes).toEqual([
+      { compteId: 'cimmo', debit: 0, credit: 5_000_000 },
+      { compteId: 'ca', debit: 5_000_000, credit: 0 },
+    ]);
+    expect(lignes.some((l) => l.compteId.startsWith('n81'))).toBe(false);
+  });
+
+  it('une cession est refusée · l’usufruit se rétrocède', async () => {
+    const { svc, ecrituresPostees } = harnais(AU_TERME, USUFRUIT);
+    await expect(svc.sortir('t1', 'u1', 'i1', retrocession('2026-12-31', 'CESSION') as never)).rejects.toThrow(
+      /rétrocédé au donateur/,
+    );
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('avant le terme, la valeur nette qui subsiste est refusée, aucune écriture', async () => {
+    const { svc, ecrituresPostees } = harnais(AU_TERME, USUFRUIT);
+    await expect(svc.sortir('t1', 'u1', 'i1', retrocession('2026-06-30') as never)).rejects.toThrow(
+      /valeur nette de 500000\.00/,
+    );
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('un bien destiné à la vente (20300000) garde le 818', () => {
+    expect(natureImmobilisation('20300000', Referentiel.SYCEBNL)).toBe('DONS_LEGS_VENTE');
+    expect(natureImmobilisation('20110000', Referentiel.SYCEBNL)).toBe('USUFRUIT');
+  });
+
+  it('la dépréciation d’un usufruit au 6913 est refusée · le texte écrit 6951', async () => {
+    const { svc, ecrituresPostees } = harnais(AU_TERME, USUFRUIT);
+    await expect(svc.enregistrerDepreciation('t1', 'u1', 'i1', DEPRECIATION as never)).rejects.toThrow(/6951/);
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('6951 et 7951 seuls, et rien n’est imposé hors du 2011 ni au SYSCOHADA', () => {
+    expect(motifRefusContrepartieUsufruit(Referentiel.SYCEBNL, '20110000', SensDepreciation.DOTATION, '69510000')).toBeNull();
+    expect(motifRefusContrepartieUsufruit(Referentiel.SYCEBNL, '20110000', SensDepreciation.REPRISE, '79510000')).toBeNull();
+    expect(motifRefusContrepartieUsufruit(Referentiel.SYCEBNL, '20110000', SensDepreciation.REPRISE, '79520000')).toContain('7951');
+    expect(motifRefusContrepartieUsufruit(Referentiel.SYCEBNL, '20300000', SensDepreciation.REPRISE, '79520000')).toBeNull();
+    expect(motifRefusContrepartieUsufruit(Referentiel.SYSCOHADA, '20110000', SensDepreciation.REPRISE, '79140000')).toBeNull();
+    expect(REPRISE_DEPRECIATION_SORTIE[Referentiel.SYCEBNL].USUFRUIT).toBe('79510000');
+  });
+});
+
+/**
+ * UN PROJET DE DÉVELOPPEMENT NE SE DOTE PAS · Acte uniforme SYCEBNL, art. 7
+ * et 9, décision D-1. Ni dotation de l'exercice, ni complément à la sortie.
+ */
+describe('projet de développement · aucune dotation', () => {
+  const BIEN = { valeurOrigine: 5_000_000, dureeAns: 5, dateMiseEnService: '2025-01-01', dotations: [] as number[] };
+  const OPTIONS = { referentiel: Referentiel.SYCEBNL, projets: true, compteImmobilisation: '24410000' };
+
+  it('la dotation est refusée, motif nommé, aucune écriture', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+    await expect(svc.passerDotation('t1', 'u1', 'i1', { exerciceId: 'exN', journalId: 'j1' } as never)).rejects.toThrow(
+      /art\. 7 et 9/,
+    );
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('une association du même référentiel se dote toujours', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, { ...OPTIONS, projets: false });
+    await svc.passerDotation('t1', 'u1', 'i1', { exerciceId: 'exN', journalId: 'j1' } as never);
+    expect(ecrituresPostees).toHaveLength(1);
+  });
+
+  it('la sortie ne passe aucun complément de dotation', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+    await svc.sortir('t1', 'u1', 'i1', { dateSortie: '2026-06-30', type: 'MISE_HORS_SERVICE', exerciceId: 'exN', journalId: 'j1' } as never);
+    expect(ecrituresPostees.some((e) => e.libelle.startsWith('Dotation complémentaire'))).toBe(false);
+  });
+});

@@ -37,7 +37,7 @@ import { ajouterMois } from '../../common/ajouter-mois';
 import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
 import { formeApplicable } from '../tenant/forme-applicable';
-import { motifNonAmortissable } from '../immobilisations/comptes-du-bien';
+import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilisations/comptes-du-bien';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 
 /**
@@ -1913,7 +1913,11 @@ export class ControlesService {
         // en don destiné à la vente. Lui réclamer un cumul au 28 était un
         // signalement faux (§ 10 bis). La règle est celle du module, lue une
         // seule fois (`motifNonAmortissable`).
-        .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel));
+        .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel))
+        // Un projet de développement n'amortit rien (Acte uniforme SYCEBNL,
+        // art. 7 et 9 · décision D-1) · lui réclamer une dotation ou un
+        // antérieur serait un signalement faux (§ 10 bis).
+        .filter(() => !motifSansAmortissementProjet(tenant.jeuEtatsFinanciersSycebnl));
       if (reprises.length > 0) {
         anomalies.push({
           code: 'IMMO_REPRISE_SANS_ANTERIEUR',
@@ -1984,7 +1988,11 @@ export class ControlesService {
       // bien reçu en don destiné à la vente (« Ils ne doivent pas être
       // amortis ») n'a aucune dotation à passer, et le module la refuse
       // (passes R1-A1, R5-B1). Même règle que `passerDotation`.
-      .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel));
+      .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel))
+        // Un projet de développement n'amortit rien (Acte uniforme SYCEBNL,
+        // art. 7 et 9 · décision D-1) · lui réclamer une dotation ou un
+        // antérieur serait un signalement faux (§ 10 bis).
+        .filter(() => !motifSansAmortissementProjet(tenant.jeuEtatsFinanciersSycebnl));
     const sansDotation = amortissables.filter((i) => {
       if (i.dotations.some((d) => d.exerciceId === exerciceId)) return false;
       // Un bien intégralement amorti n'a plus rien à doter · l'absence de

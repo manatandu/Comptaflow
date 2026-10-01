@@ -484,6 +484,19 @@ export function DevisesPage() {
                   </div>
                 )}
 
+                {rapport.positionsNonReevaluees.length > 0 && (
+                  <div className="mx-3 mt-3 text-[11.5px] text-text-dim bg-chrome-alt border border-border rounded-[3px] px-2.5 py-1.5 leading-[1.55]">
+                    <strong title="AUDCIF Titre VIII ch. 22 § 1.1 à 1.4">Positions maintenues au cours d'origine.</strong>
+                    <ul className="mt-1 list-disc pl-4 flex flex-col gap-0.5">
+                      {rapport.positionsNonReevaluees.map((p) => (
+                        <li key={`${p.numero}-${p.deviseCode}`}>
+                          {p.numero} {p.intitule} ({p.deviseCode} {montant(p.montantDevise)}) · {p.motif}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {rapport.coursManquants.length > 0 && (
                   <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5">
                     Aucun cours coté au {jour(rapport.dateReevaluation)} ou avant pour :{' '}

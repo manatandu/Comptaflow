@@ -178,6 +178,24 @@ describe('les deux pièces, et leurs deux dates de départ opposées', () => {
     ).rejects.toThrow(/pièce de sécurité/i);
   });
 
+  it('le refus cite le texte DU DOSSIER · l’AUDCIF à une société, le SYCEBNL à une association', async () => {
+    // La même règle est écrite aux deux textes (AUDCIF Titre VIII ch. 14
+    // § 1.2.3 · SYCEBNL Partie 2 ch. 3, classe 2) · un dossier SYSCOHADA
+    // recevait la citation du SYCEBNL.
+    const motif = async (referentiel: Referentiel) => {
+      const { svc } = harnais({ referentiel });
+      return svc
+        .creer('t1', 'u1', { ...ASCENSEUR, typeComposant: TypeComposant.PIECE_DE_SECURITE, dateMiseEnService: '2021-06-01' } as never)
+        .then(() => '', (e: Error) => e.message);
+    };
+    const societe = await motif(Referentiel.SYSCOHADA);
+    expect(societe).toContain('AUDCIF, Titre VIII ch. 14 § 1.2.3');
+    expect(societe).not.toContain('SYCEBNL');
+    const association = await motif(Referentiel.SYCEBNL);
+    expect(association).toContain('SYCEBNL, Partie 2 ch. 3, classe 2');
+    expect(association).not.toContain('AUDCIF');
+  });
+
   it('acceptée quand elle démarre bien à cette date', async () => {
     const { svc, creations } = harnais();
     await svc.creer('t1', 'u1', {

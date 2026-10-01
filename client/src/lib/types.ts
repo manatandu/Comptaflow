@@ -1980,6 +1980,8 @@ export interface RapportReevaluation {
   /** Étalement de l'art. 56 · ce que le logiciel ne peut pas calculer seul. */
   avertissements: string[];
   coursManquants: string[];
+  /** Immobilisations, titres, stocks, fonds propres · gardent le cours d'origine (AUDCIF Titre VIII ch. 22). */
+  positionsNonReevaluees: { numero: string; intitule: string; deviseCode: string; montantDevise: number; motif: string }[];
 }
 
 export interface Reevaluation {
