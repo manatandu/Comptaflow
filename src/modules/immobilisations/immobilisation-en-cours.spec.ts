@@ -33,11 +33,11 @@ const SEME = { SYSCOHADA: numerosDetail(PLAN_COMPTES_SYSCOHADA), SYCEBNL: numero
 const comme = (numeros: string[]) => numeros.map((numero) => ({ numero }));
 
 describe('les racines lues dans chaque texte', () => {
-  it('AUDCIF · 219, 229, 239, 249 ; SYCEBNL · 239 et 249 seulement (ses fiches 21 et 22 ne virent pas le 219 ni le 229)', () => {
+  it('219, 229, 239, 249 aux deux référentiels · au SYCEBNL, 219 et 229 par décision de Manasse (ses fiches 21 et 22 taisent le virement)', () => {
     expect(RACINES_EN_COURS.SYSCOHADA).toEqual({ '21': '219', '22': '229', '23': '239', '24': '249' });
-    expect(RACINES_EN_COURS.SYCEBNL).toEqual({ '23': '239', '24': '249' });
-    expect(motifSansEnCours('SYCEBNL', '21310000')).toMatch(/fiche du compte 21 du SYCEBNL/);
-    expect(motifSansEnCours('SYCEBNL', '22210000')).toMatch(/fiche du compte 22 du SYCEBNL/);
+    expect(RACINES_EN_COURS.SYCEBNL).toEqual({ '21': '219', '22': '229', '23': '239', '24': '249' });
+    expect(motifSansEnCours('SYCEBNL', '21310000')).toBeNull();
+    expect(motifSansEnCours('SYCEBNL', '22210000')).toBeNull();
     expect(motifSansEnCours('SYSCOHADA', '21310000')).toBeNull();
   });
 
@@ -54,7 +54,8 @@ describe('les racines lues dans chaque texte', () => {
     expect(motifRefusCompteEnCours('SYSCOHADA', '23110000', '23910000')).toBeNull();
     expect(motifRefusCompteEnCours('SYSCOHADA', '23110000', '24910000')).toMatch(/au 239/);
     expect(motifRefusCompteEnCours('SYCEBNL', '24410000', '24940000')).toBeNull();
-    expect(motifRefusCompteEnCours('SYCEBNL', '21310000', '21930000')).toMatch(/SYCEBNL/);
+    expect(motifRefusCompteEnCours('SYCEBNL', '21310000', '21930000')).toBeNull();
+    expect(motifRefusCompteEnCours('SYCEBNL', '21310000', '23910000')).toMatch(/au 219/);
     expect(motifSansEnCours('SYSCOHADA', '25100000')).toMatch(/pas de compte en cours/);
   });
 });

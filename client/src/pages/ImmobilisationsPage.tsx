@@ -974,8 +974,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 Pas encore mis en service
                 <Aide
                   titre="Immobilisation en cours"
-                  texte="Le bien n'est pas achevé : il s'inscrit au compte en cours de sa division (219, 229, 239, 249), le compte définitif gardant sa nature et sa durée. Rien n'est amorti. À l'achèvement, « Mettre en service » le porte au débit de son compte définitif par le crédit du compte en cours. Au SYCEBNL, seuls les comptes 23 et 24 ont ce virement écrit dans leur fiche."
-                  source="AUDCIF Titre VII, fiches des comptes 21 à 24 · SYCEBNL Partie 2 ch. 3, fiches des comptes 23 et 24"
+                  texte="Le bien n'est pas achevé : il s'inscrit au compte en cours de sa division (219, 229, 239, 249), le compte définitif gardant sa nature et sa durée. Rien n'est amorti. À l'achèvement, « Mettre en service » le porte au débit de son compte définitif par le crédit du compte en cours. Au SYCEBNL, les fiches des comptes 21 et 22 ouvrent le 219 et le 229 sans écrire ce virement, que les fiches 23 et 24 écrivent : il est offert aux quatre divisions (décision du cabinet éditeur)."
+                  source="AUDCIF Titre VII, fiches des comptes 21 à 24 · SYCEBNL Partie 2 ch. 3, fiches des comptes 21 à 24"
                 />
               </label>
               {iPasEncoreEnService ? (

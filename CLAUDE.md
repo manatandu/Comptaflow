@@ -1508,8 +1508,8 @@ au SYCEBNL (fiches du compte 67), qui n'admet que l'emprunt exclusivement
 affecté ; plafond des 671 et 672 de l'exercice ; jamais sur un bien doté ni
 après la mise en service. EN COURS (2026-10-01, Manasse) · case « Pas encore
 mis en service » DÉCOCHÉE par défaut ; cochée, compte définitif ET 2x9 de la
-division (`immobilisation-en-cours.ts` · 219 à 249 au SYSCOHADA, 239 et 249
-seuls au SYCEBNL, dont les fiches 21 et 22 n'écrivent aucun virement),
+division (`immobilisation-en-cours.ts` · 219 à 249 aux deux ; au SYCEBNL,
+219 et 229 par décision de Manasse, ses fiches 21 et 22 taisant le virement),
 présélection au seul 249 du SYCEBNL (« mêmes subdivisions que 241-248 ») ou
 candidat unique ; la mise en service passe D définitif / C en cours, retenue ;
 tout lecteur du compte du bien passe par `compteInscritALaDate` (écritures du

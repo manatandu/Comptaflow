@@ -23,12 +23,13 @@
  *    par le crédit du compte 239 » ; fiche 24, le 249 « lorsqu'ils ont été
  *    achevés »).
  *
- * LE MANQUE DU SYCEBNL, NON COMBLÉ · ses fiches des comptes 21 et 22 ouvrent
- * le 219 et le 229 en subdivisions, mais leur « Fonctionnement » ne crédite ni
- * l'un ni l'autre (le 21 et le 22 ne sont débités que par le 10, le 16, le 45,
- * les tiers et la trésorerie). Prêter au SYCEBNL le virement de l'AUDCIF
- * serait une règle lue dans l'autre référentiel · le module ne l'offre donc
- * qu'aux divisions 23 et 24 d'un dossier SYCEBNL, et le dit.
+ * LE SILENCE DU SYCEBNL SUR LE 219 ET LE 229, TRANCHÉ PAR MANASSE
+ * (2026-10-01) · ses fiches des comptes 21 et 22 ouvrent le 219 et le 229 en
+ * subdivisions (« Immobilisations incorporelles en cours », « Aménagements de
+ * terrains en cours ») mais leur « Fonctionnement » ne nomme pas le virement
+ * à l'achèvement, que ses fiches 23 et 24 écrivent pour le 239 et le 249.
+ * Décision · le même virement est offert aux quatre divisions, comme à
+ * l'AUDCIF ; l'écart au texte est dit dans l'aide de l'écran.
  *
  * LA CORRESPONDANCE DES SUBDIVISIONS · seul le SYCEBNL la pose, et pour le 249
  * seul · « 249 Matériel et actifs biologiques en cours (mêmes subdivisions que
@@ -44,12 +45,12 @@ export type ReferentielEnCours = 'SYSCOHADA' | 'SYCEBNL';
 /** Les divisions qui ont un compte en cours écrit dans le texte du référentiel. */
 export const RACINES_EN_COURS: Readonly<Record<ReferentielEnCours, Readonly<Record<string, string>>>> = {
   SYSCOHADA: { '21': '219', '22': '229', '23': '239', '24': '249' },
-  SYCEBNL: { '23': '239', '24': '249' },
+  SYCEBNL: { '21': '219', '22': '229', '23': '239', '24': '249' },
 };
 
 const SOURCE: Record<ReferentielEnCours, string> = {
   SYSCOHADA: 'AUDCIF, Titre VII, fiches des comptes 21 à 24',
-  SYCEBNL: 'SYCEBNL, Partie 2 ch. 3, fiches des comptes 23 et 24',
+  SYCEBNL: 'SYCEBNL, Partie 2 ch. 3, fiches des comptes 21 à 24 (219 et 229 · décision de Manasse du 2026-10-01)',
 };
 
 /** Un compte « en cours » (219, 229, 239, 249 et leurs subdivisions). */
@@ -74,12 +75,6 @@ export function motifSansEnCours(referentiel: ReferentielEnCours, numeroDefiniti
   }
   if (racineEnCours(referentiel, numeroDefinitif)) return null;
   const division = numeroDefinitif.slice(0, 2);
-  if (referentiel === 'SYCEBNL' && (division === '21' || division === '22')) {
-    return (
-      `La fiche du compte ${division} du SYCEBNL n'écrit pas le virement du ${division}9 à l'achèvement · ` +
-      'le bien reste inscrit à son compte définitif jusqu’à sa mise en service.'
-    );
-  }
   return `La division ${division} n'a pas de compte en cours au plan · le bien reste inscrit à son compte définitif.`;
 }
 
