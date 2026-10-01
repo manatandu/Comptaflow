@@ -3733,6 +3733,18 @@ model Immobilisation {
   // source · nulles pour tout autre bien.
   methodeEstimationPartie  MethodeEstimationPartie?
   sourceEstimationPartie   String?
+  // Lot 10 · incorporel à durée d'utilité non limitée, non amorti (AUDCIF
+  // Titre VIII ch. 2 § 4.2.2, § 7.2.2.1 ; SYSCOHADA seul, décisions D-22,
+  // D-23). La bascule vers une durée limitée est prospective · le plan part
+  // de `dateDebutAmortissement`, jamais de la mise en service.
+  dureeNonLimitee              Boolean                       @default(false)
+  justificationDureeNonLimitee String?
+  dateDebutAmortissement       DateTime?
+  motifDureeLimitee            String?
+  testDepreciationBascule      String?
+  // Lot 10 · fonds commercial amorti dix ans, seulement dans les deux cas du
+  // § 7.2.2.1 · null pour tout autre bien.
+  fondementDureeDixAns         FondementDureeDixAns?
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -3944,6 +3956,13 @@ model AmortissementDerogatoire {
 //    entièrement déterminée par le principal, donc la seule vérifiable.
 // Lot 8 · les quatre voies du § 3.1.2 (AUDCIF Titre VIII ch. 4) pour estimer
 // la valeur d'origine d'une partie non identifiée à l'origine.
+// Lot 10 · les deux cas où le fonds commercial s'amortit sur dix ans (AUDCIF
+// Titre VIII ch. 2 § 7.2.2.1).
+enum FondementDureeDixAns {
+  NON_ESTIMABLE
+  SIMPLIFICATION_SMT
+}
+
 enum MethodeEstimationPartie {
   COUT_ACTUEL_A_NEUF
   POURCENTAGE_IMMOBILISATIONS_RECENTES

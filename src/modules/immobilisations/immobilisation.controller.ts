@@ -22,6 +22,7 @@ import {
   RecevoirLegsDto,
   AcquerirAPrixGlobalDto,
   RemplacerPartieDto,
+  DureeLimiteeDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -284,6 +285,13 @@ export class ImmobilisationController {
     @Body() dto: RemplacerPartieDto,
   ) {
     return this.immobilisationService.remplacerPartieNonIdentifiee(user.tenantId, user.userId, id, dto);
+  }
+
+  /** Lot 10 · la durée d'un incorporel non limitée devient limitée (AUDCIF Titre VIII ch. 2 § 4.2.2). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/duree-limitee')
+  async declarerDureeLimitee(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DureeLimiteeDto) {
+    return this.immobilisationService.declarerDureeLimitee(user.tenantId, id, dto);
   }
 
   /**

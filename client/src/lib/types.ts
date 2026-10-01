@@ -1023,6 +1023,13 @@ export interface Immobilisation {
   justificationDecomposition: string | null;
   /** Le composant que celui-ci remplace · chaîne des renouvellements (§ 4.1). */
   composantRemplaceId: string | null;
+  /** Lot 10 · incorporel à durée d'utilité non limitée, non amorti (AUDCIF Titre VIII ch. 2 § 4.2.2). */
+  dureeNonLimitee?: boolean;
+  justificationDureeNonLimitee?: string | null;
+  /** Lot 10 · le plan part de la bascule, jamais de la mise en service. */
+  dateDebutAmortissement?: string | null;
+  motifDureeLimitee?: string | null;
+  fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT' | null;
 }
 
 export type TypeComposant =

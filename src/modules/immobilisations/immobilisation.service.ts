@@ -12,6 +12,8 @@ import {
   SensDepreciation,
   StatutImmobilisation,
   SystemeComptableSyscohada,
+  FondementDureeDixAns,
+  StatutExercice,
   TypeComposant,
   TypeCompteDetailTotal,
 } from '@prisma/client';
@@ -37,9 +39,19 @@ import {
   RecevoirLegsDto,
   AcquerirAPrixGlobalDto,
   RemplacerPartieDto,
+  DureeLimiteeDto,
 } from './dto/immobilisation.dto';
 import { motifRefusLegs, repartirDettesLegs } from './legs-immobilisations';
 import { LIBELLE_FONDEMENT, ventilerFondsDeCommerce, ventilerPrixGlobal } from './ventilation-prix-global';
+import {
+  debutAmortissement,
+  estFondsCommercial,
+  JUSTIFICATION_PRESUMEE_FONDS_COMMERCIAL,
+  MOTIF_NON_AMORTI,
+  motifRefusBascule,
+  motifRefusDureeDixAns,
+  motifRefusDureeNonLimitee,
+} from './incorporel-duree-non-limitee';
 import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
@@ -1143,6 +1155,8 @@ export class ImmobilisationService {
     compteImmobilisationId: string,
     dureeAmortissementAns: number | undefined,
     modeAmortissement: ModeAmortissement | undefined,
+    /** Lot 10 · incorporel à durée non limitée · la famille naît sans durée exigée. */
+    sansDuree = false,
   ) {
     const existante = await this.prisma.familleImmobilisation.findFirst({
       where: { tenantId, compteImmobilisationId, estActif: true },
@@ -1170,7 +1184,7 @@ export class ImmobilisationService {
     if (suivants.motif || !suivants.amortissement || !suivants.dotation) {
       throw new BadRequestException(suivants.motif ?? `Comptes du bien ${compte.numero} introuvables`);
     }
-    if (!nonAmortissable && (dureeAmortissementAns == null || dureeAmortissementAns < 1)) {
+    if (!nonAmortissable && !sansDuree && (dureeAmortissementAns == null || dureeAmortissementAns < 1)) {
       throw new BadRequestException("Indiquez la durée d'amortissement du bien, en années.");
     }
     const id28 = plan.find((c) => c.numero === suivants.amortissement)!.id;
@@ -1385,6 +1399,53 @@ export class ImmobilisationService {
     return { immobilisation: bien, echeancier, comptes };
   }
 
+  /**
+   * Lot 10 · la durée d'un incorporel · non limitée (déclarée ou présumée au
+   * fonds commercial), ou dix ans au fonds commercial dans les deux cas du
+   * § 7.2.2.1. Refusé ici, avant la famille et avant toute écriture.
+   */
+  private async dureeIncorporel(tenantId: string, dto: CreerImmobilisationDto) {
+    const aucun = { dureeNonLimitee: false, justification: null as string | null, fondementDureeDixAns: null as FondementDureeDixAns | null };
+    if (!dto.compteImmobilisationId) {
+      if (dto.dureeNonLimitee || dto.fondementDureeDixAns) {
+        throw new BadRequestException("La durée d'un incorporel se déclare avec le compte du bien.");
+      }
+      return aucun;
+    }
+    const [regime, compte] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findFirst({ where: { id: dto.compteImmobilisationId, tenantId }, select: { numero: true } }),
+    ]);
+    if (!compte) return aucun; // le refus nommé vient de la famille
+    const referentiel = regime.referentiel as 'SYSCOHADA' | 'SYCEBNL';
+    if (dto.fondementDureeDixAns) {
+      if (dto.dureeNonLimitee) throw new BadRequestException("Un fonds commercial amorti dix ans n'a pas une durée non limitée.");
+      const refus =
+        (referentiel !== 'SYSCOHADA' ? 'Les dix ans du fonds commercial viennent du Titre VIII de l\'AUDCIF · SYSCOHADA seul.' : null) ??
+        motifRefusDureeDixAns({
+          numeroCompte: compte.numero,
+          fondement: dto.fondementDureeDixAns,
+          dureeAns: dto.dureeAmortissementAns,
+          systemeMinimal: regime.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE,
+        });
+      if (refus) throw new BadRequestException(refus);
+      return { ...aucun, fondementDureeDixAns: dto.fondementDureeDixAns as FondementDureeDixAns };
+    }
+    const presume = !dto.dureeNonLimitee && referentiel === 'SYSCOHADA' && estFondsCommercial(compte.numero) && dto.dureeAmortissementAns == null;
+    if (!dto.dureeNonLimitee && !presume) return aucun;
+    const refus = motifRefusDureeNonLimitee({
+      referentiel,
+      numeroCompte: compte.numero,
+      justification: dto.justificationDureeNonLimitee,
+      nomDeDomaine: dto.nomDeDomaine,
+    });
+    if (refus) throw new BadRequestException(refus);
+    const justification =
+      dto.justificationDureeNonLimitee?.trim() ||
+      (estFondsCommercial(compte.numero) ? JUSTIFICATION_PRESUMEE_FONDS_COMMERCIAL : 'Nom de domaine · usage non limité dans le temps (AUDCIF Titre VIII ch. 2 § 3.2.2 c).');
+    return { ...aucun, dureeNonLimitee: true, justification: justification.slice(0, 1000) };
+  }
+
   async creer(
     tenantId: string,
     userId: string,
@@ -1415,9 +1476,23 @@ export class ImmobilisationService {
     if (!!dto.familleId === !!dto.compteImmobilisationId) {
       throw new BadRequestException('Indiquez le compte du bien.');
     }
+    /*
+      L'INCORPOREL À DURÉE NON LIMITÉE (lot 10, D-22, D-23) · décidé AVANT la
+      famille, qui exigerait sinon une durée qu'il n'a pas. Le fonds
+      commercial saisi sans durée est PRÉSUMÉ non limité (AUDCIF Titre VIII
+      ch. 2 § 7.2.2.1) · c'est le texte qui pose la présomption, pas un
+      défaut de l'éditeur.
+    */
+    const dureeIncorporel = await this.dureeIncorporel(tenantId, dto);
     const famille = dto.familleId
       ? await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } })
-      : await this.famillePourCompte(tenantId, dto.compteImmobilisationId!, dto.dureeAmortissementAns, dto.modeAmortissement);
+      : await this.famillePourCompte(
+          tenantId,
+          dto.compteImmobilisationId!,
+          dto.dureeAmortissementAns,
+          dto.modeAmortissement,
+          dureeIncorporel.dureeNonLimitee,
+        );
     if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
     // UNE FAMILLE EN SOMMEIL NE REÇOIT PLUS DE BIEN (audit final F129) · la
     // mise en sommeil n'avait aucun effet, la famille restait proposée et
@@ -1716,6 +1791,9 @@ export class ImmobilisationService {
           justificationDecomposition: principal ? (dto.justificationDecomposition ?? null) : null,
           composantRemplaceId: interne.composantRemplaceId ?? null,
           modaliteVentilation: interne.modaliteVentilation?.slice(0, 1000) ?? null,
+          dureeNonLimitee: dureeIncorporel.dureeNonLimitee,
+          justificationDureeNonLimitee: dureeIncorporel.justification,
+          fondementDureeDixAns: dureeIncorporel.fondementDureeDixAns,
         },
         include: { dotations: true },
       });
@@ -2345,7 +2423,8 @@ export class ImmobilisationService {
       // `passerDotation` la refuserait (comptes-du-bien.ts).
       const nonAmortissable =
         !!motifNonAmortissable(immo.compteImmobilisation.numero, regimeTableau.referentiel) ||
-        !!motifSansAmortissementProjet(regimeTableau.jeuEtatsFinanciersSycebnl);
+        !!motifSansAmortissementProjet(regimeTableau.jeuEtatsFinanciersSycebnl) ||
+        immo.dureeNonLimitee;
       const dotation = dejaPassee
         ? Number(dejaPassee.montant)
         : sortiDansLExercice || nonAmortissable
@@ -2354,7 +2433,7 @@ export class ImmobilisationService {
             Number(immo.valeurOrigine),
             Number(immo.valeurResiduelle),
             immo.dureeAmortissementAns,
-            immo.dateMiseEnService,
+            debutAmortissement(immo),
             dotationsAnterieures.map((d) => ({ montant: Number(d.montant) })),
             exercice,
             amortissementsHorsDotations(immo),
@@ -2589,7 +2668,9 @@ export class ImmobilisationService {
     const regimeDotation = await this.regimeComptable(tenantId);
     const nonAmortissable =
       motifSansAmortissementProjet(regimeDotation.jeuEtatsFinanciersSycebnl) ??
-      motifNonAmortissable(immo.compteImmobilisation.numero, regimeDotation.referentiel);
+      motifNonAmortissable(immo.compteImmobilisation.numero, regimeDotation.referentiel) ??
+      // Lot 10 · l'incorporel à durée non limitée n'est pas amorti (§ 4.2.2).
+      (immo.dureeNonLimitee ? MOTIF_NON_AMORTI : null);
     if (nonAmortissable) throw new BadRequestException(nonAmortissable);
 
     const uniteOeuvre = await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, exercice.dateFin);
@@ -2597,7 +2678,7 @@ export class ImmobilisationService {
       Number(immo.valeurOrigine),
       Number(immo.valeurResiduelle),
       immo.dureeAmortissementAns,
-      immo.dateMiseEnService,
+      debutAmortissement(immo),
       immo.dotations.map((d) => ({ montant: Number(d.montant) })),
       exercice,
       amortissementsHorsDotations(immo),
@@ -3367,13 +3448,14 @@ export class ImmobilisationService {
     // Un bien que le plan ne fait pas amortir n'a pas de complément non plus.
     const montantComplement = dejaDoteCetExercice || !immo.dateMiseEnService ||
       motifNonAmortissable(immo.compteImmobilisation.numero, referentiel) ||
-      motifSansAmortissementProjet(regime.jeuEtatsFinanciersSycebnl)
+      motifSansAmortissementProjet(regime.jeuEtatsFinanciersSycebnl) ||
+      immo.dureeNonLimitee
       ? 0
       : this.calculerDotation(
           Number(immo.valeurOrigine),
           Number(immo.valeurResiduelle),
           immo.dureeAmortissementAns,
-          immo.dateMiseEnService,
+          debutAmortissement(immo),
           immo.dotations.map((d) => ({ montant: Number(d.montant) })),
           { dateDebut: exercice.dateDebut, dateFin: dateSortie },
           amortissementsHorsDotations(immo),
@@ -3744,15 +3826,10 @@ export class ImmobilisationService {
       if (v.fondsCommercial > 0) {
         /*
           LE FONDS COMMERCIAL « N'EST PAS AMORTISSABLE » EN PRINCIPE, « sa durée
-          d'utilité est présumée non limitée » (ch. 2 § 7.2.2.1) · le module ne
-          sert pas encore le bien incorporel à durée non limitée (lot 10). Il
-          ne s'inscrit ici qu'avec une durée limitée et déterminable, déclarée.
+          d'utilité est présumée non limitée » (ch. 2 § 7.2.2.1) · sans durée
+          déclarée, `creer` le pose non amorti (lot 10) ; avec une durée, il
+          s'amortit.
         */
-        if (!dto.dureeFondsCommercialAns) {
-          throw new BadRequestException(
-            "Le fonds commercial n'est amorti que si sa durée d'utilité est limitée (AUDCIF Titre VIII ch. 2 § 7.2.2.1) · indiquez-la. Le fonds commercial à durée non limitée sera servi avec les incorporels à durée non limitée.",
-          );
-        }
         const compte215 = await this.prisma.compte.findFirst({
           where: { tenantId, numero: '21500000', typeCompte: TypeCompteDetailTotal.DETAIL },
           select: { id: true },
@@ -3935,5 +4012,61 @@ export class ImmobilisationService {
       });
       throw err;
     }
+  }
+
+  /**
+   * LA DURÉE D'UN INCORPOREL DEVIENT LIMITÉE (lot 10) · AUDCIF Titre VIII
+   * ch. 2 § 4.2.2 · « la valeur actuelle [...] à la date du changement
+   * d'estimation [...] est amortie sur la durée d'utilité résiduelle.
+   * L'impact de ce changement de durée d'utilité est traité de façon
+   * PROSPECTIVE ». Le plan part de la date de la décision
+   * (`dateDebutAmortissement`), sur la durée résiduelle, prorata du mois ;
+   * une dépréciation passée avant se retranche de la base, comme après toute
+   * perte de valeur (ch. 12 § 2.4.1). Aucune écriture · seule la fiche change.
+   */
+  async declarerDureeLimitee(tenantId: string, id: string, dto: DureeLimiteeDto) {
+    const immo = await this.trouver(tenantId, id);
+    const dateDecision = new Date(dto.dateDecision);
+    const refus = motifRefusBascule({
+      dureeNonLimitee: immo.dureeNonLimitee,
+      enService: immo.statut === StatutImmobilisation.EN_SERVICE,
+      dateDecision,
+      debutPossible: immo.dateMiseEnService,
+      dureeResiduelleAns: dto.dureeResiduelleAns,
+      testDepreciation: dto.testDepreciation,
+      motif: dto.motif,
+    });
+    if (refus) throw new BadRequestException(refus);
+    const regime = await this.regimeComptable(tenantId);
+    if (dto.fondementDureeDixAns) {
+      const refusDix = motifRefusDureeDixAns({
+        numeroCompte: immo.compteImmobilisation.numero,
+        fondement: dto.fondementDureeDixAns,
+        dureeAns: dto.dureeResiduelleAns,
+        systemeMinimal: regime.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE,
+      });
+      if (refusDix) throw new BadRequestException(refusDix);
+    }
+    // Une décision tombée dans un exercice clos · sa dotation ne se passerait
+    // plus, et le plan perdrait des mois sans le dire.
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { lte: dateDecision }, dateFin: { gte: dateDecision } },
+      select: { statut: true },
+    });
+    if (exercice?.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException("La décision tombe dans un exercice clôturé · sa dotation ne se passerait plus. Datez-la dans un exercice ouvert.");
+    }
+    return this.prisma.immobilisation.update({
+      where: { id: immo.id },
+      data: {
+        dureeNonLimitee: false,
+        dateDebutAmortissement: dateDecision,
+        dureeAmortissementAns: dto.dureeResiduelleAns,
+        motifDureeLimitee: dto.motif.trim().slice(0, 1000),
+        testDepreciationBascule: dto.testDepreciation.trim().slice(0, 1000),
+        fondementDureeDixAns: (dto.fondementDureeDixAns as FondementDureeDixAns | undefined) ?? null,
+      },
+      select: { id: true, dateDebutAmortissement: true, dureeAmortissementAns: true },
+    });
   }
 }

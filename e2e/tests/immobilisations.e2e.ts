@@ -1000,3 +1000,49 @@ test('SYCEBNL · le catalogue renvoie au module, et le bien à vendre se dépré
 
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · une marque à durée non limitée n’est pas amortie, puis bascule à compter de la décision', async ({ page }) => {
+  // Lot 10 · AUDCIF Titre VIII ch. 2 § 4.2.2 (exemple du texte · quatre ans au 1er septembre).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Marque e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const debut = exercice.dateDebut.slice(0, 10);
+  const comptesBien = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const marque = comptesBien.find((c) => c.numero === '21400000');
+  const logiciel = comptesBien.find((c) => c.numero === '21310000');
+  if (!marque || !logiciel) throw new Error('Comptes 214 ou 2131 absents du plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', `/immobilisations/contreparties-acquisition?compteImmobilisationId=${marque.id}`);
+  const fournisseur = contreparties.find((c) => c.numero === '48110000');
+  if (!fournisseur) throw new Error('Aucun 4811 proposé en contrepartie');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const corps = (compte: string, designation: string) => ({
+    compteImmobilisationId: compte,
+    designation,
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 12_000_000,
+    dureeNonLimitee: true,
+    justificationDureeNonLimitee: 'Marque protégée, aucune fin prévisible',
+    compteContrepartieId: fournisseur.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  await expect(appelApi(page, 'POST', '/immobilisations', corps(logiciel.id, 'Logiciel e2e'))).rejects.toThrow(/logiciel/);
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', corps(marque.id, 'Marque e2e'));
+  const doter = () => appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  await expect(doter()).rejects.toThrow(/non limitée/);
+
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/duree-limitee`, {
+    dateDecision: `${annee}-09-01`,
+    dureeResiduelleAns: 4,
+    motif: `Décision d'arrêter la marque au 30 août ${annee + 4}`,
+    testDepreciation: 'Valeur actuelle supérieure à la valeur comptable',
+  });
+  // 12 000 000 sur quatre ans, de septembre à décembre · 1 000 000, et non 3 000 000.
+  expect(Number((await doter()).montant)).toBeCloseTo(1_000_000, 2);
+
+  expect(pannes).toEqual([]);
+});

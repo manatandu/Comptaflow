@@ -212,6 +212,31 @@ export class CreerImmobilisationDto {
   @IsOptional()
   @IsBoolean()
   dernierRenouvellement?: boolean;
+
+  /**
+   * Lot 10 · incorporel à durée d'utilité non limitée, non amorti (AUDCIF
+   * Titre VIII ch. 2 § 4.2.2) · SYSCOHADA seul, justification exigée hors
+   * fonds commercial. Un fonds commercial sans durée est présumé non limité
+   * (§ 7.2.2.1).
+   */
+  @IsOptional()
+  @IsBoolean()
+  dureeNonLimitee?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  justificationDureeNonLimitee?: string;
+
+  /** Le nom de domaine, seule part d'un site internet (2132) qui ne s'amortit pas (§ 3.2.2 c). */
+  @IsOptional()
+  @IsBoolean()
+  nomDeDomaine?: boolean;
+
+  /** Fonds commercial à dix ans · non estimable ou simplification du SMT (§ 7.2.2.1). */
+  @IsOptional()
+  @IsIn(['NON_ESTIMABLE', 'SIMPLIFICATION_SMT'])
+  fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT';
 }
 
 /**
@@ -1084,4 +1109,34 @@ export class RemplacerPartieDto extends RenouvelerComposantDto {
   @MaxLength(500)
   @Matches(/\S/, { message: 'Indiquez pourquoi la structure se décompose.' })
   justificationDecomposition!: string;
+}
+
+/**
+ * LA DURÉE DEVIENT LIMITÉE (lot 10) · bascule prospective de l'AUDCIF Titre
+ * VIII ch. 2 § 4.2.2 · le plan part de la date de la décision, sur la durée
+ * résiduelle, après le test de dépréciation.
+ */
+export class DureeLimiteeDto {
+  @IsDateString()
+  dateDecision!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeResiduelleAns!: number;
+
+  @IsString()
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Dites ce qui rend la durée limitée.' })
+  motif!: string;
+
+  @IsString()
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Indiquez le résultat du test de dépréciation.' })
+  testDepreciation!: string;
+
+  /** Fonds commercial à durée limitée non estimable · dix ans (§ 7.2.2.1). */
+  @IsOptional()
+  @IsIn(['NON_ESTIMABLE', 'SIMPLIFICATION_SMT'])
+  fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT';
 }

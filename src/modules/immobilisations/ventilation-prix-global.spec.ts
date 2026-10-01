@@ -229,11 +229,18 @@ describe('le service · prix global, une pièce par bien', () => {
     expect(r.stocks).toBe(150);
   });
 
-  it('fonds commercial sans durée limitée · refusé, servi avec les incorporels à durée non limitée', async () => {
-    const { svc } = monter();
-    await expect(
-      svc.acquerirAPrixGlobal('t', 'u', { ...ensemble, prix: 1_000, nature: 'FONDS_DE_COMMERCE', fondement: undefined, biens: [{ compteImmobilisationId: 'c241', designation: 'Matériel', montant: 300 }] }),
-    ).rejects.toThrow(/durée d'utilité est limitée/);
+  it('fonds commercial sans durée · créé sans durée, présumé non limité par la fiche (lot 10)', async () => {
+    const { svc, creer } = monter();
+    await svc.acquerirAPrixGlobal('t', 'u', {
+      ...ensemble,
+      prix: 1_000,
+      nature: 'FONDS_DE_COMMERCE',
+      fondement: undefined,
+      compteContrepartieId: 'banque',
+      biens: [{ compteImmobilisationId: 'c241', designation: 'Matériel', montant: 300, dureeAmortissementAns: 5 }],
+    });
+    expect(creer.mock.calls[1][2]).toMatchObject({ compteImmobilisationId: 'c215', valeurOrigine: 700 });
+    expect(creer.mock.calls[1][2].dureeAmortissementAns).toBeUndefined();
   });
 });
 

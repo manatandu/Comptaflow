@@ -1489,7 +1489,12 @@ prorata, renouvelée par le § 4.1 ; TOUT CUMUL passe par
 PARALLÈLES (lot 9, D-20, D-21) · tout modèle du catalogue qui touche un bien
 porte `renvoiModule` et se refuse au serveur ; division 20 du SYCEBNL · 2902,
 6952, 7952 au bien à vendre, 2901, 6951, 7951 à l'usufruit ;
-`AMORTISSEMENT_IMMO_HORS_MODULE` relit les crédits du 28 hors fiche.
+`AMORTISSEMENT_IMMO_HORS_MODULE` relit les crédits du 28 hors fiche. DURÉE
+NON LIMITÉE (lot 10, D-22, D-23) · SYSCOHADA seul, tout incorporel sauf ceux
+que le texte fait amortir, justification exigée hors fonds commercial (présumé
+non limité) ; non amorti ; bascule PROSPECTIVE à la décision
+(`dateDebutAmortissement`, lu par `debutAmortissement` aux trois appels du
+calcul), test de dépréciation d'abord ; dix ans au fonds commercial seul.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

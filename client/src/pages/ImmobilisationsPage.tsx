@@ -12,6 +12,7 @@ import { RepriseSubventionImmobilisations } from '../components/RepriseSubventio
 import { LegsImmobilisations } from '../components/LegsImmobilisations';
 import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisations';
 import { RemplacementImprevu } from '../components/RemplacementImprevu';
+import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
@@ -137,6 +138,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // révision majeure s'amortit sur l'intervalle entre deux révisions, et
   // l'écran n'avait aucun moyen de le dire.
   const [iDuree, setIDuree] = useState('');
+  // Lot 10 · incorporel à durée non limitée (AUDCIF Titre VIII ch. 2 § 4.2.2), SYSCOHADA seul.
+  const [iNonLimitee, setINonLimitee] = useState(false);
+  const [iJustifNonLimitee, setIJustifNonLimitee] = useState('');
+  const [iNomDeDomaine, setINomDeDomaine] = useState(false);
+  const [iDixAns, setIDixAns] = useState<'' | 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT'>('');
+  const [basculeOuvertePour, setBasculeOuvertePour] = useState<string | null>(null);
   // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
   // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
   // choix n'y est pas proposé, et le serveur le refuse aussi.
@@ -231,6 +238,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   }, []);
 
   const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
+  const incorporelSyscohada = syscohada && !!compteBien?.numero.startsWith('21');
+  const fondsCommercial = incorporelSyscohada && !!compteBien?.numero.startsWith('215');
   // UN SOUS-COMPTE « LOCATION-ACQUISITION » NE S'OUVRE QUE PAR UN CONTRAT
   // (AUDCIF Titre VIII ch. 8 § 2.1.7) · ni achat, ni reprise, ni composant ;
   // la valeur du bien est la dette que le serveur calcule.
@@ -308,7 +317,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         natureFiscaleCle: iNatureFiscale || undefined,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
-        dureeAmortissementAns: iDuree ? Number(iDuree) : undefined,
+        dureeAmortissementAns: iNonLimitee ? undefined : iDixAns ? 10 : iDuree ? Number(iDuree) : undefined,
+        ...(incorporelSyscohada && iNonLimitee
+          ? {
+              dureeNonLimitee: true,
+              justificationDureeNonLimitee: iJustifNonLimitee || undefined,
+              ...(compteBien?.numero.startsWith('2132') ? { nomDeDomaine: iNomDeDomaine } : {}),
+            }
+          : {}),
+        ...(fondsCommercial && !iNonLimitee && iDixAns ? { fondementDureeDixAns: iDixAns } : {}),
         ...(iMode ? { modeAmortissement: iMode } : {}),
         ...(modeRetenu === 'UNITES_DOEUVRE' ? { unitesOeuvrePrevues: Number(iUnites), uniteOeuvreLibelle: iUniteLibelle } : {}),
         amortissementAnterieur: iRepris ? Number(iAmortissementAnterieur || 0) : 0,
@@ -954,7 +971,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 min={1}
                 value={iDuree}
                 onChange={(e) => setIDuree(e.target.value)}
-                required={!compteBien?.motifNonAmortissable}
+                // Un fonds commercial sans durée est présumé non limité (§ 7.2.2.1).
+                required={!compteBien?.motifNonAmortissable && !iNonLimitee && !fondsCommercial}
+                disabled={iNonLimitee || !!iDixAns}
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
               {/* Écart au barème fiscal · signalé, jamais refusé (arrêté
@@ -981,6 +1000,43 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 ));
               })()}
             </label>
+            {incorporelSyscohada && !enLA && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5">
+                  <input type="checkbox" checked={iNonLimitee} onChange={(e) => setINonLimitee(e.target.checked)} />
+                  Durée d'utilité non limitée
+                  <Aide
+                    titre="Durée d'utilité non limitée"
+                    texte="Un incorporel sans fin prévisible n'est pas amorti · marque protégée, droit à durée indéterminable, nom de domaine. Il faut le démontrer. Un fonds commercial saisi sans durée est présumé non limité. Frais de développement, brevets, licences, logiciels, sites internet, droit au bail et coûts d'obtention du contrat s'amortissent toujours. La dépréciation reste ouverte, et la durée devenue limitée se déclare sur la fiche."
+                    source="AUDCIF Titre VIII ch. 2 § 1.3.3, § 3.2.2, § 4.2.2, § 7.2.2.1"
+                  />
+                </label>
+                {iNonLimitee && !fondsCommercial && (
+                  <input
+                    required
+                    placeholder="Ce qui démontre l'absence de fin prévisible"
+                    value={iJustifNonLimitee}
+                    onChange={(e) => setIJustifNonLimitee(e.target.value)}
+                    className="w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                  />
+                )}
+                {iNonLimitee && compteBien?.numero.startsWith('2132') && (
+                  <label className="text-[11.5px] font-normal flex items-center gap-1.5">
+                    <input type="checkbox" checked={iNomDeDomaine} onChange={(e) => setINomDeDomaine(e.target.checked)} />
+                    Nom de domaine
+                  </label>
+                )}
+                {fondsCommercial && !iNonLimitee && (
+                  <select value={iDixAns} onChange={(e) => setIDixAns(e.target.value as typeof iDixAns)} className="w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                    <option value="">Durée déclarée, ou présumée non limitée sans durée</option>
+                    <option value="NON_ESTIMABLE">Dix ans · durée limitée non estimable</option>
+                    {utilisateur?.tenant?.systemeComptableSyscohada === 'MINIMAL_TRESORERIE' && (
+                      <option value="SIMPLIFICATION_SMT">Dix ans · simplification du Système minimal</option>
+                    )}
+                  </select>
+                )}
+              </div>
+            )}
             {!enLA && (
             <>
             {unitesServies && (
@@ -1232,7 +1288,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 <span className="font-mono text-[11px] text-text-dim">
                   {immo.modeAmortissement === 'UNITES_DOEUVRE'
                     ? `${(immo.unitesOeuvrePrevues ?? 0).toLocaleString('fr-FR')} ${immo.uniteOeuvreLibelle ?? ''}`
-                    : `${immo.dureeAmortissementAns} ans`}
+                    : immo.dureeNonLimitee
+                      ? 'Non limitée'
+                      : `${immo.dureeAmortissementAns} ans`}
                 </span>
                 <span
                   className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${
@@ -1300,6 +1358,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           className="text-[11px] text-sel hover:underline"
                         >
                           Renouveler
+                        </button>
+                      )}
+                      {peutEcrire && immo.dureeNonLimitee && immo.statut === 'EN_SERVICE' && (
+                        <button
+                          onClick={() => setBasculeOuvertePour(basculeOuvertePour === immo.id ? null : immo.id)}
+                          title="La durée d'utilité devient limitée · l'incorporel s'amortit à compter de la décision"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Durée limitée
                         </button>
                       )}
                       {peutEcrire && !immo.immobilisationPrincipaleId && immo.statut === 'EN_SERVICE' && (
@@ -1475,6 +1542,18 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </form>
               )}
 
+              {basculeOuvertePour === immo.id && (
+                <BasculeDureeLimitee
+                  bien={immo}
+                  fondsCommercial={!!immo.compteImmobilisation?.numero.startsWith('215')}
+                  onFermer={() => setBasculeOuvertePour(null)}
+                  onFait={(message) => {
+                    setBasculeOuvertePour(null);
+                    setInfo(message);
+                    void charger();
+                  }}
+                />
+              )}
               {remplacementOuvertPour === immo.id && (
                 <RemplacementImprevu
                   structure={immo}

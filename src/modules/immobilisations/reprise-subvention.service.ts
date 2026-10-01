@@ -67,6 +67,7 @@ export class RepriseSubventionService {
         ecritureAcquisitionId: true,
         amortissementAnterieur: true,
         amortissementsDetaches: true,
+        dureeNonLimitee: true,
         degressifFiscal: true,
         compteImmobilisation: { select: { numero: true } },
         // L'historique entier du bien · le rythme prospectif (décision D-12)
@@ -175,7 +176,7 @@ export class RepriseSubventionService {
     const proposition = proposerReprise({
       subvention,
       valeurOrigine: n(immo.valeurOrigine),
-      amortissable: !motifNonAmortissable(immo.compteImmobilisation.numero, referentiel),
+      amortissable: !motifNonAmortissable(immo.compteImmobilisation.numero, referentiel) && !immo.dureeNonLimitee,
       dotationExercice: dotationExercice ? n(dotationExercice.montant) : null,
       cumulRepris,
       sorti,
