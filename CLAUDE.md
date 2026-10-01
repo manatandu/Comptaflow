@@ -1470,7 +1470,11 @@ crédits du 14 hors clôture ni de la valeur d'entrée ; reprise PROSPECTIVE
 (solde non repris × dotation globale ÷ reste à amortir, égale au § 3.2 sans
 événement) ; remboursement D 14 / C tiers, non versée D 6515 / C créance et
 D 14 / C 799 (ch. 17 § 4.3.1, § 4.7) ; méthode du § 4.6 déclarée par dossier,
-sans défaut ; au SYSCOHADA, le 4739 est le fonds global d'allocation.
+sans défaut ; au SYSCOHADA, le 4739 est le fonds global d'allocation. BARÈME ET COMPTES (lot 6, D-4) ·
+`bareme-comptes-013-2025.ts` ENGENDRÉ depuis `docs/bareme-013-2025-comptes.md`,
+une colonne par référentiel (2444 « mobilier de bureau » contre « sportifs »),
+relu dans les deux semis ; la nature propose son compte, le compte ses
+natures, jamais un refus.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

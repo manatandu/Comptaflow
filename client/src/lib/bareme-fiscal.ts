@@ -23,6 +23,14 @@ export interface NatureBaremeFiscal {
   designation: string;
   dureeAns: number;
   taux: number;
+  /**
+   * Comptes que le plan DU DOSSIER propose pour cette nature, le premier en
+   * tête (lot 6, décision D-4) · proposition de l'éditeur, vide si le plan
+   * n'en ouvre aucun.
+   */
+  comptes?: string[];
+  /** Quand préférer un autre compte · vide si rien à dire. */
+  remarque?: string;
 }
 
 /**
@@ -206,4 +214,38 @@ export function texteAideSeuilImmobilisation(finExercice: string | null | undefi
   const comptable =
     ' Comptable : un bien de très faible valeur va en classe 6, sans seuil chiffré.';
   return fiscal + avant + comptable;
+}
+
+/**
+ * LE COMPTE NE PROPOSE QUE SES NATURES (lot 6, D-4) · celles que le serveur
+ * rattache au compte choisi ; à défaut, ses sections (repli d'avant le
+ * lot 6) ; « toutes les catégories » ou aucun compte, tout le barème. Rien
+ * n'est jamais refusé · c'est un filtre de liste.
+ */
+export function naturesProposees(
+  bareme: NatureBaremeFiscal[],
+  compte: { naturesBareme?: string[]; sectionsBareme: string[] | null } | null,
+  toutes: boolean,
+): NatureBaremeFiscal[] {
+  if (toutes || !compte) return bareme;
+  if (compte.naturesBareme && compte.naturesBareme.length > 0) return bareme.filter((n) => compte.naturesBareme!.includes(n.cle));
+  if (!compte.sectionsBareme) return bareme;
+  return bareme.filter((n) => compte.sectionsBareme!.includes(n.section));
+}
+
+/**
+ * LA NATURE PROPOSE SON COMPTE (lot 6, D-4) · les comptes de la nature que
+ * le dossier porte, dans l'ordre servi ; rien si le compte choisi est déjà
+ * l'un d'eux (ou l'un de leurs sous-comptes).
+ */
+export function comptesProposesPourNature<C extends { id: string; numero: string }>(
+  nature: NatureBaremeFiscal | undefined,
+  comptesDuDossier: C[],
+  compteChoisi: { numero: string } | null,
+): C[] {
+  const numeros = nature?.comptes ?? [];
+  if (numeros.length === 0) return [];
+  const racine = (n: string) => n.replace(/0+$/, '');
+  if (compteChoisi && numeros.some((n) => compteChoisi.numero === n || compteChoisi.numero.startsWith(racine(n)))) return [];
+  return numeros.map((n) => comptesDuDossier.find((c) => c.numero === n)).filter((c): c is C => !!c);
 }

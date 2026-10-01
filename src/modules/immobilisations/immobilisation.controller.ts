@@ -20,7 +20,6 @@ import {
   RenouvelerComposantDto,
   MiseEnServiceDto,
 } from './dto/immobilisation.dto';
-import { baremeFiscal } from './bareme-fiscal';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
@@ -108,8 +107,8 @@ export class ImmobilisationController {
    * donnée du dossier n'y entre, la lecture est ouverte à tous les rôles.
    */
   @Get('bareme-fiscal')
-  async baremeFiscal() {
-    return baremeFiscal();
+  async baremeFiscal(@CurrentUser() user: AuthenticatedUser) {
+    return this.immobilisationService.baremeFiscal(user.tenantId);
   }
 
   /**

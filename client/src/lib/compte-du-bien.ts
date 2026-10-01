@@ -18,6 +18,8 @@ export interface CompteDuBien {
   motifNonAmortissable: string | null;
   /** Sections de l'arrêté n° 013/2025 proposées · null, toutes ; vide, aucune. */
   sectionsBareme: string[] | null;
+  /** Natures du barème que ce compte propose (lot 6, D-4) · vide, repli sur les sections. */
+  naturesBareme?: string[];
   division: { numero: string; intitule: string | null };
   /** Sous-compte « location-acquisition » · le bien n'y entre que par un contrat. */
   locationAcquisition: boolean;

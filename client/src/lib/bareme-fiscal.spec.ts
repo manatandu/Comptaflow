@@ -6,6 +6,8 @@ import {
   PLANCHERS_LOCATION_ACQUISITION,
   plancherLocationAcquisition,
   sectionsDuBareme,
+  naturesProposees,
+  comptesProposesPourNature,
   SOURCE_AIDE_SEUIL_IMMOBILISATION,
   texteAideSeuilImmobilisation,
   type NatureBaremeFiscal,
@@ -161,5 +163,31 @@ describe('le retraitement fiscal porte aussi l’art. 5', () => {
     expect(bloc).toContain('location-acquisition');
     expect(bloc).toContain('trois ans (matériel de transport), art. 5');
     expect(bloc).toContain('013/CAB/MIN/FINANCES/2025, art. 2 et 5');
+  });
+});
+
+describe('lot 6 · le barème et les comptes dans les deux sens (D-4)', () => {
+  const n = (cle: string, section: string, comptes: string[] = []): NatureBaremeFiscal => ({
+    cle, section, intituleSection: section, numero: 1, designation: cle, dureeAns: 5, taux: 20, comptes,
+  });
+  const bareme = [n('V.14', 'V', ['24510000']), n('V.18', 'V', ['24510000', '24210000']), n('VI.2', 'VI', ['24440000']), n('IX.3', 'IX', ['24210000'])];
+
+  it('le compte ne propose que ses natures ; toutes les catégories à un clic ; repli sur les sections', () => {
+    const compte = { naturesBareme: ['V.14', 'V.18'], sectionsBareme: ['V', 'IX'] };
+    expect(naturesProposees(bareme, compte, false).map((x) => x.cle)).toEqual(['V.14', 'V.18']);
+    expect(naturesProposees(bareme, compte, true)).toHaveLength(4);
+    expect(naturesProposees(bareme, { naturesBareme: [], sectionsBareme: ['VI'] }, false).map((x) => x.cle)).toEqual(['VI.2']);
+    expect(naturesProposees(bareme, null, false)).toHaveLength(4);
+  });
+
+  it('la nature propose ses comptes, le premier en tête, et se tait si le compte choisi en est un', () => {
+    const plan = [
+      { id: 'a', numero: '24210000' },
+      { id: 'b', numero: '24510000' },
+    ];
+    expect(comptesProposesPourNature(bareme[1], plan, null).map((c) => c.id)).toEqual(['b', 'a']);
+    expect(comptesProposesPourNature(bareme[1], plan, { numero: '24511000' })).toEqual([]);
+    expect(comptesProposesPourNature(bareme[2], plan, { numero: '24210000' })).toEqual([]);
+    expect(comptesProposesPourNature(undefined, plan, null)).toEqual([]);
   });
 });

@@ -29,6 +29,8 @@ import {
   SOURCE_AIDE_SEUIL_IMMOBILISATION,
   texteAideSeuilImmobilisation,
   type NatureBaremeFiscal,
+  naturesProposees,
+  comptesProposesPourNature,
 } from '../lib/bareme-fiscal';
 import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
 
@@ -890,8 +892,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
                 >
                   <option value="">Non précisée</option>
-                  {sectionsDuBareme(bareme)
-                    .filter((g) => toutesCategories || !compteBien?.sectionsBareme || compteBien.sectionsBareme.includes(g.section))
+                  {sectionsDuBareme(naturesProposees(bareme, compteBien, toutesCategories))
                     .map((g) => (
                     <optgroup key={g.section} label={`${g.section} · ${g.intitule}`}>
                       {g.lignes.map((n) => (
@@ -906,6 +907,33 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   <input type="checkbox" checked={toutesCategories} onChange={(e) => setToutesCategories(e.target.checked)} />
                   Toutes les catégories
                 </span>
+                {/* La nature propose son compte (lot 6, D-4) · un clic le
+                    pose, sans toucher à la nature ; jamais un refus. */}
+                {(() => {
+                  const nature = bareme.find((n) => n.cle === iNatureFiscale);
+                  const proposes = comptesProposesPourNature(nature, comptesBien ?? [], compteBien);
+                  if (proposes.length === 0) return null;
+                  return (
+                    <span className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-normal">
+                      Compte proposé
+                      {proposes.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setICompteBienId(c.id);
+                            setIModeAcquisition('');
+                            setICompteContrepartie('');
+                          }}
+                          className="border border-border-dark px-1.5 py-0.5 hover:bg-sel/10"
+                        >
+                          {c.numero} · {c.intitule}
+                        </button>
+                      ))}
+                      {nature?.remarque && <Aide titre="Compte proposé" texte={nature.remarque} source="Proposition de l'éditeur · aucun texte ne relie une nature du barème à un compte du plan" />}
+                    </span>
+                  );
+                })()}
               </label>
             )}
             <label className="text-[11.5px] font-semibold text-text-dim">

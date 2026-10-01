@@ -794,3 +794,23 @@ test('SYCEBNL · une subvention en numéraire rattachée au bien se reprend au 7
 
   expect(pannes).toEqual([]);
 });
+
+for (const [referentiel, mobilier] of [
+  ['SYSCOHADA', '24440000'],
+  ['SYCEBNL', '24410000'],
+] as const) {
+  test(`${referentiel} · le barème et les comptes se proposent dans les deux sens, colonne du référentiel`, async ({ page }) => {
+    // Lot 6, décision D-4 · « mobiliers de bureau » (VI.2) au 2444 SYSCOHADA,
+    // au 2441 SYCEBNL, où le 2444 est le matériel et mobilier sportifs.
+    const pannes = surveiller(page);
+    const dossier = await creerDossier(page, { referentiel, nom: `Barème ${referentiel} e2e`, montant: 10_000 });
+    await seConnecter(page, dossier.email);
+    const bareme = await appelApi<Array<{ cle: string; comptes: string[] }>>(page, 'GET', '/immobilisations/bareme-fiscal');
+    expect(bareme).toHaveLength(131);
+    expect(bareme.find((n) => n.cle === 'VI.2')?.comptes).toEqual([mobilier]);
+    const comptes = await appelApi<Array<{ numero: string; naturesBareme: string[] }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+    expect(comptes.find((c) => c.numero === mobilier)?.naturesBareme).toContain('VI.2');
+    for (const c of bareme.flatMap((n) => n.comptes)) expect(comptes.some((x) => x.numero === c)).toBe(true);
+    expect(pannes).toEqual([]);
+  });
+}

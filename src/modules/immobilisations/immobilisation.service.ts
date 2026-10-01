@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, InternalServerError
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { moisEntre } from '../../common/mois-entre';
+import { naturesDuCompte, comptesDeLaNature } from './bareme-comptes';
+import { baremeFiscal } from './bareme-fiscal';
 import {
   ModeAmortissement,
   Prisma,
@@ -1108,6 +1110,10 @@ export class ImmobilisationService {
           motifComptes: suivants.motif,
           motifNonAmortissable: nonAmortissable,
           sectionsBareme: sectionsBaremeDuCompte(c.numero),
+          // Lot 6 (D-4) · les natures du barème que ce compte propose, lues
+          // dans la colonne du référentiel du dossier ; vide, l'écran se
+          // replie sur les sections.
+          naturesBareme: naturesDuCompte(referentiel as 'SYSCOHADA' | 'SYCEBNL', c.numero),
           // Un sous-compte « location-acquisition » (AUDCIF Titre VIII ch. 8 § 2.1.7) ·
           // le bien n'y entre que par un contrat, jamais par un achat.
           locationAcquisition: estCompteDeLocationAcquisition(c.numero),
@@ -3559,5 +3565,15 @@ export class ImmobilisationService {
       await this.defaireSortie(tenantId, id, immo.designation, ecrituresPosees, dotationPoseeId);
       throw err;
     }
+  }
+
+  /**
+   * Le barème fiscal (arrêté n° 013/2025, art. 2) avec, pour chaque nature,
+   * les comptes que le plan DU DOSSIER propose (lot 6, D-4) · proposition de
+   * l'éditeur, jamais un refus.
+   */
+  async baremeFiscal(tenantId: string) {
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    return baremeFiscal().map((n) => ({ ...n, ...comptesDeLaNature(referentiel as 'SYSCOHADA' | 'SYCEBNL', n.cle) }));
   }
 }
