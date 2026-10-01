@@ -59,7 +59,13 @@ import {
 import { motifRefusRepriseDepreciation, plafondRepriseDepreciation } from './plafond-reprise-depreciation';
 import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
-import { compteCreditIncorporation, montantIncorporable, motifRefusIncorporation, motifRefusPlafond } from './couts-emprunt-incorpores';
+import {
+  compteCreditIncorporation,
+  montantIncorporable,
+  motifRefusIncorporation,
+  motifRefusMiseEnServiceAvantIncorporation,
+  motifRefusPlafond,
+} from './couts-emprunt-incorpores';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 
@@ -98,6 +104,16 @@ import {
   RACINES_FONDS_PROJET,
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
+import {
+  comptesEnCoursDuBien,
+  compteEnCoursPropose,
+  compteInscritALaDate,
+  compteInscritChargeALaDate,
+  estCompteEnCours,
+  motifRefusCompteEnCours,
+  motifRefusTantQueEnCours,
+  motifSansEnCours,
+} from './immobilisation-en-cours';
 import { amortissementsHorsDotations, detacherPartieRemplacee } from './partie-remplacee';
 import {
   annuiteDegressive,
@@ -695,11 +711,40 @@ export class ImmobilisationService {
    * ligne, là où un `updateMany` n'y laisse que son filtre. La condition
    * `dateMiseEnService: null` du `where` tranche une course entre deux
    * postes · le second trouve la ligne déjà prise et reçoit un 409.
+   *
+   * LE BIEN INSCRIT EN COURS (immobilisation-en-cours.ts) · « après
+   * achèvement », il est porté au débit de son compte définitif par le crédit
+   * du 2x9 (AUDCIF Titre VII, fiches des comptes 21 à 24 ; SYCEBNL Partie 2
+   * ch. 3, fiches 23 et 24). La mise en service passe alors UNE écriture, du
+   * montant que le bien porte (valeur d'origine courante, coûts d'emprunt
+   * incorporés compris), datée de la mise en service, dans un exercice ouvert
+   * et le journal choisi ; la fiche la RETIENT (`detenteurs-ecriture.ts`).
+   * Tout ce qui peut refuser se fait AVANT l'écriture, et une course perdue
+   * retire l'écriture de la requête perdante, jamais celle de la gagnante.
+   * Un bien porté d'emblée à son compte définitif ne passe toujours rien.
+   *
+   * CE QUE L'ÉCRITURE FAIT AUX NOTES, ET QUI N'EST PAS CORRIGÉ ICI · les
+   * tableaux des valeurs brutes (NOTE 3A du SYSCOHADA, anomalie n° 9 de
+   * `correspondance-notes-syscohada-1.ts` ; 5A des associations, 3A des
+   * projets) lisent les mouvements de la balance · le virement y paraît en
+   * augmentation de la ligne du compte définitif ET en diminution de celle de
+   * l'en-cours, souvent la même (le 2391 est rangé avec le 231, le 249 avec
+   * le 24), la clôture D restant juste. La sous-colonne
+   * « Virements de poste à poste » est en saisie, comme pour tout virement.
    */
-  async mettreEnService(tenantId: string, id: string, dto: MiseEnServiceDto) {
+  async mettreEnService(tenantId: string, userId: string, id: string, dto: MiseEnServiceDto) {
     const immo = await this.prisma.immobilisation.findFirst({
       where: { id, tenantId },
-      select: { id: true, dateAcquisition: true, dateMiseEnService: true, statut: true },
+      select: {
+        id: true,
+        designation: true,
+        dateAcquisition: true,
+        dateMiseEnService: true,
+        statut: true,
+        valeurOrigine: true,
+        compteImmobilisationId: true,
+        compteEnCoursId: true,
+      },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable');
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
@@ -717,13 +762,50 @@ export class ImmobilisationService {
         `La mise en service ne peut précéder l'acquisition (${immo.dateAcquisition.toISOString().slice(0, 10)}) · AUDCIF art. 45.`,
       );
     }
+    // Aucune incorporation de coûts d'emprunt ne court au-delà de la date ·
+    // pour tout bien, inscrit en cours ou non (couts-emprunt-incorpores.ts).
+    const incorporations = await this.prisma.coutEmpruntIncorpore.aggregate({
+      where: { tenantId, immobilisationId: id },
+      _max: { dateFin: true },
+    });
+    const refusIncorporation = motifRefusMiseEnServiceAvantIncorporation(date, incorporations._max.dateFin ?? null);
+    if (refusIncorporation) throw new BadRequestException(refusIncorporation);
+
+    let ecritureId: string | null = null;
+    if (immo.compteEnCoursId) {
+      if (!dto.exerciceId || !dto.journalId) {
+        throw new BadRequestException(
+          "Ce bien est inscrit en cours · indiquez l'exercice et le journal de l'écriture qui le vire à son compte définitif.",
+        );
+      }
+      const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+      if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+      if (exercice.statut === StatutExercice.CLOTURE) throw new BadRequestException('Cet exercice est clôturé.');
+      if (date < exercice.dateDebut || date > exercice.dateFin) {
+        throw new BadRequestException("La date de mise en service doit se situer dans l'exercice indiqué.");
+      }
+      const montantEnCours = Number(immo.valeurOrigine);
+      const ecriture = await this.ecritureService.creer(tenantId, userId, {
+        exerciceId: exercice.id,
+        journalId: dto.journalId,
+        date: dto.date.slice(0, 10),
+        libelle: `Mise en service · ${immo.designation}`.slice(0, 190),
+        lignes: [
+          { compteId: immo.compteImmobilisationId, debit: montantEnCours, credit: 0 },
+          { compteId: immo.compteEnCoursId, debit: 0, credit: montantEnCours },
+        ],
+      });
+      ecritureId = ecriture.id;
+    }
     try {
       return await this.prisma.immobilisation.update({
         where: { id, tenantId, dateMiseEnService: null },
-        data: { dateMiseEnService: date },
-        select: { id: true, dateMiseEnService: true },
+        data: { dateMiseEnService: date, ...(ecritureId ? { ecritureMiseEnServiceId: ecritureId } : {}) },
+        select: { id: true, dateMiseEnService: true, ecritureMiseEnServiceId: true },
       });
     } catch (err) {
+      // L'écriture de CETTE requête ne reste pas au journal sans le bien qui la porte.
+      if (ecritureId) await this.annulerEcritureOrpheline(ecritureId);
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
         throw new ConflictException("Ce bien vient d'être mis en service depuis un autre poste · rechargez la liste.");
       }
@@ -783,6 +865,9 @@ export class ImmobilisationService {
         famille: true,
         lieu: { select: { id: true, code: true, intitule: true } },
         compteImmobilisation: true,
+        // Le compte en cours où le bien non achevé est inscrit · l'écran le
+        // montre et demande le journal de sa mise en service.
+        compteEnCours: { select: { id: true, numero: true, intitule: true } },
         compteAmortissement: true,
         dotations: true,
         depreciations: true,
@@ -1221,6 +1306,15 @@ export class ImmobilisationService {
       .map((c) => {
         const nonAmortissable = motifNonAmortissable(c.numero, referentiel);
         const suivants = comptesSuivantLeBien(referentiel, c.numero, numeros, !!nonAmortissable);
+        // L'EN-COURS DE CE COMPTE (immobilisation-en-cours.ts) · servi avec
+        // le compte pour que l'écran ne recompose aucune racine, avec le motif
+        // quand le texte n'en écrit pas, et la présélection que seul le texte
+        // autorise (ou le candidat unique).
+        const ref = referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL';
+        const enCours = comptesEnCoursDuBien(ref, c.numero, plan);
+        const sansEnCours =
+          motifSansEnCours(ref, c.numero) ??
+          (enCours.length === 0 ? `Aucun compte en cours de la division ${c.numero.slice(0, 2)} au plan du dossier · ouvrez-le avant d'inscrire le bien en cours.` : null);
         return {
           id: c.id,
           numero: c.numero,
@@ -1237,6 +1331,10 @@ export class ImmobilisationService {
           // Un sous-compte « location-acquisition » (AUDCIF Titre VIII ch. 8 § 2.1.7) ·
           // le bien n'y entre que par un contrat, jamais par un achat.
           locationAcquisition: estCompteDeLocationAcquisition(c.numero),
+          estCompteEnCours: estCompteEnCours(c.numero),
+          comptesEnCours: sansEnCours ? [] : enCours,
+          compteEnCoursProposeId: sansEnCours ? null : (compteEnCoursPropose(ref, c.numero, enCours)?.id ?? null),
+          motifSansEnCours: sansEnCours,
           division: { numero: c.numero.slice(0, 2), intitule: intituleDivision.get(c.numero.slice(0, 2)) ?? null },
         };
       });
@@ -1628,6 +1726,43 @@ export class ImmobilisationService {
         "Un bien déjà amorti a été mis en service · indiquez sa date de mise en service avec l'amortissement déjà pratiqué.",
       );
     }
+    /*
+      L'IMMOBILISATION EN COURS (immobilisation-en-cours.ts) · le bien non
+      achevé s'inscrit au 2x9 de sa division, son compte DÉFINITIF gardant la
+      nature, la durée et la famille. Il n'est par définition pas en service ·
+      une date fournie contredirait l'inscription, et la mise en service, qui
+      vire l'en-cours, n'aurait plus de date où se poser. La location-
+      acquisition prend effet bien en main (§ 2.1.6) et n'est pas concernée.
+    */
+    let compteEnCours: { id: string; numero: string } | null = null;
+    if (dto.compteEnCoursId) {
+      if (dateMiseEnService) {
+        throw new BadRequestException(
+          "Un bien inscrit en cours n'est pas encore mis en service · laissez la date vide, elle se pose à l'achèvement.",
+        );
+      }
+      if (interne.lignesCredit) {
+        throw new BadRequestException('Un bien pris en location-acquisition ne s’inscrit pas en cours.');
+      }
+      const [regimeEnCours, definitif, enCours] = await Promise.all([
+        this.regimeComptable(tenantId),
+        this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
+        this.prisma.compte.findFirst({
+          where: { id: dto.compteEnCoursId, tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+          select: { id: true, numero: true },
+        }),
+      ]);
+      if (!definitif) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
+      if (!enCours) throw new BadRequestException('Compte en cours introuvable pour ce dossier');
+      const refusEnCours = motifRefusCompteEnCours(
+        regimeEnCours.referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL',
+        definitif.numero,
+        enCours.numero,
+      );
+      if (refusEnCours) throw new BadRequestException(refusEnCours);
+      compteEnCours = enCours;
+    }
+
     // La nature au barème ne commande aucun calcul · elle se vérifie pour ne
     // pas garder une clé que l'écran ne saurait plus relire.
     const natureFiscaleCle = dto.natureFiscaleCle?.trim() || null;
@@ -1711,6 +1846,14 @@ export class ImmobilisationService {
           typeComposant: dto.immobilisationPrincipaleId ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
         });
         if (motif) throw new BadRequestException(motif);
+        // Un en-cours ne se finance pas par un en-cours · « Travaux en cours
+        // achevés » crédite le 2x9 d'un bien qu'on porte à son compte
+        // DÉFINITIF, et inscrit en cours il serait débité et crédité ensemble.
+        if (compteEnCours && estCompteEnCours(compteContrepartie.numero)) {
+          throw new BadRequestException(
+            `Le compte ${compteContrepartie.numero} est un compte en cours · un bien inscrit en cours ne se finance pas par un autre en-cours.`,
+          );
+        }
       }
     }
 
@@ -1861,7 +2004,8 @@ export class ImmobilisationService {
           date: dto.dateAcquisition,
           libelle: (interne.libelle ?? `Acquisition · ${dto.designation}`).slice(0, 190),
           lignes: [
-            { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
+            // Le bien entre là où il est INSCRIT · l'en-cours s'il n'est pas achevé.
+            { compteId: compteEnCours?.id ?? famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
             ...(interne.lignesCredit
               ? interne.lignesCredit
                   .filter((l) => Math.abs(l.montant) > EPSILON)
@@ -1886,6 +2030,7 @@ export class ImmobilisationService {
           compteImmobilisationId: famille.compteImmobilisationId,
           compteAmortissementId: famille.compteAmortissementId,
           compteDotationId: famille.compteDotationId,
+          compteEnCoursId: compteEnCours?.id ?? null,
           dateAcquisition,
           dateMiseEnService,
           natureFiscaleCle,
@@ -2348,6 +2493,7 @@ export class ImmobilisationService {
       },
       include: {
         compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
+        compteEnCours: { select: { id: true, numero: true, intitule: true } },
         dotations: {
           select: { montant: true, exercice: { select: { dateFin: true } } },
         },
@@ -2401,12 +2547,17 @@ export class ImmobilisationService {
         ),
       );
       const brut = Number(immo.valeurOrigine);
-      const cle = immo.compteImmobilisation.id;
+      // RANGÉ AU COMPTE OÙ LE BIEN EST INSCRIT À LA DATE D'ARRÊTÉ · un bien
+      // non achevé est au 2x9, et le ranger sous son compte définitif ferait
+      // tomber faux le recoupement avec la balance que ce tableau existe pour
+      // permettre (immobilisation-en-cours.ts).
+      const inscrit = compteInscritChargeALaDate(immo, arret ?? new Date());
+      const cle = inscrit.id;
       const groupe =
         groupes.get(cle) ??
         {
-          numero: immo.compteImmobilisation.numero,
-          intitule: immo.compteImmobilisation.intitule,
+          numero: inscrit.numero,
+          intitule: inscrit.intitule,
           lignes: [] as LigneTableauImmo[],
           brut: 0,
           amortissements: 0,
@@ -2428,7 +2579,7 @@ export class ImmobilisationService {
         dateSortie: immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
       };
       if (immo.dateSortie && (!arret || immo.dateSortie <= arret)) {
-        sortis.push({ ...ligne, compte: immo.compteImmobilisation.numero });
+        sortis.push({ ...ligne, compte: inscrit.numero });
         continue;
       }
       groupe.lignes.push(ligne);
@@ -2501,6 +2652,7 @@ export class ImmobilisationService {
       },
       include: {
         compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
+        compteEnCours: { select: { id: true, numero: true, intitule: true } },
         dotations: { select: { montant: true, exerciceId: true, exercice: { select: { dateFin: true } } } },
         // La dépréciation change l'annuité de tous les exercices SUIVANTS ·
         // un tableau qui l'ignorerait annoncerait une dotation que
@@ -2649,12 +2801,18 @@ export class ImmobilisationService {
       const net = arrondir(Number(immo.valeurOrigine) - cumulN - depreciations);
       const base = this.baseAmortissable(Number(immo.valeurOrigine), Number(immo.valeurResiduelle));
 
-      const cle = immo.compteImmobilisation.id;
+      // RANGÉ AU COMPTE OÙ LE BIEN EST INSCRIT À LA CLÔTURE · un bien non
+      // achevé figure ici pour sa valeur brute et nette, au 2x9 où la balance
+      // le porte ; rangé sous son compte définitif, il gonflerait le
+      // sous-total d'un 231 vide (immobilisation-en-cours.ts). Le caractère
+      // amortissable, lui, reste lu sur le compte DÉFINITIF (ci-dessus).
+      const inscrit = compteInscritChargeALaDate(immo, exercice.dateFin);
+      const cle = inscrit.id;
       const groupe =
         groupes.get(cle) ??
         {
-          numero: immo.compteImmobilisation.numero,
-          intitule: immo.compteImmobilisation.intitule,
+          numero: inscrit.numero,
+          intitule: inscrit.intitule,
           lignes: [] as LigneTableauAmortissement[],
           parMois: moisDeLExercice.map(() => 0),
           dotation: 0,
@@ -3201,6 +3359,8 @@ export class ImmobilisationService {
     if (ancien.statut !== StatutImmobilisation.EN_SERVICE) {
       throw new BadRequestException('Ce composant est déjà sorti · il ne se renouvelle plus.');
     }
+    const refusEnCours = motifRefusTantQueEnCours(ancien, new Date(dto.dateRenouvellement), 'son renouvellement');
+    if (refusEnCours) throw new BadRequestException(refusEnCours);
 
     /*
       LE REMPLAÇANT D'ABORD, LA SORTIE ENSUITE (audit final F29).
@@ -3312,9 +3472,24 @@ export class ImmobilisationService {
       );
     }
 
+    // UN BIEN INSCRIT EN COURS À LA DATE DU RECLASSEMENT N'A PAS ENCORE
+    // D'UTILISATION · il n'a donc pas d'utilisation à changer, et le virement
+    // créditerait son compte définitif, qui ne le porte pas encore à cette
+    // date. Lu par le seul lecteur (immobilisation-en-cours.ts) · il couvre le
+    // bien jamais mis en service ET le reclassement antidaté avant une mise en
+    // service déjà posée.
+    const dateReclassement = new Date(dto.dateReclassement);
+    if (compteInscritALaDate(immo, dateReclassement) !== immo.compteImmobilisationId) {
+      throw new BadRequestException(
+        immo.dateMiseEnService
+          ? `Ce bien était encore inscrit en cours à cette date · il n'est mis en service que le ${immo.dateMiseEnService
+            .toISOString()
+            .slice(0, 10)}, et un reclassement ne peut la précéder.`
+          : "Ce bien est inscrit en cours · il n'a pas encore d'utilisation à changer. Mettez-le en service d'abord, puis reclassez-le.",
+      );
+    }
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
-    const dateReclassement = new Date(dto.dateReclassement);
     if (dateReclassement < exercice.dateDebut || dateReclassement > exercice.dateFin) {
       throw new BadRequestException("La date de reclassement doit se situer dans l'exercice indiqué");
     }
@@ -3791,8 +3966,11 @@ export class ImmobilisationService {
     });
     if (refusProjet) throw new BadRequestException(refusProjet);
 
+    // Le bien sort du compte où il est INSCRIT à la date de sortie · un bien
+    // abandonné avant son achèvement sort du 2x9, jamais d'un compte
+    // définitif qui ne l'a jamais porté (immobilisation-en-cours.ts).
     const lignesSortie: Array<{ compteId: string; debit: number; credit: number }> = [
-      { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
+      { compteId: compteInscritALaDate(immo, dateSortie), debit: 0, credit: Number(immo.valeurOrigine) },
     ];
     if (projet && compteFonds) {
       lignesSortie.push({ compteId: compteFonds.id, debit: Number(immo.valeurOrigine), credit: 0 });
@@ -4194,6 +4372,8 @@ export class ImmobilisationService {
       this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { dateDebut: true, dateFin: true } }),
     ]);
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    const refusEnCours = motifRefusTantQueEnCours(structure, new Date(dto.dateRenouvellement), 'le remplacement d’une partie');
+    if (refusEnCours) throw new BadRequestException(refusEnCours);
     // La décomposition revue reste soumise à la liste des biens décomposables.
     this.verifierDecomposition(structure, referentiel);
 
@@ -4240,6 +4420,9 @@ export class ImmobilisationService {
           compteImmobilisationId: structure.compteImmobilisationId,
           compteAmortissementId: structure.compteAmortissementId,
           compteDotationId: structure.compteDotationId,
+          // La partie est là où la structure est inscrite · sa sortie la
+          // créditera au même compte (immobilisation-en-cours.ts).
+          compteEnCoursId: structure.compteEnCoursId,
           dateAcquisition: structure.dateAcquisition,
           dateMiseEnService: structure.dateMiseEnService,
           natureFiscaleCle: structure.natureFiscaleCle,
@@ -4561,7 +4744,11 @@ export class ImmobilisationService {
       date: dto.dateFin.slice(0, 10),
       libelle: `Coûts d'emprunt incorporés · ${immo.designation}`,
       lignes: [
-        { compteId: immo.compteImmobilisationId, debit: montant, credit: 0 },
+        // Le coût s'ajoute là où le bien est INSCRIT à la fin de la période ·
+        // l'en-cours tant qu'il n'est pas achevé (la règle refuse déjà tout
+        // ce qui suit la mise en service), sans quoi la mise en service
+        // virerait du 2x9 un montant qu'il n'a jamais porté.
+        { compteId: compteInscritALaDate(immo, saisie.dateFin), debit: montant, credit: 0 },
         { compteId: compteCredit.id, debit: 0, credit: montant },
       ],
     });

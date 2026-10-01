@@ -24,7 +24,10 @@ import { montant } from '../lib/montants';
 import { fondsPreselectionne, messageFondsProjet, type ReponseFondsProjet } from '../lib/fonds-projet-sortie';
 import {
   avertissementPetitMateriel,
+  compteEnCoursInitial,
+  comptesDefinitifs,
   comptesParDivision,
+  contrepartiesSelonEnCours,
   modesPresents,
   type CompteDuBien,
   type ContrepartieAdmise,
@@ -39,7 +42,7 @@ import {
   texteAideSeuilImmobilisation,
   type NatureBaremeFiscal,
   naturesProposees,
-  comptesProposesPourNature,
+  compteSelonNature,
 } from '../lib/bareme-fiscal';
 import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
 
@@ -138,6 +141,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // Vide, le bien est acquis et pas encore en état de fonctionner (AUDCIF
   // art. 45) · aucune dotation tant que la mise en service n'est pas posée.
   const [iDateMiseEnService, setIDateMiseEnService] = useState(() => new Date().toISOString().slice(0, 10));
+  // IMMOBILISATION EN COURS · décochée par défaut (décision de Manasse). Cochée,
+  // le bien s'inscrit au 2x9 de sa division (serveur, immobilisation-en-cours.ts),
+  // la date de mise en service reste vide et se pose à l'achèvement.
+  const [iPasEncoreEnService, setIPasEncoreEnService] = useState(false);
+  const [iCompteEnCoursId, setICompteEnCoursId] = useState('');
+  // Mise en service · la date toujours, le journal pour un bien inscrit en cours,
+  // dont la mise en service passe l'écriture qui le vire au compte définitif.
+  const [miseEnServiceOuvertePour, setMiseEnServiceOuvertePour] = useState<string | null>(null);
+  const [msDate, setMsDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [msJournalId, setMsJournalId] = useState('');
   // Nature du barème fiscal (arrêté n° 013/2025, art. 2) · elle PROPOSE la
   // durée, ne l'impose jamais, et l'écart se signale sans refuser.
   const [iNatureFiscale, setINatureFiscale] = useState('');
@@ -256,6 +269,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     if (od) {
       setIJournalId((v) => v || od.id);
       setSJournalId((v) => v || od.id);
+      setMsJournalId((v) => v || od.id);
     }
   };
 
@@ -324,8 +338,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   }, [iCompteBienId, typeComposantServi]);
   const modeRetenu = iMode;
   // Les modes d'acquisition présents dans la liste fermée, dans l'ordre servi.
-  const modesAcquisition = modesPresents(contrepartiesAdmises ?? []);
-  const contrepartiesDuMode = (contrepartiesAdmises ?? []).filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);
+  const contrepartiesOffertes = contrepartiesSelonEnCours(contrepartiesAdmises ?? [], iPasEncoreEnService);
+  const modesAcquisition = modesPresents(contrepartiesOffertes);
+  const contrepartiesDuMode = contrepartiesOffertes.filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);
   // UN SEUL CHOIX POSSIBLE EST PROPOSÉ · un mode unique, ou une contrepartie
   // unique pour le mode retenu, se présélectionne (modifiable) au lieu d'un
   // champ vide à rouvrir.
@@ -379,7 +394,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         lieuId: iLieuId || undefined,
         dateAcquisition: iDateAcquisition,
         // Vide · bien non encore mis en service, la date se pose plus tard.
-        dateMiseEnService: iDateMiseEnService || undefined,
+        // Inscrit en cours, jamais de date · le serveur la refuserait.
+        dateMiseEnService: iPasEncoreEnService ? undefined : iDateMiseEnService || undefined,
+        compteEnCoursId: iPasEncoreEnService ? iCompteEnCoursId || undefined : undefined,
         natureFiscaleCle: iNatureFiscale || undefined,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
@@ -416,6 +433,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       setIMode('LINEAIRE');
       setIModeAcquisition('');
       setINatureFiscale('');
+      setIPasEncoreEnService(false);
+      setICompteEnCoursId('');
       setEstComposant(false);
       setIUnites('');
       setIUniteLibelle('');
@@ -448,27 +467,27 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   /**
    * Mise en service d'un bien acquis et pas encore en état de fonctionner
    * (AUDCIF art. 45) · la date se pose une fois, jamais avant l'acquisition,
-   * et c'est le serveur qui le refuse. Aucune écriture n'est passée.
+   * et c'est le serveur qui le refuse. Un bien porté à son compte définitif ne
+   * passe aucune écriture ; un bien inscrit en cours passe D compte définitif
+   * / C compte en cours, dans l'exercice courant et le journal choisi.
    */
-  const mettreEnService = async (immo: Immobilisation) => {
-    const saisie = window.prompt(
-      `${immo.designation} · date de mise en service (AAAA-MM-JJ). Elle se pose une fois et ne précède pas l'acquisition.`,
-      new Date().toISOString().slice(0, 10),
-    );
-    if (saisie === null) return;
-    const date = saisie.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setErreur('Date de mise en service illisible · attendue au format AAAA-MM-JJ.');
-      return;
-    }
+  const onMettreEnService = async (e: FormEvent, immo: Immobilisation) => {
+    e.preventDefault();
     setErreur(null);
     setInfo(null);
+    setEnvoi(true);
     try {
-      await api.patch(`/immobilisations/${immo.id}/mise-en-service`, { date });
-      setInfo(`${immo.designation} mis en service au ${date.split('-').reverse().join('/')}.`);
+      await api.patch(`/immobilisations/${immo.id}/mise-en-service`, {
+        date: msDate,
+        ...(immo.compteEnCoursId ? { exerciceId: exerciceCourant?.id, journalId: msJournalId } : {}),
+      });
+      setMiseEnServiceOuvertePour(null);
+      setInfo(`${immo.designation} mis en service au ${msDate.split('-').reverse().join('/')}.`);
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de poser la mise en service');
+    } finally {
+      setEnvoi(false);
     }
   };
 
@@ -900,11 +919,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   setINatureFiscale('');
                   setIModeAcquisition('');
                   setICompteContrepartie('');
+                  setICompteEnCoursId(compteEnCoursInitial((comptesBien ?? []).find((c) => c.id === e.target.value) ?? null));
                 }}
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
               >
                 <option value="" />
-                {comptesParDivision(comptesBien ?? []).map((g) => (
+                {comptesParDivision(comptesDefinitifs(comptesBien ?? [], iPasEncoreEnService)).map((g) => (
                   <optgroup key={g.numero} label={`${g.numero} · ${g.intitule}`}>
                     {g.comptes.map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
@@ -934,17 +954,63 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
               Date d'acquisition
               <input required type="date" value={iDateAcquisition} onChange={(e) => setIDateAcquisition(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              <span className="flex items-center gap-1">
-                Date de mise en service
-                <Aide
-                  titre="Mise en service"
-                  texte="Vide, le bien est acquis mais pas encore en état de fonctionner : aucune dotation n'est passée. La date se pose ensuite depuis la liste (« Mettre en service »), une fois, et jamais avant l'acquisition."
-                  source="AUDCIF art. 45"
+            <div className="flex flex-col gap-1">
+              <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={iPasEncoreEnService}
+                  onChange={(e) => {
+                    setIPasEncoreEnService(e.target.checked);
+                    // Un 2x9 choisi comme compte définitif ne l'est plus une fois la case cochée.
+                    if (e.target.checked && compteBien?.estCompteEnCours) setICompteBienId('');
+                    // « Travaux en cours achevés » sort de la liste · un choix fait avant ne survit pas.
+                    if (e.target.checked && iModeAcquisition === 'EN_COURS_ACHEVE') {
+                      setIModeAcquisition('');
+                      setICompteContrepartie('');
+                    }
+                    setICompteEnCoursId(e.target.checked ? compteEnCoursInitial(compteBien?.estCompteEnCours ? null : compteBien) : '');
+                  }}
                 />
-              </span>
-              <input type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
-            </label>
+                Pas encore mis en service
+                <Aide
+                  titre="Immobilisation en cours"
+                  texte="Le bien n'est pas achevé : il s'inscrit au compte en cours de sa division (219, 229, 239, 249), le compte définitif gardant sa nature et sa durée. Rien n'est amorti. À l'achèvement, « Mettre en service » le porte au débit de son compte définitif par le crédit du compte en cours. Au SYCEBNL, seuls les comptes 23 et 24 ont ce virement écrit dans leur fiche."
+                  source="AUDCIF Titre VII, fiches des comptes 21 à 24 · SYCEBNL Partie 2 ch. 3, fiches des comptes 23 et 24"
+                />
+              </label>
+              {iPasEncoreEnService ? (
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Compte en cours
+                  <select
+                    required
+                    disabled={!compteBien || !!compteBien.motifSansEnCours}
+                    value={iCompteEnCoursId}
+                    onChange={(e) => setICompteEnCoursId(e.target.value)}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                  >
+                    <option value="">{compteBien ? '' : 'Choisissez d’abord le compte du bien'}</option>
+                    {(compteBien?.comptesEnCours ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                    ))}
+                  </select>
+                  {compteBien?.motifSansEnCours && (
+                    <span className="block mt-1 text-[11px] font-normal text-warning">{compteBien.motifSansEnCours}</span>
+                  )}
+                </label>
+              ) : (
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  <span className="flex items-center gap-1">
+                    Date de mise en service
+                    <Aide
+                      titre="Mise en service"
+                      texte="Vide, le bien est acquis mais pas encore en état de fonctionner : aucune dotation n'est passée. La date se pose ensuite depuis la liste (« Mettre en service »), une fois, et jamais avant l'acquisition."
+                      source="AUDCIF art. 45"
+                    />
+                  </span>
+                  <input type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+                </label>
+              )}
+            </div>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Valeur d'origine
               <input required type="number" step="0.01" min={0} value={iValeurOrigine} onChange={(e) => setIValeurOrigine(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
@@ -975,6 +1041,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     setINatureFiscale(e.target.value);
                     const n = bareme.find((x) => x.cle === e.target.value);
                     if (n) setIDuree(String(n.dureeAns));
+                    // Le compte unique de la nature est POSÉ, modifiable ensuite ;
+                    // le compte déjà choisi parmi les proposés est gardé ; plusieurs
+                    // restent proposés (lib/bareme-fiscal.ts, compteSelonNature).
+                    const { aPoser } = compteSelonNature(n, comptesDefinitifs(comptesBien ?? [], iPasEncoreEnService), compteBien);
+                    if (aPoser) {
+                      setICompteBienId(aPoser.id);
+                      setIModeAcquisition('');
+                      setICompteContrepartie('');
+                      setICompteEnCoursId(compteEnCoursInitial(aPoser));
+                    }
                   }}
                   className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
                 >
@@ -994,11 +1070,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   <input type="checkbox" checked={toutesCategories} onChange={(e) => setToutesCategories(e.target.checked)} />
                   Toutes les catégories
                 </span>
-                {/* La nature propose son compte (lot 6, D-4) · un clic le
-                    pose, sans toucher à la nature ; jamais un refus. */}
+                {/* La nature propose ses comptes quand ils sont plusieurs (lot 6,
+                    D-4) · un clic en pose un, sans toucher à la nature ; un
+                    compte unique est déjà posé au choix de la nature. */}
                 {(() => {
                   const nature = bareme.find((n) => n.cle === iNatureFiscale);
-                  const proposes = comptesProposesPourNature(nature, comptesBien ?? [], compteBien);
+                  const { proposes } = compteSelonNature(nature, comptesDefinitifs(comptesBien ?? [], iPasEncoreEnService), compteBien);
                   if (proposes.length === 0) return null;
                   return (
                     <span className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-normal">
@@ -1011,6 +1088,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                             setICompteBienId(c.id);
                             setIModeAcquisition('');
                             setICompteContrepartie('');
+                            setICompteEnCoursId(compteEnCoursInitial(c));
                           }}
                           className="border border-border-dark px-1.5 py-0.5 hover:bg-sel/10"
                         >
@@ -1351,6 +1429,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     (AUDCIF art. 45) · jamais new Date(null), qui rendrait 1970. */}
                 <span className="font-mono text-[11px] text-text-dim">
                   {immo.dateMiseEnService ? new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR') : 'Non mis en service'}
+                  {immo.compteEnCours && !immo.dateMiseEnService && (
+                    <span className="block" title="Compte en cours où le bien est inscrit jusqu’à sa mise en service">
+                      En cours · {immo.compteEnCours.numero}
+                    </span>
+                  )}
                 </span>
                 <span className="font-mono text-right">{montant(immo.valeurOrigine)}</span>
                 <span className="font-mono text-right">{montant(cumulAmorti(immo))}</span>
@@ -1398,7 +1481,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       )}
                       {!immo.dateMiseEnService && (
                         <button
-                          onClick={() => void mettreEnService(immo)}
+                          onClick={() => {
+                            setMsDate(new Date().toISOString().slice(0, 10));
+                            setMiseEnServiceOuvertePour(miseEnServiceOuvertePour === immo.id ? null : immo.id);
+                          }}
                           title="Poser la date de mise en service · une fois, jamais avant l'acquisition (AUDCIF art. 45)"
                           className="text-[11px] text-sel hover:underline"
                         >
@@ -1809,6 +1895,40 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   }}
                   onAnnuler={() => setEchangeOuvertPour(null)}
                 />
+              )}
+              {miseEnServiceOuvertePour === immo.id && (
+                <form onSubmit={(e) => onMettreEnService(e, immo)} className="bg-chrome border-b border-border px-4 py-3">
+                  <div className="grid grid-cols-4 gap-3 items-end">
+                    <label className="text-[11.5px] font-semibold text-text-dim">
+                      Date de mise en service
+                      <input required type="date" value={msDate} onChange={(e) => setMsDate(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-mono" />
+                    </label>
+                    {immo.compteEnCoursId && (
+                      <>
+                        <label className="text-[11.5px] font-semibold text-text-dim">
+                          Journal
+                          <select required value={msJournalId} onChange={(e) => setMsJournalId(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                            <option value="" />
+                            {journaux.map((j) => (
+                              <option key={j.id} value={j.id}>{j.code} · {j.intitule}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <span className="text-[11px] text-text-dim">
+                          {immo.compteImmobilisation?.numero ?? 'Compte définitif'} au débit, {immo.compteEnCours?.numero ?? 'compte en cours'} au crédit · {montant(immo.valeurOrigine)}
+                        </span>
+                      </>
+                    )}
+                    <span className="flex gap-2">
+                      <button type="submit" disabled={envoi || (!!immo.compteEnCoursId && !exerciceCourant)} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
+                        {envoi ? '…' : 'Mettre en service'}
+                      </button>
+                      <button type="button" onClick={() => setMiseEnServiceOuvertePour(null)} className="text-[11.5px] font-semibold text-text-dim px-3 py-1.5">
+                        Annuler
+                      </button>
+                    </span>
+                  </div>
+                </form>
               )}
               {sortieOuvertePour === immo.id && (
                 <form onSubmit={(e) => onSortir(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">

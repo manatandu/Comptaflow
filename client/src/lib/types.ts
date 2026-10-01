@@ -993,6 +993,13 @@ export interface Immobilisation {
    * aucune dotation ne court avant elle.
    */
   dateMiseEnService: string | null;
+  /**
+   * Le compte en cours (219, 229, 239, 249) où le bien non achevé est inscrit ·
+   * null pour un bien porté d'emblée à son compte définitif. Sa mise en
+   * service passe l'écriture qui le vire au compte définitif.
+   */
+  compteEnCoursId?: string | null;
+  compteEnCours?: { id: string; numero: string; intitule: string } | null;
   /** Nature choisie au barème de l'arrêté n° 013/2025 (« section.rang »), ou null. */
   natureFiscaleCle?: string | null;
   valeurOrigine: number;

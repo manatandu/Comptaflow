@@ -24,6 +24,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'Immobilisation.ecritureAcquisitionId',
   'Immobilisation.ecritureSortieId',
   'Immobilisation.ecritureProduitCessionId',
+  // La mise en service d'un bien inscrit en cours (D définitif / C 2x9) ·
+  // retirée seule, la fiche se dirait mise en service pendant que l'en-cours
+  // porterait encore le bien, et le compte définitif serait vide.
+  'Immobilisation.ecritureMiseEnServiceId',
   'DotationAmortissement.ecritureId',
   'DepreciationImmobilisation.ecritureId',
   'ReclassementImmobilisation.ecritureId',

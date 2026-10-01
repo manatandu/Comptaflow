@@ -106,6 +106,17 @@ export class CreerImmobilisationDto {
   dateMiseEnService?: string | null;
 
   /**
+   * IMMOBILISATION EN COURS (immobilisation-en-cours.ts) · le compte 219, 229,
+   * 239 ou 249 où le bien non achevé est inscrit, à côté du compte DÉFINITIF
+   * (`compteImmobilisationId`), qui garde nature, durée et famille. Présent,
+   * la date de mise en service est refusée · elle se pose à l'achèvement, par
+   * la route de mise en service, qui vire l'en-cours au compte définitif.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  compteEnCoursId?: string;
+
+  /**
    * Nature du bien au barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025,
    * art. 2 · clé « section.rang » (`bareme-amortissement-013-2025.ts`). Elle
    * propose une durée, elle n'en impose aucune.
@@ -601,6 +612,19 @@ export class LieuBienDto {
 export class MiseEnServiceDto {
   @IsDateString()
   date!: string;
+
+  /**
+   * Exigés pour un bien inscrit EN COURS seulement · sa mise en service passe
+   * D compte définitif / C compte en cours, dans cet exercice et ce journal.
+   * Un bien porté d'emblée à son compte définitif n'en passe aucune.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  exerciceId?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  journalId?: string;
 }
 
 /** Porter un bien à un lieu, ou le retirer de tout lieu (`null`). */

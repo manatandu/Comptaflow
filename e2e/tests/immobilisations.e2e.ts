@@ -1281,3 +1281,75 @@ test('SYSCOHADA · les coûts d’un emprunt spécifique s’incorporent au bât
   expect(Number(resume.total)).toBeCloseTo(10_000_000, 2);
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · un bâtiment non achevé entre au 239 et passe au 231 à sa mise en service', async ({ page }) => {
+  // AUDCIF Titre VII, fiche du compte 23 · « Après achèvement, ils sont portés au débit des comptes 231 à 238 par le
+  // crédit du 239 » ; la case « Pas encore mis en service » reste décochée par défaut (décision de Manasse).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'En cours e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  if (!banque) throw new Error('Aucun compte de banque semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+
+  await page.goto('/#/immobilisations');
+  await page.getByRole('button', { name: 'Nouvelle immobilisation' }).click();
+  await expect(page.getByLabel('Pas encore mis en service')).not.toBeChecked();
+
+  const batiment = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('23110000'),
+    compteEnCoursId: compte('23910000'),
+    designation: 'Entrepôt en construction e2e',
+    dateAcquisition: `${annee}-02-01`,
+    valeurOrigine: 50_000_000,
+    dureeAmortissementAns: 20,
+    compteContrepartieId: banque.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  // Une date de mise en service contredit l'inscription en cours.
+  await expect(
+    appelApi(page, 'POST', '/immobilisations', {
+      compteImmobilisationId: compte('23110000'),
+      compteEnCoursId: compte('23910000'),
+      designation: 'Refusé e2e',
+      dateAcquisition: `${annee}-02-01`,
+      dateMiseEnService: `${annee}-02-01`,
+      valeurOrigine: 1_000,
+      dureeAmortissementAns: 20,
+      compteContrepartieId: banque.id,
+      exerciceId: exercice.id,
+      journalId: od.id,
+    }),
+  ).rejects.toThrow(/400/);
+
+  const solde = async (numero: string) => {
+    const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+      page,
+      'GET',
+      `/ecritures/balance?exerciceId=${exercice.id}`,
+    );
+    const l = lignes.find((x) => x.numero === numero);
+    return Number(l?.mouvementDebit ?? 0) - Number(l?.mouvementCredit ?? 0);
+  };
+  expect(await solde('23910000')).toBeCloseTo(50_000_000, 2);
+  expect(await solde('23110000')).toBeCloseTo(0, 2);
+
+  await appelApi(page, 'PATCH', `/immobilisations/${batiment.id}/mise-en-service`, {
+    date: `${annee}-09-30`,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  expect(await solde('23910000')).toBeCloseTo(0, 2);
+  expect(await solde('23110000')).toBeCloseTo(50_000_000, 2);
+  expect(pannes).toEqual([]);
+});

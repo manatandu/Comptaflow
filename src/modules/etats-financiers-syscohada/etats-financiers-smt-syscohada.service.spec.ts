@@ -950,6 +950,24 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     expect(note.motifEcartsImmobilisations).toContain('Immobilisations');
   });
 
+  it('NOTE 1 · un bien non achevé se confronte à son compte en cours, un bien achevé à son compte définitif (immobilisation-en-cours.ts)', async () => {
+    // Le bâtiment en construction est au 239 à la clôture · rangé sous son 231,
+    // il ferait deux écarts faux. Le matériel mis en service avant la clôture
+    // a quitté son 249 pour son 241.
+    const s = service(
+      { e1: [ligne('23910000', ClasseCompte.CLASSE_2, 5_000_000, 0), ligne('24110000', ClasseCompte.CLASSE_2, 2_000_000, 0)] },
+      {
+        immobilisations: [
+          { designation: 'Entrepôt', valeurOrigine: 5_000_000, compteImmobilisationId: 'id-23110000', compteEnCoursId: 'id-23910000', dateMiseEnService: null, dateAcquisition: new Date('2026-03-01'), dateSortie: null, prixCession: null },
+          { designation: 'Presse', valeurOrigine: 2_000_000, compteImmobilisationId: 'id-24110000', compteEnCoursId: 'id-24910000', dateMiseEnService: new Date('2026-09-01'), dateAcquisition: new Date('2026-02-01'), dateSortie: null, prixCession: null },
+        ],
+      },
+    );
+    const note = await s.note1MaterielMobilierCautions('t1', 'e1');
+    expect(note.ecartsImmobilisations).toEqual([]);
+    expect(note.fichesSansSolde).toEqual([]);
+  });
+
   it('NOTE 2 · le stock final moins le stock initial EST la ligne SV1', async () => {
     const s = negoce();
     const [note, cr] = await Promise.all([s.note2Stocks('t1', 'e2026'), s.compteDeResultat('t1', 'e2026')]);

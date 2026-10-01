@@ -23,6 +23,44 @@ export interface CompteDuBien {
   division: { numero: string; intitule: string | null };
   /** Sous-compte « location-acquisition » · le bien n'y entre que par un contrat. */
   locationAcquisition: boolean;
+  /**
+   * IMMOBILISATION EN COURS (serveur, `immobilisation-en-cours.ts`) · le
+   * compte est lui-même un 2x9 ; les en-cours de sa division lus dans le plan
+   * du dossier ; celui que le texte, ou l'unicité, présélectionne ; le motif
+   * quand le bien ne peut pas être inscrit en cours.
+   */
+  estCompteEnCours?: boolean;
+  comptesEnCours?: { id: string; numero: string; intitule: string }[];
+  compteEnCoursProposeId?: string | null;
+  motifSansEnCours?: string | null;
+}
+
+/**
+ * LES COMPTES QU'ON PEUT CHOISIR COMME COMPTE DÉFINITIF · tous, sauf, quand
+ * le bien est inscrit en cours, les 2x9 eux-mêmes · le compte définitif porte
+ * la nature, la durée et la famille, l'en-cours se choisit à côté.
+ */
+export function comptesDefinitifs(comptes: CompteDuBien[], pasEncoreEnService: boolean): CompteDuBien[] {
+  return pasEncoreEnService ? comptes.filter((c) => !c.estCompteEnCours) : comptes;
+}
+
+/**
+ * LES CONTREPARTIES D'UN BIEN INSCRIT EN COURS · sans « Travaux en cours
+ * achevés », qui crédite un 2x9 · le bien serait débité et crédité au même
+ * en-cours, et le serveur le refuse.
+ */
+export function contrepartiesSelonEnCours(contreparties: ContrepartieAdmise[], pasEncoreEnService: boolean): ContrepartieAdmise[] {
+  return pasEncoreEnService ? contreparties.filter((c) => c.mode !== 'EN_COURS_ACHEVE') : contreparties;
+}
+
+/**
+ * L'EN-COURS POSÉ D'OFFICE quand on coche « Pas encore mis en service » ou
+ * qu'on change de compte · celui que le serveur présélectionne (texte ou
+ * candidat unique), sinon rien · le cabinet choisit.
+ */
+export function compteEnCoursInitial(compte: CompteDuBien | null): string {
+  if (!compte || compte.motifSansEnCours) return '';
+  return compte.compteEnCoursProposeId ?? '';
 }
 
 export interface ContrepartieAdmise {

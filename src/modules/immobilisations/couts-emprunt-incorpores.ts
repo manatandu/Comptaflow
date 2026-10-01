@@ -118,6 +118,25 @@ export function motifRefusIncorporation(o: SaisieIncorporation): string | null {
   return null;
 }
 
+/**
+ * LE MÊME § 2.2.3, LU DANS L'AUTRE SENS · l'incorporation « doit cesser
+ * lorsque les activités indispensables à la préparation de l'actif [...] sont
+ * pratiquement toutes terminées », et la mise en service dit justement que
+ * l'actif est prêt. `motifRefusIncorporation` refuse une période qui dépasse
+ * une mise en service déjà posée ; sans ce jumeau, poser la mise en service
+ * APRÈS coup, à une date antérieure à la fin d'une période déjà incorporée,
+ * laissait au coût du bien des intérêts courus alors qu'il servait déjà, sur
+ * des écritures équilibrées. Une fin de période égale à la date reste admise,
+ * comme dans l'autre sens.
+ */
+export function motifRefusMiseEnServiceAvantIncorporation(dateMiseEnService: Date, finDerniereIncorporation: Date | null): string | null {
+  if (!finDerniereIncorporation || !(dateMiseEnService < finDerniereIncorporation)) return null;
+  return (
+    `Des coûts d'emprunt sont incorporés à ce bien jusqu'au ${finDerniereIncorporation.toISOString().slice(0, 10)} · ` +
+    "l'incorporation cesse quand l'actif est prêt à être utilisé (AUDCIF Titre VIII ch. 7 § 2.2.3), la mise en service ne peut donc pas la précéder."
+  );
+}
+
 /** § 2.1 · jamais plus que les coûts d'emprunt supportés dans l'exercice. */
 export function motifRefusPlafond(o: { montant: number; coutsSupportes: number; dejaIncorpores: number }): string | null {
   const reste = centimes(o.coutsSupportes - o.dejaIncorpores);

@@ -59,6 +59,7 @@ import {
 } from './correspondance-smt-syscohada';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from '../etats-financiers/stocks-depuis-inventaire';
+import { compteInscritALaDate } from '../immobilisations/immobilisation-en-cours';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ.
@@ -1263,7 +1264,11 @@ export class EtatsFinanciersSmtSyscohadaService {
     // avec son écart. Même parti que la NOTE 1 du S.M.T SYCEBNL.
     const fichesParCompte = new Map<string, number>();
     for (const i of detenus) {
-      fichesParCompte.set(i.compteImmobilisationId, (fichesParCompte.get(i.compteImmobilisationId) ?? 0) + Number(i.valeurOrigine));
+      // Le compte où le bien est INSCRIT à la clôture · un bien non achevé est
+      // au 2x9, et le compter sous son compte définitif ferait deux écarts
+      // faux, l'un par excès, l'autre par défaut (immobilisation-en-cours.ts).
+      const compte = compteInscritALaDate(i, exercice.dateFin);
+      fichesParCompte.set(compte, (fichesParCompte.get(compte) ?? 0) + Number(i.valeurOrigine));
     }
     const comptesBruts = lignes.filter(
       (l) => l.classe === ClasseCompte.CLASSE_2 && !correspond(l.numero, ['28', '29', ...COMPTES_CAUTIONS_NOTE_1]),
@@ -1277,7 +1282,7 @@ export class EtatsFinanciersSmtSyscohadaService {
       .sort((a, b) => a.numero.localeCompare(b.numero));
     const comptesVus = new Set(comptesBruts.map((l) => l.compteId));
     const fichesSansSolde = detenus
-      .filter((i) => !comptesVus.has(i.compteImmobilisationId))
+      .filter((i) => !comptesVus.has(compteInscritALaDate(i, exercice.dateFin)))
       .map((i) => ({ designation: i.designation, montant: Number(i.valeurOrigine) }));
 
     const toutes = [...lignesRegistre, ...lignesCautions];

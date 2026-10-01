@@ -1680,6 +1680,28 @@ describe('Note 1 · cautions, rapprochement avec GA et total des biens détenus'
     expect(note.ecartsGA.map((e) => [e.numero, e.ecart])).toEqual([['24500000', 1000]]);
     expect(note.motifEcartsGA).toContain('GA');
   });
+
+  it('confronte un bien non achevé à son compte en cours, et un bien achevé à son compte définitif (immobilisation-en-cours.ts)', async () => {
+    // Le bâtiment en construction est au 239 à la clôture · rangé sous son 231,
+    // il ferait deux écarts faux (le 239 sans fiche, la fiche sans solde). Le
+    // matériel mis en service avant la clôture a quitté son 249 pour son 241.
+    const immobilisations = [
+      {
+        ...immobilisation('chantier', '23100000', 5000, '2026-03-01', null),
+        compteEnCoursId: 'id-23910000',
+        dateMiseEnService: null,
+      },
+      {
+        ...immobilisation('machine', '24100000', 2000, '2026-02-01', null),
+        compteEnCoursId: 'id-24910000',
+        dateMiseEnService: new Date('2026-09-01'),
+      },
+    ];
+    const balance = [ligne('23910000', ClasseCompte.CLASSE_2, 5000, 0), ligne('24100000', ClasseCompte.CLASSE_2, 2000, 0)];
+    const note = await service({ e1: balance }, { immobilisations }).note1Immobilisations('t1', 'e1');
+    expect(note.ecartsGA).toEqual([]);
+    expect(note.fichesSansSolde).toEqual([]);
+  });
 });
 
 describe('Fiche récapitulative · colonnes A et N/A', () => {

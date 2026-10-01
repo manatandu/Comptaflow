@@ -249,3 +249,25 @@ export function comptesProposesPourNature<C extends { id: string; numero: string
   if (compteChoisi && numeros.some((n) => compteChoisi.numero === n || compteChoisi.numero.startsWith(racine(n)))) return [];
   return numeros.map((n) => comptesDuDossier.find((c) => c.numero === n)).filter((c): c is C => !!c);
 }
+
+/**
+ * CHOISIR UNE NATURE POSE SON COMPTE QUAND IL EST UNIQUE (2026-10-01,
+ * demande de Manasse) · les boutons « Compte proposé » demandaient un clic
+ * pour un choix qui n'en était pas un. Trois cas, jamais un refus :
+ *  · le compte déjà choisi est l'un des proposés (ou un sous-compte) · il est
+ *    GARDÉ, rien n'est posé ni proposé ;
+ *  · un seul compte proposé que le dossier porte · il est POSÉ (`aPoser`),
+ *    modifiable ensuite comme tout choix ;
+ *  · plusieurs · rien n'est posé, ils restent PROPOSÉS (`proposes`).
+ * La correspondance nature et compte reste une proposition de l'éditeur
+ * (lot 6, D-4) · aucun texte ne relie une nature du barème à un compte.
+ */
+export function compteSelonNature<C extends { id: string; numero: string }>(
+  nature: NatureBaremeFiscal | undefined,
+  comptesDuDossier: C[],
+  compteChoisi: { numero: string } | null,
+): { aPoser: C | null; proposes: C[] } {
+  const proposes = comptesProposesPourNature(nature, comptesDuDossier, compteChoisi);
+  if (proposes.length === 1) return { aPoser: proposes[0], proposes: [] };
+  return { aPoser: null, proposes };
+}

@@ -8,7 +8,10 @@ describe('immobilisation · contrepartie d’acquisition', () => {
   const page = readFileSync(join(__dirname, 'ImmobilisationsPage.tsx'), 'utf8');
   it('la liste vient du serveur, pour le compte du bien, rangée par mode d’acquisition', () => {
     expect(page).toContain('`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`');
-    expect(page).toContain("const contrepartiesDuMode = (contrepartiesAdmises ?? []).filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);");
+    // La liste servie, moins « Travaux en cours achevés » pour un bien inscrit
+    // en cours (lib/compte-du-bien.ts, contrepartiesSelonEnCours), rangée par mode.
+    expect(page).toContain('const contrepartiesOffertes = contrepartiesSelonEnCours(contrepartiesAdmises ?? [], iPasEncoreEnService);');
+    expect(page).toContain('const contrepartiesDuMode = contrepartiesOffertes.filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);');
     const debut = page.indexOf('value={iCompteContrepartie}');
     expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('contrepartiesDuMode.map');
   });

@@ -1151,6 +1151,7 @@ export class EcritureService {
       ['une immobilisation (acquisition)', this.prisma.immobilisation.count({ where: { tenantId, ecritureAcquisitionId: ecritureId } })],
       ['une immobilisation (sortie)', this.prisma.immobilisation.count({ where: { tenantId, ecritureSortieId: ecritureId } })],
       ['une immobilisation (produit de cession)', this.prisma.immobilisation.count({ where: { tenantId, ecritureProduitCessionId: ecritureId } })],
+      ['une immobilisation (mise en service d’un en-cours)', this.prisma.immobilisation.count({ where: { tenantId, ecritureMiseEnServiceId: ecritureId } })],
       ["une dotation aux amortissements", this.prisma.dotationAmortissement.count({ where: parLEcriture })],
       ["une dépréciation d'immobilisation", this.prisma.depreciationImmobilisation.count({ where: parLEcriture })],
       // Le reclassement d'un bien · la clé est RESTRICT, et sans ce refus nommé

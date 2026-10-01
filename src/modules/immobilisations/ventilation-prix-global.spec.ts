@@ -245,7 +245,7 @@ describe('le service · prix global, une pièce par bien', () => {
 });
 
 describe('le service · remplacement imprévu (D-19)', () => {
-  function monter(o: { renouvelerEchoue?: boolean; dotationPassee?: boolean; fonds?: boolean } = {}) {
+  function monter(o: { renouvelerEchoue?: boolean; dotationPassee?: boolean; fonds?: boolean; enCours?: 'non-achevé' | 'achevé' } = {}) {
     const structure = {
       id: 's',
       tenantId: 't',
@@ -256,7 +256,8 @@ describe('le service · remplacement imprévu (D-19)', () => {
       compteAmortissementId: 'c283',
       compteDotationId: 'c681',
       dateAcquisition: new Date('2021-01-02'),
-      dateMiseEnService: new Date('2021-01-02'),
+      dateMiseEnService: o.enCours === 'non-achevé' ? null : new Date('2021-01-02'),
+      compteEnCoursId: o.enCours ? 'c239' : null,
       natureFiscaleCle: null,
       valeurOrigine: 150_000_000,
       valeurResiduelle: 0,
@@ -340,6 +341,19 @@ describe('le service · remplacement imprévu (D-19)', () => {
       where: { id: 's' },
       data: { valeurOrigine: { increment: 30_000_000 }, amortissementsDetaches: { decrement: 5_000_000 } },
     });
+  });
+
+  it('structure encore inscrite en cours · refusée avant tout détachement ; achevée, la partie garde l’historique de son en-cours', async () => {
+    const encore = monter({ enCours: 'non-achevé' });
+    await expect(encore.svc.remplacerPartieNonIdentifiee('t', 'u', 's', dto)).rejects.toThrow(/encore inscrit en cours/);
+    expect(encore.tx.immobilisation.update).not.toHaveBeenCalled();
+    expect(encore.renouveler).not.toHaveBeenCalled();
+    // Achevée depuis 2021 · la partie détachée garde le 239 où la structure a
+    // été inscrite, et sa sortie se lit au compte où elle se trouve à la date
+    // (compteInscritALaDate) · le 231 aujourd'hui, le 239 avant 2021.
+    const acheve = monter({ enCours: 'achevé' });
+    await acheve.svc.remplacerPartieNonIdentifiee('t', 'u', 's', dto);
+    expect(acheve.tx.immobilisation.create.mock.calls[0][0].data).toMatchObject({ compteEnCoursId: 'c239', dateMiseEnService: new Date('2021-01-02') });
   });
 
   it('refus avant tout détachement · dotation de l’exercice passée, structure financée par un fonds', async () => {

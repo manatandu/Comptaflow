@@ -116,7 +116,7 @@ export class ImmobilisationController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/mise-en-service')
   async mettreEnService(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: MiseEnServiceDto) {
-    return this.immobilisationService.mettreEnService(user.tenantId, id, dto);
+    return this.immobilisationService.mettreEnService(user.tenantId, user.userId, id, dto);
   }
 
   /**

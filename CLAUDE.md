@@ -1506,7 +1506,20 @@ AUDCIF Titre VIII ch. 7) · actif qualifié (21 à 24, douze mois de
 préparation ou justification), une pièce D bien / C 72 au SYSCOHADA, C 787
 au SYCEBNL (fiches du compte 67), qui n'admet que l'emprunt exclusivement
 affecté ; plafond des 671 et 672 de l'exercice ; jamais sur un bien doté ni
-après la mise en service.
+après la mise en service. EN COURS (2026-10-01, Manasse) · case « Pas encore
+mis en service » DÉCOCHÉE par défaut ; cochée, compte définitif ET 2x9 de la
+division (`immobilisation-en-cours.ts` · 219 à 249 au SYSCOHADA, 239 et 249
+seuls au SYCEBNL, dont les fiches 21 et 22 n'écrivent aucun virement),
+présélection au seul 249 du SYCEBNL (« mêmes subdivisions que 241-248 ») ou
+candidat unique ; la mise en service passe D définitif / C en cours, retenue ;
+tout lecteur du compte du bien passe par `compteInscritALaDate` (écritures du
+module, deux tableaux, NOTE 1 des deux SMT, fiches d'inventaire), y compris le
+reclassement antidaté ; mise en service refusée avant la fin d'une
+incorporation de coûts d'emprunt (ch. 7 § 2.2.3, jumeau de l'autre sens).
+Non comblés · virement de la dépréciation 29x9 à l'achèvement (aucun texte) ;
+notes 3A (SYSCOHADA) et 5A ou 3A (SYCEBNL) comptent le virement en B ET en C
+(anomalie n° 9, D juste). La nature du barème POSE son compte unique
+(`compteSelonNature`).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

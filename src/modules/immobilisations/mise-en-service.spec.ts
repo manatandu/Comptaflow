@@ -150,6 +150,9 @@ function harnaisMiseEnService(immo: Faux | null, echecCourse = false) {
       update,
       updateMany,
     },
+    // Aucune incorporation de coûts d'emprunt sur ces biens · la doublure
+    // honore le filtre du bien, que la mise en service relit.
+    coutEmpruntIncorpore: { aggregate: jest.fn().mockResolvedValue({ _max: { dateFin: null } }) },
   };
   return { svc: new ImmobilisationService(prisma as unknown as PrismaService, {} as EcritureService), update, updateMany };
 }
@@ -159,7 +162,7 @@ const EN_ATTENTE = { id: 'i1', dateAcquisition: new Date('2026-03-15'), dateMise
 describe('route de mise en service', () => {
   it('pose la date par une écriture UNITAIRE, conditionnée à une date encore nulle', async () => {
     const { svc, update, updateMany } = harnaisMiseEnService(EN_ATTENTE);
-    await svc.mettreEnService('t1', 'i1', { date: '2026-05-02' });
+    await svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-05-02' });
     expect(updateMany).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledTimes(1);
     const arg = update.mock.calls[0][0];
@@ -169,37 +172,37 @@ describe('route de mise en service', () => {
 
   it('une seule fois · un bien déjà mis en service est refusé en 409, sans écriture', async () => {
     const { svc, update } = harnaisMiseEnService({ ...EN_ATTENTE, dateMiseEnService: new Date('2026-04-01') });
-    await expect(svc.mettreEnService('t1', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 409 });
+    await expect(svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 409 });
     expect(update).not.toHaveBeenCalled();
   });
 
   it('jamais avant l’acquisition', async () => {
     const { svc, update } = harnaisMiseEnService(EN_ATTENTE);
-    await expect(svc.mettreEnService('t1', 'i1', { date: '2026-03-14' })).rejects.toThrow(/précéder l'acquisition/);
+    await expect(svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-03-14' })).rejects.toThrow(/précéder l'acquisition/);
     expect(update).not.toHaveBeenCalled();
   });
 
   it('le jour même de l’acquisition est admis', async () => {
     const { svc, update } = harnaisMiseEnService(EN_ATTENTE);
-    await svc.mettreEnService('t1', 'i1', { date: '2026-03-15' });
+    await svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-03-15' });
     expect(update).toHaveBeenCalledTimes(1);
   });
 
   it('un bien sorti n’a plus de plan à ouvrir', async () => {
     const { svc, update } = harnaisMiseEnService({ ...EN_ATTENTE, statut: 'CEDEE' });
-    await expect(svc.mettreEnService('t1', 'i1', { date: '2026-05-02' })).rejects.toThrow(/sorti de l'actif/);
+    await expect(svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-05-02' })).rejects.toThrow(/sorti de l'actif/);
     expect(update).not.toHaveBeenCalled();
   });
 
   it('le bien d’un autre dossier n’existe pas', async () => {
     const { svc, update } = harnaisMiseEnService(EN_ATTENTE);
-    await expect(svc.mettreEnService('t2', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 404 });
+    await expect(svc.mettreEnService('t2', 'u1', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 404 });
     expect(update).not.toHaveBeenCalled();
   });
 
   it('une course perdue contre un autre poste rend un 409 nommé, jamais une erreur de base', async () => {
     const { svc } = harnaisMiseEnService(EN_ATTENTE, true);
-    await expect(svc.mettreEnService('t1', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 409 });
+    await expect(svc.mettreEnService('t1', 'u1', 'i1', { date: '2026-05-02' })).rejects.toMatchObject({ status: 409 });
   });
 
   it('le DTO exige la date', async () => {

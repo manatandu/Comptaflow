@@ -538,3 +538,31 @@ describe('Inventaire · le motif du refus d’excédent dépend du compte', () =
     expect(InventaireService.motifRefusExcedent('52100000')).toContain('art. 43');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Les fiches des immobilisations · le compte où le bien est INSCRIT
+// ---------------------------------------------------------------------------
+
+describe('fiches des immobilisations · le compte inscrit à la date de l’inventaire (immobilisation-en-cours.ts)', () => {
+  it('un bien non achevé se compte contre son 2x9, un bien achevé contre son compte définitif', async () => {
+    // Rangé sous son 231, le bâtiment en construction ferait un manquant au
+    // 231 (vide) et un excédent au 239 (sans fiche), sur une balance juste.
+    const { svc, prisma } = service({
+      campagne: { ...campagne(StatutCampagneInventaire.RECENSEMENT), dateInventaire: new Date('2026-12-31') },
+    });
+    (prisma as unknown as Record<string, unknown>).immobilisation = {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'chantier', designation: 'Entrepôt', numeroInventaire: null, valeurOrigine: 5000, compteImmobilisationId: 'c231', compteEnCoursId: 'c239', dateMiseEnService: null },
+        { id: 'presse', designation: 'Presse', numeroInventaire: null, valeurOrigine: 2000, compteImmobilisationId: 'c241', compteEnCoursId: 'c249', dateMiseEnService: new Date('2026-09-01') },
+        { id: 'chaise', designation: 'Chaise', numeroInventaire: null, valeurOrigine: 100, compteImmobilisationId: 'c244', compteEnCoursId: null, dateMiseEnService: new Date('2025-01-01') },
+      ]),
+    };
+    await svc.engendrerFichesImmobilisations('t1', 'camp1');
+    const creees = (prisma.ficheInventaire.createMany as jest.Mock).mock.calls[0][0].data as { immobilisationId: string; compteId: string }[];
+    expect(creees.map((f) => [f.immobilisationId, f.compteId])).toEqual([
+      ['chantier', 'c239'],
+      ['presse', 'c241'],
+      ['chaise', 'c244'],
+    ]);
+  });
+});

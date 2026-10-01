@@ -23,6 +23,7 @@ import {
 } from './dto/inventaire.dto';
 import { decrireLigne, lignesManquantes, type LigneAttendue } from '../comptabilite/rattachement-ecriture';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { compteInscritALaDate } from '../immobilisations/immobilisation-en-cours';
 
 /**
  * INVENTAIRE PHYSIQUE · l'obligation qu'OmegaX ne portait pas.
@@ -325,7 +326,7 @@ export class InventaireService {
    * toutes les lignes du parc renouvelé.
    */
   async engendrerFichesImmobilisations(tenantId: string, campagneId: string) {
-    await this.campagneOuverte(tenantId, campagneId, [
+    const campagne = await this.campagneOuverte(tenantId, campagneId, [
       StatutCampagneInventaire.PREPARATION,
       StatutCampagneInventaire.RECENSEMENT,
     ]);
@@ -344,12 +345,14 @@ export class InventaireService {
     if (aCreer.length === 0) return { creees: 0, deja: connues.size };
 
     // Le compte d'imputation du bien est celui contre lequel son écart se
-    // mesurera · c'est lui qui porte la valeur d'entrée au bilan.
+    // mesurera · c'est lui qui porte la valeur d'entrée au bilan. À la date
+    // de l'inventaire, un bien non achevé est inscrit à son 2x9
+    // (immobilisation-en-cours.ts), jamais à un compte définitif vide.
     await this.prisma.ficheInventaire.createMany({
       data: aCreer.map((b) => ({
         tenantId,
         campagneId,
-        compteId: b.compteImmobilisationId,
+        compteId: compteInscritALaDate(b, campagne.dateInventaire),
         immobilisationId: b.id,
         designation: b.numeroInventaire ? `${b.numeroInventaire} · ${b.designation}` : b.designation,
         uniteMesure: 'unité',

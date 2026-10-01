@@ -1171,6 +1171,9 @@ model Compte {
   famillesImmoDotation          FamilleImmobilisation[]      @relation("FamilleCompteDotation")
   immobilisationsImmobilisation Immobilisation[]             @relation("ImmoCompteImmobilisation")
   immobilisationsAmortissement  Immobilisation[]             @relation("ImmoCompteAmortissement")
+  // Le compte « en cours » (219, 229, 239, 249) où le bien est inscrit tant
+  // qu'il n'est pas achevé · RESTRICT, déclaré à la relation.
+  immobilisationsEnCours        Immobilisation[]             @relation("ImmoCompteEnCours")
   depreciationsImmoCompte29     DepreciationImmobilisation[] @relation("DepreciationCompte29")
   depreciationsImmoContrepartie DepreciationImmobilisation[] @relation("DepreciationContrepartie")
   reclassementsAncienCompte     ReclassementImmobilisation[] @relation("ReclassementAncienCompte")
@@ -1650,6 +1653,7 @@ model Ecriture {
   immobilisationAcquisition    Immobilisation?             @relation("ImmoEcritureAcquisition")
   immobilisationSortie         Immobilisation?             @relation("ImmoEcritureSortie")
   immobilisationProduitCession Immobilisation?             @relation("ImmoEcritureProduitCession")
+  immobilisationMiseEnService  Immobilisation?             @relation("ImmoEcritureMiseEnService")
   dotationAmortissement        DotationAmortissement?
   depreciationImmobilisation   DepreciationImmobilisation? @relation("DepreciationEcriture")
 
@@ -3672,6 +3676,21 @@ model Immobilisation {
   compteAmortissement    Compte @relation("ImmoCompteAmortissement", fields: [compteAmortissementId], references: [id])
   compteDotationId       String
   compteDotation         Compte @relation("ImmoCompteDotation", fields: [compteDotationId], references: [id])
+
+  // IMMOBILISATION EN COURS (fiches des comptes 21 à 24 · AUDCIF Titre VII ;
+  // SYCEBNL Partie 2 ch. 3 pour 239 et 249) · le compte 2x9 où le bien est
+  // inscrit tant qu'il n'est pas achevé, null pour un bien porté d'emblée à
+  // son compte définitif. `compteImmobilisationId` reste le compte DÉFINITIF,
+  // qui porte nature, durée et famille. La mise en service passe D définitif
+  // / C en cours (`ecritureMiseEnServiceId`, retenue par la fiche). Le compte
+  // où le bien se trouve à une date ne se lit que par `compteInscritALaDate`
+  // (immobilisation-en-cours.ts). RESTRICT déclaré · Prisma poserait SET NULL
+  // sur une relation facultative, et le bien perdrait en silence le compte
+  // que sa mise en service doit créditer.
+  compteEnCoursId         String?
+  compteEnCours           Compte?   @relation("ImmoCompteEnCours", fields: [compteEnCoursId], references: [id], onDelete: Restrict)
+  ecritureMiseEnServiceId String?   @unique
+  ecritureMiseEnService   Ecriture? @relation("ImmoEcritureMiseEnService", fields: [ecritureMiseEnServiceId], references: [id], onDelete: Restrict)
 
   // Distinctes : l'amortissement démarre à la mise en service, pas à
   // l'acquisition. La date comptable de début est celle où l'actif est en

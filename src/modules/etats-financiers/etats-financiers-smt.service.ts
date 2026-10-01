@@ -42,6 +42,7 @@ import {
   VENTILATION_RECETTES,
 } from './correspondance-smt';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+import { compteInscritALaDate } from '../immobilisations/immobilisation-en-cours';
 
 /**
  * Ce qu'un compte de tiers porte de DATABLE : la part de son solde que des
@@ -917,7 +918,11 @@ export class EtatsFinanciersSmtService {
     // final F85) : la ligne reste, la raison est dite.
     const fichesParCompte = new Map<string, number>();
     for (const i of detenus) {
-      fichesParCompte.set(i.compteImmobilisationId, (fichesParCompte.get(i.compteImmobilisationId) ?? 0) + Number(i.valeurOrigine));
+      // Le compte où le bien est INSCRIT à la clôture · un bien non achevé est
+      // au 2x9, et le compter sous son compte définitif ferait deux écarts
+      // faux, l'un par excès, l'autre par défaut (immobilisation-en-cours.ts).
+      const compte = compteInscritALaDate(i, exercice.dateFin);
+      fichesParCompte.set(compte, (fichesParCompte.get(compte) ?? 0) + Number(i.valeurOrigine));
     }
     const comptesBruts = lignesBalance.filter(
       (l) => l.classe === ClasseCompte.CLASSE_2 && !correspond(l.numero, ['28', '29', ...COMPTES_CAUTIONS_NOTE_1]),
@@ -932,7 +937,7 @@ export class EtatsFinanciersSmtService {
     // Une fiche dont le compte ne porte aucun solde à la balance est un écart
     // lui aussi, en sens inverse.
     const comptesVus = new Set(comptesBruts.map((l) => l.compteId));
-    const fichesSansSolde = detenus.filter((i) => !comptesVus.has(i.compteImmobilisationId));
+    const fichesSansSolde = detenus.filter((i) => !comptesVus.has(compteInscritALaDate(i, exercice.dateFin)));
 
     const lignesRegistre = detenus.map(versLigne);
     const totalRegistre = lignesRegistre.reduce((s, l) => s + l.montant, 0);

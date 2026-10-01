@@ -43,10 +43,10 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-| E1 | Listes de choix · provisions (compte gardé au changement de nature), fonds 162 à 164 à la sortie d'un bien de projet, « Réglé par » restreint à la liste fermée du serveur | commité en local (2f06aa5), suites vertes ; tests navigateur à refaire (client Prisma écrasé par un agent pendant l'exécution), puis poussé et vérifié |
-| E2 | Immobilisation en cours · case « Pas encore mis en service » DÉCOCHÉE par défaut (décision de Manasse), acquisition au compte en cours de la division (219, 229, 239, 249), mise en service D compte définitif / C compte en cours | agents en cours, relecture adverse à suivre |
-| E3 | Barème · le compte proposé est POSÉ dès le choix de la nature quand il est unique, modifiable ensuite | agents en cours (avec E2) |
-| E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, gardé par un test | agents en cours |
+| E1 | Listes de choix · provisions (compte gardé au changement de nature), fonds 162 à 164 à la sortie d'un bien de projet, « Réglé par » restreint à la liste fermée du serveur | poussé (2f06aa5, 7b28ee7), tests navigateur locaux 27 sur 27 ; vérification en production en cours |
+| E2 | Immobilisation en cours · case « Pas encore mis en service » DÉCOCHÉE par défaut (décision de Manasse), acquisition au compte en cours de la division (219, 229, 239, 249 au SYSCOHADA ; 239 et 249 au SYCEBNL), mise en service D compte définitif / C compte en cours ; renouvellement et remplacement d'une partie refusés tant que le bien est en cours | commité en local, suites et tests navigateur verts (28 sur 28) ; poussé après vérification de E1 |
+| E3 | Barème · le compte proposé est POSÉ dès le choix de la nature quand il est unique, modifiable ensuite | commité avec E2 |
+| E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, gardé par un test | refusé deux fois en relecture (incomplet, conflits avec main, listes vides muettes dans les écrans d'immobilisation) · à refaire sur main à jour, après E2 |
 
 ## À faire, dans l'ordre
 
@@ -67,6 +67,17 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | D4 | Brancher Resend pour que la file de courrier parte réellement | à décider |
 
 ## Relevés en attente (hors liste tant que Manasse ne les y met pas)
+
+- Immobilisation en cours · NOTE 3A (SYSCOHADA), 5A et 3A (SYCEBNL) comptent
+  l'écriture de mise en service en augmentation ET en diminution (colonnes de
+  virements de poste à poste libres) · clôture juste, mouvements gonflés ; dit
+  dans le code, non corrigé.
+- Immobilisation en cours · au SYCEBNL, les fiches 21 et 22 ouvrent le 219 et
+  le 229 sans écrire leur virement à l'achèvement · le module ne les offre pas
+  (le bien reste à son compte définitif, non amorti). À trancher.
+- Immobilisation en cours · dépréciation au 29x9 (2919 à 2949) permise par les
+  textes, ni proposée ni virée au 29x définitif à la mise en service, faute de
+  texte.
 
 - Prix global avec fonds de commerce · l'écran vise toujours le 21500000,
   alors que le serveur ne crée le fonds que s'il reste un reliquat.
