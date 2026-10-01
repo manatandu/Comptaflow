@@ -46,6 +46,7 @@ function monter(options: { autreDetenteur?: boolean } = {}) {
     executionEngagement: zero(),
     mouvementStock: zero(),
     ecartInventaire: zero(),
+    clotureLocationAcquisition: zero(),
     consignation: zero(),
     bulletinPaie: zero(),
     ligneOrdreVirement: zero(),

@@ -244,3 +244,85 @@ for (const [referentiel, dette] of [
     expect(pannes).toEqual([]);
   });
 }
+
+/**
+ * LA CLÔTURE DU CONTRAT, SUR LA BASE RÉELLE (§ 2.1.8.2) · refusée tant que le
+ * 623 ne porte pas les loyers échus, puis passée · le 623 se vide, le 17 baisse
+ * du capital, les courus vont au 176. La table de clôture naît d'une migration
+ * écrite à la main.
+ */
+test('SYSCOHADA · la clôture vire le 623 au 17 et au 672, une fois', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Clôture crédit-bail e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string; locationAcquisition: boolean }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const materiel = comptes.find((c) => c.locationAcquisition && c.numero.startsWith('2456'));
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  const redevances = plan.find((c) => c.numero === '62330000');
+  if (!materiel || !banque || !redevances) throw new Error('Comptes du semis introuvables');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+
+  const { immobilisation } = await appelApi<{ immobilisation: { id: string } }>(page, 'POST', '/immobilisations/location-acquisition', {
+    compteImmobilisationId: materiel.id,
+    nature: 'CREDIT_BAIL_MOBILIER',
+    datePriseEffet: debut,
+    dureeMois: 36,
+    periodicite: 'MENSUELLE',
+    termeAEchoir: false,
+    loyer: 10_000,
+    prixOption: 1_000,
+    tauxAnnuel: 0.12,
+    optionRaisonnablementCertaine: true,
+    bienDeFaibleValeur: false,
+    designation: 'Machine e2e',
+    dureeAmortissementAns: 5,
+    reference: 'CB-CLO',
+    dateConclusion: debut,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  expect(immobilisation.id).toBeTruthy();
+  const [contrat] = await appelApi<Array<{ id: string }>>(page, 'GET', `/immobilisations/location-acquisition/contrats?exerciceId=${exercice.id}`);
+  const proposition = await appelApi<{ ventilation: { loyers: number; capital: number; interetsCourus: number }; refus: string[] }>(
+    page,
+    'GET',
+    `/immobilisations/location-acquisition/contrats/${contrat.id}/cloture?exerciceId=${exercice.id}`,
+  );
+  // Douze loyers mensuels échus du mois suivant la prise d'effet au 31/12 · onze ou douze selon le jour.
+  expect(proposition.ventilation.loyers).toBeGreaterThan(0);
+  expect(proposition.refus.join(' ')).toMatch(/ne porte que 0\.00/);
+  const corps = { exerciceId: exercice.id, journalId: od.id };
+  await expect(appelApi(page, 'POST', `/immobilisations/location-acquisition/contrats/${contrat.id}/cloture`, corps)).rejects.toThrow(/400/);
+
+  // Le cabinet saisit les redevances au 623 (§ 2.1.8.1).
+  await appelApi(page, 'POST', '/ecritures', {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    date: exercice.dateFin.slice(0, 10),
+    libelle: 'Redevances crédit-bail e2e',
+    lignes: [
+      { compteId: redevances.id, libelle: 'e2e', debit: proposition.ventilation.loyers, credit: 0 },
+      { compteId: banque.id, libelle: 'e2e', debit: 0, credit: proposition.ventilation.loyers },
+    ],
+  });
+  await appelApi(page, 'POST', `/immobilisations/location-acquisition/contrats/${contrat.id}/cloture`, corps);
+  await expect(appelApi(page, 'POST', `/immobilisations/location-acquisition/contrats/${contrat.id}/cloture`, corps)).rejects.toThrow(/déjà passée/);
+
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  const ligne = (n: string) => lignes.find((l) => l.numero === n);
+  expect(Number(ligne('62330000')?.mouvementCredit)).toBeCloseTo(proposition.ventilation.loyers, 2);
+  expect(Number(ligne('17300000')?.mouvementDebit)).toBeCloseTo(proposition.ventilation.capital, 2);
+  if (proposition.ventilation.interetsCourus > 0) {
+    expect(Number(ligne('17630000')?.mouvementCredit)).toBeCloseTo(proposition.ventilation.interetsCourus, 2);
+  }
+
+  expect(pannes).toEqual([]);
+});

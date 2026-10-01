@@ -772,6 +772,7 @@ model Tenant {
   modelesBulletin                  ModeleBulletin[]
 
   contratsLocationAcquisition ContratLocationAcquisition[]
+  cloturesLocationAcquisition ClotureLocationAcquisition[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1391,18 +1392,19 @@ model Exercice {
   /// une date que personne n'a décidée.
   dateArreteComptes DateTime?
 
-  ecritures              Ecriture[]
-  clotures               Cloture[]
-  dotationsAmortissement DotationAmortissement[]
-  depreciationsImmo      DepreciationImmobilisation[]
-  reclassementsImmo      ReclassementImmobilisation[]
-  budgetsSection         BudgetSection[]
-  engagementsDepense     EngagementDepense[]
-  odAnalytiques          OdAnalytique[]
-  regularisations        Regularisation[]
-  reevaluations          Reevaluation[]
-  affectationResultat    AffectationResultat?
-  saisiesNotes           SaisieNote[]
+  ecritures                   Ecriture[]
+  clotures                    Cloture[]
+  dotationsAmortissement      DotationAmortissement[]
+  cloturesLocationAcquisition ClotureLocationAcquisition[]
+  depreciationsImmo           DepreciationImmobilisation[]
+  reclassementsImmo           ReclassementImmobilisation[]
+  budgetsSection              BudgetSection[]
+  engagementsDepense          EngagementDepense[]
+  odAnalytiques               OdAnalytique[]
+  regularisations             Regularisation[]
+  reevaluations               Reevaluation[]
+  affectationResultat         AffectationResultat?
+  saisiesNotes                SaisieNote[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -1467,29 +1469,31 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id                       String                    @id @default(uuid())
-  tenantId                 String
-  tenant                   Tenant                    @relation(fields: [tenantId], references: [id])
-  exerciceId               String
-  exercice                 Exercice                  @relation(fields: [exerciceId], references: [id])
-  journalId                String
-  journal                  Journal                   @relation(fields: [journalId], references: [id])
+  id                          String                      @id @default(uuid())
+  clotureLocationAcquisition  ClotureLocationAcquisition? @relation("ClotureLocationAcquisitionEcriture")
+  extourneLocationAcquisition ClotureLocationAcquisition? @relation("ClotureLocationAcquisitionExtourne")
+  tenantId                    String
+  tenant                      Tenant                      @relation(fields: [tenantId], references: [id])
+  exerciceId                  String
+  exercice                    Exercice                    @relation(fields: [exerciceId], references: [id])
+  journalId                   String
+  journal                     Journal                     @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
-  numeroPiece              Int?
-  date                     DateTime
+  numeroPiece                 Int?
+  date                        DateTime
   // DATE DE VALEUR · AUDCIF art. 22, 4°. Renseignée SEULEMENT quand une
   // opération datée d'une période clôturée est enregistrée au premier jour de
   // la période ouverte : `date` porte alors ce premier jour, et `dateValeur`
   // la date réelle de l'opération, « mentionnée distinctement ». Null partout
   // ailleurs · une date de valeur égale à la date ne dirait rien.
-  dateValeur               DateTime?
-  libelle                  String
-  reference                String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt                DateTime                  @default(now())
-  createdBy                String // piste d'audit : jamais modifiable après clôture de l'exercice
-  lignesOrdreVirement      LigneOrdreVirement[]
-  amortissementDerogatoire AmortissementDerogatoire?
+  dateValeur                  DateTime?
+  libelle                     String
+  reference                   String? // pièce justificative (numéro de facture, référence externe...)
+  createdAt                   DateTime                    @default(now())
+  createdBy                   String // piste d'audit : jamais modifiable après clôture de l'exercice
+  lignesOrdreVirement         LigneOrdreVirement[]
+  amortissementDerogatoire    AmortissementDerogatoire?
 
   // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
   // Les états de travail (journal, grand livre, balance, analytique) la
@@ -8076,10 +8080,50 @@ model ContratLocationAcquisition {
   optionRaisonnablementCertaine Boolean
   bienDeFaibleValeur            Boolean
 
+  clotures ClotureLocationAcquisition[]
+
   createdAt DateTime @default(now())
   createdBy String
 
   @@index([tenantId])
   @@index([bailleurTiersId])
   @@map("contrats_location_acquisition")
+}
+
+/// LA CLÔTURE D'UN CONTRAT DE LOCATION-ACQUISITION POUR UN EXERCICE · AUDCIF
+/// Titre VIII ch. 8 § 2.1.8.2 et fiche du compte 17 · le 623 viré au 17 et au
+/// 672, les intérêts courus au 176, et l'extourne à l'ouverture des courus de
+/// l'exercice précédent. Une seule par contrat et par exercice (index
+/// unique) · une seconde virerait deux fois les mêmes loyers.
+model ClotureLocationAcquisition {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  contratId  String
+  contrat    ContratLocationAcquisition @relation(fields: [contratId], references: [id], onDelete: Restrict)
+  exerciceId String
+  exercice   Exercice                   @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  /// Montants figés au passage · loyers = capital + intérêts.
+  loyers         Decimal @db.Decimal(18, 2)
+  capital        Decimal @db.Decimal(18, 2)
+  interets       Decimal @db.Decimal(18, 2)
+  interetsCourus Decimal @db.Decimal(18, 2)
+
+  /// L'écriture de clôture, et l'extourne des courus de l'exercice précédent
+  /// passée à l'ouverture de celui-ci (nulle s'il n'y en avait pas). RESTRICT
+  /// déclaré · retirées seules, la dette ne serait plus celle de l'échéancier.
+  ecritureId         String    @unique
+  ecriture           Ecriture  @relation("ClotureLocationAcquisitionEcriture", fields: [ecritureId], references: [id], onDelete: Restrict)
+  ecritureExtourneId String?   @unique
+  ecritureExtourne   Ecriture? @relation("ClotureLocationAcquisitionExtourne", fields: [ecritureExtourneId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([contratId, exerciceId])
+  @@index([tenantId])
+  @@index([exerciceId])
+  @@map("clotures_location_acquisition")
 }

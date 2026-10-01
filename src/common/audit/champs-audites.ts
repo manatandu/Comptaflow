@@ -113,6 +113,9 @@ export const MODELES_AUDITES = new Set<string>([
   // taux retouché après coup déplace des intérêts d'un exercice à l'autre, et
   // l'écriture d'entrée ne dirait pas d'où venait le chiffre.
   'ContratLocationAcquisition',
+  // Sa clôture par exercice · elle fige la ventilation des loyers entre la
+  // dette et les intérêts, et les courus que l'exercice suivant extournera.
+  'ClotureLocationAcquisition',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

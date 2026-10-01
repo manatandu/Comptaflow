@@ -1187,6 +1187,10 @@ export class EcritureService {
       // refus, le lien se dénouerait en silence et la campagne dirait le
       // manquant passé sur une pièce disparue du journal.
       ["un écart d'inventaire (redressement)", this.prisma.ecartInventaire.count({ where: { tenantId, ecritureId } })],
+      // La clôture d'un contrat de location-acquisition (detenteurs-ecriture.ts).
+      ["la clôture d'un contrat de location-acquisition", this.prisma.clotureLocationAcquisition.count({
+        where: { tenantId, OR: [{ ecritureId }, { ecritureExtourneId: ecritureId }] },
+      })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La

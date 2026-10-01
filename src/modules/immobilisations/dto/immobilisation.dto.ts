@@ -646,3 +646,12 @@ export class CreerLocationAcquisitionDto extends SimulerLocationAcquisitionDto {
   @IsUUID('4')
   journalId!: string;
 }
+
+/** La clôture d'un contrat de location-acquisition pour un exercice. */
+export class ClotureLocationAcquisitionDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+}

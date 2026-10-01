@@ -47,6 +47,11 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // redressement s'y RATTACHE (audit du serveur I2) · retirée seule, elle
   // laisserait l'écart se dire redressé sans l'écriture qui l'a fait.
   'EcartInventaire.ecritureId',
+  // La clôture d'un contrat de location-acquisition · retirée seule, l'une ou
+  // l'autre écriture laisserait au 17 une dette que l'échéancier ne connaît
+  // plus, et la clôture suivante extournerait des courus jamais passés.
+  'ClotureLocationAcquisition.ecritureId',
+  'ClotureLocationAcquisition.ecritureExtourneId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */
