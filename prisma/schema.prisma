@@ -323,22 +323,22 @@ model Tenant {
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
-  activite        String?
+  activite               String?
   /// CODE ACTIVITÉ PRINCIPALE · AUDCIF Titre IX ch. 6, NOTE 36 (codes
   /// activités économiques, six chiffres · groupe sur trois, poste sur
   /// trois), fiche R1 (ZE) ; case ZI de la Fiche 1 au gabarit ETAFI. Saisi,
   /// jamais déduit de `activite`, sans défaut. SYSCOHADA seul · la NOTE 36
   /// est une note du SYSCOHADA (passe R3).
   codeActivitePrincipale String?
-  adresse         String?
-  ville           String?
-  pays            String?  @default("RD Congo")
-  telephone       String?
+  adresse                String?
+  ville                  String?
+  pays                   String?  @default("RD Congo")
+  telephone              String?
   // Courriel et site de l'entité · l'exemple d'identification du manuel Sage
   // i7 (point 16 de la comparaison) les porte à côté du téléphone. Simples
   // coordonnées, aucun texte ne les exige ni ne les borne.
-  email           String?
-  siteWeb         String?
+  email                  String?
+  siteWeb                String?
   /// CAPITAL SOCIAL · AUSCGIE art. 17 : la dénomination figure « sur tous les
   /// actes et documents émanant de la société et destinés aux tiers » et doit
   /// être « précédée ou suivie immédiatement […] de l'indication de la forme
@@ -348,11 +348,11 @@ model Tenant {
   /// se lit dans les statuts (art. 13, 10°), il ne se devine pas. Refusé à un
   /// dossier SYCEBNL et à une personne physique, qui n'ont pas de capital
   /// social (`tenant/mentions-societe.ts`).
-  capitalSocial   Decimal? @db.Decimal(18, 2)
+  capitalSocial          Decimal? @db.Decimal(18, 2)
   /// AUSCGIE art. 269-2 · la société à capital variable le mentionne « dans
   /// tous les actes et documents […] destinés aux tiers, par l'addition à la
   /// forme sociale des mots « à capital variable » ».
-  capitalVariable Boolean  @default(false)
+  capitalVariable        Boolean  @default(false)
   /// MONNAIE DE TENUE · elle ne se choisit pas.
   ///
   /// Loi n° 23/053, art. 141, 1° : les redevables sont dans l'obligation « de
@@ -370,7 +370,7 @@ model Tenant {
   /// Reste une colonne, et non une constante du code, parce qu'un jour un
   /// dossier d'un autre État partie aura une autre unité légale (XAF...). Ce
   /// qui est interdit, c'est de la CHOISIR · elle découle du pays.
-  devise          String?  @default("CDF")
+  devise                 String?  @default("CDF")
 
   /// MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement.
   ///
@@ -400,11 +400,11 @@ model Tenant {
   // détient malgré tout un : elle reste agent de retenue (rémunérations,
   // loyers) et doit se faire connaître à la DGI dans les quinze jours du
   // début d'activité. Voir docs/identifiants-legaux-ebnl-rdc.md § 2.1.
-  numeroImpot String?
+  numeroImpot                       String?
   // Identification nationale · l'Ordonnance n° 25/293/2025 la range dans le
   // « recensement des AGENTS ÉCONOMIQUES ». Aucune source du droit des ASBL
   // ne l'exige : facultative pour une EBNL, courante en pratique. § 2.5.
-  idNat       String?
+  idNat                             String?
   // Une ASBL n'est pas commerçante (art. 1er de la loi 004/2001 : elle « ne se
   // livre pas à des opérations industrielles ou commerciales, si ce n'est à
   // titre accessoire ») et l'AUDCG (art. 35, 1°) n'immatricule au RCCM, au-delà
@@ -415,33 +415,33 @@ model Tenant {
   // celui-là. § 1. Refusé à l'ENTREPRENANT, qui « ne peut être en même temps
   // immatriculé » (AUDCG art. 64) · il porte son numéro de déclaration
   // d'activité ci-dessous.
-  rccm        String?
+  rccm                              String?
   // AUDCG art. 62 · le numéro de DÉCLARATION D'ACTIVITÉ de l'entreprenant, à
   // porter sur ses pièces « suivi de l'indication du RCCM et de la mention
   // "Entreprenant dispensé d'immatriculation" ». Propre à cette forme.
-  numeroDeclarationActivite String?
+  numeroDeclarationActivite         String?
   // AUDCG art. 140 · le dossier exploite un fonds en LOCATION-GÉRANCE, qualité
   // à indiquer en tête de ses pièces avec le RCCM. null = pas encore dit ;
   // jamais pour l'entreprenant, qui ne peut en être partie (art. 138).
-  locataireGerantFonds      Boolean?
+  locataireGerantFonds              Boolean?
   // AUSCOOP art. 19 al. 3, 74 et 77 · le numéro de la coopérative au
   // REGISTRE DES SOCIÉTÉS COOPÉRATIVES, à porter sur ses lettres et factures.
   // Champ distinct du RCCM · une coopérative ne peut être immatriculée « à
   // plusieurs registres » (art. 77 al. 1), et son numéro imprimé sous le mot
   // « RCCM » serait faux. Propre à SOCIETE_COOPERATIVE.
-  numeroRegistreCooperatives String?
+  numeroRegistreCooperatives        String?
   // AUSCOOP art. 205 et 268 · null = pas encore dit, et le manque se dit.
-  varianteCooperative        VarianteCooperative?
+  varianteCooperative               VarianteCooperative?
   // AUSCGIE art. 386 et 414 · le MODE D'ADMINISTRATION d'une société anonyme,
   // que la dénomination porte avec la forme (« société anonyme » ET « du mode
   // d'administration de la société tel que prévu à l'article 414 »). null =
   // pas encore dit, jamais présumé · les statuts le choisissent « de manière
   // non équivoque ». Propre à la SA · la SAS en est exclue (art. 853-3).
-  modeAdministrationSa      ModeAdministrationSa?
+  modeAdministrationSa              ModeAdministrationSa?
   // AUSCGIE art. 853-2 al. 2 · une SAS qui ne comprend qu'un associé est
   // désignée « société par actions simplifiée unipersonnelle » ou « SASU ».
   // null = pas encore dit ; propre à la SAS.
-  associeUniqueSas          Boolean?
+  associeUniqueSas                  Boolean?
   // AUSCGIE art. 203 et 204 · « La société est en liquidation dès l'instant de
   // sa dissolution », et la mention « société en liquidation » ainsi que le nom
   // du ou des liquidateurs figurent sur tous ses actes et documents destinés
@@ -450,8 +450,8 @@ model Tenant {
   // COLONNES que la liquidation de la coopérative (AUSCOOP art. 183, « dès
   // l'instant de sa dissolution »), créées par la migration
   // 20261225000000_mentions_cooperative · un seul fait, une seule place.
-  dateDissolution           DateTime?
-  liquidateurs              String?
+  dateDissolution                   DateTime?
+  liquidateurs                      String?
   // AUSCGIE art. 182 et 183 · une TRANSFORMATION prend effet au jour de la
   // décision, « ne peut avoir d'effet rétroactif », et seul l'exercice au cours
   // duquel elle intervient suit la nouvelle forme. La forme d'avant et la date
@@ -587,13 +587,13 @@ model Tenant {
   // de l'AUDCIF.
   doubleRegardValidation Boolean @default(false)
 
-  assujettiTva               Boolean   @default(false)
+  assujettiTva               Boolean           @default(false)
   // LA QUESTION A-T-ELLE ÉTÉ RÉPONDUE ? `assujettiTva` vaut faux par défaut et
   // ne distingue donc pas « non assujetti » de « pas encore dit ». Un menu ne se
   // masque que sur une RÉPONSE (`client/src/lib/profil-dossier.ts`) · masquer la
   // déclaration de TVA sur la valeur par défaut la cacherait à un assujetti qui
   // n'a simplement pas encore rempli ses paramètres.
-  assujettissementTvaRepondu Boolean   @default(false)
+  assujettissementTvaRepondu Boolean           @default(false)
   // L'ENTITÉ VEND-ELLE DES BIENS OU DES SERVICES ? null = pas encore dit. Fait
   // DÉCLARÉ par le cabinet, jamais déduit d'un compte 70 : une association qui
   // ne vend rien aujourd'hui peut ouvrir une activité accessoire demain (loi
@@ -770,6 +770,8 @@ model Tenant {
   reglesConsolidationIfrs          RegleConsolidationIfrs[]
   lieuxBiens                       LieuBien[]
   modelesBulletin                  ModeleBulletin[]
+
+  contratsLocationAcquisition ContratLocationAcquisition[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1071,7 +1073,7 @@ model Compte {
   // retenu, et la migration a retenu tout le plan des dossiers existants. Ce
   // n'est JAMAIS un refus · les états, les imports et les écritures
   // automatiques lisent et écrivent tout le plan.
-  estRetenu          Boolean               @default(true)
+  estRetenu Boolean @default(true)
 
   // « Liberté de définir la liste des comptes auxquels s'applique le
   // lettrage » · CPCC, Notes de cours d'organisation comptable, ch. 6.
@@ -2342,6 +2344,8 @@ model Tiers {
   ribs                 RibTiers[]
   lignesOrdreVirement  LigneOrdreVirement[]
   abonnements          AbonnementCabinet[]
+
+  contratsLocationAcquisition ContratLocationAcquisition[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -3790,6 +3794,8 @@ model Immobilisation {
   derogatoires       AmortissementDerogatoire[]
 
   fichesInventaire FicheInventaire[]
+
+  contratLocationAcquisition ContratLocationAcquisition?
 
   @@index([immobilisationPrincipaleId])
   // AUDIT FINAL F261 · le registre, les dotations, les contrôles et
@@ -8006,4 +8012,74 @@ model SimulationBudgetaire {
 
   @@unique([tenantId, nom])
   @@map("simulations_budgetaires")
+}
+
+/// LA LOCATION-ACQUISITION CHEZ LE PRENEUR · AUDCIF Titre VIII ch. 8, auquel
+/// renvoie la fiche du compte 18 du SYCEBNL. Crédit-bail, location-vente et
+/// toute location assortie d'une option d'achat que le preneur est
+/// raisonnablement certain de lever (§ 1.5.1).
+enum NatureLocationAcquisition {
+  CREDIT_BAIL_IMMOBILIER
+  CREDIT_BAIL_MOBILIER
+  LOCATION_VENTE
+  AUTRE
+}
+
+enum PeriodiciteLoyer {
+  MENSUELLE
+  TRIMESTRIELLE
+  SEMESTRIELLE
+  ANNUELLE
+}
+
+/// Le contrat qui a fait entrer le bien au bilan · la dette, son taux et ce
+/// que le preneur a déclaré pour la qualification. L'échéancier ne se stocke
+/// pas, il se recalcule (`echeancier-location-acquisition.ts`) · un tableau
+/// stocké divergerait du contrat au premier correctif.
+model ContratLocationAcquisition {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Le bien porté par le contrat · un contrat, un bien. RESTRICT déclaré ·
+  /// sur une relation dénouée, la dette resterait sans le bien qu'elle finance.
+  immobilisationId String         @unique
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+
+  bailleurTiersId String?
+  bailleur        Tiers?  @relation(fields: [bailleurTiersId], references: [id], onDelete: Restrict)
+  reference       String?
+
+  nature         NatureLocationAcquisition
+  dateConclusion DateTime
+  /// Date de prise d'effet · le preneur peut utiliser le bien (§ 1.3).
+  datePriseEffet DateTime
+  dureeMois      Int
+  periodicite    PeriodiciteLoyer
+  termeAEchoir   Boolean
+  loyer          Decimal                   @db.Decimal(18, 2)
+  prixOption     Decimal                   @default(0) @db.Decimal(18, 2)
+
+  /// L'un des deux, saisi · le taux annuel, ou la valeur figurant au contrat.
+  tauxAnnuel     Decimal? @db.Decimal(12, 8)
+  valeurContrat  Decimal? @db.Decimal(18, 2)
+  /// Le taux périodique RETENU et la dette initiale, figés à l'entrée.
+  tauxPeriodique Decimal  @db.Decimal(18, 14)
+  dette          Decimal  @db.Decimal(18, 2)
+
+  /// § 2.1.5 · ajoutés et retranchés à la dette pour faire la valeur du bien.
+  coutsDirects   Decimal @default(0) @db.Decimal(18, 2)
+  avantagesRecus Decimal @default(0) @db.Decimal(18, 2)
+
+  /// Ce que le preneur a DÉCLARÉ pour la qualification (§ 1.5) · gardé,
+  /// parce que c'est ce qu'un réviseur demandera.
+  optionRaisonnablementCertaine Boolean
+  bienDeFaibleValeur            Boolean
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([bailleurTiersId])
+  @@map("contrats_location_acquisition")
 }

@@ -108,6 +108,11 @@ export const MODELES_AUDITES = new Set<string>([
   // exercice sans laisser de trace ailleurs que dans l'écriture elle-même,
   // qui ne dit pas d'où venait le nombre.
   'ConsommationUniteOeuvre',
+  // Le contrat de location-acquisition · taux, loyers et option commandent la
+  // dette et sa ventilation à chaque clôture (AUDCIF Titre VIII ch. 8). Un
+  // taux retouché après coup déplace des intérêts d'un exercice à l'autre, et
+  // l'écriture d'entrée ne dirait pas d'où venait le chiffre.
+  'ContratLocationAcquisition',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

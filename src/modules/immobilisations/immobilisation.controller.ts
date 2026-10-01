@@ -7,6 +7,8 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { ImmobilisationService } from './immobilisation.service';
 import {
   CreerImmobilisationDto,
+  CreerLocationAcquisitionDto,
+  SimulerLocationAcquisitionDto,
   AffecterLieuDto,
   LieuBienDto,
   PasserDotationDto,
@@ -151,6 +153,22 @@ export class ImmobilisationController {
   @Get()
   async lister(@CurrentUser() user: AuthenticatedUser, @Query('statut') statut?: StatutImmobilisation) {
     return this.immobilisationService.lister(user.tenantId, statut);
+  }
+
+  /**
+   * L'échéancier d'un contrat de location-acquisition, sans rien poster · un
+   * POST pour porter le contrat entier, réservé à qui peut ensuite le saisir.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('location-acquisition/simulation')
+  async simulerLocationAcquisition(@CurrentUser() user: AuthenticatedUser, @Body() dto: SimulerLocationAcquisitionDto) {
+    return this.immobilisationService.simulerLocationAcquisition(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('location-acquisition')
+  async creerEnLocationAcquisition(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerLocationAcquisitionDto) {
+    return this.immobilisationService.creerEnLocationAcquisition(user.tenantId, user.userId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

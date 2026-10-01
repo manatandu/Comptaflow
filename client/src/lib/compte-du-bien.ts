@@ -19,6 +19,8 @@ export interface CompteDuBien {
   /** Sections de l'arrêté n° 013/2025 proposées · null, toutes ; vide, aucune. */
   sectionsBareme: string[] | null;
   division: { numero: string; intitule: string | null };
+  /** Sous-compte « location-acquisition » · le bien n'y entre que par un contrat. */
+  locationAcquisition: boolean;
 }
 
 export interface ContrepartieAdmise {

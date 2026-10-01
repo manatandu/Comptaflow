@@ -29,6 +29,7 @@ describe('Fusion de tiers · le service', () => {
       ribTiers: { ...maj(), count: jest.fn().mockResolvedValue(1) },
       ligneOrdreVirement: maj(),
       abonnementCabinet: maj(),
+      contratLocationAcquisition: maj(),
       tiers: { update: jest.fn().mockResolvedValue({}), delete: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
@@ -59,7 +60,12 @@ describe('Fusion de tiers · le service', () => {
     expect(tx.ribTiers.updateMany).toHaveBeenCalledWith({ where: { tenantId: 't', tiersId: 'doublon' }, data: { estPrincipal: false } });
     expect(tx.tiers.update).toHaveBeenCalledWith({ where: { id: 'garde' }, data: { numeroImpot: 'A123' } });
     expect(tx.tiers.delete).toHaveBeenCalledWith({ where: { id: 'doublon' } });
-    expect(r.reporte).toHaveLength(10);
+    // Le contrat de location-acquisition suit le bailleur conservé.
+    expect(tx.contratLocationAcquisition.updateMany).toHaveBeenCalledWith({
+      where: { bailleurTiersId: 'doublon', tenantId: 't' },
+      data: { bailleurTiersId: 'garde' },
+    });
+    expect(r.reporte).toHaveLength(11);
   });
 
   it('une pièce que la fiche conservée détient déjà n’est pas reportée · l’unicité (tiers, empreinte) tiendrait sinon la fusion en échec', async () => {
@@ -79,7 +85,7 @@ describe('Fusion de tiers · le service', () => {
     const tx: Record<string, unknown> = {
       tiersCompte: maj(), relance: maj(), demandeConfirmation: maj(), facture: maj(), devis: maj(), consignation: maj(),
       ribTiers: { ...maj(), count: jest.fn().mockResolvedValue(0) }, ligneOrdreVirement: maj(), abonnementCabinet: maj(),
-      documentTiers,
+      contratLocationAcquisition: maj(), documentTiers,
       tiers: { update: jest.fn(), delete: jest.fn() },
     };
     const prisma = {
@@ -103,7 +109,7 @@ describe('Fusion de tiers · le service', () => {
     const ribTiers = { ...maj(), count: jest.fn().mockResolvedValue(0) };
     const tx: Record<string, unknown> = {
       tiersCompte: maj(), relance: maj(), demandeConfirmation: maj(), facture: maj(), devis: maj(), consignation: maj(),
-      ribTiers, ligneOrdreVirement: maj(), abonnementCabinet: maj(),
+      ribTiers, ligneOrdreVirement: maj(), abonnementCabinet: maj(), contratLocationAcquisition: maj(),
       documentTiers: { ...maj(), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
       tiers: { update: jest.fn(), delete: jest.fn() },
     };

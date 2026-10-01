@@ -13,7 +13,13 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ModeAmortissement, SensDepreciation, TypeComposant } from '@prisma/client';
+import {
+  ModeAmortissement,
+  NatureLocationAcquisition,
+  PeriodiciteLoyer,
+  SensDepreciation,
+  TypeComposant,
+} from '@prisma/client';
 
 export class CreerFamilleDto {
   @IsString()
@@ -530,4 +536,113 @@ export class AffecterLieuDto {
   @IsOptional()
   @IsUUID('4')
   lieuId?: string | null;
+}
+
+/**
+ * LE CONTRAT DE LOCATION-ACQUISITION, TEL QUE LU (AUDCIF Titre VIII ch. 8) ·
+ * la simulation n'en demande pas davantage, et ne poste rien.
+ */
+export class SimulerLocationAcquisitionDto {
+  @IsUUID('4')
+  compteImmobilisationId!: string;
+
+  @IsEnum(NatureLocationAcquisition)
+  nature!: NatureLocationAcquisition;
+
+  /** Date de prise d'effet · le preneur peut utiliser le bien (§ 1.3). */
+  @IsDateString()
+  datePriseEffet!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(600)
+  dureeMois!: number;
+
+  @IsEnum(PeriodiciteLoyer)
+  periodicite!: PeriodiciteLoyer;
+
+  @IsBoolean()
+  termeAEchoir!: boolean;
+
+  @IsNumber()
+  @IsPositive()
+  loyer!: number;
+
+  @IsNumber()
+  @Min(0)
+  prixOption!: number;
+
+  /** Taux implicite ANNUEL, en fraction (0,0786 pour 7,86 %) · ou la valeur du contrat, l'un des deux. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  tauxAnnuel?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  valeurContrat?: number | null;
+
+  @IsBoolean()
+  optionRaisonnablementCertaine!: boolean;
+
+  @IsBoolean()
+  bienDeFaibleValeur!: boolean;
+}
+
+export class CreerLocationAcquisitionDto extends SimulerLocationAcquisitionDto {
+  @IsString()
+  @MaxLength(200)
+  designation!: string;
+
+  @IsOptional()
+  @IsString()
+  numeroInventaire?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  lieuId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  natureFiscaleCle?: string | null;
+
+  /** Durée d'utilité du bien, en années (§ 2.1.6). */
+  @IsPositive()
+  dureeAmortissementAns!: number;
+
+  @IsString()
+  @MaxLength(80)
+  reference!: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  bailleurTiersId?: string;
+
+  @IsDateString()
+  dateConclusion!: string;
+
+  /** Coûts directs initiaux du preneur (§ 2.1.5), ajoutés à la dette. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  coutsDirects?: number;
+
+  /** Avantages reçus du bailleur (§ 2.1.5), retranchés. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  avantagesRecus?: number;
+
+  /** Contrepartie des coûts directs nets · exigée dès qu'ils ne sont pas nuls. */
+  @IsOptional()
+  @IsUUID('4')
+  compteContrepartieCoutsId?: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
 }

@@ -165,3 +165,82 @@ test('SYCEBNL · un bien se crée par son compte, la famille suit et se reprend'
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * LA LOCATION-ACQUISITION, SUR LA BASE RÉELLE (AUDCIF Titre VIII ch. 8) · la
+ * table du contrat naît d'une migration écrite à la main ; la dette part au
+ * 17 au SYSCOHADA et au 187 au SYCEBNL, un numéro, deux sens, et l'exemple du
+ * § 2.1.4 rend sa dette au centime.
+ */
+for (const [referentiel, dette] of [
+  ['SYSCOHADA', '17300000'],
+  ['SYCEBNL', '18720000'],
+] as const) {
+  test(`${referentiel} · un crédit-bail mobilier entre au bilan pour la dette actualisée, au crédit du ${dette}`, async ({ page }) => {
+    const pannes = surveiller(page);
+    const dossier = await creerDossier(page, { referentiel, nom: `Crédit-bail ${referentiel} e2e`, montant: 10_000 });
+    await seConnecter(page, dossier.email);
+    const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+    const comptes = await appelApi<Array<{ id: string; numero: string; locationAcquisition: boolean }>>(
+      page,
+      'GET',
+      '/immobilisations/comptes-du-bien',
+    );
+    const materiel = comptes.find((c) => c.locationAcquisition && c.numero.startsWith('2456'));
+    if (!materiel) throw new Error('Aucun compte 2456 au plan semé');
+    expect(comptes.find((c) => c.numero.startsWith('2451'))?.locationAcquisition).toBe(false);
+    const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+    const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+    const contrat = {
+      compteImmobilisationId: materiel.id,
+      nature: 'CREDIT_BAIL_MOBILIER',
+      datePriseEffet: exercice.dateDebut.slice(0, 10),
+      dureeMois: 96,
+      periodicite: 'ANNUELLE',
+      termeAEchoir: false,
+      loyer: 90_000,
+      prixOption: 0,
+      tauxAnnuel: 0.0786,
+      optionRaisonnablementCertaine: true,
+      bienDeFaibleValeur: false,
+    };
+    const simulation = await appelApi<{ dette: number; lignes: unknown[] }>(
+      page,
+      'POST',
+      '/immobilisations/location-acquisition/simulation',
+      contrat,
+    );
+    expect(simulation.dette).toBe(519956.68);
+    expect(simulation.lignes).toHaveLength(8);
+
+    // Option hypothétique · location simple, refusée en le disant.
+    await expect(
+      appelApi(page, 'POST', '/immobilisations/location-acquisition/simulation', { ...contrat, optionRaisonnablementCertaine: false }),
+    ).rejects.toThrow(/400 · .*location simple/);
+
+    const cree = await appelApi<{ immobilisation: { id: string; valeurOrigine: unknown; ecritureAcquisitionId: string } }>(
+      page,
+      'POST',
+      '/immobilisations/location-acquisition',
+      {
+        ...contrat,
+        designation: 'Presse en crédit-bail e2e',
+        dureeAmortissementAns: 10,
+        reference: 'CB-E2E',
+        dateConclusion: exercice.dateDebut.slice(0, 10),
+        exerciceId: exercice.id,
+        journalId: od.id,
+      },
+    );
+    expect(Number(cree.immobilisation.valeurOrigine)).toBe(519956.68);
+    expect(cree.immobilisation.ecritureAcquisitionId).toBeTruthy();
+    const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementCredit: number }> }>(
+      page,
+      'GET',
+      `/ecritures/balance?exerciceId=${exercice.id}`,
+    );
+    expect(Number(lignes.find((l) => l.numero === dette)?.mouvementCredit)).toBe(519956.68);
+
+    expect(pannes).toEqual([]);
+  });
+}

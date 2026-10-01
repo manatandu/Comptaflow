@@ -18,6 +18,8 @@ import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHAD
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
+  CreerLocationAcquisitionDto,
+  SimulerLocationAcquisitionDto,
   LieuBienDto,
   DepreciationDto,
   RenouvelerComposantDto,
@@ -32,6 +34,12 @@ import {
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
+import { construireEcheancier, ContratSaisi, motifRefusContrat } from './location-acquisition/echeancier-location-acquisition';
+import {
+  COMPTES_LOCATION_ACQUISITION,
+  estCompteDeLocationAcquisition,
+  motifRefusNatureEtCompte,
+} from './location-acquisition/nomenclature-location-acquisition';
 import {
   comptesSuivantLeBien,
   estCompteDeBien,
@@ -1059,6 +1067,9 @@ export class ImmobilisationService {
           motifComptes: suivants.motif,
           motifNonAmortissable: nonAmortissable,
           sectionsBareme: sectionsBaremeDuCompte(c.numero),
+          // Un sous-compte « location-acquisition » (AUDCIF Titre VIII ch. 8 § 2.1.7) ·
+          // le bien n'y entre que par un contrat, jamais par un achat.
+          locationAcquisition: estCompteDeLocationAcquisition(c.numero),
           division: { numero: c.numero.slice(0, 2), intitule: intituleDivision.get(c.numero.slice(0, 2)) ?? null },
         };
       });
@@ -1161,6 +1172,165 @@ export class ImmobilisationService {
     return { seuil: Math.round(500 * valeur * 100) / 100, cours: valeur, dateCours: cours.date, motif: null };
   }
 
+  /**
+   * LE CONTRAT LU ET SA DETTE · commun à la simulation et à la création, pour
+   * que l'échéancier montré soit celui qui sera posté. AUDCIF Titre VIII
+   * ch. 8 · qualification (§ 1.5), dette actualisée (§ 2.1.2, § 2.1.3),
+   * compte du bien « location-acquisition » et dette du compte 17 (SYSCOHADA)
+   * ou 187 (SYCEBNL), lue dans `nomenclature-location-acquisition.ts`.
+   */
+  private async lireContratLocationAcquisition(tenantId: string, dto: SimulerLocationAcquisitionDto) {
+    const [{ referentiel }, compteBien] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findFirst({
+        where: { id: dto.compteImmobilisationId, tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+        select: { id: true, numero: true },
+      }),
+    ]);
+    if (!compteBien) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
+    const refusCompte = motifRefusNatureEtCompte(referentiel, dto.nature, compteBien.numero);
+    if (refusCompte) throw new BadRequestException(refusCompte);
+    const contrat: ContratSaisi = {
+      nature: dto.nature,
+      datePriseEffet: new Date(dto.datePriseEffet),
+      dureeMois: dto.dureeMois,
+      periodicite: dto.periodicite,
+      termeAEchoir: dto.termeAEchoir,
+      loyer: dto.loyer,
+      prixOption: dto.prixOption,
+      optionRaisonnablementCertaine: dto.optionRaisonnablementCertaine,
+      bienDeFaibleValeur: dto.bienDeFaibleValeur,
+      tauxAnnuel: dto.tauxAnnuel ?? null,
+      valeurContrat: dto.valeurContrat ?? null,
+    };
+    const refusContrat = motifRefusContrat(contrat);
+    if (refusContrat) throw new BadRequestException(refusContrat);
+    let echeancier;
+    try {
+      echeancier = construireEcheancier(contrat);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    const comptes = COMPTES_LOCATION_ACQUISITION[referentiel][dto.nature]!;
+    return { referentiel, compteBien, contrat, echeancier, comptes };
+  }
+
+  /** L'échéancier d'un contrat, sans rien poster · l'écran le montre avant l'entrée. */
+  async simulerLocationAcquisition(tenantId: string, dto: SimulerLocationAcquisitionDto) {
+    const { echeancier, comptes } = await this.lireContratLocationAcquisition(tenantId, dto);
+    return { ...echeancier, comptes };
+  }
+
+  /**
+   * L'ENTRÉE DU BIEN PRIS EN LOCATION-ACQUISITION (§ 2.1.7) · débit du
+   * sous-compte « location-acquisition » de la classe 2, crédit de la dette
+   * pour sa valeur actualisée. Le coût du bien est la dette AUGMENTÉE des
+   * coûts directs initiaux du preneur et DIMINUÉE des avantages reçus
+   * (§ 2.1.5) · leur net passe par une contrepartie de la liste fermée
+   * (`contrepartie-acquisition.ts`), positive au crédit, négative au débit.
+   *
+   * Amortissement sur la DURÉE D'UTILITÉ, dès la date de commencement
+   * (§ 2.1.6, « dès lors qu'il est prévu au terme du contrat un transfert de
+   * propriété au preneur ou une option d'achat exerçable ») · le bien est
+   * donc mis en service à la prise d'effet. Les loyers vont au 623 au fil de
+   * l'exercice, saisis par le cabinet (§ 2.1.8.1) ; la ventilation entre
+   * dette et intérêts se fait à la clôture (b2), jamais ici.
+   */
+  async creerEnLocationAcquisition(tenantId: string, userId: string, dto: CreerLocationAcquisitionDto) {
+    const { referentiel, compteBien, echeancier, comptes } = await this.lireContratLocationAcquisition(tenantId, dto);
+    const compteDette = await this.prisma.compte.findFirst({
+      where: { tenantId, numero: comptes.dette, estActif: true },
+      select: { id: true },
+    });
+    if (!compteDette) {
+      throw new BadRequestException(`Compte de dette ${comptes.dette} absent du plan du dossier · ouvrez-le avant l'entrée du bien.`);
+    }
+    if (dto.bailleurTiersId) {
+      const bailleur = await this.prisma.tiers.findFirst({ where: { id: dto.bailleurTiersId, tenantId }, select: { id: true } });
+      if (!bailleur) throw new BadRequestException('Bailleur introuvable pour ce dossier');
+    }
+    const coutsDirects = dto.coutsDirects ?? 0;
+    const avantagesRecus = dto.avantagesRecus ?? 0;
+    const netCouts = Math.round((coutsDirects - avantagesRecus) * 100) / 100;
+    const lignesCredit = [{ compteId: compteDette.id, montant: echeancier.dette }];
+    if (Math.abs(netCouts) > EPSILON) {
+      if (!dto.compteContrepartieCoutsId) {
+        throw new BadRequestException(
+          'Indiquez la contrepartie des coûts directs et des avantages reçus (trésorerie ou fournisseur d’investissement).',
+        );
+      }
+      const contrepartie = await this.prisma.compte.findFirst({
+        where: { id: dto.compteContrepartieCoutsId, tenantId },
+        select: { id: true, numero: true },
+      });
+      if (!contrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce dossier');
+      const motif = motifRefusContrepartie(referentiel, compteBien.numero, contrepartie.numero, { typeComposant: null });
+      if (motif) throw new BadRequestException(motif);
+      lignesCredit.push({ compteId: contrepartie.id, montant: netCouts });
+    }
+    const valeurOrigine = Math.round((echeancier.dette + netCouts) * 100) / 100;
+    if (!(valeurOrigine > 0)) {
+      throw new BadRequestException('Les avantages reçus dépassent la dette et les coûts directs · le bien n’aurait aucune valeur (§ 2.1.5).');
+    }
+
+    const bien = await this.creer(
+      tenantId,
+      userId,
+      {
+        compteImmobilisationId: compteBien.id,
+        designation: dto.designation,
+        numeroInventaire: dto.numeroInventaire,
+        lieuId: dto.lieuId,
+        natureFiscaleCle: dto.natureFiscaleCle ?? null,
+        dateAcquisition: dto.datePriseEffet,
+        dateMiseEnService: dto.datePriseEffet,
+        valeurOrigine,
+        dureeAmortissementAns: dto.dureeAmortissementAns,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+      },
+      { lignesCredit },
+    );
+    try {
+      await this.prisma.contratLocationAcquisition.create({
+        data: {
+          tenantId,
+          immobilisationId: bien.id,
+          bailleurTiersId: dto.bailleurTiersId ?? null,
+          reference: dto.reference.trim() || null,
+          nature: dto.nature,
+          dateConclusion: new Date(dto.dateConclusion),
+          datePriseEffet: new Date(dto.datePriseEffet),
+          dureeMois: dto.dureeMois,
+          periodicite: dto.periodicite,
+          termeAEchoir: dto.termeAEchoir,
+          loyer: dto.loyer,
+          prixOption: dto.prixOption,
+          tauxAnnuel: dto.tauxAnnuel ?? null,
+          valeurContrat: dto.valeurContrat ?? null,
+          tauxPeriodique: echeancier.tauxPeriodique,
+          dette: echeancier.dette,
+          coutsDirects,
+          avantagesRecus,
+          optionRaisonnablementCertaine: dto.optionRaisonnablementCertaine,
+          bienDeFaibleValeur: dto.bienDeFaibleValeur,
+          createdBy: userId,
+        },
+      });
+    } catch (err) {
+      // Un bien sans son contrat serait une immobilisation ordinaire avec
+      // une dette au 17 que rien ne dénoue · la fiche et l'écriture partent.
+      const cree = await this.prisma.immobilisation.findFirst({
+        where: { id: bien.id, tenantId },
+        select: { ecritureAcquisitionId: true },
+      });
+      await this.prisma.immobilisation.delete({ where: { id: bien.id } });
+      if (cree?.ecritureAcquisitionId) await this.annulerEcritureOrpheline(cree.ecritureAcquisitionId);
+      throw err;
+    }
+    return { immobilisation: bien, echeancier, comptes };
+  }
+
   async creer(
     tenantId: string,
     userId: string,
@@ -1171,7 +1341,16 @@ export class ImmobilisationService {
      * déclare pas, et un client qui la poserait à la main pourrait relier deux
      * biens qui n'ont rien à voir.
      */
-    interne: { composantRemplaceId?: string } = {},
+    interne: {
+      composantRemplaceId?: string;
+      /**
+       * Réservé à la location-acquisition · les lignes de crédit qui
+       * remplacent la contrepartie unique (dette de location-acquisition, et
+       * contrepartie des coûts directs nets, négative pour un débit). Les
+       * comptes ont été vérifiés par `creerEnLocationAcquisition`.
+       */
+      lignesCredit?: { compteId: string; montant: number }[];
+    } = {},
   ) {
     // LE COMPTE DU BIEN OU LA FAMILLE (compte-du-bien.ts) · l'un des deux,
     // jamais les deux, pour qu'aucun des deux ne contredise l'autre en silence.
@@ -1274,27 +1453,31 @@ export class ImmobilisationService {
             "acquis dans l'exercice n'a encore été amorti nulle part.",
         );
       }
-      if (!dto.compteContrepartieId || !dto.journalId) {
+      if (interne.lignesCredit) {
+        if (!dto.journalId) throw new BadRequestException("Indiquez le journal de l'écriture d'entrée du bien.");
+      } else if (!dto.compteContrepartieId || !dto.journalId) {
         throw new BadRequestException(
           "Indiquez le financement (compte de contrepartie) et le journal de l'écriture d'acquisition.",
         );
       }
-      const compteContrepartie = await this.prisma.compte.findFirst({
-        where: { id: dto.compteContrepartieId, tenantId },
-      });
-      if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
-      // LA CONTREPARTIE EST UNE LISTE FERMÉE (contrepartie-acquisition.ts).
-      const [dossier, compteImmo] = await Promise.all([
-        this.regimeComptable(tenantId),
-        this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
-      ]);
-      if (!compteImmo) throw new BadRequestException("Compte d'immobilisation de la famille introuvable pour ce tenant");
-      // Le type ne compte que pour un composant · sans principal, il n'est
-      // pas retenu (le bien est une structure ordinaire).
-      const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero, {
-        typeComposant: dto.immobilisationPrincipaleId ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
-      });
-      if (motif) throw new BadRequestException(motif);
+      if (!interne.lignesCredit) {
+        const compteContrepartie = await this.prisma.compte.findFirst({
+          where: { id: dto.compteContrepartieId, tenantId },
+        });
+        if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+        // LA CONTREPARTIE EST UNE LISTE FERMÉE (contrepartie-acquisition.ts).
+        const [dossier, compteImmo] = await Promise.all([
+          this.regimeComptable(tenantId),
+          this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
+        ]);
+        if (!compteImmo) throw new BadRequestException("Compte d'immobilisation de la famille introuvable pour ce tenant");
+        // Le type ne compte que pour un composant · sans principal, il n'est
+        // pas retenu (le bien est une structure ordinaire).
+        const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero, {
+          typeComposant: dto.immobilisationPrincipaleId ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
+        });
+        if (motif) throw new BadRequestException(motif);
+      }
     }
 
     // APPROCHE PAR COMPOSANTS · seulement si un principal est désigné. Sans
@@ -1418,7 +1601,15 @@ export class ImmobilisationService {
           libelle: `Acquisition · ${dto.designation}`,
           lignes: [
             { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
-            { compteId: dto.compteContrepartieId!, debit: 0, credit: dto.valeurOrigine },
+            ...(interne.lignesCredit
+              ? interne.lignesCredit
+                  .filter((l) => Math.abs(l.montant) > EPSILON)
+                  .map((l) =>
+                    l.montant > 0
+                      ? { compteId: l.compteId, debit: 0, credit: l.montant }
+                      : { compteId: l.compteId, debit: -l.montant, credit: 0 },
+                  )
+              : [{ compteId: dto.compteContrepartieId!, debit: 0, credit: dto.valeurOrigine }]),
           ],
         });
 

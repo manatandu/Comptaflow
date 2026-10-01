@@ -56,6 +56,7 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   RegistreFaiblesses: 'Registre des faiblesses',
   ReponseQuestionnaire: 'Réponse au questionnaire de révision',
   ConsommationUniteOeuvre: "Relevé d'unités d'œuvre",
+  ContratLocationAcquisition: 'Contrat de location-acquisition',
   ProcesVerbalComptageCaisse: 'Procès-verbal de comptage de caisse',
   Exoneration: 'Exonération',
   LiquidationTva: 'Liquidation de TVA',

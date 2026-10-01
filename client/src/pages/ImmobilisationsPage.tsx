@@ -6,6 +6,8 @@ import { sousFonctionServie } from '../lib/profil-dossier';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
+import { ChampsLocationAcquisition } from '../components/ChampsLocationAcquisition';
+import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
 import {
@@ -131,6 +133,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [iUniteLibelle, setIUniteLibelle] = useState('');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
   const [iJournalId, setIJournalId] = useState('');
+  // Le contrat d'un bien pris en location-acquisition · servi quand le compte
+  // du bien est un sous-compte « location-acquisition ».
+  const [contratLA, setContratLA] = useState(() => saisieInitiale(new Date().toISOString().slice(0, 10)));
 
   // --- formulaire sortie (par immobilisation) ---
   const [sDateSortie, setSDateSortie] = useState(() => new Date().toISOString().slice(0, 10));
@@ -212,6 +217,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   }, []);
 
   const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
+  // UN SOUS-COMPTE « LOCATION-ACQUISITION » NE S'OUVRE QUE PAR UN CONTRAT
+  // (AUDCIF Titre VIII ch. 8 § 2.1.7) · ni achat, ni reprise, ni composant ;
+  // la valeur du bien est la dette que le serveur calcule.
+  const enLA = !!compteBien?.locationAcquisition;
 
   // LA CONTREPARTIE SE LIT DANS LA FICHE DES COMPTES 21 À 24 · liste fermée,
   // servie par le serveur pour le compte du bien choisi
@@ -261,7 +270,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     setErreur(null);
     setEnvoi(true);
     try {
-      await api.post('/immobilisations', {
+      if (enLA) {
+        const corps = corpsCreation(iCompteBienId, contratLA, {
+          designation: iDesignation,
+          numeroInventaire: iNumeroInventaire || undefined,
+          lieuId: iLieuId || undefined,
+          natureFiscaleCle: iNatureFiscale || undefined,
+          dureeAmortissementAns: Number(iDuree),
+          exerciceId: exerciceCourant?.id ?? '',
+          journalId: iJournalId,
+        });
+        if (!corps) throw new ApiError(400, 'Complétez le contrat · durée, loyer, et taux ou valeur du bien.');
+        await api.post('/immobilisations/location-acquisition', corps);
+        setContratLA(saisieInitiale(new Date().toISOString().slice(0, 10)));
+      } else await api.post('/immobilisations', {
         compteImmobilisationId: iCompteBienId,
         designation: iDesignation,
         numeroInventaire: iNumeroInventaire || undefined,
@@ -808,6 +830,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </span>
               )}
             </label>
+            {!enLA && (
+            <>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Date d'acquisition
               <input required type="date" value={iDateAcquisition} onChange={(e) => setIDateAcquisition(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
@@ -835,6 +859,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
               Valeur résiduelle
               <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
+            </>
+            )}
             {bareme.length > 0 && (
               <label className="text-[11.5px] font-semibold text-text-dim">
                 <span className="flex items-center gap-1">
@@ -914,6 +940,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 ));
               })()}
             </label>
+            {!enLA && (
+            <>
             {unitesServies && (
               <label className="text-[11.5px] font-semibold text-text-dim">
                 <span className="flex items-center gap-1">
@@ -942,6 +970,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </label>
               </>
             )}
+            </>
+            )}
+            {!enLA && (
+            <>
             <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5 self-end pb-1.5">
               <input type="checkbox" checked={iRepris} onChange={(e) => setIRepris(e.target.checked)} />
               Bien repris (déjà au bilan d'ouverture)
@@ -1008,11 +1040,23 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </label>
               </>
             )}
+            </>
+            )}
+            {enLA && (
+              <ChampsLocationAcquisition
+                compteImmobilisationId={iCompteBienId}
+                saisie={contratLA}
+                onChange={setContratLA}
+                contreparties={contrepartiesAdmises ?? []}
+              />
+            )}
           </div>
           {/* APPROCHE PAR COMPOSANTS · facultative. Laisser le principal vide crée
               une immobilisation ordinaire, c'est-à-dire une STRUCTURE au sens du
               ch. 4 § 1. Le renseigner rattache le bien et lui garde son PROPRE
               plan d'amortissement, ce qui est tout l'objet du chapitre. */}
+{!enLA && (
+<>
 {composantsServis && (
           <div className="border-t border-border pt-3 mb-3">
             <label className="text-[11.5px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
@@ -1074,6 +1118,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
             )}
           </div>
           )}
+</>
+)}
           <div className="flex gap-2">
             <button type="submit" disabled={envoi || !exerciceCourant} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
             <button type="button" onClick={() => setAfficherFormImmo(false)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>

@@ -20,7 +20,7 @@ describe('petit matériel · arrêté n° 014/2025, art. 2', () => {
 describe('liste des comptes du bien', () => {
   const c = (numero: string, div: string, intitule: string | null): CompteDuBien => ({
     id: numero, numero, intitule: numero, compteAmortissement: null, compteDotation: null, motifComptes: null,
-    motifNonAmortissable: null, sectionsBareme: null, division: { numero: div, intitule },
+    motifNonAmortissable: null, sectionsBareme: null, division: { numero: div, intitule }, locationAcquisition: false,
   });
   it('groupe par division sous l’intitulé du plan, dans l’ordre servi', () => {
     const g = comptesParDivision([c('21310000', '21', 'Immobilisations incorporelles'), c('24510000', '24', null), c('24520000', '24', null)]);
