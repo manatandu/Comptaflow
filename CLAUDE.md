@@ -1501,7 +1501,12 @@ linéaire rejoué, D 28 / C 798 pour la seule réduction du cumul
 (`reprisesAmortissement`), motif exigé, avant la dotation de l'exercice.
 DÉGRESSIF COMPTABLE (D-25, D-26) · SYCEBNL seul, AU TAUX DE LA LOI
 n° 23/053 (art. 32 à 35, aucun taux déclaré) ; au SYSCOHADA le dégressif
-reste l'option fiscale et son dérogatoire.
+reste l'option fiscale et son dérogatoire. COÛTS D'EMPRUNT (lot 13, D-27, D-28,
+AUDCIF Titre VIII ch. 7) · actif qualifié (21 à 24, douze mois de
+préparation ou justification), une pièce D bien / C 72 au SYSCOHADA, C 787
+au SYCEBNL (fiches du compte 67), qui n'admet que l'emprunt exclusivement
+affecté ; plafond des 671 et 672 de l'exercice ; jamais sur un bien doté ni
+après la mise en service.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

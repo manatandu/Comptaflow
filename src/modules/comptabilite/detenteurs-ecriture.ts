@@ -62,6 +62,7 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // La reprise au 798 d'une révision rétroactive (lot 11) · retirée seule,
   // la réduction resterait retranchée du cumul sans son écriture.
   'RevisionPlanAmortissement.ecritureId',
+  'CoutEmpruntIncorpore.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

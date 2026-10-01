@@ -14,6 +14,7 @@ import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisatio
 import { RemplacementImprevu } from '../components/RemplacementImprevu';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
+import { CoutsEmpruntIncorpores } from '../components/CoutsEmpruntIncorpores';
 import { PlafondRepriseDepreciation } from '../components/PlafondRepriseDepreciation';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
@@ -162,6 +163,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [iDixAns, setIDixAns] = useState<'' | 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT'>('');
   const [basculeOuvertePour, setBasculeOuvertePour] = useState<string | null>(null);
   const [revisionPlanOuvertePour, setRevisionPlanOuvertePour] = useState<string | null>(null);
+  const [coutsEmpruntOuvertsPour, setCoutsEmpruntOuvertsPour] = useState<string | null>(null);
   // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
   // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
   // choix n'y est pas proposé, et le serveur le refuse aussi.
@@ -1415,6 +1417,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           Réviser le plan
                         </button>
                       )}
+                      {peutEcrire && immo.statut === 'EN_SERVICE' && /^2[1-4]/.test(immo.compteImmobilisation?.numero ?? '') && (
+                        <button
+                          onClick={() => setCoutsEmpruntOuvertsPour(coutsEmpruntOuvertsPour === immo.id ? null : immo.id)}
+                          title="Incorporer au coût du bien les intérêts d'emprunt de sa période de préparation"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Coûts d'emprunt
+                        </button>
+                      )}
                       {peutEcrire && !immo.immobilisationPrincipaleId && immo.statut === 'EN_SERVICE' && (
                         <button
                           onClick={() => setRemplacementOuvertPour(remplacementOuvertPour === immo.id ? null : immo.id)}
@@ -1598,6 +1609,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   onFermer={() => setRevisionPlanOuvertePour(null)}
                   onFait={(message) => {
                     setRevisionPlanOuvertePour(null);
+                    setInfo(message);
+                    void charger();
+                  }}
+                />
+              )}
+              {coutsEmpruntOuvertsPour === immo.id && (
+                <CoutsEmpruntIncorpores
+                  bien={immo}
+                  exerciceId={exerciceCourant?.id ?? null}
+                  referentiel={syscohada ? 'SYSCOHADA' : 'SYCEBNL'}
+                  journaux={journaux}
+                  onFermer={() => setCoutsEmpruntOuvertsPour(null)}
+                  onFait={(message) => {
+                    setCoutsEmpruntOuvertsPour(null);
                     setInfo(message);
                     void charger();
                   }}

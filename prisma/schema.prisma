@@ -784,6 +784,7 @@ model Tenant {
   subventionsImmobilisations  SubventionImmobilisation[]
   reductionsSubvention        ReductionSubventionImmobilisation[]
   revisionsPlanAmortissement  RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1413,6 +1414,7 @@ model Exercice {
   reprisesSubvention          RepriseSubventionImmobilisation[]
   reductionsSubvention        ReductionSubventionImmobilisation[]
   revisionsPlanAmortissement  RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1491,6 +1493,7 @@ model Ecriture {
   repriseSubvention           RepriseSubventionImmobilisation?
   reductionSubvention         ReductionSubventionImmobilisation?
   revisionPlanAmortissement   RevisionPlanAmortissement?
+  coutEmpruntIncorpore        CoutEmpruntIncorpore?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -3764,6 +3767,7 @@ model Immobilisation {
   // `amortissementsHorsDotations`.
   reprisesAmortissement        Decimal                     @default(0) @db.Decimal(18, 2)
   revisionsPlan                RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -8389,4 +8393,60 @@ model RepriseSubventionImmobilisation {
   @@index([tenantId])
   @@index([exerciceId])
   @@map("reprises_subvention_immobilisation")
+}
+
+/// Lot 13 · AUDCIF Titre VIII ch. 7 · un emprunt SPÉCIFIQUE (coûts réels moins
+/// les produits du placement temporaire des fonds) ou les emprunts GÉNÉRAUX
+/// (taux de capitalisation appliqué aux dépenses). Le second au SYSCOHADA
+/// seul · le SYCEBNL ne capitalise que les frais « des emprunts exclusivement
+/// affectés au financement de la fabrication » (fiche du compte 72).
+enum NatureEmpruntIncorpore {
+  SPECIFIQUE
+  GENERAL
+}
+
+/// Lot 13 · les coûts d'emprunt incorporés au coût d'un actif qualifié, une
+/// ligne par incorporation, avec son écriture (D compte du bien / C 72 au
+/// SYSCOHADA, C 787 au SYCEBNL · fiches du compte 67 des deux textes). La
+/// valeur d'entrée du bien en est augmentée. Montant et taux de l'exercice se
+/// relisent ici pour les Notes annexes (ch. 7, section 3).
+model CoutEmpruntIncorpore {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  exerciceId       String
+  exercice         Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  nature                     NatureEmpruntIncorpore
+  /// La période de préparation de l'actif · qualifié en principe à douze mois
+  /// ou plus, en deçà sur justification écrite (ch. 7 § 1.2).
+  debutPreparation           DateTime               @db.Date
+  finPreparation             DateTime               @db.Date
+  justificationPeriodeCourte String?
+  /// La période d'incorporation de CET exercice (§ 2.2).
+  dateDebut                  DateTime               @db.Date
+  dateFin                    DateTime               @db.Date
+  mois                       Int
+  /// Spécifique · le capital emprunté ; général · les dépenses relatives à l'actif.
+  base                       Decimal                @db.Decimal(18, 2)
+  /// Spécifique · le taux de l'emprunt ; général · le taux de capitalisation.
+  tauxPourcent               Decimal                @db.Decimal(9, 4)
+  produitsPlacement          Decimal                @default(0) @db.Decimal(18, 2)
+  montant                    Decimal                @db.Decimal(18, 2)
+
+  /// RESTRICT déclaré · retirée seule, la valeur d'entrée resterait augmentée
+  /// sans l'écriture qui la porte au compte du bien.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([immobilisationId])
+  @@index([exerciceId])
+  @@map("couts_emprunt_incorpores")
 }

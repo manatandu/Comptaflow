@@ -24,6 +24,7 @@ import {
   RemplacerPartieDto,
   DureeLimiteeDto,
   ReviserPlanDto,
+  IncorporerCoutsEmpruntDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -57,6 +58,18 @@ export class ImmobilisationController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.immobilisationService.tableauAmortissements(user.tenantId, exerciceId);
+  }
+
+  /**
+   * LOT 13 · les coûts d'emprunt incorporés de l'exercice, pour les Notes
+   * annexes (AUDCIF Titre VIII ch. 7, section 3) · montant et taux.
+   */
+  @Get('couts-emprunt-incorpores')
+  async coutsEmpruntIncorpores(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.immobilisationService.coutsEmpruntIncorpores(user.tenantId, exerciceId);
   }
 
   @Get('familles')
@@ -307,6 +320,17 @@ export class ImmobilisationController {
   @Post(':id/duree-limitee')
   async declarerDureeLimitee(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DureeLimiteeDto) {
     return this.immobilisationService.declarerDureeLimitee(user.tenantId, id, dto);
+  }
+
+  /**
+   * LOT 13 · incorporer les coûts d'emprunt au coût d'un actif qualifié
+   * (AUDCIF Titre VIII ch. 7) · D compte du bien / C 72 (SYSCOHADA) ou 787
+   * (SYCEBNL).
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/couts-emprunt')
+  async incorporerCoutsEmprunt(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: IncorporerCoutsEmpruntDto) {
+    return this.immobilisationService.incorporerCoutsEmprunt(user.tenantId, user.userId, id, dto);
   }
 
   /**

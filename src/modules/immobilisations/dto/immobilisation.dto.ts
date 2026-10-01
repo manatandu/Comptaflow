@@ -1170,6 +1170,54 @@ export class DureeLimiteeDto {
 }
 
 /**
+ * Lot 13 · coûts d'emprunt incorporés au coût d'un actif qualifié (AUDCIF
+ * Titre VIII ch. 7). Spécifique · capital et taux de l'emprunt, produits du
+ * placement temporaire ; général · dépenses relatives à l'actif et taux de
+ * capitalisation (SYSCOHADA seul).
+ */
+export class IncorporerCoutsEmpruntDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsIn(['SPECIFIQUE', 'GENERAL'])
+  nature!: 'SPECIFIQUE' | 'GENERAL';
+
+  @IsDateString()
+  debutPreparation!: string;
+
+  @IsDateString()
+  finPreparation!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  justificationPeriodeCourte?: string;
+
+  @IsDateString()
+  dateDebut!: string;
+
+  @IsDateString()
+  dateFin!: string;
+
+  @IsNumber()
+  @IsPositive()
+  base!: number;
+
+  @IsNumber()
+  @IsPositive()
+  @Max(100)
+  tauxPourcent!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  produitsPlacement?: number;
+}
+
+/**
  * Lot 11 · révision du plan d'amortissement (décision D-24). Prospective par
  * défaut · la durée RÉSIDUELLE depuis l'ouverture de l'exercice ; rétroactive
  * en option · la nouvelle durée TOTALE, la réduction du cumul reprise au 798.

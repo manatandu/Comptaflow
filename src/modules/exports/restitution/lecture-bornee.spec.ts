@@ -77,8 +77,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // 130 avec les reprises au 799 des subventions en nature, 132 avec les
     // subventions en numéraire rattachées aux biens et leurs réductions,
     // bornées par leur tenantId (lot 5), 133 avec les révisions des plans
-    // d'amortissement, bornées de même (lot 11).
-    expect(modeles).toHaveLength(133);
+    // d'amortissement, bornées de même (lot 11), 134 avec les coûts d'emprunt
+    // incorporés (lot 13).
+    expect(modeles).toHaveLength(134);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
     for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
       expect(modeles).toContain(m);

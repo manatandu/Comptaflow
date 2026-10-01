@@ -15,6 +15,7 @@ import {
   FondementDureeDixAns,
   NatureRevisionPlan,
   StatutExercice,
+  NatureEmpruntIncorpore,
   TypeComposant,
   TypeCompteDetailTotal,
 } from '@prisma/client';
@@ -32,6 +33,7 @@ import {
   RenouvelerComposantDto,
   ModifierFamilleDto,
   ReviserPlanDto,
+  IncorporerCoutsEmpruntDto,
   PasserDotationDto,
   ReclasserImmobilisationDto,
   SaisirConsommationDto,
@@ -57,6 +59,7 @@ import {
 import { motifRefusRepriseDepreciation, plafondRepriseDepreciation } from './plafond-reprise-depreciation';
 import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { compteCreditIncorporation, montantIncorporable, motifRefusIncorporation, motifRefusPlafond } from './couts-emprunt-incorpores';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 
@@ -4438,5 +4441,146 @@ export class ImmobilisationService {
       montantReprise: r.montantReprise === null ? null : Number(r.montantReprise),
       ecritureId: r.ecritureId,
     }));
+  }
+
+  /**
+   * LOT 13 · INCORPORER LES COÛTS D'EMPRUNT AU COÛT D'UN ACTIF QUALIFIÉ
+   * (AUDCIF Titre VIII ch. 7 · `couts-emprunt-incorpores.ts`). Les intérêts
+   * sont d'abord passés en charge au 67 ; le transfert débite le compte du
+   * bien par le crédit du 72 (SYSCOHADA) ou du 787 (SYCEBNL), fiches du
+   * compte 67. La valeur d'entrée du bien en est augmentée · c'est elle que le
+   * plan amortira. Tout se vérifie AVANT l'écriture ; l'écriture est retenue
+   * (`detenteurs-ecriture.ts`).
+   */
+  async incorporerCoutsEmprunt(tenantId: string, userId: string, id: string, dto: IncorporerCoutsEmpruntDto) {
+    const immo = await this.trouver(tenantId, id);
+    const [exercice, regime] = await Promise.all([
+      this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } }),
+      this.regimeComptable(tenantId),
+    ]);
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    if (exercice.statut === StatutExercice.CLOTURE) throw new BadRequestException('Cet exercice est clôturé.');
+    const referentiel = regime.referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL';
+    const saisie = {
+      referentiel,
+      numeroBien: immo.compteImmobilisation.numero,
+      enService: immo.statut === StatutImmobilisation.EN_SERVICE,
+      aDesDotations: immo.dotations.length > 0,
+      dateMiseEnService: immo.dateMiseEnService,
+      nature: dto.nature,
+      debutPreparation: new Date(dto.debutPreparation),
+      finPreparation: new Date(dto.finPreparation),
+      justificationPeriodeCourte: dto.justificationPeriodeCourte,
+      dateDebut: new Date(dto.dateDebut),
+      dateFin: new Date(dto.dateFin),
+      exercice,
+      base: dto.base,
+      tauxPourcent: dto.tauxPourcent,
+      produitsPlacement: dto.produitsPlacement ?? 0,
+    } as const;
+    const motif = motifRefusIncorporation(saisie);
+    if (motif) throw new BadRequestException(motif);
+    const mois = moisEntre(saisie.dateDebut, saisie.dateFin);
+    const montant = montantIncorporable({ base: dto.base, tauxPourcent: dto.tauxPourcent, mois, produitsPlacement: saisie.produitsPlacement });
+
+    // Le plafond du § 2.1 · les intérêts des emprunts (671) et de
+    // location-acquisition (672) de l'exercice, au journal, hors solde des
+    // comptes de gestion à la clôture ; moins ce qui y a déjà été incorporé.
+    const filtreCouts = {
+      ecriture: { tenantId, exerciceId: exercice.id, estSoldeDesComptesDeGestion: false },
+      OR: [{ compte: { numero: { startsWith: '671' } } }, { compte: { numero: { startsWith: '672' } } }],
+    };
+    const [couts, deja, compteCredit] = await Promise.all([
+      this.prisma.ligneEcriture.aggregate({ where: filtreCouts, _sum: { debit: true, credit: true } }),
+      this.prisma.coutEmpruntIncorpore.aggregate({ where: { tenantId, exerciceId: exercice.id }, _sum: { montant: true } }),
+      this.prisma.compte.findUnique({
+        where: { tenantId_numero: { tenantId, numero: compteCreditIncorporation(referentiel, immo.compteImmobilisation.numero) } },
+      }),
+    ]);
+    const plafond = motifRefusPlafond({
+      montant,
+      coutsSupportes: Number(couts._sum.debit ?? 0) - Number(couts._sum.credit ?? 0),
+      dejaIncorpores: Number(deja._sum.montant ?? 0),
+    });
+    if (plafond) throw new BadRequestException(plafond);
+    if (!compteCredit) {
+      throw new BadRequestException(
+        `Le compte ${compteCreditIncorporation(referentiel, immo.compteImmobilisation.numero)} n'existe pas au plan du dossier · ouvrez-le avant d'incorporer.`,
+      );
+    }
+
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: exercice.id,
+      journalId: dto.journalId,
+      date: dto.dateFin.slice(0, 10),
+      libelle: `Coûts d'emprunt incorporés · ${immo.designation}`,
+      lignes: [
+        { compteId: immo.compteImmobilisationId, debit: montant, credit: 0 },
+        { compteId: compteCredit.id, debit: 0, credit: montant },
+      ],
+    });
+    try {
+      return await transactionJournalisee(this.prisma, async (tx) => {
+        const ligne = await tx.coutEmpruntIncorpore.create({
+          data: {
+            tenantId,
+            immobilisationId: id,
+            exerciceId: exercice.id,
+            nature: dto.nature as NatureEmpruntIncorpore,
+            debutPreparation: saisie.debutPreparation,
+            finPreparation: saisie.finPreparation,
+            justificationPeriodeCourte: dto.justificationPeriodeCourte?.trim() || null,
+            dateDebut: saisie.dateDebut,
+            dateFin: saisie.dateFin,
+            mois,
+            base: dto.base,
+            tauxPourcent: dto.tauxPourcent,
+            produitsPlacement: saisie.produitsPlacement,
+            montant,
+            ecritureId: ecriture.id,
+            createdBy: userId,
+          },
+        });
+        await tx.immobilisation.update({ where: { id }, data: { valeurOrigine: { increment: montant } } });
+        return { ...ligne, montant };
+      });
+    } catch (err) {
+      await this.annulerEcritureOrpheline(ecriture.id);
+      throw err;
+    }
+  }
+
+  /**
+   * Lot 13 · ce que les Notes annexes doivent dire (ch. 7, section 3) · « le
+   * montant des coûts d'emprunt incorporés dans le coût d'actifs au cours de
+   * l'exercice » et « le taux de capitalisation utilisé », avec les
+   * justifications d'une préparation de moins de douze mois (§ 1.2).
+   */
+  async coutsEmpruntIncorpores(tenantId: string, exerciceId: string) {
+    const lignes = await this.prisma.coutEmpruntIncorpore.findMany({
+      where: { tenantId, exerciceId },
+      include: { immobilisation: { select: { id: true, designation: true } } },
+      orderBy: [{ dateFin: 'asc' }, { id: 'asc' }],
+      take: 501,
+    });
+    const servies = lignes.slice(0, 500);
+    const total = await this.prisma.coutEmpruntIncorpore.aggregate({ where: { tenantId, exerciceId }, _sum: { montant: true } });
+    return {
+      lignes: servies.map((l) => ({
+        id: l.id,
+        immobilisation: l.immobilisation,
+        nature: l.nature,
+        dateDebut: l.dateDebut,
+        dateFin: l.dateFin,
+        mois: l.mois,
+        base: Number(l.base),
+        tauxPourcent: Number(l.tauxPourcent),
+        produitsPlacement: Number(l.produitsPlacement),
+        montant: Number(l.montant),
+        justificationPeriodeCourte: l.justificationPeriodeCourte,
+      })),
+      total: Number(total._sum.montant ?? 0),
+      tronque: lignes.length > 500,
+    };
   }
 }

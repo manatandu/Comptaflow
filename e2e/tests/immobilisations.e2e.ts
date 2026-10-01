@@ -1209,3 +1209,75 @@ test('SYCEBNL · une subvention d’investissement s’enregistre depuis son com
   expect(Number(octrois.resteARattacher)).toBeCloseTo(3_000_000, 2);
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · les coûts d’un emprunt spécifique s’incorporent au bâtiment en construction, plafonnés aux intérêts de l’exercice', async ({ page }) => {
+  // Lot 13 · AUDCIF Titre VIII ch. 7 § 2.1, exemple du texte · 120 000 000 à 12 % sur neuf mois, moins
+  // 800 000 de placements = 10 000 000, transférés au crédit du 72 (fiche du compte 67).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Couts emprunt e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  if (!banque) throw new Error('Aucun compte de banque semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const batiment = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('23110000'),
+    designation: 'Usine en construction e2e',
+    dateAcquisition: `${annee}-01-01`,
+    valeurOrigine: 100_000_000,
+    dureeAmortissementAns: 20,
+    compteContrepartieId: banque.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const interets = (montant: number) =>
+    appelApi(page, 'POST', '/ecritures', {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      date: `${annee}-12-31`,
+      libelle: 'Intérêts emprunt e2e',
+      lignes: [
+        { compteId: compte('67120000'), libelle: 'e2e', debit: montant, credit: 0 },
+        { compteId: banque.id, libelle: 'e2e', debit: 0, credit: montant },
+      ],
+    });
+  await interets(5_000_000);
+
+  await page.goto('/#/immobilisations');
+  await page.getByRole('button', { name: "Coûts d'emprunt" }).click();
+  const formulaire = page.locator('[data-couts-emprunt]');
+  await expect(formulaire.getByText('Aucune incorporation.')).toBeVisible();
+  await formulaire.getByLabel('Début de la préparation').fill(`${annee}-01-01`);
+  await formulaire.getByLabel('Fin de la préparation').fill(`${annee + 1}-06-30`);
+  await formulaire.getByLabel('Incorporation du').fill(`${annee}-04-01`);
+  await formulaire.getByLabel('au', { exact: true }).fill(`${annee}-12-31`);
+  await formulaire.getByLabel('Capital emprunté').fill('120000000');
+  await formulaire.getByLabel('Taux de l’emprunt (%)').fill('12');
+  await formulaire.getByLabel('Produits du placement temporaire').fill('800000');
+  // 5 000 000 d'intérêts au journal · les 10 000 000 calculés dépasseraient le plafond du § 2.1.
+  await formulaire.getByRole('button', { name: 'Incorporer' }).click();
+  await expect(formulaire.getByText(/dépasseraient les coûts d'emprunt supportés/)).toBeVisible();
+
+  await interets(5_800_000);
+  await formulaire.getByRole('button', { name: 'Incorporer' }).click();
+  await expect(page.getByText(/de coûts d'emprunt incorporés au coût de « Usine en construction e2e »/)).toBeVisible();
+
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '72210000')?.mouvementCredit)).toBeCloseTo(10_000_000, 2);
+  expect(Number(lignes.find((l) => l.numero === '23110000')?.mouvementDebit)).toBeCloseTo(110_000_000, 2);
+  const resume = await appelApi<{ total: number }>(page, 'GET', `/immobilisations/couts-emprunt-incorpores?exerciceId=${exercice.id}`);
+  expect(Number(resume.total)).toBeCloseTo(10_000_000, 2);
+  expect(pannes).toEqual([]);
+});

@@ -127,6 +127,7 @@ export const MODELES_AUDITES = new Set<string>([
   // La révision d'un plan d'amortissement (lot 11) · une durée changée après
   // coup change chaque dotation suivante, sur une écriture équilibrée.
   'RevisionPlanAmortissement',
+  'CoutEmpruntIncorpore',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
