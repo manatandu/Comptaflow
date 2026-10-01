@@ -102,6 +102,49 @@ export function motifSansAmortissementProjet(jeu: JeuEtatsFinanciersSycebnl | nu
 }
 
 /**
+ * LA FIN D'UN PROJET DE DÉVELOPPEMENT · SYCEBNL Partie 3 ch. 3 § 2.5.
+ *
+ * Cession (§ 2.5.1, « en accord avec le bailleur »), remise gratuite à
+ * l'entité (§ 2.5.2), restitution au bailleur, vol, destruction ou mise au
+ * rebut (§ 2.5.3) · une seule écriture de sortie, « 162, 163, 164 Fonds
+ * affectés aux investissements » au débit par le crédit du 2, et pour la
+ * cession seule le prix au 485 ou en trésorerie contre le 82. Aucun 28 ni
+ * aucun 81 · le bien n'a jamais été amorti (Acte uniforme, art. 7 et 9,
+ * décision D-1), et le fonds qui l'a financé le reprend.
+ *
+ * LE COMPTE DE FONDS SE CHOISIT · bailleurs (162), État (163), autres
+ * organismes (164), selon qui a financé le bien ; rien sur la fiche ne le dit.
+ */
+export const RACINES_FONDS_PROJET = ['162', '163', '164'] as const;
+
+export function motifRefusSortieProjet(o: {
+  projet: boolean;
+  numeroCompteFonds: string | null;
+  cumulAmorti: number;
+  cumulDepreciation: number;
+}): string | null {
+  if (!o.projet) {
+    return o.numeroCompteFonds
+      ? "Le compte de fonds affectés ne sert qu'à la sortie d'un bien de projet de développement (SYCEBNL Partie 3 ch. 3 § 2.5)."
+      : null;
+  }
+  if (!o.numeroCompteFonds) {
+    return "Indiquez le compte de fonds affectés aux investissements (162, 163 ou 164) qui reprend le bien · « 162, 163, 164 Fonds affectés aux investissements » au débit, le bien au crédit (SYCEBNL Partie 3 ch. 3 § 2.5).";
+  }
+  if (!RACINES_FONDS_PROJET.some((r) => o.numeroCompteFonds!.startsWith(r))) {
+    return `Le compte ${o.numeroCompteFonds} n'est pas un fonds affecté aux investissements · seuls les comptes 162, 163 et 164 reprennent le bien (SYCEBNL Partie 3 ch. 3 § 2.5).`;
+  }
+  if (o.cumulAmorti > 0.005 || o.cumulDepreciation > 0.005) {
+    return (
+      "Ce bien porte un amortissement ou une dépréciation · les états d'un projet récapitulent « les charges sans " +
+      "amortissement, ni dépréciation » (Acte uniforme SYCEBNL, art. 7 et 9), et la sortie du § 2.5 ne connaît que le " +
+      'fonds et le bien. Contre-passez d\'abord ces écritures.'
+    );
+  }
+  return null;
+}
+
+/**
  * LE 28 ET LE 29 SUIVENT LA DIVISION DU BIEN · SYSCOHADA.
  *
  * AUDCIF, Titre VII ch. 2 · « les comptes 28 et 29 ont été développés selon

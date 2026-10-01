@@ -69,7 +69,13 @@ interface Journal { id: string; code: string; type: string }
  */
 export async function creerDossier(
   page: Page,
-  options: { referentiel: 'SYSCOHADA' | 'SYCEBNL'; nom: string; montant: number },
+  options: {
+    referentiel: 'SYSCOHADA' | 'SYCEBNL';
+    nom: string;
+    montant: number;
+    /** SYCEBNL seulement · les associations par défaut. */
+    jeuSycebnl?: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' | 'PROJETS_DEVELOPPEMENT';
+  },
 ): Promise<Dossier> {
   await page.goto('/');
   const email = `e2e-${options.referentiel.toLowerCase()}-${Date.now()}@exemple.cd`;
@@ -88,7 +94,7 @@ export async function creerDossier(
     email,
     motDePasse: MOT_DE_PASSE,
     ...(options.referentiel === 'SYCEBNL'
-      ? { jeuEtatsFinanciersSycebnl: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' }
+      ? { jeuEtatsFinanciersSycebnl: options.jeuSycebnl ?? 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' }
       : { systemeComptableSyscohada: 'NORMAL' }),
   }, { 'X-Forwarded-For': adresse });
   // L'inscription ouvre déjà l'exercice en cours · on le prend, on n'en crée

@@ -603,3 +603,59 @@ test('SYSCOHADA · l’amortissement exceptionnel passe 60 % du coût la premiè
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * LA FIN D'UN PROJET DE DÉVELOPPEMENT, SUR LA BASE RÉELLE (SYCEBNL Partie 3
+ * ch. 3 § 2.5) · le bien sort par le fonds affecté qui l'a financé (D 162 /
+ * C 2), sans 28 ni 81, et la sortie est refusée sans ce compte.
+ */
+test('SYCEBNL · projet de développement, le bien sort par le 162, sans 81', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Fin de projet e2e', montant: 10_000, jeuSycebnl: 'PROJETS_DEVELOPPEMENT' });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const materiel = comptes.find((c) => c.numero.startsWith('24'));
+  if (!materiel) throw new Error('Aucun compte 24 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string; mode: string | null }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${materiel.id}`,
+  );
+  const fournisseur = contreparties.find((c) => c.mode === 'ACHAT_A_CREDIT');
+  if (!fournisseur) throw new Error('Aucun fournisseur d’investissement proposé');
+  const tous = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const fonds = tous.find((c) => c.numero === '16200000');
+  if (!fonds) throw new Error('Aucun 16200000 au plan semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: materiel.id,
+    designation: 'Véhicule du projet e2e',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 8_000_000,
+    dureeAmortissementAns: 5,
+    compteContrepartieId: fournisseur.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id })).rejects.toThrow(
+    /art\. 7 et 9/,
+  );
+  const sortie = { dateSortie: exercice.dateFin.slice(0, 10), type: 'MISE_HORS_SERVICE', exerciceId: exercice.id, journalId: od.id };
+  await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/sortie`, sortie)).rejects.toThrow(/162, 163 ou 164/);
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/sortie`, { ...sortie, compteFondsProjetId: fonds.id });
+
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '16200000')?.mouvementDebit)).toBe(8_000_000);
+  expect(Number(lignes.find((l) => l.numero === materiel.numero)?.mouvementCredit)).toBe(8_000_000);
+  expect(lignes.filter((l) => l.numero.startsWith('81') && Number(l.mouvementDebit) > 0)).toEqual([]);
+
+  expect(pannes).toEqual([]);
+});

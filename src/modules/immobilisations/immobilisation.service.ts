@@ -5,6 +5,7 @@ import { moisEntre } from '../../common/mois-entre';
 import {
   ModeAmortissement,
   Prisma,
+  JeuEtatsFinanciersSycebnl,
   Referentiel,
   SensDepreciation,
   StatutImmobilisation,
@@ -65,6 +66,7 @@ import {
   motifRefusContrepartieDepreciation,
   motifRefusContrepartieUsufruit,
   motifSansAmortissementProjet,
+  motifRefusSortieProjet,
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
 
@@ -3399,13 +3401,32 @@ export class ImmobilisationService {
     // « Contenu », dans les deux référentiels.
     const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti);
 
+    // FIN DE PROJET DE DÉVELOPPEMENT (SYCEBNL Partie 3 ch. 3 § 2.5) · le fonds
+    // affecté reprend le bien, sans 28 ni 81 (comptes-du-bien.ts). Les refus
+    // tombent ici, avant le verrou, comme tous les autres.
+    const projet = regime.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT;
+    const compteFonds = dto.compteFondsProjetId
+      ? await this.prisma.compte.findFirst({ where: { id: dto.compteFondsProjetId, tenantId }, select: { id: true, numero: true } })
+      : null;
+    if (dto.compteFondsProjetId && !compteFonds) throw new BadRequestException('Compte de fonds introuvable pour ce dossier');
+    const refusProjet = motifRefusSortieProjet({
+      projet,
+      numeroCompteFonds: compteFonds?.numero ?? null,
+      cumulAmorti,
+      cumulDepreciation,
+    });
+    if (refusProjet) throw new BadRequestException(refusProjet);
+
     const lignesSortie: Array<{ compteId: string; debit: number; credit: number }> = [
       { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
     ];
-    if (cumulAmorti > EPSILON) {
+    if (projet && compteFonds) {
+      lignesSortie.push({ compteId: compteFonds.id, debit: Number(immo.valeurOrigine), credit: 0 });
+    }
+    if (!projet && cumulAmorti > EPSILON) {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
     }
-    if (cumulDepreciation > EPSILON && compteDepreciationSortie) {
+    if (!projet && cumulDepreciation > EPSILON && compteDepreciationSortie) {
       // Le 29 au débit pour solde, et sa REPRISE au crédit · les deux
       // ensemble, jamais le premier seul.
       const compteReprise = await this.compteRepriseDepreciation(
@@ -3417,7 +3438,7 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: compteDepreciationSortie, debit: cumulDepreciation, credit: 0 });
       lignesSortie.push({ compteId: compteReprise.id, debit: 0, credit: cumulDepreciation });
     }
-    if (valeurComptableNette > EPSILON && !comptes) {
+    if (!projet && valeurComptableNette > EPSILON && !comptes) {
       // La rétrocession a lieu « au terme de la durée » · l'usufruit est alors
       // amorti en entier (linéaire sur la durée de la donation, même
       // paragraphe). Une valeur nette qui subsiste dit une durée ou une date
@@ -3429,7 +3450,7 @@ export class ImmobilisationService {
           "d'abord (D 2901 / C 7951), et la dernière annuité amortit alors le reste.",
       );
     }
-    if (valeurComptableNette > EPSILON && comptes) {
+    if (!projet && valeurComptableNette > EPSILON && comptes) {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);
       lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
     }
@@ -3492,7 +3513,7 @@ export class ImmobilisationService {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         date: dto.dateSortie,
-        libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
+        libelle: `${projet ? 'Fin de projet · ' : ''}${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
         lignes: lignesSortie,
       });
       ecrituresPosees.push(ecritureSortie.id);

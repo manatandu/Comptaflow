@@ -1,6 +1,6 @@
 import { Referentiel, SensDepreciation, SystemeComptableSyscohada } from '@prisma/client';
 import { ImmobilisationService, natureImmobilisation, REPRISE_DEPRECIATION_SORTIE } from './immobilisation.service';
-import { motifRefusContrepartieUsufruit } from './comptes-du-bien';
+import { motifRefusContrepartieUsufruit, motifRefusSortieProjet } from './comptes-du-bien';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
@@ -154,6 +154,10 @@ function harnais(
                 ? { id: 'c681', numero: '68130000', intitule: 'Dotations aux amortissements' }
               : where.id === 'c853'
                 ? { id: 'c853', numero: '85300000', intitule: 'Dotations H.A.O. aux dépréciations' }
+              : where.id === 'c162'
+                ? { id: 'c162', numero: '16200000', intitule: 'Fonds affectés aux investissements · bailleurs' }
+              : where.id === 'c165'
+                ? { id: 'c165', numero: '16500000', intitule: 'Fonds non consommés' }
                 : { id: where.id, numero: '81200000', intitule: 'Valeur comptable des cessions' },
         ),
       ),
@@ -617,7 +621,60 @@ describe('projet de développement · aucune dotation', () => {
 
   it('la sortie ne passe aucun complément de dotation', async () => {
     const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
-    await svc.sortir('t1', 'u1', 'i1', { dateSortie: '2026-06-30', type: 'MISE_HORS_SERVICE', exerciceId: 'exN', journalId: 'j1' } as never);
+    await svc.sortir('t1', 'u1', 'i1', { dateSortie: '2026-06-30', type: 'MISE_HORS_SERVICE', exerciceId: 'exN', journalId: 'j1', compteFondsProjetId: 'c162' } as never);
     expect(ecrituresPostees.some((e) => e.libelle.startsWith('Dotation complémentaire'))).toBe(false);
+  });
+});
+
+/**
+ * LA FIN D'UN PROJET DE DÉVELOPPEMENT · SYCEBNL Partie 3 ch. 3 § 2.5. Le
+ * fonds affecté (162 à 164) reprend le bien, sans 28 ni 81 ; la cession garde
+ * son prix au 82.
+ */
+describe('fin de projet de développement · le fonds reprend le bien', () => {
+  const BIEN = { valeurOrigine: 8_000_000, dureeAns: 5, dateMiseEnService: '2025-01-01', dotations: [] as number[] };
+  const OPTIONS = { referentiel: Referentiel.SYCEBNL, projets: true, compteImmobilisation: '24410000' };
+  const sortie = (type: string, extra: Record<string, unknown> = {}) => ({
+    dateSortie: '2026-06-30', type, exerciceId: 'exN', journalId: 'j1', compteFondsProjetId: 'c162', ...extra,
+  });
+
+  it('restitution, vol ou remise gratuite · D 162 / C 2, rien d’autre', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+    await svc.sortir('t1', 'u1', 'i1', sortie('MISE_HORS_SERVICE') as never);
+    expect(ecrituresPostees).toHaveLength(1);
+    expect(ecrituresPostees[0].libelle).toMatch(/^Fin de projet/);
+    expect(ecrituresPostees[0].lignes).toEqual([
+      { compteId: 'cimmo', debit: 0, credit: 8_000_000 },
+      { compteId: 'c162', debit: 8_000_000, credit: 0 },
+    ]);
+  });
+
+  it('cession · la même sortie, et le prix au 82 par la contrepartie', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+    await svc.sortir('t1', 'u1', 'i1', sortie('CESSION', { prixCession: 1_500_000, compteContrepartieId: 'c485' }) as never);
+    expect(ecrituresPostees[0].lignes.some((l) => l.compteId.startsWith('n81'))).toBe(false);
+    expect(ecrituresPostees[1].lignes).toEqual([
+      { compteId: 'c485', debit: 1_500_000, credit: 0 },
+      { compteId: 'n82200000', debit: 0, credit: 1_500_000 },
+    ]);
+  });
+
+  it('sans compte de fonds, ou avec un autre que 162 à 164, refusé sans écriture', async () => {
+    for (const fonds of [undefined, 'c165']) {
+      const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+      await expect(svc.sortir('t1', 'u1', 'i1', sortie('MISE_HORS_SERVICE', { compteFondsProjetId: fonds }) as never)).rejects.toThrow(/162, 163/);
+      expect(ecrituresPostees).toEqual([]);
+    }
+  });
+
+  it('une association ne reçoit pas de compte de fonds, et sort toujours par le 81', async () => {
+    const { svc } = harnais(BIEN, { ...OPTIONS, projets: false });
+    await expect(svc.sortir('t1', 'u1', 'i1', sortie('MISE_HORS_SERVICE') as never)).rejects.toThrow(/projet de développement/);
+  });
+
+  it('un bien de projet déjà amorti est refusé · art. 7 et 9', () => {
+    expect(motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16200000', cumulAmorti: 100, cumulDepreciation: 0 })).toContain('art. 7 et 9');
+    expect(motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16300000', cumulAmorti: 0, cumulDepreciation: 0 })).toBeNull();
+    expect(motifRefusSortieProjet({ projet: false, numeroCompteFonds: null, cumulAmorti: 5, cumulDepreciation: 0 })).toBeNull();
   });
 });

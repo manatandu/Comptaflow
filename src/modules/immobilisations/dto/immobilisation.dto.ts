@@ -431,6 +431,16 @@ export class SortirImmobilisationDto {
   @IsOptional()
   @IsBoolean()
   cessionCourante?: boolean;
+
+  /**
+   * FIN DE PROJET DE DÉVELOPPEMENT (SYCEBNL Partie 3 ch. 3 § 2.5) · le compte
+   * de fonds affectés aux investissements (162, 163 ou 164) qui reprend le
+   * bien. Exigé d'un dossier « projets de développement », refusé ailleurs
+   * (`ImmobilisationService.sortir`).
+   */
+  @IsOptional()
+  @IsUUID('4')
+  compteFondsProjetId?: string;
 }
 
 /**

@@ -1456,7 +1456,10 @@ closes D-1 à D-7 · projets de développement SANS dotation (Acte uniforme
 SYCEBNL art. 7 et 9, « sans amortissement, ni dépréciation » ; Guide App. 8), usufruit dépréciable avec reprise au 7951, rebut à la valeur nette
 au 81, barème proposé dans les deux sens et jamais refusé. Un lot ne
 commence qu'une fois le précédent vérifié en production ; ce qu'on découvre
-en route va au journal du plan, jamais dans le lot en cours.
+en route va au journal du plan, jamais dans le lot en cours. FIN DE PROJET (lot 3,
+SYCEBNL Partie 3 ch. 3 § 2.5) · cession, remise gratuite, restitution, vol,
+destruction ou rebut · D 162, 163 ou 164 (choisi) / C 2, jamais de 28 ni de
+81 ; seule la cession ajoute son prix au 82 ; `motifRefusSortieProjet`.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

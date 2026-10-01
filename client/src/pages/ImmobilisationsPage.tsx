@@ -66,6 +66,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const revisionServie = sousFonctionServie('revision-majeure', utilisateur?.tenant);
   // Le dégressif est une option de l'impôt sur les sociétés · SYSCOHADA seul.
   const syscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  // Un projet de développement sort ses biens par le fonds affecté qui les a
+  // financés (SYCEBNL Partie 3 ch. 3 § 2.5) · le serveur l'exige et le refuse ailleurs.
+  const projetDeveloppement = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
   const [fiscalOuvertPour, setFiscalOuvertPour] = useState<string | null>(null);
   const { exerciceCourant } = useExercice();
   const [familles, setFamilles] = useState<FamilleImmobilisation[] | null>(null);
@@ -150,6 +153,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // récurrente » est courante (654 / 754), une qualification de fait que le
   // logiciel demande. SYSCOHADA seul, comme au serveur.
   const [sCessionCourante, setSCessionCourante] = useState(false);
+  const [sCompteFonds, setSCompteFonds] = useState('');
   const [sJournalId, setSJournalId] = useState('');
 
   // Dépréciation · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
@@ -393,6 +397,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         prixCession: sType === 'CESSION' ? Number(sPrixCession) : undefined,
         compteContrepartieId: sType === 'CESSION' ? sCompteContrepartie : undefined,
         ...(sType === 'CESSION' && syscohada ? { cessionCourante: sCessionCourante } : {}),
+        ...(projetDeveloppement ? { compteFondsProjetId: sCompteFonds } : {}),
       });
       setSortieOuvertePour(null);
       setSPrixCession('');
@@ -1563,6 +1568,26 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       Date
                       <input required type="date" value={sDateSortie} onChange={(e) => setSDateSortie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-mono" />
                     </label>
+                    {projetDeveloppement && (
+                      <label className="text-[11.5px] font-semibold text-text-dim">
+                        <span className="flex items-center gap-1.5">
+                          Fonds affecté repris
+                          <Aide
+                            titre="Fin de projet"
+                            texte="À la fin d'un projet, le bien sort par le fonds affecté aux investissements qui l'a financé, au débit, le bien au crédit. Il n'y a ni amortissement ni valeur comptable au 81. Cession en accord avec le bailleur, remise gratuite à l'entité, restitution au bailleur, vol, destruction ou mise au rebut passent la même écriture ; seule la cession ajoute son prix au 82. Une remise gratuite, une restitution ou une perte se saisit en mise hors service."
+                            source="SYCEBNL, Partie 3 ch. 3 § 2.5.1 à 2.5.3 · Acte uniforme, art. 7 et 9"
+                          />
+                        </span>
+                        <select required value={sCompteFonds} onChange={(e) => setSCompteFonds(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                          <option value="" />
+                          {comptesFinancement
+                            .filter((c) => ['162', '163', '164'].some((r) => c.numero.startsWith(r)))
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
                     {sType === 'CESSION' && (
                       <>
                         <label className="text-[11.5px] font-semibold text-text-dim">
