@@ -64,7 +64,7 @@ describe('reprise au 799 · fiche du compte 14', () => {
 
 describe('reprise au 799 · le service', () => {
   const E = { id: 'e26', tenantId: 't', dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') };
-  function monter(o: { statut?: StatutImmobilisation; dateSortie?: Date | null; dotation?: number | null; lignes?: unknown[]; doublon?: boolean } = {}) {
+  function monter(o: { statut?: StatutImmobilisation; dateSortie?: Date | null; dotation?: number | null; lignes?: unknown[]; doublon?: boolean; referentiel?: Referentiel; depreciation?: number; numero?: string } = {}) {
     const creer = jest.fn().mockResolvedValue({ id: 'ec' });
     const retirer = jest.fn();
     const prisma = {
@@ -76,13 +76,14 @@ describe('reprise au 799 · le service', () => {
           statut: o.statut ?? StatutImmobilisation.EN_SERVICE,
           dateSortie: o.dateSortie ?? null,
           ecritureAcquisitionId: 'acq',
-          compteImmobilisation: { numero: '24510000' },
+          compteImmobilisation: { numero: o.numero ?? '24510000' },
           dotations: o.dotation === null ? [] : [{ montant: o.dotation ?? 120_000 }],
+          depreciations: o.depreciation ? [{ montant: o.depreciation }] : [],
           reprisesSubvention: [],
         }),
       },
       exercice: { findFirst: jest.fn().mockResolvedValue(E) },
-      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA }) },
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: o.referentiel ?? Referentiel.SYSCOHADA }) },
       ligneEcriture: {
         findMany: jest.fn().mockResolvedValue(
           o.lignes ?? [
@@ -91,7 +92,11 @@ describe('reprise au 799 · le service', () => {
           ],
         ),
       },
-      compte: { findUnique: jest.fn().mockResolvedValue({ id: 'c799' }) },
+      compte: {
+        findUnique: jest.fn(({ where }: { where: { tenantId_numero: { numero: string } } }) =>
+          Promise.resolve({ id: where.tenantId_numero.numero === '79900000' ? 'c799' : `n${where.tenantId_numero.numero}` }),
+        ),
+      },
       repriseSubventionImmobilisation: {
         create: jest.fn().mockImplementation(({ data }) =>
           o.doublon ? Promise.reject(new Prisma.PrismaClientKnownRequestError('x', { code: 'P2002', clientVersion: '5' })) : Promise.resolve(data),
@@ -121,10 +126,106 @@ describe('reprise au 799 · le service', () => {
   });
 
   it('refus · bien sans 14 à l’acquisition, dotation non passée ; doublon retiré en 409', async () => {
-    await expect(monter({ lignes: [] }).svc.passer('t', 'u', 'b1', { exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('compte 14');
+    await expect(monter({ lignes: [] }).svc.passer('t', 'u', 'b1', { exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('fonds qui se reprend');
     await expect(monter({ dotation: null }).svc.passer('t', 'u', 'b1', { exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('dotation');
     const { svc, retirer } = monter({ doublon: true });
     await expect(svc.passer('t', 'u', 'b1', { exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('déjà passée');
     expect(retirer).toHaveBeenCalledWith('t', 'ec');
+  });
+});
+
+/**
+ * LES FONDS DU SYCEBNL REPRIS DEPUIS LA FICHE (lot 4) · Partie 3 ch. 2.
+ * 167 au 7923 sur la dotation ET la dépréciation (§ 1.2.2, Application 5),
+ * 171 au 7961 dans la même quotité que l'amortissement (§ 2.3), 172 au 7962
+ * pour solde à la cession seulement (§ 2.2.3). Au SYSCOHADA, le 172 est une
+ * dette de location-acquisition et ne se reprend jamais.
+ */
+describe('reprise des fonds du SYCEBNL · 167, 171, 172', () => {
+  const E = { id: 'e26', dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') };
+  function monter(o: { lignes: unknown[]; numero?: string; dotation?: number | null; depreciation?: number; statut?: StatutImmobilisation; dateSortie?: Date | null; referentiel?: Referentiel }) {
+    const creer = jest.fn().mockResolvedValue({ id: 'ec' });
+    const prisma = {
+      immobilisation: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'b1', designation: 'Bien reçu', valeurOrigine: 600_000,
+          statut: o.statut ?? StatutImmobilisation.EN_SERVICE, dateSortie: o.dateSortie ?? null, ecritureAcquisitionId: 'acq',
+          compteImmobilisation: { numero: o.numero ?? '23130000' },
+          dotations: o.dotation === null ? [] : [{ montant: o.dotation ?? 20_000 }],
+          depreciations: o.depreciation ? [{ montant: o.depreciation }] : [],
+          reprisesSubvention: [],
+        }),
+      },
+      exercice: { findFirst: jest.fn().mockResolvedValue(E) },
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: o.referentiel ?? Referentiel.SYCEBNL }) },
+      ligneEcriture: { findMany: jest.fn().mockResolvedValue(o.lignes) },
+      compte: {
+        findUnique: jest.fn(({ where }: { where: { tenantId_numero: { numero: string } } }) =>
+          Promise.resolve({ id: `n${where.tenantId_numero.numero}` }),
+        ),
+      },
+      repriseSubventionImmobilisation: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve(data)) },
+    };
+    return { svc: new RepriseSubventionService(prisma as never, { creer, retirerCompensation: jest.fn() } as never), creer };
+  }
+  const corps = { exerciceId: 'e26', journalId: 'j' };
+  const l167 = [
+    { compteId: 'c2313', credit: 0, debit: 600_000, compte: { numero: '23130000' } },
+    { compteId: 'c1671', credit: 600_000, debit: 0, compte: { numero: '16710000' } },
+  ];
+
+  it('167 · D 167 / C 7923 pour la dotation ET la dépréciation de l’exercice', async () => {
+    const { svc, creer } = monter({ lignes: l167, dotation: 20_000, depreciation: 5_000 });
+    await svc.passer('t', 'u', 'b1', corps);
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c1671', debit: 25_000, credit: 0 },
+      { compteId: 'n79230000', debit: 0, credit: 25_000 },
+    ]);
+    expect(creer.mock.calls[0][2].libelle).toMatch(/dons et legs/);
+  });
+
+  it('167 · le 1679 engagement auprès du donateur n’est pas un fonds reçu', async () => {
+    const { svc } = monter({ lignes: [{ compteId: 'c1679', credit: 600_000, debit: 0, compte: { numero: '16790000' } }] });
+    await expect(svc.passer('t', 'u', 'b1', corps)).rejects.toThrow('fonds qui se reprend');
+  });
+
+  it('167 · à la sortie du bien, rien n’est proposé, le texte ne le règle pas', async () => {
+    const { svc } = monter({ lignes: l167, statut: StatutImmobilisation.MISE_HORS_SERVICE, dateSortie: new Date('2026-06-30T00:00:00Z') });
+    await expect(svc.passer('t', 'u', 'b1', corps)).rejects.toThrow(/ne règle pas/);
+  });
+
+  it('171 · D 171 / C 7961 dans la même quotité que l’amortissement', async () => {
+    const { svc, creer } = monter({
+      numero: '20110000',
+      lignes: [{ compteId: 'c171', credit: 600_000, debit: 0, compte: { numero: '17100000' } }],
+      dotation: 60_000,
+      depreciation: 9_000,
+    });
+    await svc.passer('t', 'u', 'b1', corps);
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c171', debit: 60_000, credit: 0 },
+      { compteId: 'n79610000', debit: 0, credit: 60_000 },
+    ]);
+  });
+
+  it('172 · rien au fil des exercices, le solde au 7962 à la cession', async () => {
+    const lignes = [{ compteId: 'c172', credit: 600_000, debit: 0, compte: { numero: '17200000' } }];
+    await expect(monter({ numero: '20300000', lignes, dotation: null }).svc.passer('t', 'u', 'b1', corps)).rejects.toThrow(/pour solde à la cession/);
+    const { svc, creer } = monter({ numero: '20300000', lignes, dotation: null, statut: StatutImmobilisation.CEDEE, dateSortie: new Date('2026-06-30T00:00:00Z') });
+    await svc.passer('t', 'u', 'b1', corps);
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c172', debit: 600_000, credit: 0 },
+      { compteId: 'n79620000', debit: 0, credit: 600_000 },
+    ]);
+  });
+
+  it('au SYSCOHADA, le 172 est une dette de location-acquisition · aucune reprise', async () => {
+    const lignes = [{ compteId: 'c172', credit: 600_000, debit: 0, compte: { numero: '17200000' } }];
+    await expect(monter({ lignes, referentiel: Referentiel.SYSCOHADA }).svc.passer('t', 'u', 'b1', corps)).rejects.toThrow('fonds qui se reprend');
+  });
+
+  it('les comptes de reprise existent au semis SYCEBNL', () => {
+    const numeros = new Set(PLAN_COMPTES_SYCEBNL.map((c) => c.numero));
+    expect(['79230000', '79610000', '79620000', '79900000'].filter((n) => !numeros.has(n))).toEqual([]);
   });
 });

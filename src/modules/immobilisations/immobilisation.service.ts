@@ -1621,11 +1621,21 @@ export class ImmobilisationService {
     // Le Titre X ne connaît que le linéaire · un bien aux unités d'œuvre
     // sortirait du tableau d'amortissement que le SMT SYSCOHADA exige.
     if (mode === ModeAmortissement.UNITES_DOEUVRE) {
-      const refusSmt = motifRefusAmortissementNonLineaireSmt(
-        await this.regimeComptable(tenantId),
-        "L'amortissement aux unités d'œuvre",
-      );
+      const regimeUo = await this.regimeComptable(tenantId);
+      const refusSmt = motifRefusAmortissementNonLineaireSmt(regimeUo, "L'amortissement aux unités d'œuvre");
       if (refusSmt) throw new BadRequestException(refusSmt);
+      // L'USUFRUIT TEMPORAIRE S'AMORTIT EN LINÉAIRE · « sur la durée de
+      // donation suivant le mode de répartition linéaire » (SYCEBNL Partie 3
+      // ch. 2 § 2.3), et le 171 se reprend « dans la même quotité ».
+      const compteUo = await this.prisma.compte.findFirst({
+        where: { id: famille.compteImmobilisationId, tenantId },
+        select: { numero: true },
+      });
+      if (regimeUo.referentiel === Referentiel.SYCEBNL && compteUo?.numero.startsWith('2011')) {
+        throw new BadRequestException(
+          "L'usufruit temporaire s'amortit sur la durée de la donation suivant le mode linéaire (SYCEBNL Partie 3 ch. 2 § 2.3) · les unités d'œuvre ne lui sont pas ouvertes.",
+        );
+      }
     }
 
     if (dto.lieuId) await this.lieuDuDossier(tenantId, dto.lieuId);

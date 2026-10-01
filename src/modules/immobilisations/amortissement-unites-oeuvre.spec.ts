@@ -245,3 +245,52 @@ describe('ce que l’énumération des modes ne doit jamais porter', () => {
     expect(valeurs.some((v) => /REVENU|CHIFFRE_AFFAIRES|FINANCIER/.test(v))).toBe(false);
   });
 });
+
+/**
+ * L'USUFRUIT TEMPORAIRE S'AMORTIT EN LINÉAIRE · SYCEBNL Partie 3 ch. 2 § 2.3,
+ * « sur la durée de donation suivant le mode de répartition linéaire » (lot 4).
+ */
+describe('usufruit temporaire · le linéaire est imposé', () => {
+  function creer(referentiel: 'SYCEBNL' | 'SYSCOHADA', numero: string) {
+    const create = jest.fn();
+    const prisma = {
+      familleImmobilisation: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'f', intitule: 'Famille', estActif: true, compteImmobilisationId: 'cimmo', dureeAmortissementAns: 5, modeAmortissement: null,
+        }),
+      },
+      compte: {
+        findFirst: jest.fn(({ where }: { where: { id: string } }) =>
+          Promise.resolve(
+            where.id === 'cimmo'
+              ? { id: 'cimmo', numero }
+              : { id: where.id, numero: numero.startsWith('2011') ? '17100000' : '48120000' },
+          ),
+        ),
+      },
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel, systemeComptableSyscohada: referentiel === 'SYSCOHADA' ? 'NORMAL' : null, jeuEtatsFinanciersSycebnl: null }) },
+      immobilisation: { create, findFirst: jest.fn().mockResolvedValue(null) },
+      exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: 'OUVERT' }) },
+      journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j', code: 'OD' }) },
+    };
+    const svc = new ImmobilisationService(prisma as never, { creer: jest.fn() } as never);
+    return {
+      create,
+      essai: svc.creer('t1', 'u1', {
+        familleId: 'f', designation: 'Usufruit', dateAcquisition: '2026-01-01', dateMiseEnService: '2026-01-01', valeurOrigine: 1_000_000,
+        exerciceId: 'e', journalId: 'j', compteContrepartieId: 'cfin', modeAmortissement: 'UNITES_DOEUVRE', unitesOeuvrePrevues: 1000, uniteOeuvreLibelle: 'heures',
+      } as never),
+    };
+  }
+
+  it('refuse les unités d’œuvre sur un 2011 du SYCEBNL, avant toute écriture', async () => {
+    const { essai, create } = creer('SYCEBNL', '20110000');
+    await expect(essai).rejects.toThrow(/mode linéaire/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('un autre bien du SYCEBNL n’est pas visé par ce refus', async () => {
+    const { essai } = creer('SYCEBNL', '24110000');
+    await expect(essai).rejects.not.toThrow(/mode linéaire/);
+  });
+});

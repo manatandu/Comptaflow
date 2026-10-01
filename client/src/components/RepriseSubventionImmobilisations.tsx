@@ -33,7 +33,7 @@ export function RepriseSubventionImmobilisations({ exerciceId, journaux }: { exe
     try {
       setListe(await api.get<{ biens: BienSubventionne[]; tronque: boolean }>(`/immobilisations/reprises-subvention?exerciceId=${exerciceId}`));
     } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Subventions en nature illisibles');
+      setErreur(err instanceof ApiError ? err.message : 'Reprises des fonds illisibles');
     }
   }, [exerciceId]);
   useEffect(() => {
@@ -60,18 +60,18 @@ export function RepriseSubventionImmobilisations({ exerciceId, journaux }: { exe
   return (
     <div className="border border-border bg-surface shadow-posee max-w-[1180px] mt-3">
       <div className="px-3.5 py-1.5 bg-chrome border-b border-border text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5">
-        Subventions d'investissement en nature
+        Reprises des fonds liés aux biens
         <Aide
-          titre="Reprise des subventions"
-          texte="Un bien reçu gratuitement d'un pourvoyeur de subvention entre à sa valeur actuelle, au crédit du compte 14. La subvention est reprise au résultat (799) au rythme de la dotation aux amortissements du bien ; pour un bien non amortissable, sur la durée d'inaliénabilité ou, à défaut, par dixièmes ; à la cession, pour le solde non encore repris. Seules les reprises passées ici sont comptées."
-          source="Fiche du compte 14 (AUDCIF Titre VII · SYCEBNL Partie 2 ch. 3) · AUDCIF art. 36 et 42"
+          titre="Reprise des fonds"
+          texte="Subvention d'investissement en nature (14) · reprise au 799 au rythme de la dotation aux amortissements ; pour un bien non amortissable, sur la durée d'inaliénabilité ou, à défaut, par dixièmes ; à la cession, pour le solde. Au SYCEBNL seulement · dons et legs à conserver (167) repris au 7923 pour la dotation aux amortissements et aux dépréciations de l'exercice ; donation temporaire d'usufruit (171) reprise au 7961 dans la même quotité que l'amortissement ; dons et legs destinés à la vente (172) repris pour solde au 7962 à la cession. Seules les reprises passées ici sont comptées."
+          source="Fiche du compte 14 (AUDCIF Titre VII · SYCEBNL Partie 2 ch. 3) · SYCEBNL Partie 3 ch. 2 § 1.2.2, § 2.2.3 et § 2.3 · Guide d'application, Applications 5 à 7"
         />
       </div>
       {erreur && <div className="px-3.5 py-1.5 text-[11.5px] text-danger">{erreur}</div>}
       {liste?.tronque && <div className="px-3.5 py-1.5 text-[11.5px] text-warning">Liste limitée aux 200 premiers biens.</div>}
       <div className="grid grid-cols-[1.4fr_120px_120px_130px_1.2fr] gap-2.5 px-3.5 py-1 border-b border-border text-[11px] font-bold text-text-dim">
         <span>Bien</span>
-        <span className="text-right">Subvention</span>
+        <span className="text-right">Fonds</span>
         <span className="text-right">Déjà reprise</span>
         <span className="text-right">Reprise proposée</span>
         <span />

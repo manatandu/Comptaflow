@@ -3,12 +3,11 @@ import { Prisma, StatutImmobilisation } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifNonAmortissable } from './comptes-du-bien';
-import { proposerReprise } from './reprise-subvention';
+import { FONDS_REPRIS, fondsDuCompte, proposerReprise, type FondsRepris } from './reprise-subvention';
 
 const n = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
 const centimes = (x: number) => Math.round(x * 100) / 100;
-/** Le compte de reprise, même numéro semé aux deux plans (79900000). */
-const COMPTE_REPRISE = '79900000';
+type Ref = 'SYSCOHADA' | 'SYCEBNL';
 
 /**
  * LA REPRISE AU 799 DES SUBVENTIONS EN NATURE (`reprise-subvention.ts`) ·
@@ -28,10 +27,16 @@ export class RepriseSubventionService {
    */
   async lister(tenantId: string, exerciceId: string) {
     const PLAFOND = 200;
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    // Les fonds du référentiel du dossier, jamais ceux de l'autre (le 172
+    // SYSCOHADA est une dette de location-acquisition).
+    const racines = FONDS_REPRIS[referentiel as Ref].map((f) => f.racine);
     const biens = await this.prisma.immobilisation.findMany({
       where: {
         tenantId,
-        ecritureAcquisition: { lignes: { some: { compte: { numero: { startsWith: '14' } }, credit: { gt: 0 } } } },
+        ecritureAcquisition: {
+          lignes: { some: { credit: { gt: 0 }, OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })) } },
+        },
       },
       select: { id: true },
       orderBy: { dateAcquisition: 'asc' },
@@ -55,6 +60,7 @@ export class RepriseSubventionService {
         ecritureAcquisitionId: true,
         compteImmobilisation: { select: { numero: true } },
         dotations: { where: { exerciceId }, select: { montant: true } },
+        depreciations: { where: { exerciceId, sens: 'DOTATION' }, select: { montant: true } },
         reprisesSubvention: { select: { exerciceId: true, montant: true } },
       },
     });
@@ -65,17 +71,26 @@ export class RepriseSubventionService {
     ]);
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
 
-    // LA SUBVENTION SUIVIE · ce que l'écriture d'acquisition du bien a porté
-    // au crédit d'un 14, compte par compte (la reprise débite les mêmes).
-    const lignes14 = immo.ecritureAcquisitionId
+    // LE FONDS SUIVI · ce que l'écriture d'acquisition du bien a porté au
+    // crédit d'un fonds du référentiel (14, et au SYCEBNL 167, 171, 172),
+    // compte par compte (la reprise débite les mêmes).
+    const lignesAcquisition = immo.ecritureAcquisitionId
       ? await this.prisma.ligneEcriture.findMany({
-          where: { ecritureId: immo.ecritureAcquisitionId, ecriture: { tenantId }, compte: { numero: { startsWith: '14' } } },
+          where: { ecritureId: immo.ecritureAcquisitionId, ecriture: { tenantId } },
           select: { compteId: true, credit: true, debit: true, compte: { select: { numero: true } } },
           take: 50,
         })
       : [];
+    const avecFonds = lignesAcquisition
+      .map((l) => ({ l, fonds: fondsDuCompte(referentiel as Ref, l.compte.numero) }))
+      .filter((x): x is { l: (typeof lignesAcquisition)[number]; fonds: FondsRepris } => !!x.fonds);
+    const regles = new Set(avecFonds.map((x) => x.fonds.regle));
+    if (regles.size > 1) {
+      return { subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif: "L'acquisition porte plusieurs natures de fonds · la reprise ne se propose pas, elle se passe à la main.", comptes14: [] as { compteId: string; numero: string; montant: number }[], fonds: null as FondsRepris | null, designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie };
+    }
+    const fonds = avecFonds[0]?.fonds ?? null;
     const parCompte = new Map<string, { numero: string; montant: number }>();
-    for (const l of lignes14) {
+    for (const { l } of avecFonds) {
       const m = n(l.credit) - n(l.debit);
       const c = parCompte.get(l.compteId) ?? { numero: l.compte.numero, montant: 0 };
       c.montant = centimes(c.montant + m);
@@ -83,7 +98,7 @@ export class RepriseSubventionService {
     }
     const subvention = centimes([...parCompte.values()].reduce((s, c) => s + c.montant, 0));
     if (subvention <= 0) {
-      return { subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif: "Ce bien n'est pas entré par une subvention en nature (compte 14).", comptes14: [] as { compteId: string; numero: string; montant: number }[], designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie };
+      return { subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif: "Ce bien n'est pas entré par un fonds qui se reprend (subvention, don ou legs, usufruit).", comptes14: [] as { compteId: string; numero: string; montant: number }[], fonds: null as FondsRepris | null, designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie };
     }
 
     const sorti =
@@ -100,6 +115,8 @@ export class RepriseSubventionService {
       cumulRepris,
       sorti,
       dureeInalienabiliteAns,
+      regle: fonds?.regle,
+      depreciationExercice: centimes(immo.depreciations.reduce((s, d) => s + n(d.montant), 0)),
     });
     const dejaPassee = immo.reprisesSubvention.some((r) => r.exerciceId === exerciceId);
     // Un bien sorti avant l'exercice n'a plus rien à reprendre ici.
@@ -116,6 +133,7 @@ export class RepriseSubventionService {
       nature: proposition.nature,
       motif,
       comptes14: [...parCompte.entries()].map(([compteId, c]) => ({ compteId, ...c })),
+      fonds,
       designation: immo.designation,
       dateFin: exercice.dateFin,
       dateSortie: immo.dateSortie,
@@ -131,11 +149,12 @@ export class RepriseSubventionService {
     const p = await this.proposer(tenantId, immobilisationId, dto.exerciceId, dto.dureeInalienabiliteAns);
     if (p.motif) throw new BadRequestException(p.motif);
     if (!(p.montant > 0)) throw new BadRequestException('Rien à reprendre pour cet exercice.');
+    const compteReprise = p.fonds!.compteReprise;
     const c799 = await this.prisma.compte.findUnique({
-      where: { tenantId_numero: { tenantId, numero: COMPTE_REPRISE } },
+      where: { tenantId_numero: { tenantId, numero: compteReprise } },
       select: { id: true },
     });
-    if (!c799) throw new BadRequestException(`Compte ${COMPTE_REPRISE} absent du plan du dossier · ouvrez-le avant la reprise.`);
+    if (!c799) throw new BadRequestException(`Compte ${compteReprise} absent du plan du dossier · ouvrez-le avant la reprise.`);
     // Le débit se répartit sur les 14 crédités à l'acquisition, au prorata,
     // le dernier prenant le reste au centime.
     const debits: { compteId: string; debit: number; credit: number }[] = [];
@@ -151,7 +170,7 @@ export class RepriseSubventionService {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
       date,
-      libelle: `Reprise de subvention d'investissement · ${p.designation}`.slice(0, 190),
+      libelle: `${p.fonds!.libelle} · ${p.designation}`.slice(0, 190),
       lignes: [...debits, { compteId: c799.id, debit: 0, credit: p.montant }],
     });
     try {

@@ -659,3 +659,54 @@ test('SYCEBNL · projet de développement, le bien sort par le 162, sans 81', as
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * LA REPRISE DU 167, SUR LA BASE RÉELLE (SYCEBNL Partie 3 ch. 2 § 1.2.2,
+ * Guide, Application 5) · un bien légué à conserver se reprend au 7923 pour
+ * la dotation de l'exercice, proposée depuis la fiche, une fois.
+ */
+test('SYCEBNL · un legs à conserver (167) se reprend au 7923 pour la dotation', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Legs e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const mobilier = comptes.find((c) => c.numero.startsWith('2441'));
+  if (!mobilier) throw new Error('Aucun compte 2441 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string; mode: string | null }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${mobilier.id}`,
+  );
+  const legs = contreparties.find((c) => c.numero.startsWith('167') && !c.numero.startsWith('1679'));
+  if (!legs) throw new Error('Aucun 167 proposé en contrepartie');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: mobilier.id,
+    designation: 'Mobilier légué e2e',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 25_000_000,
+    dureeAmortissementAns: 10,
+    compteContrepartieId: legs.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  const { biens } = await appelApi<{ biens: Array<{ id: string; montant: number }> }>(page, 'GET', `/immobilisations/reprises-subvention?exerciceId=${exercice.id}`);
+  expect(biens.find((b) => b.id === bien.id)?.montant).toBeCloseTo(Number(dotation.montant), 2);
+  const corps = { exerciceId: exercice.id, journalId: od.id };
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/reprise-subvention`, corps);
+  await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/reprise-subvention`, corps)).rejects.toThrow(/déjà passée/);
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '79230000')?.mouvementCredit)).toBeCloseTo(Number(dotation.montant), 2);
+  expect(Number(lignes.find((l) => l.numero === legs.numero)?.mouvementDebit)).toBeCloseTo(Number(dotation.montant), 2);
+
+  expect(pannes).toEqual([]);
+});

@@ -1459,7 +1459,11 @@ commence qu'une fois le précédent vérifié en production ; ce qu'on découvre
 en route va au journal du plan, jamais dans le lot en cours. FIN DE PROJET (lot 3,
 SYCEBNL Partie 3 ch. 3 § 2.5) · cession, remise gratuite, restitution, vol,
 destruction ou rebut · D 162, 163 ou 164 (choisi) / C 2, jamais de 28 ni de
-81 ; seule la cession ajoute son prix au 82 ; `motifRefusSortieProjet`.
+81 ; seule la cession ajoute son prix au 82 ; `motifRefusSortieProjet`. REPRISES
+DES FONDS (lot 4) · `FONDS_REPRIS`, par référentiel · 14 au 799 aux deux ; au
+SYCEBNL seul 167 au 7923 (dotation ET dépréciation de l'exercice, 1679
+écarté), 171 au 7961 (quotité de l'amortissement, linéaire imposé au 2011),
+172 pour solde au 7962 à la cession ; le 172 SYSCOHADA est une dette.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son
