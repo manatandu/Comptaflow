@@ -38,12 +38,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | F12 | Lot 12 · plafond de reprise d'une dépréciation | Cloud Run 468, Hosting 593, tests 238 |
 | F13 | Correctif « Rattacher une subvention » (octroi proposé au choix du 14) et listes vides de la même famille | Cloud Run 469, Hosting 595, tests 240 |
 | F14 | Lot 13 · coûts d'emprunt incorporés | Cloud Run 470, Hosting 596, tests 241 |
+| F15 | Listes de choix · provisions, fonds 162 à 164 de la sortie de projet, « Réglé par » (ex-E1) | Cloud Run 471, Hosting 598, tests 243 |
 
 ## En cours
 
 | # | Objet | État |
 |---|---|---|
-| E1 | Listes de choix · provisions (compte gardé au changement de nature), fonds 162 à 164 à la sortie d'un bien de projet, « Réglé par » restreint à la liste fermée du serveur | poussé (2f06aa5, 7b28ee7), tests navigateur locaux 27 sur 27 ; vérification en production en cours |
 | E2 | Immobilisation en cours · case « Pas encore mis en service » DÉCOCHÉE par défaut (décision de Manasse), acquisition au compte en cours de la division (219, 229, 239, 249 au SYSCOHADA ; 239 et 249 au SYCEBNL), mise en service D compte définitif / C compte en cours ; renouvellement et remplacement d'une partie refusés tant que le bien est en cours | commité en local, suites et tests navigateur verts (28 sur 28) ; poussé après vérification de E1 |
 | E3 | Barème · le compte proposé est POSÉ dès le choix de la nature quand il est unique, modifiable ensuite | commité avec E2 |
 | E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, gardé par un test | refusé deux fois en relecture (incomplet, conflits avec main, listes vides muettes dans les écrans d'immobilisation) · à refaire sur main à jour, après E2 |
