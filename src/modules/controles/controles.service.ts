@@ -1982,6 +1982,7 @@ export class ControlesService {
           valeurResiduelle: true,
           amortissementAnterieur: true,
           amortissementsDetaches: true,
+          reprisesAmortissement: true,
           dotations: { select: { exerciceId: true, montant: true } },
           compteImmobilisation: { select: { numero: true } },
         },

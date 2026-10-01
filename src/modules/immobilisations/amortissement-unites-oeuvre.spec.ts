@@ -230,9 +230,11 @@ describe('ce que l’énumération des modes ne doit jamais porter', () => {
     schema.indexOf('enum StatutImmobilisation'),
   );
 
-  it('n’ouvre que le linéaire et les unités d’œuvre', () => {
+  // Lot 11 · le dégressif de la loi n° 23/053 s'y ajoute, au SYCEBNL seul
+  // (décisions D-25, D-26) · trois modes, liste fermée.
+  it('n’ouvre que le linéaire, les unités d’œuvre et le dégressif', () => {
     const valeurs = [...enumeration.matchAll(/^\s{2}([A-Z_]+)$/gm)].map((m) => m[1]);
-    expect(valeurs).toEqual(['LINEAIRE', 'UNITES_DOEUVRE']);
+    expect(valeurs).toEqual(['LINEAIRE', 'UNITES_DOEUVRE', 'DEGRESSIF']);
   });
 
   it('ne porte aucun des deux modes que l’art. 45 interdit', () => {

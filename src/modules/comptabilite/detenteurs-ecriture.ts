@@ -59,6 +59,9 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // retirée seule, elle resterait comptée et la reprise suivante serait
   // calculée sur un 14 qui n'a pas bougé.
   'ReductionSubventionImmobilisation.ecritureId',
+  // La reprise au 798 d'une révision rétroactive (lot 11) · retirée seule,
+  // la réduction resterait retranchée du cumul sans son écriture.
+  'RevisionPlanAmortissement.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

@@ -61,6 +61,7 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   RepriseSubventionImmobilisation: 'Reprise de subvention d’investissement',
   SubventionImmobilisation: 'Subvention rattachée à un bien',
   ReductionSubventionImmobilisation: 'Réduction d’une subvention rattachée',
+  RevisionPlanAmortissement: 'Révision d’un plan d’amortissement',
   ProcesVerbalComptageCaisse: 'Procès-verbal de comptage de caisse',
   Exoneration: 'Exonération',
   LiquidationTva: 'Liquidation de TVA',

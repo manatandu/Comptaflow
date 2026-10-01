@@ -1140,3 +1140,31 @@ export class DureeLimiteeDto {
   @IsIn(['NON_ESTIMABLE', 'SIMPLIFICATION_SMT'])
   fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT';
 }
+
+/**
+ * Lot 11 · révision du plan d'amortissement (décision D-24). Prospective par
+ * défaut · la durée RÉSIDUELLE depuis l'ouverture de l'exercice ; rétroactive
+ * en option · la nouvelle durée TOTALE, la réduction du cumul reprise au 798.
+ */
+export class ReviserPlanDto {
+  @IsIn(['PROSPECTIVE', 'RETROACTIVE'])
+  nature!: 'PROSPECTIVE' | 'RETROACTIVE';
+
+  @IsDateString()
+  dateDecision!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  nouvelleDureeAns!: number;
+
+  @IsString()
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Dites ce qui a changé.' })
+  motif!: string;
+
+  /** Rétroactive seulement · le journal de l'écriture D 28 / C 798. */
+  @IsOptional()
+  @IsUUID('4')
+  journalId?: string;
+}

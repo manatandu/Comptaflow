@@ -1046,3 +1046,71 @@ test('SYSCOHADA · une marque à durée non limitée n’est pas amortie, puis b
 
   expect(pannes).toEqual([]);
 });
+
+test('SYCEBNL · le plan se révise, rétroactivement au 798, et le dégressif suit le taux de la loi', async ({ page }) => {
+  // Lot 11 · fiches des comptes 28 et 79 ; loi n° 23/053 art. 33 à 35 ; décisions D-24 à D-26.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Revision plan e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const suivant = await appelApi<Exercice>(page, 'POST', '/exercices', { dateDebut: `${annee + 1}-01-01`, dateFin: `${annee + 1}-12-31` });
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  if (!banque) throw new Error('Aucun compte de banque semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const creer = (designation: string, dateMiseEnService: string, dureeAmortissementAns: number, modeAmortissement?: string) =>
+    appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+      compteImmobilisationId: compte('24510000'),
+      designation,
+      dateAcquisition: dateMiseEnService,
+      dateMiseEnService,
+      valeurOrigine: 10_000_000,
+      dureeAmortissementAns,
+      ...(modeAmortissement ? { modeAmortissement } : {}),
+      compteContrepartieId: banque.id,
+      exerciceId: exercice.id,
+      journalId: od.id,
+    });
+  const doter = (id: string, exerciceId: string) =>
+    appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${id}/dotation`, { exerciceId, journalId: od.id });
+
+  // Rétroactive · dix ans révisés à vingt, l'annuité passée de 1 000 000 n'en valait que 500 000.
+  const camion = await creer('Camion e2e', `${annee}-01-01`, 10);
+  expect(Number((await doter(camion.id, exercice.id)).montant)).toBeCloseTo(1_000_000, 2);
+  const revision = await appelApi<{ montantReprise: number }>(page, 'POST', `/immobilisations/${camion.id}/revision-plan`, {
+    nature: 'RETROACTIVE',
+    dateDecision: `${annee + 1}-03-01`,
+    nouvelleDureeAns: 20,
+    motif: 'Révision générale du parc · usage moindre que prévu',
+    journalId: od.id,
+  });
+  expect(Number(revision.montantReprise)).toBeCloseTo(500_000, 2);
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementCredit: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${suivant.id}`);
+  expect(Number(lignes.find((l) => l.numero === '79800000')?.mouvementCredit)).toBeCloseTo(500_000, 2);
+  expect(Number((await doter(camion.id, suivant.id)).montant)).toBeCloseTo(500_000, 2);
+
+  // Dégressif · cinq ans, taux 40 %, mis en service en avril · 10 000 000 × 40 % × 9/12.
+  await expect(creer('Hors loi e2e', `${annee}-04-01`, 3, 'DEGRESSIF')).rejects.toThrow(/quatre à vingt/);
+  const ordinateur = await creer('Matériel dégressif e2e', `${annee}-04-01`, 5, 'DEGRESSIF');
+  expect(Number((await doter(ordinateur.id, exercice.id)).montant)).toBeCloseTo(3_000_000, 2);
+  // Prospective · la valeur restante, 7 000 000, se dote encore au taux de la loi sur le plan révisé.
+  await appelApi(page, 'POST', `/immobilisations/${ordinateur.id}/revision-plan`, {
+    nature: 'PROSPECTIVE',
+    dateDecision: `${annee + 1}-02-01`,
+    nouvelleDureeAns: 4,
+    motif: 'Obsolescence plus lente que prévu',
+  });
+  // Quatre ans au total (zéro année entière courue + quatre) · coefficient 1,5, taux 37,5 %, contre 7 000 000 / 4 en linéaire.
+  expect(Number((await doter(ordinateur.id, suivant.id)).montant)).toBeCloseTo(2_625_000, 2);
+  const historique = await appelApi<Array<{ nature: string }>>(page, 'GET', `/immobilisations/${ordinateur.id}/revisions-plan`);
+  expect(historique.map((r) => r.nature)).toEqual(['PROSPECTIVE']);
+
+  expect(pannes).toEqual([]);
+});

@@ -18,7 +18,9 @@ describe('F128 · mode et unités d’œuvre se choisissent à la création', ()
     const envoi = bloc('const onCreerImmo = async', 'setIDesignation(');
     expect(envoi).toContain("...(iMode ? { modeAmortissement: iMode } : {})");
     // Le mode part toujours · une famille reprise pour le compte ne l'impose plus.
-    expect(page).toContain("useState<'LINEAIRE' | 'UNITES_DOEUVRE'>('LINEAIRE')");
+    // Lot 11 · le dégressif de la loi n° 23/053 s'ajoute, au SYCEBNL seul.
+    expect(page).toContain("useState<'LINEAIRE' | 'UNITES_DOEUVRE' | 'DEGRESSIF'>('LINEAIRE')");
+    expect(page).toContain(`{!syscohada && <option value="DEGRESSIF">Dégressif</option>}`);
     expect(envoi).toContain("modeRetenu === 'UNITES_DOEUVRE' ? { unitesOeuvrePrevues: Number(iUnites), uniteOeuvreLibelle: iUniteLibelle } : {}");
   });
 

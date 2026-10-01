@@ -67,6 +67,7 @@ export class RepriseSubventionService {
         ecritureAcquisitionId: true,
         amortissementAnterieur: true,
         amortissementsDetaches: true,
+        reprisesAmortissement: true,
         dureeNonLimitee: true,
         degressifFiscal: true,
         compteImmobilisation: { select: { numero: true } },

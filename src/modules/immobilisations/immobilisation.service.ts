@@ -13,6 +13,7 @@ import {
   StatutImmobilisation,
   SystemeComptableSyscohada,
   FondementDureeDixAns,
+  NatureRevisionPlan,
   StatutExercice,
   TypeComposant,
   TypeCompteDetailTotal,
@@ -30,6 +31,7 @@ import {
   DepreciationDto,
   RenouvelerComposantDto,
   ModifierFamilleDto,
+  ReviserPlanDto,
   PasserDotationDto,
   ReclasserImmobilisationDto,
   SaisirConsommationDto,
@@ -90,6 +92,13 @@ import {
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
 import { amortissementsHorsDotations, detacherPartieRemplacee } from './partie-remplacee';
+import {
+  annuiteDegressive,
+  motifRefusModeDegressif,
+  motifRefusRetroactive,
+  motifRefusRevision,
+  tauxDegressifLoi,
+} from './revision-plan-amortissement';
 
 const EPSILON = 0.005;
 
@@ -386,6 +395,26 @@ export function natureImmobilisation(numeroCompte: string, referentiel: Referent
   if (/^2[01]/.test(numeroCompte)) return 'INCORPORELLE';
   if (/^2[67]/.test(numeroCompte)) return 'FINANCIERE';
   return 'CORPORELLE';
+}
+
+/**
+ * Lot 11 · ce que le moteur de dotation lit du PLAN du bien, en un seul
+ * endroit · le mode dégressif de la loi n° 23/053 (SYCEBNL seul) et la
+ * révision prospective. Les trois lecteurs (tableau, dotation, sortie) passent
+ * par ici · un lecteur qui l'oublierait doterait encore sur l'ancienne durée.
+ */
+export function planDuBien(immo: {
+  modeAmortissement: ModeAmortissement;
+  dateEffetRevisionPlan?: Date | null;
+  dureeResiduelleRevisee?: number | null;
+}): { degressif: boolean; revision: { effet: Date; dureeResiduelleAns: number } | null } {
+  return {
+    degressif: immo.modeAmortissement === ModeAmortissement.DEGRESSIF,
+    revision:
+      immo.dateEffetRevisionPlan && immo.dureeResiduelleRevisee
+        ? { effet: immo.dateEffetRevisionPlan, dureeResiduelleAns: immo.dureeResiduelleRevisee }
+        : null,
+  };
 }
 
 @Injectable()
@@ -701,8 +730,24 @@ export class ImmobilisationService {
     if (!lieu) throw new BadRequestException('Lieu introuvable pour ce dossier');
   }
 
+  /**
+   * Lot 11 · une famille au mode DÉGRESSIF le transmet à ses biens (F128) ·
+   * mêmes refus qu'au bien, sinon la famille promettrait un mode que la
+   * création refuserait.
+   */
+  private async verifierModeFamille(tenantId: string, mode: ModeAmortissement | undefined, compteImmobilisationId: string, dureeAns: number) {
+    if (mode !== ModeAmortissement.DEGRESSIF) return;
+    const [regime, compte] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findFirst({ where: { id: compteImmobilisationId, tenantId }, select: { numero: true } }),
+    ]);
+    const refus = motifRefusModeDegressif({ referentiel: regime.referentiel, numeroCompte: compte?.numero ?? '', dureeAns });
+    if (refus) throw new BadRequestException(refus);
+  }
+
   async creerFamille(tenantId: string, dto: CreerFamilleDto) {
     await this.verifierComptesFamille(tenantId, dto);
+    await this.verifierModeFamille(tenantId, dto.modeAmortissement, dto.compteImmobilisationId, dto.dureeAmortissementAns);
     const existant = await this.prisma.familleImmobilisation.findUnique({
       where: { tenantId_code: { tenantId, code: dto.code } },
     });
@@ -715,6 +760,12 @@ export class ImmobilisationService {
   async modifierFamille(tenantId: string, id: string, dto: ModifierFamilleDto) {
     const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id, tenantId } });
     if (!famille) throw new NotFoundException('Famille introuvable pour ce tenant');
+    await this.verifierModeFamille(
+      tenantId,
+      famille.modeAmortissement,
+      famille.compteImmobilisationId,
+      dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
+    );
     return this.prisma.familleImmobilisation.update({ where: { id }, data: dto });
   }
 
@@ -1730,6 +1781,22 @@ export class ImmobilisationService {
       }
     }
 
+    // LE DÉGRESSIF DE LA LOI n° 23/053, SYCEBNL SEUL (lot 11, D-25, D-26) ·
+    // durée de quatre à vingt ans et incorporels exclus (art. 32), usufruit au
+    // linéaire (Partie 3 ch. 2 § 2.3) ; au SYSCOHADA, l'option fiscale.
+    if (mode === ModeAmortissement.DEGRESSIF) {
+      const [regimeDeg, compteDeg] = await Promise.all([
+        this.regimeComptable(tenantId),
+        this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
+      ]);
+      const refusDeg = motifRefusModeDegressif({
+        referentiel: regimeDeg.referentiel,
+        numeroCompte: compteDeg?.numero ?? '',
+        dureeAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
+      });
+      if (refusDeg) throw new BadRequestException(refusDeg);
+    }
+
     if (dto.lieuId) await this.lieuDuDossier(tenantId, dto.lieuId);
 
     // L'ÉCRITURE VIENT APRÈS TOUS LES CONTRÔLES (audit final F29) · le mode,
@@ -2036,6 +2103,12 @@ export class ImmobilisationService {
      * comme le linéaire ré-étale sur les années qui restent.
      */
     uniteOeuvre: { prevues: number; consommees: number; consommeesAnterieures: number } | null = null,
+    /**
+     * Lot 11 · le mode DÉGRESSIF au taux de la loi n° 23/053 (SYCEBNL seul)
+     * et la RÉVISION prospective du plan · voir `planDuBien`, seule source de
+     * ces deux valeurs.
+     */
+    plan: { degressif?: boolean; revision?: { effet: Date; dureeResiduelleAns: number } | null } = {},
   ): number {
     // PAS DE MISE EN SERVICE, PAS DE DOTATION · AUDCIF art. 45, la date de
     // début d'amortissement est celle où l'actif est « en état de
@@ -2094,10 +2167,40 @@ export class ImmobilisationService {
       );
     }
 
+    /*
+      LA RÉVISION PROSPECTIVE RÉ-ÉTALE COMME LA DÉPRÉCIATION (lot 11).
+
+      Cadre conceptuel (SYCEBNL § 3.3.1.2, b ; AUDCIF Titre V) · le
+      changement d'estimation n'a d'effet que « sur l'exercice en cours et
+      les exercices futurs ». À compter de l'ouverture de l'exercice de la
+      décision, le reliquat se répartit sur la durée RÉSIDUELLE révisée,
+      comptée depuis cette ouverture · rien du passé n'est repris.
+    */
+    const revisionActive = !!plan.revision && exercice.dateDebut >= plan.revision.effet;
+    const anneesRestantes = revisionActive
+      ? plan.revision!.dureeResiduelleAns - this.anneesEcoulees(plan.revision!.effet, exercice.dateDebut)
+      : dureeAns - this.anneesEcoulees(dateMiseEnService, exercice.dateDebut);
+
     let annuitePleine: number;
-    if (cumulDepreciation > EPSILON) {
-      const restantes = Math.max(1, dureeAns - this.anneesEcoulees(dateMiseEnService, exercice.dateDebut));
-      annuitePleine = reliquat / restantes;
+    const tauxDegressif = plan.degressif ? tauxDegressifLoi(dureeAns) : null;
+    if (tauxDegressif !== null) {
+      /*
+        LE DÉGRESSIF DE LA LOI n° 23/053 (lot 11, SYCEBNL seul, D-25).
+        Art. 33 · taux linéaire × coefficient, appliqué au coût puis à la
+        valeur résiduelle ; art. 34 · première annuité au prorata du mois de
+        mise en service (la branche `premiereAnnuite` ci-dessous) ; art. 35 ·
+        bascule au linéaire quand l'annuité dégressive devient inférieure au
+        quotient de la valeur résiduelle par les années restantes « à compter
+        de l'ouverture dudit exercice », années comptées en mois comme le plan
+        fiscal (`planFiscalDegressif`).
+      */
+      const debutRestantes = revisionActive ? plan.revision!.effet : dateMiseEnService;
+      const dureeRestantes = revisionActive ? plan.revision!.dureeResiduelleAns : dureeAns;
+      const premierMois = new Date(Date.UTC(debutRestantes.getUTCFullYear(), debutRestantes.getUTCMonth(), 1));
+      const ecoules = Math.max(0, moisEntre(premierMois, exercice.dateDebut) - 1) / 12;
+      annuitePleine = annuiteDegressive(reliquat, tauxDegressif, dureeRestantes - ecoules);
+    } else if (cumulDepreciation > EPSILON || revisionActive) {
+      annuitePleine = reliquat / Math.max(1, anneesRestantes);
     } else {
       annuitePleine = base / dureeAns;
     }
@@ -2448,6 +2551,7 @@ export class ImmobilisationService {
             // supposer un usage. C'est la dotation, pas le tableau, qui
             // refuse d'avancer sans le chiffre.
             unitesParImmo.get(immo.id) ?? null,
+            planDuBien(immo),
           );
 
       // Mois effectivement servis : depuis le mois de mise en service (ou le
@@ -2692,6 +2796,7 @@ export class ImmobilisationService {
       ),
       sansProrata,
       uniteOeuvre,
+      planDuBien(immo),
     );
     if (montant <= EPSILON) {
       throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
@@ -3466,6 +3571,7 @@ export class ImmobilisationService {
           ),
           this.sansProrataTemporis(regime),
           await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, dateSortie),
+          planDuBien(immo),
         );
     if (montantComplement > EPSILON) cumulAmorti += montantComplement;
 
@@ -4068,5 +4174,160 @@ export class ImmobilisationService {
       },
       select: { id: true, dateDebutAmortissement: true, dureeAmortissementAns: true },
     });
+  }
+  /**
+   * LOT 11 · RÉVISER LE PLAN D'AMORTISSEMENT (décision D-24,
+   * `revision-plan-amortissement.ts`). Prospective · aucune écriture, le
+   * reliquat à l'ouverture de l'exercice de la décision se répartit sur la
+   * durée résiduelle. Rétroactive · le plan est rejoué sur les dotations
+   * passées par le module avec la nouvelle durée totale, et la réduction du
+   * cumul passe D 28 / C 798, écriture retenue.
+   */
+  async reviserPlan(tenantId: string, userId: string, id: string, dto: ReviserPlanDto) {
+    const immo = await this.trouver(tenantId, id);
+    const dateDecision = new Date(dto.dateDecision);
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { lte: dateDecision }, dateFin: { gte: dateDecision } },
+    });
+    if (!exercice) throw new BadRequestException("Aucun exercice du dossier ne couvre la date de la décision.");
+    const regime = await this.regimeComptable(tenantId);
+    const debut = debutAmortissement(immo);
+    const refus = motifRefusRevision({
+      enService: immo.statut === StatutImmobilisation.EN_SERVICE,
+      debutAmortissement: debut,
+      dureeNonLimitee: immo.dureeNonLimitee,
+      nonAmortissable:
+        motifSansAmortissementProjet(regime.jeuEtatsFinanciersSycebnl) ??
+        motifNonAmortissable(immo.compteImmobilisation.numero, regime.referentiel),
+      uniteOeuvre: immo.modeAmortissement === ModeAmortissement.UNITES_DOEUVRE,
+      degressifFiscal: immo.degressifFiscal,
+      ouvertureExercice: exercice.dateDebut,
+      exerciceClos: exercice.statut === StatutExercice.CLOTURE,
+      dotationDeLExercicePassee: immo.dotations.some((d) => d.exerciceId === exercice.id),
+      nature: dto.nature,
+      nouvelleDureeAns: dto.nouvelleDureeAns,
+      motif: dto.motif,
+      degressifDureeTotale:
+        immo.modeAmortissement === ModeAmortissement.DEGRESSIF && debut
+          ? dto.nature === 'PROSPECTIVE'
+            ? this.anneesEcoulees(debut, exercice.dateDebut) + dto.nouvelleDureeAns
+            : dto.nouvelleDureeAns
+          : null,
+    });
+    if (refus) throw new BadRequestException(refus);
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const motif = dto.motif.trim().slice(0, 1000);
+    const dureeAvantAns = immo.dureeAmortissementAns;
+
+    if (dto.nature === 'PROSPECTIVE') {
+      // La durée totale affichée · années déjà courues à l'ouverture, plus la
+      // résiduelle. Le calcul, lui, ne lit que la résiduelle et sa date.
+      const dureeTotale = this.anneesEcoulees(debut!, exercice.dateDebut) + dto.nouvelleDureeAns;
+      return transactionJournalisee(this.prisma, async (tx) => {
+        const revision = await tx.revisionPlanAmortissement.create({
+          data: {
+            tenantId, immobilisationId: immo.id, exerciceId: exercice.id, nature: NatureRevisionPlan.PROSPECTIVE,
+            dateDecision, dureeAvantAns, dureeApresAns: dto.nouvelleDureeAns, motif, createdBy: userId,
+          },
+        });
+        await tx.immobilisation.update({
+          where: { id: immo.id },
+          data: {
+            dateEffetRevisionPlan: exercice.dateDebut,
+            dureeResiduelleRevisee: dto.nouvelleDureeAns,
+            dureeAmortissementAns: dureeTotale,
+          },
+        });
+        return { id: revision.id, nature: revision.nature, dureeAmortissementAns: dureeTotale, montantReprise: null };
+      });
+    }
+
+    // RÉTROACTIVE · le plan rejoué sur les seuls exercices que le module a
+    // dotés, avec la nouvelle durée totale · AUDCIF, fiche du compte 79.
+    if (!dto.journalId) throw new BadRequestException("Indiquez le journal de l'écriture de reprise au 798.");
+    const sansProrata = this.sansProrataTemporis(regime);
+    const anterieures = immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateDebut);
+    let cumulRejoue = 0;
+    const rejouees: Array<{ montant: number }> = [];
+    for (const d of anterieures) {
+      const m = this.calculerDotation(
+        Number(immo.valeurOrigine), Number(immo.valeurResiduelle), dto.nouvelleDureeAns, debut,
+        rejouees, d.exercice, 0, 0, sansProrata, null,
+      );
+      rejouees.push({ montant: m });
+      cumulRejoue += m;
+    }
+    cumulRejoue = arrondir(cumulRejoue);
+    const cumulActuel = arrondir(anterieures.reduce((t, d) => t + Number(d.montant), 0) + amortissementsHorsDotations(immo));
+    const refusRetro = motifRefusRetroactive({
+      cumulActuel,
+      cumulRejoue,
+      amortissementAnterieur: Number(immo.amortissementAnterieur),
+      partieDetachee: Number(immo.amortissementsDetaches),
+      cumulDepreciation: this.cumulDepreciation(immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) }))),
+      lineaire: immo.modeAmortissement === ModeAmortissement.LINEAIRE,
+    });
+    if (refusRetro) throw new BadRequestException(refusRetro);
+    const montant = arrondir(cumulActuel - cumulRejoue);
+    const compte798 = await this.prisma.compte.findFirst({ where: { tenantId, numero: '79800000' }, select: { id: true } });
+    if (!compte798) throw new BadRequestException("Le compte 79800000 « Reprises d'amortissements » n'est pas ouvert dans ce dossier.");
+
+    // Fiche du compte 28 · « est débité le compte 28 de la reprise des
+    // amortissements ; par le crédit du compte 798 ».
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: exercice.id,
+      journalId: dto.journalId,
+      date: dto.dateDecision.slice(0, 10),
+      libelle: `Révision du plan d'amortissement · ${immo.designation}`,
+      lignes: [
+        { compteId: immo.compteAmortissementId, debit: montant, credit: 0 },
+        { compteId: compte798.id, debit: 0, credit: montant },
+      ],
+    });
+    try {
+      return await transactionJournalisee(this.prisma, async (tx) => {
+        const revision = await tx.revisionPlanAmortissement.create({
+          data: {
+            tenantId, immobilisationId: immo.id, exerciceId: exercice.id, nature: NatureRevisionPlan.RETROACTIVE,
+            dateDecision, dureeAvantAns, dureeApresAns: dto.nouvelleDureeAns, motif, montantReprise: montant,
+            ecritureId: ecriture.id, createdBy: userId,
+          },
+        });
+        // Le plan EST désormais le plan rejoué · aucune révision prospective
+        // ne court plus, la durée totale suffit au calcul.
+        await tx.immobilisation.update({
+          where: { id: immo.id },
+          data: {
+            dureeAmortissementAns: dto.nouvelleDureeAns,
+            reprisesAmortissement: { increment: montant },
+            dateEffetRevisionPlan: null,
+            dureeResiduelleRevisee: null,
+          },
+        });
+        return { id: revision.id, nature: revision.nature, dureeAmortissementAns: dto.nouvelleDureeAns, montantReprise: montant };
+      });
+    } catch (err) {
+      await this.annulerEcritureOrpheline(ecriture.id);
+      throw err;
+    }
+  }
+  /** Lot 11 · l'historique des révisions d'un bien, la plus récente d'abord. */
+  async revisionsPlan(tenantId: string, id: string) {
+    await this.trouver(tenantId, id);
+    const revisions = await this.prisma.revisionPlanAmortissement.findMany({
+      where: { tenantId, immobilisationId: id },
+      orderBy: { dateDecision: 'desc' },
+      take: 200,
+    });
+    return revisions.map((r) => ({
+      id: r.id,
+      nature: r.nature,
+      dateDecision: r.dateDecision,
+      dureeAvantAns: r.dureeAvantAns,
+      dureeApresAns: r.dureeApresAns,
+      motif: r.motif,
+      montantReprise: r.montantReprise === null ? null : Number(r.montantReprise),
+      ecritureId: r.ecritureId,
+    }));
   }
 }

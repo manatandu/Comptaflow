@@ -116,13 +116,20 @@ export function detacherPartieRemplacee(
 
 /**
  * LE CUMUL HORS DOTATIONS D'UNE FICHE · ce qui a été amorti avant OmegaX,
- * moins ce qui est parti avec une partie détachée. Un seul calcul pour tous
+ * moins ce qui est parti avec une partie détachée, moins ce qu'une révision
+ * rétroactive a repris au 798 (lot 11). Un seul calcul pour tous
  * les lecteurs du cumul · une fiche dont on aurait oublié de retrancher la
  * part détachée verrait sa valeur nette minorée et son plan finir trop tôt.
  */
 export function amortissementsHorsDotations(i: {
   amortissementAnterieur: unknown;
   amortissementsDetaches?: unknown;
+  /** Lot 11 · la réduction du cumul reprise au 798 (révision rétroactive). */
+  reprisesAmortissement?: unknown;
 }): number {
-  return Math.max(0, Number(i.amortissementAnterieur ?? 0)) - Number(i.amortissementsDetaches ?? 0);
+  return (
+    Math.max(0, Number(i.amortissementAnterieur ?? 0)) -
+    Number(i.amortissementsDetaches ?? 0) -
+    Number(i.reprisesAmortissement ?? 0)
+  );
 }

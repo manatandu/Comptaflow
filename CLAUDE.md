@@ -482,8 +482,8 @@ bord, fiche de production) ; le tableau affiche zéro à défaut ; la durée ne 
 qu'à établir le total prévu. Après dépréciation, ré-étalement en UNITÉS restantes
 (Titre VIII ch. 12 § 2.4.1), le reliquat seule borne. Écart assumé avec l'arrêté
 n° 013/2025 (art. 2 ; « justifiés au contrôle », art. 4). Interdits (art. 45) : le
-mode par les REVENUS et l'amortissement FINANCIER · `schema.prisma` figé à LINEAIRE
-et UNITES_DOEUVRE.
+mode par les REVENUS et l'amortissement FINANCIER · `schema.prisma` figé à LINEAIRE,
+UNITES_DOEUVRE et DEGRESSIF (lot 11).
 
 **Stocks et production immobilisée (CPCC § 8.2).** Les minorations « par absence
 d'une écriture de contrepartie » ne se détectent PAS par l'absence (« solde du 72
@@ -1494,7 +1494,14 @@ NON LIMITÉE (lot 10, D-22, D-23) · SYSCOHADA seul, tout incorporel sauf ceux
 que le texte fait amortir, justification exigée hors fonds commercial (présumé
 non limité) ; non amorti ; bascule PROSPECTIVE à la décision
 (`dateDebutAmortissement`, lu par `debutAmortissement` aux trois appels du
-calcul), test de dépréciation d'abord ; dix ans au fonds commercial seul.
+calcul), test de dépréciation d'abord ; dix ans au fonds commercial seul. RÉVISION DU PLAN (lot 11, D-24) · prospective par défaut, sans écriture,
+le reliquat à l'ouverture de l'exercice de la décision sur la durée
+résiduelle (`planDuBien`, seul lecteur) ; rétroactive en option, plan
+linéaire rejoué, D 28 / C 798 pour la seule réduction du cumul
+(`reprisesAmortissement`), motif exigé, avant la dotation de l'exercice.
+DÉGRESSIF COMPTABLE (D-25, D-26) · SYCEBNL seul, AU TAUX DE LA LOI
+n° 23/053 (art. 32 à 35, aucun taux déclaré) ; au SYSCOHADA le dégressif
+reste l'option fiscale et son dérogatoire.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

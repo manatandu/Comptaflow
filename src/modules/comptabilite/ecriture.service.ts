@@ -1193,6 +1193,7 @@ export class EcritureService {
       })],
       ["la reprise d'une subvention d'investissement", this.prisma.repriseSubventionImmobilisation.count({ where: { tenantId, ecritureId } })],
       ["la réduction d'une subvention rattachée à un bien", this.prisma.reductionSubventionImmobilisation.count({ where: { tenantId, ecritureId } })],
+      ["la révision rétroactive d'un plan d'amortissement", this.prisma.revisionPlanAmortissement.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La

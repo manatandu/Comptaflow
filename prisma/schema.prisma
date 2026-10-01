@@ -783,6 +783,7 @@ model Tenant {
   reprisesSubvention          RepriseSubventionImmobilisation[]
   subventionsImmobilisations  SubventionImmobilisation[]
   reductionsSubvention        ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement  RevisionPlanAmortissement[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1411,6 +1412,7 @@ model Exercice {
   dotationsAmortissement      DotationAmortissement[]
   reprisesSubvention          RepriseSubventionImmobilisation[]
   reductionsSubvention        ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement  RevisionPlanAmortissement[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1488,6 +1490,7 @@ model Ecriture {
   id                          String                             @id @default(uuid())
   repriseSubvention           RepriseSubventionImmobilisation?
   reductionSubvention         ReductionSubventionImmobilisation?
+  revisionPlanAmortissement   RevisionPlanAmortissement?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -3556,8 +3559,8 @@ model TauxTva {
 //   tableau (`comptes-du-bien.ts`, `motifNonAmortissable`).
 //
 // CE QUI RESTE HORS DU MODULE, et c'est dit :
-// - Dégressif COMPTABLE · aucun mode de ce nom dans l'énumération ci-dessous ;
-//   le seul dégressif servi est le plan fiscal du SYSCOHADA, porté à part.
+// - Dégressif COMPTABLE · servi au SYCEBNL seul depuis le lot 11 (`DEGRESSIF`) ;
+//   au SYSCOHADA le seul dégressif reste le plan fiscal, porté à part.
 // - Plans d'amortissement multiples (National/IFRS) · vision §3.6.
 //
 // HISTORIQUE, sous bandeau · les passes 8 et 13 du relevé de manques
@@ -3579,9 +3582,14 @@ enum ModeAmortissement {
   /// 71 et 73 à 113), le mode vaut donc des deux côtés.
   UNITES_DOEUVRE
 
-  // DEGRESSIF COMPTABLE non servi · le dégressif FISCAL du SYSCOHADA vit à
-  // part (plan fiscal et dérogatoire au 151), voir le commentaire ci-dessus.
-  //
+  /// Lot 11 · le « mode dégressif à taux décroissant » de la fiche du compte
+  /// 28, SYCEBNL SEUL (décisions D-25, D-26 de Manasse) · calculé au taux de
+  /// la loi n° 23/053 (taux linéaire × 1,5, 2 ou 2,5 selon la durée, art. 33 ;
+  /// prorata du mois de mise en service, art. 34 ; bascule au linéaire,
+  /// art. 35), aucun taux déclaré. Au SYSCOHADA le dégressif reste l'option
+  /// FISCALE, portée à part (plan fiscal et dérogatoire au 151).
+  DEGRESSIF
+
   // ET DEUX MODES QUE L'ARTICLE 45 INTERDIT, qui ne doivent jamais entrer
   // ici : « un mode d'amortissement basé sur les REVENUS générés par
   // l'utilisation de l'actif est interdit pour les immobilisations
@@ -3710,7 +3718,7 @@ model Immobilisation {
   /// sans unité ne se vérifie pas.
   uniteOeuvreLibelle String?
 
-  consommationsUniteOeuvre ConsommationUniteOeuvre[]
+  consommationsUniteOeuvre     ConsommationUniteOeuvre[]
   /// Amortissement déjà pratiqué AVANT l'entrée du bien dans le logiciel.
   ///
   /// Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
@@ -3721,23 +3729,23 @@ model Immobilisation {
   /// repris par le bilan d'ouverture.
   ///
   /// Zéro par défaut, ce qui est juste pour un bien acquis dans le logiciel.
-  amortissementAnterieur   Decimal                   @default(0) @db.Decimal(18, 2)
+  amortissementAnterieur       Decimal                     @default(0) @db.Decimal(18, 2)
   // Lot 8 · ce qui est parti avec une partie détachée de la structure
   // (composant non identifié à l'origine, AUDCIF Titre VIII ch. 4 § 4.2).
   // Retranché de tout cumul par `amortissementsHorsDotations`.
-  amortissementsDetaches   Decimal                   @default(0) @db.Decimal(18, 2)
+  amortissementsDetaches       Decimal                     @default(0) @db.Decimal(18, 2)
   // Lot 8 · la modalité de ventilation d'un prix global, pour les Notes
   // annexes (AUDCIF art. 38, dernier alinéa). Nulle pour un bien à son coût.
-  modaliteVentilation      String?
+  modaliteVentilation          String?
   // Lot 8 · une partie détachée porte la voie d'estimation du § 3.1.2 et sa
   // source · nulles pour tout autre bien.
-  methodeEstimationPartie  MethodeEstimationPartie?
-  sourceEstimationPartie   String?
+  methodeEstimationPartie      MethodeEstimationPartie?
+  sourceEstimationPartie       String?
   // Lot 10 · incorporel à durée d'utilité non limitée, non amorti (AUDCIF
   // Titre VIII ch. 2 § 4.2.2, § 7.2.2.1 ; SYSCOHADA seul, décisions D-22,
   // D-23). La bascule vers une durée limitée est prospective · le plan part
   // de `dateDebutAmortissement`, jamais de la mise en service.
-  dureeNonLimitee              Boolean                       @default(false)
+  dureeNonLimitee              Boolean                     @default(false)
   justificationDureeNonLimitee String?
   dateDebutAmortissement       DateTime?
   motifDureeLimitee            String?
@@ -3745,6 +3753,17 @@ model Immobilisation {
   // Lot 10 · fonds commercial amorti dix ans, seulement dans les deux cas du
   // § 7.2.2.1 · null pour tout autre bien.
   fondementDureeDixAns         FondementDureeDixAns?
+  // Lot 11 · révision PROSPECTIVE du plan (changement d'estimation, cadre
+  // conceptuel § 3.3.1.2 du SYCEBNL et Titre V de l'AUDCIF) · à compter de
+  // l'ouverture de l'exercice de la décision, le reliquat se répartit sur la
+  // durée résiduelle révisée. Nuls tant qu'aucune révision n'a pris effet.
+  dateEffetRevisionPlan        DateTime?
+  dureeResiduelleRevisee       Int?
+  // Lot 11 · ce que la révision RÉTROACTIVE a repris au 798 (fiche du compte
+  // 79 de l'AUDCIF, « cas exceptionnel ») · retranché de tout cumul par
+  // `amortissementsHorsDotations`.
+  reprisesAmortissement        Decimal                     @default(0) @db.Decimal(18, 2)
+  revisionsPlan                RevisionPlanAmortissement[]
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -3958,6 +3977,53 @@ model AmortissementDerogatoire {
 // la valeur d'origine d'une partie non identifiée à l'origine.
 // Lot 10 · les deux cas où le fonds commercial s'amortit sur dix ans (AUDCIF
 // Titre VIII ch. 2 § 7.2.2.1).
+/// Lot 11 · nature d'une révision du plan d'amortissement (décision D-24).
+enum NatureRevisionPlan {
+  /// Changement d'estimation · « effet sur l'exercice en cours et les
+  /// exercices futurs » (cadre conceptuel), aucune écriture.
+  PROSPECTIVE
+  /// « Cas exceptionnel d'une révision rétroactive du plan d'amortissement
+  /// initial » · D 28 / C 798 pour la réduction du cumul (AUDCIF, fiche du
+  /// compte 79), déclarée et motivée.
+  RETROACTIVE
+}
+
+/// Lot 11 · l'historique des révisions d'un plan · la fiche du compte 28 veut
+/// la correction « révélée et quantifiée, de même que les raisons ».
+model RevisionPlanAmortissement {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  exerciceId       String
+  exercice         Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  nature         NatureRevisionPlan
+  dateDecision   DateTime
+  /// Durée totale du plan avant la révision.
+  dureeAvantAns  Int
+  /// Prospective · durée RÉSIDUELLE ; rétroactive · nouvelle durée TOTALE.
+  dureeApresAns  Int
+  motif          String
+  /// Rétroactive seulement · la réduction du cumul reprise au 798.
+  montantReprise Decimal?           @db.Decimal(18, 2)
+
+  /// RESTRICT déclaré · retirée seule, la reprise resterait retranchée du
+  /// cumul sans son écriture, et le 28 ne se recouperait plus avec le tableau.
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([immobilisationId])
+  @@index([exerciceId])
+  @@map("revisions_plans_amortissement")
+}
+
 enum FondementDureeDixAns {
   NON_ESTIMABLE
   SIMPLIFICATION_SMT

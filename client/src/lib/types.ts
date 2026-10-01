@@ -949,7 +949,7 @@ export interface DossierDuGroupe {
  * modes qui ne doivent jamais apparaître ici : celui fondé sur les REVENUS
  * générés par l'actif, et l'amortissement FINANCIER.
  */
-export type ModeAmortissement = 'LINEAIRE' | 'UNITES_DOEUVRE';
+export type ModeAmortissement = 'LINEAIRE' | 'UNITES_DOEUVRE' | 'DEGRESSIF';
 export type StatutImmobilisation = 'EN_SERVICE' | 'CEDEE' | 'MISE_HORS_SERVICE';
 
 export interface FamilleImmobilisation {

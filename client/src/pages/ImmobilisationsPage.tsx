@@ -13,6 +13,7 @@ import { LegsImmobilisations } from '../components/LegsImmobilisations';
 import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisations';
 import { RemplacementImprevu } from '../components/RemplacementImprevu';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
+import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
@@ -144,10 +145,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [iNomDeDomaine, setINomDeDomaine] = useState(false);
   const [iDixAns, setIDixAns] = useState<'' | 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT'>('');
   const [basculeOuvertePour, setBasculeOuvertePour] = useState<string | null>(null);
+  const [revisionPlanOuvertePour, setRevisionPlanOuvertePour] = useState<string | null>(null);
   // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
   // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
   // choix n'y est pas proposé, et le serveur le refuse aussi.
-  const [iMode, setIMode] = useState<'LINEAIRE' | 'UNITES_DOEUVRE'>('LINEAIRE');
+  const [iMode, setIMode] = useState<'LINEAIRE' | 'UNITES_DOEUVRE' | 'DEGRESSIF'>('LINEAIRE');
   const [iUnites, setIUnites] = useState('');
   const [iUniteLibelle, setIUniteLibelle] = useState('');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
@@ -1045,13 +1047,14 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   Mode d'amortissement
                   <Aide
                     titre="Mode d'amortissement"
-                    texte="Linéaire par défaut. Aux unités d'œuvre, la dotation suit l'usage : base amortissable × unités consommées / total d'unités prévues, sans prorata temporis."
-                    source="AUDCIF art. 45 et Titre VI"
+                    texte="Linéaire par défaut. Aux unités d'œuvre, la dotation suit l'usage : base amortissable × unités consommées / total d'unités prévues, sans prorata temporis. En dégressif (associations seulement), le taux est celui de la loi n° 23/053 : taux linéaire × 1,5 (4 ans), 2 (5 et 6 ans) ou 2,5 (au-delà), appliqué à la valeur restant à amortir, première annuité au prorata du mois de mise en service, puis bascule au linéaire quand celui-ci devient plus fort ; durée de 4 à 20 ans, incorporels exclus."
+                    source="AUDCIF art. 45 et Titre VI ; SYCEBNL fiche du compte 28 ; loi n° 23/053 art. 32 à 35"
                   />
                 </span>
                 <select value={iMode} onChange={(e) => setIMode(e.target.value as typeof iMode)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
                   <option value="LINEAIRE">Linéaire</option>
                   <option value="UNITES_DOEUVRE">Unités d'œuvre</option>
+                  {!syscohada && <option value="DEGRESSIF">Dégressif</option>}
                 </select>
               </label>
             )}
@@ -1290,7 +1293,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     ? `${(immo.unitesOeuvrePrevues ?? 0).toLocaleString('fr-FR')} ${immo.uniteOeuvreLibelle ?? ''}`
                     : immo.dureeNonLimitee
                       ? 'Non limitée'
-                      : `${immo.dureeAmortissementAns} ans`}
+                      : `${immo.dureeAmortissementAns} ans${immo.modeAmortissement === 'DEGRESSIF' ? ' · dégressif' : ''}`}
                 </span>
                 <span
                   className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${
@@ -1367,6 +1370,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           className="text-[11px] text-sel hover:underline"
                         >
                           Durée limitée
+                        </button>
+                      )}
+                      {peutEcrire && !immo.dureeNonLimitee && immo.dateMiseEnService && immo.modeAmortissement !== 'UNITES_DOEUVRE' && (
+                        <button
+                          onClick={() => setRevisionPlanOuvertePour(revisionPlanOuvertePour === immo.id ? null : immo.id)}
+                          title="Réviser la durée du plan d'amortissement · prospective, ou rétroactive avec reprise au 798"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Réviser le plan
                         </button>
                       )}
                       {peutEcrire && !immo.immobilisationPrincipaleId && immo.statut === 'EN_SERVICE' && (
@@ -1542,6 +1554,18 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </form>
               )}
 
+              {revisionPlanOuvertePour === immo.id && (
+                <RevisionPlanAmortissement
+                  bien={immo}
+                  journaux={journaux}
+                  onFermer={() => setRevisionPlanOuvertePour(null)}
+                  onFait={(message) => {
+                    setRevisionPlanOuvertePour(null);
+                    setInfo(message);
+                    void charger();
+                  }}
+                />
+              )}
               {basculeOuvertePour === immo.id && (
                 <BasculeDureeLimitee
                   bien={immo}

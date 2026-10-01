@@ -23,6 +23,7 @@ import {
   AcquerirAPrixGlobalDto,
   RemplacerPartieDto,
   DureeLimiteeDto,
+  ReviserPlanDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -292,6 +293,22 @@ export class ImmobilisationController {
   @Post(':id/duree-limitee')
   async declarerDureeLimitee(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DureeLimiteeDto) {
     return this.immobilisationService.declarerDureeLimitee(user.tenantId, id, dto);
+  }
+
+  /**
+   * Lot 11 · révision du plan d'amortissement · prospective, ou rétroactive
+   * avec la reprise au 798 (fiches des comptes 28 et 79, décision D-24).
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/revision-plan')
+  async reviserPlan(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReviserPlanDto) {
+    return this.immobilisationService.reviserPlan(user.tenantId, user.userId, id, dto);
+  }
+
+  /** Lot 11 · les révisions du plan, « révélées et quantifiées » (fiche du compte 28). */
+  @Get(':id/revisions-plan')
+  async revisionsPlan(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.immobilisationService.revisionsPlan(user.tenantId, id);
   }
 
   /**
