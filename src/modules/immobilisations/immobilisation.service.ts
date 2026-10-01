@@ -93,6 +93,9 @@ import {
   motifRefusDepreciationDivision20,
   motifSansAmortissementProjet,
   motifRefusSortieProjet,
+  estCompteFondsProjet,
+  motifListeFondsProjetVide,
+  RACINES_FONDS_PROJET,
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
 import { amortissementsHorsDotations, detacherPartieRemplacee } from './partie-remplacee';
@@ -1143,6 +1146,49 @@ export class ImmobilisationService {
       const mode = modeDuCompteDeContrepartie(dossier.referentiel, c.numero, racines);
       return { ...c, mode, libelleMode: mode ? LIBELLES_MODE_ACQUISITION[mode] : null };
     });
+  }
+
+  /**
+   * LES FONDS QUI PEUVENT REPRENDRE UN BIEN DE PROJET · SYCEBNL Partie 3
+   * ch. 3 § 2.5 (« 162, 163, 164 Fonds affectés aux investissements » au
+   * débit, le 2 au crédit). L'écran recomposait les racines de son côté ; la
+   * liste est servie ici, par la MÊME racine que le refus de `sortir`
+   * (`estCompteFondsProjet`), pour qu'un compte proposé ne soit jamais refusé.
+   *
+   * SYCEBNL SEUL · au SYSCOHADA, 162 à 164 sont des emprunts et avances (un
+   * numéro, deux sens) · la liste n'y est jamais servie, quel que soit le jeu
+   * d'états enregistré.
+   *
+   * AUCUN SOLDE NE PRÉSÉLECTIONNE · qui a financé le bien n'est écrit nulle
+   * part, et un solde de l'exercice seul (sans l'à-nouveau d'un exercice
+   * précédent non clôturé) désignait le mauvais fonds. Seul un compte unique
+   * se présélectionne, côté écran. Les comptes en sommeil sont comptés, pour
+   * que l'écran dise qu'ils ont été écartés.
+   */
+  async comptesFondsProjet(tenantId: string) {
+    const regime = await this.regimeComptable(tenantId);
+    const projet =
+      regime.referentiel === Referentiel.SYCEBNL && regime.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT;
+    if (!projet) {
+      return { projet, comptes: [], enSommeil: 0, motifVide: motifListeFondsProjetVide({ projet, nombre: 0, inactifs: 0 }) };
+    }
+    const plan = await this.prisma.compte.findMany({
+      where: {
+        tenantId,
+        typeCompte: TypeCompteDetailTotal.DETAIL,
+        OR: RACINES_FONDS_PROJET.map((r) => ({ numero: { startsWith: r } })),
+      },
+      select: { id: true, numero: true, intitule: true, estActif: true },
+      orderBy: { numero: 'asc' },
+    });
+    const fonds = plan.filter((c) => estCompteFondsProjet(c.numero));
+    const actifs = fonds.filter((c) => c.estActif);
+    return {
+      projet,
+      comptes: actifs.map((c) => ({ id: c.id, numero: c.numero, intitule: c.intitule })),
+      enSommeil: fonds.length - actifs.length,
+      motifVide: motifListeFondsProjetVide({ projet, nombre: actifs.length, inactifs: fonds.length - actifs.length }),
+    };
   }
 
   /**

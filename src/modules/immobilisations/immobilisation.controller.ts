@@ -138,6 +138,16 @@ export class ImmobilisationController {
     return this.immobilisationService.comptesDuBien(user.tenantId);
   }
 
+  /**
+   * Les comptes de fonds affectés (162 à 164) qui reprennent un bien à la fin
+   * d'un projet de développement (SYCEBNL
+   * Partie 3 ch. 3 § 2.5). Hors projet, la liste est vide et dit pourquoi.
+   */
+  @Get('comptes-fonds-projet')
+  async comptesFondsProjet(@CurrentUser() user: AuthenticatedUser) {
+    return this.immobilisationService.comptesFondsProjet(user.tenantId);
+  }
+
   /** Seuil du petit matériel (arrêté n° 014/2025, art. 2), en francs, à une date. */
   @Get('seuil-petit-materiel')
   async seuilPetitMateriel(@CurrentUser() user: AuthenticatedUser, @Query('date') date?: string) {

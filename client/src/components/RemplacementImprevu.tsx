@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Compte, Journal } from '../lib/types';
+import type { Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { ChampReglePar } from './ChampReglePar';
 
 /**
  * LE REMPLACEMENT IMPRÉVU D'UNE PARTIE NON IDENTIFIÉE À L'ORIGINE (lot 8,
@@ -22,14 +23,12 @@ export function RemplacementImprevu({
   structure,
   exerciceId,
   journaux,
-  comptes,
   onFait,
   onFermer,
 }: {
-  structure: { id: string; designation: string };
+  structure: { id: string; designation: string; familleId: string };
   exerciceId: string | undefined;
   journaux: Journal[];
-  comptes: Compte[];
   onFait: (message: string) => void;
   onFermer: () => void;
 }) {
@@ -133,12 +132,15 @@ export function RemplacementImprevu({
         </label>
         <label className={`${libelle} col-span-2`}>
           Réglé par
-          <select required value={contrepartie} onChange={(e) => setContrepartie(e.target.value)} className={champ}>
-            <option value="" />
-            {comptes.map((c) => (
-              <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-            ))}
-          </select>
+          {/* La partie détachée est un COMPOSANT de la structure, de sa famille ·
+              le serveur la renouvelle par `renouveler`, donc par `creer` et la
+              liste fermée de la fiche du compte du bien (`lib/regle-par.ts`). */}
+          <ChampReglePar
+            cibles={[{ familleId: structure.familleId, typeComposant: 'COMPOSANT' }]}
+            value={contrepartie}
+            onChange={setContrepartie}
+            className={champ}
+          />
         </label>
       </div>
       <div className="flex gap-2 mt-3">

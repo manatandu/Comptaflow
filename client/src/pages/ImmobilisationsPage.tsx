@@ -12,6 +12,7 @@ import { RepriseSubventionImmobilisations } from '../components/RepriseSubventio
 import { LegsImmobilisations } from '../components/LegsImmobilisations';
 import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisations';
 import { RemplacementImprevu } from '../components/RemplacementImprevu';
+import { ChampReglePar } from '../components/ChampReglePar';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
 import { CoutsEmpruntIncorpores } from '../components/CoutsEmpruntIncorpores';
@@ -20,6 +21,7 @@ import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
+import { fondsPreselectionne, messageFondsProjet, type ReponseFondsProjet } from '../lib/fonds-projet-sortie';
 import {
   avertissementPetitMateriel,
   comptesParDivision,
@@ -186,6 +188,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // logiciel demande. SYSCOHADA seul, comme au serveur.
   const [sCessionCourante, setSCessionCourante] = useState(false);
   const [sCompteFonds, setSCompteFonds] = useState('');
+  // Fin de projet (SYCEBNL Partie 3 ch. 3 § 2.5) · la liste des fonds 162 à
+  // 164 est SERVIE, lue à l'ouverture de la sortie ; null tant qu'elle n'est
+  // pas lue, jamais confondu avec une liste vide.
+  const [fondsProjet, setFondsProjet] = useState<ReponseFondsProjet | null>(null);
+  const [erreurFondsProjet, setErreurFondsProjet] = useState<string | null>(null);
   const [sJournalId, setSJournalId] = useState('');
 
   // Dépréciation · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
@@ -256,6 +263,30 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!projetDeveloppement || !sortieOuvertePour) return;
+    let annule = false;
+    setFondsProjet(null);
+    setErreurFondsProjet(null);
+    setSCompteFonds('');
+    api
+      .get<ReponseFondsProjet>('/immobilisations/comptes-fonds-projet')
+      .then((r) => {
+        if (annule) return;
+        setFondsProjet(r);
+        setSCompteFonds(fondsPreselectionne(r.comptes) ?? '');
+      })
+      .catch((err) => {
+        if (!annule) setErreurFondsProjet(err instanceof ApiError ? err.message : 'lecture impossible');
+      });
+    return () => {
+      annule = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projetDeveloppement, sortieOuvertePour]);
+
+  const messageFonds = messageFondsProjet(fondsProjet, erreurFondsProjet);
 
   const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
   const incorporelSyscohada = syscohada && !!compteBien?.numero.startsWith('21');
@@ -1645,7 +1676,6 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   structure={immo}
                   exerciceId={exerciceCourant?.id}
                   journaux={journaux}
-                  comptes={comptesFinancement}
                   onFermer={() => setRemplacementOuvertPour(null)}
                   onFait={(message) => {
                     setRemplacementOuvertPour(null);
@@ -1685,12 +1715,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     </label>
                     <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                       Réglé par
-                      <select required value={rContrepartie} onChange={(e) => setRContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
-                        <option value="" />
-                        {comptesFinancement.map((c) => (
-                          <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                        ))}
-                      </select>
+                      {/* Le remplaçant naît par `creer`, sur la famille et le type
+                          du composant remplacé · la liste fermée de la fiche du
+                          compte du bien, jamais tout le plan (`lib/regle-par.ts`). */}
+                      <ChampReglePar
+                        cibles={[{ familleId: immo.familleId, typeComposant: immo.typeComposant ?? 'COMPOSANT' }]}
+                        value={rContrepartie}
+                        onChange={setRContrepartie}
+                        className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]"
+                      />
                     </label>
                   </div>
                   <div className="flex gap-2 mt-3">
@@ -1803,12 +1836,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                         </span>
                         <select required value={sCompteFonds} onChange={(e) => setSCompteFonds(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                           <option value="" />
-                          {comptesFinancement
-                            .filter((c) => ['162', '163', '164'].some((r) => c.numero.startsWith(r)))
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                            ))}
+                          {(fondsProjet?.comptes ?? []).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.numero} · {c.intitule}
+                            </option>
+                          ))}
                         </select>
+                        {messageFonds && (
+                          <span className={`block mt-1 font-normal ${erreurFondsProjet || (fondsProjet && fondsProjet.comptes.length === 0) ? 'text-danger' : 'text-text-dim'}`}>{messageFonds}</span>
+                        )}
                       </label>
                     )}
                     {sType === 'CESSION' && (

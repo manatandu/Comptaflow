@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
 import type { Compte, Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { ChampReglePar } from './ChampReglePar';
+import type { CibleReglePar } from '../lib/regle-par';
 
 /**
  * LA VENTILATION D'UN PRIX GLOBAL (lot 8) · terrain et bâtiment, ou fonds
@@ -63,6 +65,23 @@ export function PrixGlobalImmobilisations({
   const [resultat, setResultat] = useState<{ modalite: string; biens: { designation: string; montant: number }[] } | null>(null);
   const journalOd = journaux.find((j) => j.code === 'OD') ?? journaux[0];
   const comptesStock = comptes.filter((c) => /^3[0-8]/.test(c.numero));
+  /*
+    LE MÊME COMPTE CRÉDITÉ POUR CHAQUE FICHE · le serveur vérifie la
+    contrepartie bien par bien avant la première (`acquerirAPrixGlobal`,
+    `motifRefusContrepartie`), fonds commercial compris. La liste proposée est
+    donc l'intersection des listes fermées des biens (`lib/regle-par.ts`).
+    Le fonds commercial (21500000, le seul compte que le serveur ouvre pour
+    le reliquat, `immobilisation.service.ts`) n'est créé que si un reliquat
+    reste · l'écran ne calcule pas la ventilation et le compte toujours, ce
+    qui peut écarter un compte qu'un reliquat nul aurait admis, jamais
+    proposer un compte refusé. Absent du plan, il n'est pas visé · le serveur
+    le refuse alors avec son propre motif.
+  */
+  const fondsCommercial = nature === 'FONDS_DE_COMMERCE' ? comptesBien.find((c) => c.numero === '21500000') : undefined;
+  const ciblesReglement: CibleReglePar[] = [
+    ...biens.map((b) => ({ compteImmobilisationId: b.compteImmobilisationId || null })),
+    ...(fondsCommercial ? [{ compteImmobilisationId: fondsCommercial.id }] : []),
+  ];
 
   if (!peutEcrire) return null;
 
@@ -166,12 +185,7 @@ export function PrixGlobalImmobilisations({
             </label>
             <label className="flex flex-col">
               Réglé par
-              <select required value={contrepartie} onChange={(e) => setContrepartie(e.target.value)} className={champ}>
-                <option value="">·</option>
-                {comptes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
-                ))}
-              </select>
+              <ChampReglePar cibles={ciblesReglement} value={contrepartie} onChange={setContrepartie} className={champ} vide="·" />
             </label>
           </div>
           {(nature === 'FONDS_DE_COMMERCE' || fondement !== 'ACTE') && (

@@ -117,6 +117,35 @@ export function motifSansAmortissementProjet(jeu: JeuEtatsFinanciersSycebnl | nu
  */
 export const RACINES_FONDS_PROJET = ['162', '163', '164'] as const;
 
+/** Un compte de fonds affecté aux investissements · la même racine pour la liste servie et pour le refus. */
+export function estCompteFondsProjet(numero: string): boolean {
+  return RACINES_FONDS_PROJET.some((r) => numero.startsWith(r));
+}
+
+/**
+ * POURQUOI LA LISTE DES FONDS EST VIDE · § 9 ter du règlement (« une liste qui
+ * dépend d'un choix dit pourquoi elle est vide et ce qu'il faut faire
+ * d'abord »). Hors projet de développement, la liste n'a pas d'objet et le
+ * dit ; en projet, le compte manque au plan ou y dort.
+ */
+export function motifListeFondsProjetVide(o: { projet: boolean; nombre: number; inactifs: number }): string | null {
+  if (!o.projet) {
+    return "Le compte de fonds affectés ne sert qu'à la sortie d'un bien de projet de développement (SYCEBNL Partie 3 ch. 3 § 2.5).";
+  }
+  if (o.nombre > 0) return null;
+  if (o.inactifs > 0) {
+    return (
+      `Les comptes de fonds affectés aux investissements (162, 163, 164) du plan sont en sommeil (${o.inactifs}) · ` +
+      'réactivez dans Plan comptable celui qui a financé le bien, puis rouvrez la sortie (SYCEBNL Partie 3 ch. 3 § 2.5).'
+    );
+  }
+  return (
+    'Aucun compte de détail 162, 163 ou 164 au plan du dossier · ouvrez dans Plan comptable le fonds affecté aux ' +
+    'investissements qui a financé le bien (bailleurs 162, État 163, autres organismes 164), puis rouvrez la sortie ' +
+    '(SYCEBNL Partie 3 ch. 3 § 2.5).'
+  );
+}
+
 export function motifRefusSortieProjet(o: {
   projet: boolean;
   numeroCompteFonds: string | null;
@@ -131,7 +160,7 @@ export function motifRefusSortieProjet(o: {
   if (!o.numeroCompteFonds) {
     return "Indiquez le compte de fonds affectés aux investissements (162, 163 ou 164) qui reprend le bien · « 162, 163, 164 Fonds affectés aux investissements » au débit, le bien au crédit (SYCEBNL Partie 3 ch. 3 § 2.5).";
   }
-  if (!RACINES_FONDS_PROJET.some((r) => o.numeroCompteFonds!.startsWith(r))) {
+  if (!estCompteFondsProjet(o.numeroCompteFonds)) {
     return `Le compte ${o.numeroCompteFonds} n'est pas un fonds affecté aux investissements · seuls les comptes 162, 163 et 164 reprennent le bien (SYCEBNL Partie 3 ch. 3 § 2.5).`;
   }
   if (o.cumulAmorti > 0.005 || o.cumulDepreciation > 0.005) {

@@ -7,6 +7,7 @@ import { PortailModale } from '../components/PortailModale';
 import type { Compte, Exercice, ProvisionRisqueCharge, TableauVariationProvisions } from '../lib/types';
 import { useExercice } from '../lib/exercice';
 import { montant } from '../lib/montants';
+import { compteApresChangementDeNature, compteInitial, comptesDeLaNature, motifListeComptesVide } from '../lib/provisions-compte';
 
 /**
  * REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES.
@@ -188,7 +189,10 @@ export function ProvisionsPage() {
   const [exerciceId, setExerciceId] = useState('');
   const [tableau, setTableau] = useState<TableauVariationProvisions | null>(null);
   const [liste, setListe] = useState<ProvisionRisqueCharge[]>([]);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // null tant que le plan n'est pas lu · « aucun compte » ne se dit que sur
+  // une liste LUE (§ 9 ter), un échec de lecture se dit avec son motif.
+  const [comptes, setComptes] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // Chaque écriture réussie fait monter ce compteur, qui relit la liste ET le
@@ -199,6 +203,8 @@ export function ProvisionsPage() {
   // derrière · `id` nul veut dire « créer ».
   const [edition, setEdition] = useState<{ id: string | null; f: Formulaire } | null>(null);
   const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+  // Ce que le changement de nature a fait du compte (gardé, retiré, présélectionné).
+  const [avisCompte, setAvisCompte] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
   // Le statut a sa propre route, parce que le serveur y exige le motif dès
@@ -221,9 +227,26 @@ export function ProvisionsPage() {
     }, (e: Error) => setErreur(e.message));
   }, []);
 
+  // Le plan se RELIT à chaque ouverture du formulaire · un compte ouvert ou
+  // retenu entre-temps doit apparaître sans fermer le registre, comme le
+  // promet le motif d'une liste vide.
+  function lireComptes(): Promise<Compte[] | null> {
+    return api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(
+      (l) => {
+        setComptes(l);
+        setErreurComptes(null);
+        return l;
+      },
+      (e) => {
+        setErreurComptes(messageDe(e));
+        return null;
+      },
+    );
+  }
+
   useEffect(() => {
     if (!peutEcrire) return;
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
+    void lireComptes();
   }, [peutEcrire]);
 
   useEffect(() => {
@@ -257,25 +280,25 @@ export function ProvisionsPage() {
         .sort((x, y) => new Date(x.dateDebut).getTime() - new Date(y.dateDebut).getTime())[0]
     : undefined;
 
-  /**
-   * Les comptes proposés pour une nature sont ceux du plan du dossier qui
-   * commencent par le numéro que le SERVEUR associe à cette nature · aucun
-   * numéro n'est écrit ici. Une nature interdite n'en a aucun, ce qui est
-   * juste : elle ne se comptabilise pas.
-   */
-  function comptesDeLaNature(nature: string, compteIdCourant: string): Compte[] {
-    const servie = naturesServies.find((n) => n.nature === nature);
-    return comptes.filter((c) => (servie !== undefined && c.numero.startsWith(servie.compte)) || c.id === compteIdCourant);
-  }
+  // Pourquoi la liste des comptes est vide, et quoi faire d'abord (§ 9 ter) ·
+  // les racines par nature viennent du serveur, voir `lib/provisions-compte.ts`.
+  const motifComptesVides = edition ? motifListeComptesVide(comptes, erreurComptes, naturesServies, edition.f.nature) : null;
 
   function ouvrirCreation() {
     setErreurEdition(null);
-    setEdition({ id: null, f: formulaireVide(naturesServies[0]?.nature ?? '') });
+    setAvisCompte(null);
+    const nature = naturesServies[0]?.nature ?? '';
+    setEdition({ id: null, f: { ...formulaireVide(nature), compteId: compteInitial(comptes, naturesServies, nature) } });
+    // Le plan relu (ou lu pour la première fois) présélectionne le compte
+    // unique de la nature, tant que personne n'a choisi.
+    void lireComptes().then((l) => setEdition((ed) => (ed && ed.id === null && !ed.f.compteId ? { ...ed, f: { ...ed.f, compteId: compteInitial(l, naturesServies, ed.f.nature) } } : ed)));
   }
 
   function ouvrirModification(p: ProvisionRisqueCharge) {
     setErreurEdition(null);
+    setAvisCompte(null);
     setEdition({ id: p.id, f: formulaireDe(p) });
+    void lireComptes();
   }
 
   function champ<K extends keyof Formulaire>(cle: K, valeur: Formulaire[K]) {
@@ -683,8 +706,12 @@ export function ProvisionsPage() {
                     required
                     value={edition.f.nature}
                     onChange={(e) => {
+                      // Le compte est GARDÉ s'il convient encore, retiré en le
+                      // disant sinon, et un compte unique se présélectionne.
+                      const choix = compteApresChangementDeNature(comptes, naturesServies, e.target.value, edition.f.compteId);
                       champ('nature', e.target.value);
-                      champ('compteId', '');
+                      champ('compteId', choix.compteId);
+                      setAvisCompte(choix.avis);
                     }}
                     className="border border-border-dark px-2 py-1"
                   >
@@ -702,14 +729,30 @@ export function ProvisionsPage() {
                     </optgroup>
                   </select>
                   <label className="text-right">Compte :</label>
-                  <select value={edition.f.compteId} onChange={(e) => champ('compteId', e.target.value)} className="border border-border-dark px-2 py-1">
+                  <select
+                    value={edition.f.compteId}
+                    onChange={(e) => {
+                      champ('compteId', e.target.value);
+                      setAvisCompte(null);
+                    }}
+                    className="border border-border-dark px-2 py-1"
+                  >
                     <option value="">Aucun (non comptabilisée)</option>
-                    {comptesDeLaNature(edition.f.nature, edition.f.compteId).map((c) => (
+                    {comptesDeLaNature(comptes ?? [], naturesServies, edition.f.nature, edition.f.compteId).map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.numero} · {c.intitule}
                       </option>
                     ))}
                   </select>
+                  {(avisCompte || motifComptesVides) && (
+                    <>
+                      <span />
+                      <div className="text-text-dim space-y-[2px]">
+                        {avisCompte && <div>{avisCompte}</div>}
+                        {motifComptesVides && <div>{motifComptesVides}</div>}
+                      </div>
+                    </>
+                  )}
                   {edition.id === null && (
                     <>
                       <label className="text-right">Statut :</label>
