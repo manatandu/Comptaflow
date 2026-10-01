@@ -104,7 +104,11 @@ describe("mode d'acquisition · chaque contrepartie admise a son mode", () => {
     expect(modeDuCompteDeContrepartie(ref, '25200000', racines)).toBe('AVANCE_SOLDEE');
   });
   it('les dons et fonds affectés sont du SYCEBNL, la part non libérée a son mode', () => {
-    expect(modeDeLaRacine(Referentiel.SYCEBNL, '14')).toBe('DON_SUBVENTION');
+    // Le 14 n'enregistre que des subventions, jamais un don ni un legs (fiche du compte 14).
+    expect(modeDeLaRacine(Referentiel.SYCEBNL, '14')).toBe('SUBVENTION_EN_NATURE');
+    expect(modeDeLaRacine(Referentiel.SYSCOHADA, '14')).toBe('SUBVENTION_EN_NATURE');
+    expect(modeDeLaRacine(Referentiel.SYCEBNL, '167')).toBe('DON_LEGS');
+    expect(modeDeLaRacine(Referentiel.SYCEBNL, '171')).toBe('DON_LEGS');
     expect(modeDeLaRacine(Referentiel.SYCEBNL, '163')).toBe('FONDS_AFFECTES');
     expect(modeDeLaRacine(Referentiel.SYSCOHADA, '4813')).toBe('TITRES_NON_LIBERES');
     expect(modeDeLaRacine(Referentiel.SYSCOHADA, '4812')).toBe('ACHAT_A_CREDIT');

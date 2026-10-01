@@ -141,7 +141,8 @@ export type ModeAcquisition =
   | 'ACHAT_COMPTANT'
   | 'APPORT'
   | 'FONDS_AFFECTES'
-  | 'DON_SUBVENTION'
+  | 'SUBVENTION_EN_NATURE'
+  | 'DON_LEGS'
   | 'PRODUCTION_PROPRE'
   | 'EN_COURS_ACHEVE'
   | 'AVANCE_SOLDEE'
@@ -154,7 +155,8 @@ export const LIBELLES_MODE_ACQUISITION: Record<ModeAcquisition, string> = {
   ACHAT_COMPTANT: 'Achat au comptant (trésorerie)',
   APPORT: 'Apport (capital, dotation, apporteurs, fondateurs)',
   FONDS_AFFECTES: 'Fonds affectés aux investissements',
-  DON_SUBVENTION: 'Don, legs ou subvention en nature',
+  SUBVENTION_EN_NATURE: 'Subvention d’investissement en nature',
+  DON_LEGS: 'Don ou legs',
   PRODUCTION_PROPRE: 'Production par l’entité elle-même',
   EN_COURS_ACHEVE: 'Travaux en cours achevés',
   AVANCE_SOLDEE: 'Avance soldée à la facture définitive',
@@ -172,12 +174,20 @@ export function modeDeLaRacine(referentiel: Referentiel, racine: string): ModeAc
   if (/^2[1-4]9/.test(racine)) return 'EN_COURS_ACHEVE';
   if (racine === '251' || racine === '252') return 'AVANCE_SOLDEE';
   if (racine === '1984') return 'DEMANTELEMENT';
-  // La subvention en nature, aux deux référentiels (fiche du compte 14).
-  if (racine === '14') return 'DON_SUBVENTION';
+  // LA SUBVENTION EN NATURE, aux deux référentiels · le 14 n'enregistre que
+  // des subventions d'investissement, aide « accordée par l'État, les
+  // collectivités publiques, les organismes internationaux ou les tiers »
+  // (fiche du compte 14), jamais un don ni un legs. Les deux modes ont été
+  // confondus sous « Don, legs ou subvention en nature » jusqu'au
+  // 2026-10-01 (relevé par Manasse) · au SYSCOHADA, le libellé laissait
+  // croire qu'un don passait au 14.
+  if (racine === '14') return 'SUBVENTION_EN_NATURE';
   if (referentiel === Referentiel.SYSCOHADA && racine === '841') return 'CONSTRUCTION_FIN_DE_BAIL';
   if (referentiel === Referentiel.SYCEBNL) {
     if (['162', '163', '164', '165'].includes(racine)) return 'FONDS_AFFECTES';
-    if (racine === '167' || racine === '171' || racine === '172') return 'DON_SUBVENTION';
+    // Dons et legs d'immobilisations (167), biens reçus en don ou en legs
+    // (171, 172) · propres au SYCEBNL (Partie 3 ch. 2).
+    if (racine === '167' || racine === '171' || racine === '172') return 'DON_LEGS';
   }
   // 101 à 104 (capital, dotation), 46 (apporteurs), 45 (fondateurs).
   return 'APPORT';

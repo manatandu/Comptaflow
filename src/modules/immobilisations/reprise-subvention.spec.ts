@@ -15,7 +15,7 @@ describe('contrepartie d’un bien reçu gratuitement · SYSCOHADA', () => {
   const S = Referentiel.SYSCOHADA;
   it('la subvention en nature (14) est admise, avec son mode', () => {
     expect(motifRefusContrepartie(S, '24510000', '14170000')).toBeNull();
-    expect(modeDuCompteDeContrepartie(S, '14170000', racinesContrepartieAcquisition(S, '24510000'))).toBe('DON_SUBVENTION');
+    expect(modeDuCompteDeContrepartie(S, '14170000', racinesContrepartieAcquisition(S, '24510000'))).toBe('SUBVENTION_EN_NATURE');
   });
   it('le 841 seulement pour un bâtiment sur sol propre (231), hors location-acquisition', () => {
     expect(motifRefusContrepartie(S, '23130000', '84100000')).toBeNull();

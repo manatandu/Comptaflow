@@ -412,7 +412,7 @@ test('SYSCOHADA · un bien reçu en subvention se reprend au 799 au rythme de sa
     `/immobilisations/contreparties-acquisition?compteImmobilisationId=${vehicule.id}`,
   );
   const subvention = contreparties.find((c) => c.numero === '14170000');
-  expect(subvention?.mode).toBe('DON_SUBVENTION');
+  expect(subvention?.mode).toBe('SUBVENTION_EN_NATURE');
   const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
   const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
   const debut = exercice.dateDebut.slice(0, 10);
