@@ -1638,7 +1638,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         </div>
       )}
       <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
-      <RepriseSubventionImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} />
+      <RepriseSubventionImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} biens={immobilisations ?? []} comptes={comptesFinancement} />
     </div>
   );
 }

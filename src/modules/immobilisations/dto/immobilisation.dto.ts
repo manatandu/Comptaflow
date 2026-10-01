@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -12,8 +14,12 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
+  MethodeDepreciationBienSubventionne,
+  NatureReductionSubvention,
   ModeAmortissement,
   NatureLocationAcquisition,
   PeriodiciteLoyer,
@@ -794,4 +800,82 @@ export class EchangerImmobilisationDto {
   @IsOptional()
   @IsDateString()
   dateMiseEnService?: string | null;
+}
+
+/**
+ * Lot 5 · rattacher une subvention en numéraire (14) à un ou plusieurs biens
+ * (AUDCIF Titre VIII ch. 17 § 3.2, § 4.4).
+ */
+export class LigneSubventionDto {
+  @IsUUID('4')
+  immobilisationId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  montant!: number;
+}
+
+export class RattacherSubventionDto {
+  @IsUUID('4')
+  compteSubventionId!: string;
+
+  @IsDateString()
+  dateOctroi!: string;
+
+  /** L'acte d'octroi · convention, notification. */
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: "La référence de l'acte d'octroi est obligatoire." })
+  reference!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeInalienabiliteAns?: number;
+
+  /** § 4.4 · motif d'une subvention laissée sur la structure d'un bien à composants. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motifSansVentilation?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => LigneSubventionDto)
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  lignes!: LigneSubventionDto[];
+}
+
+/** Remboursement (§ 4.3.1) ou subvention non versée (§ 4.7). */
+export class ReduireSubventionDto {
+  @IsEnum(NatureReductionSubvention)
+  nature!: NatureReductionSubvention;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  montant!: number;
+
+  @IsUUID('4')
+  compteContrepartieId!: string;
+
+  @IsString()
+  @MaxLength(500)
+  @Matches(/\S/, { message: 'Le motif est obligatoire.' })
+  motif!: string;
+}
+
+/** § 4.6 · méthode de dépréciation des biens subventionnés, déclarée une fois. */
+export class MethodeDepreciationSubventionDto {
+  @IsEnum(MethodeDepreciationBienSubventionne)
+  methode!: MethodeDepreciationBienSubventionne;
 }

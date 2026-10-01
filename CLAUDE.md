@@ -1463,7 +1463,14 @@ destruction ou rebut · D 162, 163 ou 164 (choisi) / C 2, jamais de 28 ni de
 DES FONDS (lot 4) · `FONDS_REPRIS`, par référentiel · 14 au 799 aux deux ; au
 SYCEBNL seul 167 au 7923 (dotation ET dépréciation de l'exercice, 1679
 écarté), 171 au 7961 (quotité de l'amortissement, linéaire imposé au 2011),
-172 pour solde au 7962 à la cession ; le 172 SYSCOHADA est une dette.
+172 pour solde au 7962 à la cession ; le 172 SYSCOHADA est une dette. SUBVENTION EN NUMÉRAIRE (lot 5, D-11 à
+D-14) · le 14 de la notification n'est lié à aucun bien, le cabinet le
+RATTACHE (`SubventionImmobilisation`, montant et acte), jamais au-delà des
+crédits du 14 hors clôture ni de la valeur d'entrée ; reprise PROSPECTIVE
+(solde non repris × dotation globale ÷ reste à amortir, égale au § 3.2 sans
+événement) ; remboursement D 14 / C tiers, non versée D 6515 / C créance et
+D 14 / C 799 (ch. 17 § 4.3.1, § 4.7) ; méthode du § 4.6 déclarée par dossier,
+sans défaut ; au SYSCOHADA, le 4739 est le fonds global d'allocation.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

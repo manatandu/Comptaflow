@@ -55,6 +55,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // La reprise d'une subvention en nature · retirée seule, elle se
   // reproposerait et le 14 serait repris deux fois.
   'RepriseSubventionImmobilisation.ecritureId',
+  // La réduction d'une subvention rattachée (remboursement, non versée) ·
+  // retirée seule, elle resterait comptée et la reprise suivante serait
+  // calculée sur un 14 qui n'a pas bougé.
+  'ReductionSubventionImmobilisation.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

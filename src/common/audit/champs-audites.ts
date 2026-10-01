@@ -119,6 +119,11 @@ export const MODELES_AUDITES = new Set<string>([
   // La reprise au 799 d'une subvention en nature · elle fixe la part du 14
   // rapportée au résultat de l'exercice.
   'RepriseSubventionImmobilisation',
+  // Le rattachement d'une subvention en numéraire et ses réductions (lot 5) ·
+  // un montant rattaché ou réduit après coup change toutes les reprises
+  // suivantes, sur une écriture équilibrée.
+  'SubventionImmobilisation',
+  'ReductionSubventionImmobilisation',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

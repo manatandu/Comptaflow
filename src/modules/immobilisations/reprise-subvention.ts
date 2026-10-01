@@ -14,11 +14,27 @@
  * résultat ».
  *
  * La subvention suivie est celle que l'écriture d'acquisition du bien a
- * portée au crédit d'un 14 (bien transféré gratuitement). Un bien payé en
- * partie par une subvention reçue en numéraire n'a pas ce lien, et ne se
- * propose pas. Quand le 14 ne finance qu'une part du coût, la reprise suit la
- * même part de la dotation · lecture de l'éditeur, la fiche ne visant que le
- * bien « acquis au moyen de la subvention ».
+ * portée au crédit d'un 14 (bien transféré gratuitement), ou, depuis le
+ * lot 5, celle reçue en NUMÉRAIRE que le cabinet a RATTACHÉE au bien avec son
+ * montant (`SubventionImmobilisation`) · le 14 crédité à la notification n'a
+ * sinon aucun lien avec le bien payé ensuite. Quand le 14 ne finance qu'une
+ * part du coût, la reprise suit la même part de la dotation (§ 3.2, « le
+ * rapport existant entre le montant de la subvention et la valeur d'entrée »).
+ *
+ * LE RYTHME EST PROSPECTIF (décision D-12 de Manasse, 2026-10-01) · reprise
+ * = solde non repris × dotation de l'exercice ÷ valeur restant à amortir à
+ * l'ouverture. Sans événement, c'est exactement la formule du § 3.2 (le
+ * solde et le reste à amortir décroissent dans le même rapport). Après un
+ * remboursement ou une subvention non versée (§ 4.3, « changement
+ * d'estimation comptable »), une dépréciation, une subvention rattachée après
+ * l'acquisition, le solde finit repris au terme du plan, sans rattrapage du
+ * passé · lecture de l'éditeur, le texte ne donnant pas de formule.
+ *
+ * LA DOTATION EST GLOBALE · « lorsque la subvention sert à financer une
+ * immobilisation ayant fait l'objet d'un amortissement fiscal, la reprise de
+ * la subvention est fonction de la dotation globale (amortissement économique
+ * et dérogatoire) » (§ 3.2) · le dérogatoire de l'exercice, net de sa
+ * reprise, s'ajoute à la dotation, et le reste à amortir est le reste FISCAL.
  *
  * Rien n'est posté ici · le module PROPOSE, le cabinet passe (décision de
  * Manasse du 2026-10-01). Une reprise passée à la main hors du module n'est
@@ -93,6 +109,21 @@ export interface EntreeReprise {
   regle?: RegleReprise;
   /** Dépréciations DOTÉES sur l'exercice · le 167 les reprend aussi (§ 1.2.2). */
   depreciationExercice?: number;
+  /** Remboursements et subventions non versées déjà passés (§ 4.3.1, § 4.7). */
+  reductions?: number;
+  /**
+   * Valeur restant à amortir à l'ouverture · valeur d'entrée moins
+   * amortissements antérieurs (dérogatoire net compris) et dépréciations
+   * nettes antérieures. Absente, la formule du § 3.2 est appliquée telle
+   * quelle (bien entré par une subvention en nature, sans historique lu).
+   */
+  resteAAmortirOuverture?: number | null;
+  /** Dérogatoire de l'exercice, dotation moins reprise (§ 3.2, « dotation globale »). */
+  derogatoireNetExercice?: number;
+  /** Reprises d'exercice déjà passées, pour un bien non amortissable. */
+  exercicesRepris?: number;
+  /** Méthode du § 4.6 déclarée par le dossier, null tant qu'elle ne l'est pas. */
+  methodeDepreciation?: 'VNC_MINOREE_DES_SUBVENTIONS' | 'VNC_ENTIERE' | null;
 }
 
 export interface PropositionReprise {
@@ -100,7 +131,19 @@ export interface PropositionReprise {
   nature: NatureReprise;
   /** Ce qui empêche la proposition, ou null. */
   motif: string | null;
+  /** Ce que la proposition ne couvre pas et que le cabinet doit savoir. */
+  reserve?: string | null;
 }
+
+/**
+ * La part du § 4.6 · en deuxième méthode, « le montant des subventions
+ * restant inscrit dans les capitaux propres doit être repris à hauteur de la
+ * dépréciation » ; en première, « le rythme de reprise des subventions n'est
+ * pas modifié ». Méthode non déclarée · rien n'est ajouté, et c'est dit.
+ */
+export const RESERVE_METHODE_DEPRECIATION_NON_DECLAREE =
+  "Le bien est déprécié sur l'exercice et le dossier n'a pas déclaré sa méthode de dépréciation des biens subventionnés (AUDCIF Titre VIII ch. 17 § 4.6) · aucune reprise n'est ajoutée pour la dépréciation.";
+
 
 const centimes = (x: number) => Math.round(x * 100) / 100;
 
@@ -130,7 +173,10 @@ export function proposerReprise(e: EntreeReprise): PropositionReprise {
     if (base <= 0) return { montant: 0, nature: 'EXERCICE', motif: "Aucune dotation aux amortissements ni aux dépréciations sur l'exercice." };
     return { montant: Math.min(reste, base), nature: 'EXERCICE', motif: null };
   }
-  if (e.sorti) return { montant: reste, nature: 'SORTIE', motif: null };
+  // § 4.5 · « la fraction de subvention non encore rapportée aux résultats
+  // est [...] reprise par le compte 799 de l'exercice de cession », réductions
+  // déduites (§ 4.3.1, § 4.7).
+  if (e.sorti) return { montant: Math.max(0, centimes(reste - (e.reductions ?? 0))), nature: 'SORTIE', motif: null };
   if (regle === 'USUFRUIT') {
     // « dans la même quotité que l'amortissement » (§ 2.3).
     if (e.dotationExercice == null) {
@@ -138,13 +184,36 @@ export function proposerReprise(e: EntreeReprise): PropositionReprise {
     }
     return { montant: Math.min(reste, centimes(e.dotationExercice)), nature: 'EXERCICE', motif: null };
   }
+  // SUBVENTION · le solde non repris, réductions déduites.
+  const solde = centimes(reste - (e.reductions ?? 0));
+  if (solde <= 0) return { montant: 0, nature: 'EXERCICE', motif: 'Le fonds est entièrement repris.' };
   if (e.amortissable) {
     if (e.dotationExercice == null) {
       return { montant: 0, nature: 'EXERCICE', motif: "Passez d'abord la dotation de l'exercice · la reprise en suit le montant." };
     }
-    const part = e.valeurOrigine > 0 ? Math.min(1, e.subvention / e.valeurOrigine) : 1;
-    return { montant: Math.min(reste, centimes(e.dotationExercice * part)), nature: 'EXERCICE', motif: null };
+    const globale = centimes(e.dotationExercice + (e.derogatoireNetExercice ?? 0));
+    let montant: number;
+    if (e.resteAAmortirOuverture == null) {
+      const part = e.valeurOrigine > 0 ? Math.min(1, e.subvention / e.valeurOrigine) : 1;
+      montant = Math.min(solde, centimes(globale * part));
+    } else if (e.resteAAmortirOuverture <= 0) {
+      montant = solde;
+    } else {
+      montant = Math.min(solde, centimes((solde * Math.min(globale, e.resteAAmortirOuverture)) / e.resteAAmortirOuverture));
+    }
+    let reserve: string | null = null;
+    const depreciation = centimes(e.depreciationExercice ?? 0);
+    if (depreciation > 0) {
+      if (e.methodeDepreciation === 'VNC_ENTIERE') montant = Math.min(solde, centimes(montant + depreciation));
+      else if (e.methodeDepreciation == null) reserve = RESERVE_METHODE_DEPRECIATION_NON_DECLAREE;
+    }
+    return { montant: Math.max(0, montant), nature: 'EXERCICE', motif: null, ...(reserve ? { reserve } : {}) };
   }
+  // Non amortissable · par fractions égales sur l'inaliénabilité, à défaut
+  // dix ans, sans prorata (Application 3, terrain) ; le solde restant sur
+  // les années restantes, même règle prospective.
   const annees = e.dureeInalienabiliteAns && e.dureeInalienabiliteAns > 0 ? e.dureeInalienabiliteAns : 10;
-  return { montant: Math.min(reste, centimes(e.subvention / annees)), nature: 'EXERCICE', motif: null };
+  if (e.exercicesRepris == null) return { montant: Math.min(solde, centimes(e.subvention / annees)), nature: 'EXERCICE', motif: null };
+  const restantes = Math.max(1, annees - e.exercicesRepris);
+  return { montant: Math.min(solde, centimes(solde / restantes)), nature: 'EXERCICE', motif: null };
 }

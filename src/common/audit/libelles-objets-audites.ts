@@ -59,6 +59,8 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   ContratLocationAcquisition: 'Contrat de location-acquisition',
   ClotureLocationAcquisition: 'Clôture d’un contrat de location-acquisition',
   RepriseSubventionImmobilisation: 'Reprise de subvention d’investissement',
+  SubventionImmobilisation: 'Subvention rattachée à un bien',
+  ReductionSubventionImmobilisation: 'Réduction d’une subvention rattachée',
   ProcesVerbalComptageCaisse: 'Procès-verbal de comptage de caisse',
   Exoneration: 'Exonération',
   LiquidationTva: 'Liquidation de TVA',

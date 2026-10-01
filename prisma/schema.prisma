@@ -555,6 +555,13 @@ model Tenant {
   /// lui demande.
   methodeInventaireStocks MethodeInventaireStocks?
 
+  /// Dépréciation d'un bien subventionné (AUDCIF Titre VIII ch. 17 § 4.6) ·
+  /// deux méthodes au même effet sur le résultat, celle suivie dite aux Notes
+  /// annexes. Déclarée UNE fois par dossier (décision D-11 de Manasse du
+  /// 2026-10-01), sans défaut · présumer l'une ferait proposer, ou taire, une
+  /// reprise du 14 que le cabinet n'a pas choisie.
+  methodeDepreciationBienSubventionne MethodeDepreciationBienSubventionne?
+
   // ASSUJETTISSEMENT À LA TVA · une ASBL n'est PAS assujettie de plein droit.
   // L'ordonnance-loi n° 10/001 art. 14 fixe le seuil à 80 000 000 FC de chiffre
   // d'affaires annuel hors taxes (décret n° 011/42, art. 42-43) ; en deçà,
@@ -774,6 +781,8 @@ model Tenant {
   contratsLocationAcquisition ContratLocationAcquisition[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   reprisesSubvention          RepriseSubventionImmobilisation[]
+  subventionsImmobilisations  SubventionImmobilisation[]
+  reductionsSubvention        ReductionSubventionImmobilisation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1191,6 +1200,10 @@ model Compte {
   /// Articles de magasin rattachés à ce compte de stock (classe 3).
   articlesStock ArticleStock[]
 
+  /// Subventions en numéraire (14) rattachées à des biens (lot 5).
+  subventionsImmobilisations SubventionImmobilisation[]          @relation("SubventionImmoCompte")
+  reductionsSubvention       ReductionSubventionImmobilisation[] @relation("ReductionSubventionContrepartie")
+
   lignesLotVirement LigneLotVirement[]
 
   @@unique([tenantId, numero])
@@ -1397,6 +1410,7 @@ model Exercice {
   clotures                    Cloture[]
   dotationsAmortissement      DotationAmortissement[]
   reprisesSubvention          RepriseSubventionImmobilisation[]
+  reductionsSubvention        ReductionSubventionImmobilisation[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1471,16 +1485,17 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id                          String                           @id @default(uuid())
+  id                          String                             @id @default(uuid())
   repriseSubvention           RepriseSubventionImmobilisation?
-  clotureLocationAcquisition  ClotureLocationAcquisition?      @relation("ClotureLocationAcquisitionEcriture")
-  extourneLocationAcquisition ClotureLocationAcquisition?      @relation("ClotureLocationAcquisitionExtourne")
+  reductionSubvention         ReductionSubventionImmobilisation?
+  clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
+  extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
-  tenant                      Tenant                           @relation(fields: [tenantId], references: [id])
+  tenant                      Tenant                             @relation(fields: [tenantId], references: [id])
   exerciceId                  String
-  exercice                    Exercice                         @relation(fields: [exerciceId], references: [id])
+  exercice                    Exercice                           @relation(fields: [exerciceId], references: [id])
   journalId                   String
-  journal                     Journal                          @relation(fields: [journalId], references: [id])
+  journal                     Journal                            @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
   numeroPiece                 Int?
@@ -1493,7 +1508,7 @@ model Ecriture {
   dateValeur                  DateTime?
   libelle                     String
   reference                   String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt                   DateTime                         @default(now())
+  createdAt                   DateTime                           @default(now())
   createdBy                   String // piste d'audit : jamais modifiable après clôture de l'exercice
   lignesOrdreVirement         LigneOrdreVirement[]
   amortissementDerogatoire    AmortissementDerogatoire?
@@ -3794,24 +3809,25 @@ model Immobilisation {
   /// laisse le plan comptable intact ; l'écart se passe en dérogatoire
   /// (immobilisations/amortissement-degressif.ts). La catégorie de l'art. 31
   /// et la durée fiscale de l'arrêté n° 013/2025 se déclarent.
-  degressifFiscal    Boolean                    @default(false)
-  categorieDegressif String?
-  dureeFiscaleAns    Int?
-  optionDegressifLe  DateTime?
+  degressifFiscal             Boolean                    @default(false)
+  categorieDegressif          String?
+  dureeFiscaleAns             Int?
+  optionDegressifLe           DateTime?
   /// AMORTISSEMENT EXCEPTIONNEL (loi n° 23/053, art. 36 à 38) · variante du
   /// dégressif (première annuité de 60 %), sur déclaration de l'activité
   /// industrielle et des chiffres d'affaires HT de l'année de mise en service,
   /// gardés avec leur source pour le contrôle (décisions D-8 à D-10).
-  amortissementExceptionnel     Boolean  @default(false)
-  chiffreAffairesExportHt       Decimal? @db.Decimal(18, 2)
-  chiffreAffairesTotalHt        Decimal? @db.Decimal(18, 2)
-  sourceChiffreAffairesExport   String?
-  derogatoires       AmortissementDerogatoire[]
+  amortissementExceptionnel   Boolean                    @default(false)
+  chiffreAffairesExportHt     Decimal?                   @db.Decimal(18, 2)
+  chiffreAffairesTotalHt      Decimal?                   @db.Decimal(18, 2)
+  sourceChiffreAffairesExport String?
+  derogatoires                AmortissementDerogatoire[]
 
   fichesInventaire FicheInventaire[]
 
   contratLocationAcquisition ContratLocationAcquisition?
   reprisesSubvention         RepriseSubventionImmobilisation[]
+  subventions                SubventionImmobilisation[]
 
   @@index([immobilisationPrincipaleId])
   // AUDIT FINAL F261 · le registre, les dotations, les contrôles et
@@ -8155,6 +8171,95 @@ enum NatureRepriseSubvention {
 /// compte 14 (AUDCIF Titre VII, SYCEBNL Partie 2 ch. 3) · au rythme de la
 /// dotation, le solde à la sortie. PROPOSÉE par le module, passée par le
 /// cabinet ; une par bien et par exercice (index unique).
+enum MethodeDepreciationBienSubventionne {
+  /// § 4.6, première méthode · valeur actuelle comparée à la VNC minorée des
+  /// subventions non reprises · le rythme de reprise n'est pas modifié.
+  VNC_MINOREE_DES_SUBVENTIONS
+  /// § 4.6, deuxième méthode · dépréciation sur la VNC entière, le 14 repris
+  /// à hauteur de la dépréciation.
+  VNC_ENTIERE
+}
+
+enum NatureReductionSubvention {
+  /// § 4.3.1 · la subvention devient remboursable, le 14 est réduit.
+  REMBOURSEMENT
+  /// § 4.7 · le concédant ne verse pas · 6515 et reprise du 14 au 799.
+  NON_VERSEE
+}
+
+/// UNE SUBVENTION EN NUMÉRAIRE RATTACHÉE À UN BIEN (lot 5, 2026-10-01) ·
+/// AUDCIF Titre VIII ch. 17 § 3.2, SYCEBNL Partie 3 ch. 1 § 2.5 et
+/// Application 3. Le 14 crédité à la notification n'a aucun lien avec le bien
+/// payé ensuite · ce rattachement le DÉCLARE, montant compris, sans quoi la
+/// reprise ne se propose pas. Une ligne par bien et par compte de subvention ;
+/// une subvention ventilée entre composants porte une ligne par composant
+/// (§ 4.4).
+model SubventionImmobilisation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  immobilisationId   String
+  immobilisation     Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  compteSubventionId String
+  compteSubvention   Compte         @relation("SubventionImmoCompte", fields: [compteSubventionId], references: [id], onDelete: Restrict)
+
+  montant    Decimal  @db.Decimal(18, 2)
+  dateOctroi DateTime
+  /// L'acte d'octroi (convention, notification) · pièce du rattachement.
+  reference  String
+
+  /// Clause d'inaliénabilité d'un bien non amortissable · à défaut, dix ans.
+  dureeInalienabiliteAns Int?
+  /// § 4.4 · une subvention d'un bien à composants laissée sur la structure
+  /// (non significative, ventilation impossible) porte son motif écrit.
+  motifSansVentilation   String?
+
+  reductions ReductionSubventionImmobilisation[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([immobilisationId, compteSubventionId])
+  @@index([tenantId])
+  @@index([compteSubventionId])
+  @@map("subventions_immobilisations")
+}
+
+/// LA RÉDUCTION D'UNE SUBVENTION RATTACHÉE · remboursement (§ 4.3.1) ou
+/// subvention non versée (§ 4.7), chacune avec son écriture, retenue.
+model ReductionSubventionImmobilisation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  subventionId String
+  subvention   SubventionImmobilisation @relation(fields: [subventionId], references: [id], onDelete: Restrict)
+  exerciceId   String
+  exercice     Exercice                 @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  nature  NatureReductionSubvention
+  montant Decimal                   @db.Decimal(18, 2)
+  motif   String
+
+  /// Le tiers crédité (remboursement) ou la créance annulée (non versée).
+  compteContrepartieId String
+  compteContrepartie   Compte @relation("ReductionSubventionContrepartie", fields: [compteContrepartieId], references: [id], onDelete: Restrict)
+
+  /// RESTRICT déclaré · retirée seule, la réduction resterait comptée sans
+  /// son écriture, et la reprise suivante serait calculée sur un 14 faux.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([subventionId])
+  @@index([exerciceId])
+  @@map("reductions_subventions_immobilisations")
+}
+
 model RepriseSubventionImmobilisation {
   id       String @id @default(uuid())
   tenantId String

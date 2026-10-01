@@ -710,3 +710,87 @@ test('SYCEBNL · un legs à conserver (167) se reprend au 7923 pour la dotation'
 
   expect(pannes).toEqual([]);
 });
+
+test('SYCEBNL · une subvention en numéraire rattachée au bien se reprend au 799, puis se réduit', async ({ page }) => {
+  // Application 3 du Guide · notification au 4731 / 1417, bien payé ensuite
+  // au 4812 ; le rattachement déclare le lien (AUDCIF Titre VIII ch. 17 § 3.2).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Subvention e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c;
+  };
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  await appelApi(page, 'POST', '/ecritures', {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    date: debut,
+    libelle: 'Notification de subvention e2e',
+    lignes: [
+      { compteId: compte('47310000').id, libelle: 'e2e', debit: 120_000_000, credit: 0 },
+      { compteId: compte('14170000').id, libelle: 'e2e', debit: 0, credit: 120_000_000 },
+    ],
+  });
+  const comptesBien = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const batiment = comptesBien.find((c) => c.numero.startsWith('231'));
+  if (!batiment) throw new Error('Aucun compte 231 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${batiment.id}`,
+  );
+  const fournisseur = contreparties.find((c) => c.numero === '48120000');
+  if (!fournisseur) throw new Error('Aucun 4812 proposé en contrepartie');
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: batiment.id,
+    designation: 'Entrepôt subventionné e2e',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 100_000_000,
+    dureeAmortissementAns: 20,
+    compteContrepartieId: fournisseur.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  // Plus que l'octroi passé au 14 · refusé.
+  const corpsRattachement = { compteSubventionId: compte('14170000').id, dateOctroi: debut, reference: 'Convention e2e' };
+  await expect(
+    appelApi(page, 'POST', '/immobilisations/subventions-rattachees', { ...corpsRattachement, lignes: [{ immobilisationId: bien.id, montant: 130_000_000 }] }),
+  ).rejects.toThrow();
+  const [rattache] = await appelApi<Array<{ id: string }>>(page, 'POST', '/immobilisations/subventions-rattachees', {
+    ...corpsRattachement,
+    lignes: [{ immobilisationId: bien.id, montant: 100_000_000 }],
+  });
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  const { biens } = await appelApi<{ biens: Array<{ id: string; montant: number }> }>(page, 'GET', `/immobilisations/reprises-subvention?exerciceId=${exercice.id}`);
+  // Subvention égale à la valeur d'entrée · la reprise vaut la dotation.
+  expect(biens.find((b) => b.id === bien.id)?.montant).toBeCloseTo(Number(dotation.montant), 2);
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/reprise-subvention`, { exerciceId: exercice.id, journalId: od.id });
+
+  // Remboursement de 10 000 000 au 4739 · D 14 / C 4739.
+  await appelApi(page, 'POST', `/immobilisations/subventions-rattachees/${rattache.id}/reductions`, {
+    nature: 'REMBOURSEMENT',
+    exerciceId: exercice.id,
+    journalId: od.id,
+    date: exercice.dateFin.slice(0, 10),
+    montant: 10_000_000,
+    compteContrepartieId: compte('47390000').id,
+    motif: 'Conditions non remplies e2e',
+  });
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '79900000')?.mouvementCredit)).toBeCloseTo(Number(dotation.montant), 2);
+  expect(Number(lignes.find((l) => l.numero === '47390000')?.mouvementCredit)).toBeCloseTo(10_000_000, 2);
+  expect(Number(lignes.find((l) => l.numero === '14170000')?.mouvementDebit)).toBeCloseTo(Number(dotation.montant) + 10_000_000, 2);
+
+  expect(pannes).toEqual([]);
+});

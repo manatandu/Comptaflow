@@ -34,9 +34,15 @@ export class RepriseSubventionService {
     const biens = await this.prisma.immobilisation.findMany({
       where: {
         tenantId,
-        ecritureAcquisition: {
-          lignes: { some: { credit: { gt: 0 }, OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })) } },
-        },
+        OR: [
+          {
+            ecritureAcquisition: {
+              lignes: { some: { credit: { gt: 0 }, OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })) } },
+            },
+          },
+          // Lot 5 · la subvention en numéraire RATTACHÉE au bien.
+          { subventions: { some: {} } },
+        ],
       },
       select: { id: true },
       orderBy: { dateAcquisition: 'asc' },
@@ -58,16 +64,34 @@ export class RepriseSubventionService {
         statut: true,
         dateSortie: true,
         ecritureAcquisitionId: true,
+        amortissementAnterieur: true,
+        degressifFiscal: true,
         compteImmobilisation: { select: { numero: true } },
-        dotations: { where: { exerciceId }, select: { montant: true } },
-        depreciations: { where: { exerciceId, sens: 'DOTATION' }, select: { montant: true } },
-        reprisesSubvention: { select: { exerciceId: true, montant: true } },
+        // L'historique entier du bien · le rythme prospectif (décision D-12)
+        // lit ce qui reste à amortir à l'ouverture. Un bien a une ligne par
+        // exercice au plus, la lecture est bornée par sa vie.
+        dotations: { select: { montant: true, exerciceId: true, exercice: { select: { dateDebut: true } } } },
+        depreciations: { select: { sens: true, montant: true, exerciceId: true, exercice: { select: { dateDebut: true } } } },
+        derogatoires: { select: { nature: true, dotation: true, reprise: true, exerciceId: true, exercice: { select: { dateDebut: true } } } },
+        reprisesSubvention: { select: { exerciceId: true, montant: true, nature: true } },
+        subventions: {
+          select: {
+            compteSubventionId: true,
+            montant: true,
+            dureeInalienabiliteAns: true,
+            compteSubvention: { select: { numero: true } },
+            reductions: { select: { montant: true, exercice: { select: { dateDebut: true } } } },
+          },
+        },
       },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable');
-    const [exercice, { referentiel }] = await Promise.all([
+    const [exercice, { referentiel, methodeDepreciationBienSubventionne }] = await Promise.all([
       this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } }),
-      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+        select: { referentiel: true, methodeDepreciationBienSubventionne: true },
+      }),
     ]);
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
 
@@ -84,11 +108,19 @@ export class RepriseSubventionService {
     const avecFonds = lignesAcquisition
       .map((l) => ({ l, fonds: fondsDuCompte(referentiel as Ref, l.compte.numero) }))
       .filter((x): x is { l: (typeof lignesAcquisition)[number]; fonds: FondsRepris } => !!x.fonds);
+    const rattachees = immo.subventions ?? [];
+    const vide = (motif: string) => ({ subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif, comptes14: [] as { compteId: string; numero: string; montant: number }[], fonds: null as FondsRepris | null, designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie });
+    // DEUX SOURCES, JAMAIS ENSEMBLE · le rattachement est refusé à sa porte
+    // sur un bien entré par un fonds ; si les deux coexistaient, la reprise
+    // compterait le bien deux fois.
+    if (avecFonds.length > 0 && rattachees.length > 0) {
+      return vide("Le bien est entré par un fonds et porte aussi une subvention rattachée · la reprise ne se propose pas, elle se passe à la main.");
+    }
     const regles = new Set(avecFonds.map((x) => x.fonds.regle));
     if (regles.size > 1) {
-      return { subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif: "L'acquisition porte plusieurs natures de fonds · la reprise ne se propose pas, elle se passe à la main.", comptes14: [] as { compteId: string; numero: string; montant: number }[], fonds: null as FondsRepris | null, designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie };
+      return vide("L'acquisition porte plusieurs natures de fonds · la reprise ne se propose pas, elle se passe à la main.");
     }
-    const fonds = avecFonds[0]?.fonds ?? null;
+    const fonds = rattachees.length > 0 ? FONDS_REPRIS[referentiel as Ref][0] : (avecFonds[0]?.fonds ?? null);
     const parCompte = new Map<string, { numero: string; montant: number }>();
     for (const { l } of avecFonds) {
       const m = n(l.credit) - n(l.debit);
@@ -96,28 +128,70 @@ export class RepriseSubventionService {
       c.montant = centimes(c.montant + m);
       parCompte.set(l.compteId, c);
     }
-    const subvention = centimes([...parCompte.values()].reduce((s, c) => s + c.montant, 0));
-    if (subvention <= 0) {
-      return { subvention: 0, cumulRepris: 0, montant: 0, nature: 'EXERCICE' as const, motif: "Ce bien n'est pas entré par un fonds qui se reprend (subvention, don ou legs, usufruit).", comptes14: [] as { compteId: string; numero: string; montant: number }[], fonds: null as FondsRepris | null, designation: immo.designation, dateFin: exercice.dateFin, dateSortie: immo.dateSortie };
+    // Réductions (§ 4.3.1, § 4.7) passées jusqu'à cet exercice compris.
+    let reductions = 0;
+    for (const r of rattachees) {
+      const red = centimes(
+        r.reductions.filter((x) => x.exercice.dateDebut <= exercice.dateDebut).reduce((t, x) => t + n(x.montant), 0),
+      );
+      reductions = centimes(reductions + red);
+      const c = parCompte.get(r.compteSubventionId) ?? { numero: r.compteSubvention.numero, montant: 0 };
+      // La reprise débite chaque 14 au prorata de ce qui lui reste.
+      c.montant = centimes(c.montant + n(r.montant) - red);
+      parCompte.set(r.compteSubventionId, c);
     }
+    const subvention = centimes(
+      rattachees.length > 0
+        ? rattachees.reduce((t, r) => t + n(r.montant), 0)
+        : [...parCompte.values()].reduce((t, c) => t + c.montant, 0),
+    );
+    if (subvention <= 0) {
+      return vide("Ce bien n'est pas entré par un fonds qui se reprend (subvention, don ou legs, usufruit).");
+    }
+    const dureeInalienabilite = dureeInalienabiliteAns ?? rattachees.find((r) => r.dureeInalienabiliteAns)?.dureeInalienabiliteAns ?? null;
 
     const sorti =
       immo.statut !== StatutImmobilisation.EN_SERVICE &&
       !!immo.dateSortie &&
       immo.dateSortie >= exercice.dateDebut &&
       immo.dateSortie <= exercice.dateFin;
-    const cumulRepris = centimes(immo.reprisesSubvention.reduce((s, r) => s + n(r.montant), 0));
+    const cumulRepris = centimes(immo.reprisesSubvention.reduce((t, r) => t + n(r.montant), 0));
+    const avant = (x: { exerciceId: string; exercice: { dateDebut: Date } }) =>
+      x.exerciceId !== exerciceId && x.exercice.dateDebut < exercice.dateDebut;
+    const dotationExercice = immo.dotations.find((d) => d.exerciceId === exerciceId);
+    const derogatoires = immo.derogatoires ?? [];
+    const derogatoireExercice = derogatoires.find((d) => d.exerciceId === exerciceId && d.nature === 'EXERCICE');
+    // Ce qui reste à amortir à l'ouverture · amortissements, dérogatoire net
+    // et dépréciations nettes des exercices antérieurs déduits.
+    const resteAAmortirOuverture = centimes(
+      n(immo.valeurOrigine) -
+        n(immo.amortissementAnterieur) -
+        immo.dotations.filter(avant).reduce((t, d) => t + n(d.montant), 0) -
+        derogatoires.filter(avant).reduce((t, d) => t + n(d.dotation) - n(d.reprise), 0) -
+        immo.depreciations.filter(avant).reduce((t, d) => t + (d.sens === 'DOTATION' ? n(d.montant) : -n(d.montant)), 0),
+    );
     const proposition = proposerReprise({
       subvention,
       valeurOrigine: n(immo.valeurOrigine),
       amortissable: !motifNonAmortissable(immo.compteImmobilisation.numero, referentiel),
-      dotationExercice: immo.dotations[0] ? n(immo.dotations[0].montant) : null,
+      dotationExercice: dotationExercice ? n(dotationExercice.montant) : null,
       cumulRepris,
       sorti,
-      dureeInalienabiliteAns,
+      dureeInalienabiliteAns: dureeInalienabilite,
       regle: fonds?.regle,
-      depreciationExercice: centimes(immo.depreciations.reduce((s, d) => s + n(d.montant), 0)),
+      depreciationExercice: centimes(
+        immo.depreciations.filter((d) => d.exerciceId === exerciceId && d.sens === 'DOTATION').reduce((t, d) => t + n(d.montant), 0),
+      ),
+      reductions,
+      resteAAmortirOuverture,
+      derogatoireNetExercice: derogatoireExercice ? centimes(n(derogatoireExercice.dotation) - n(derogatoireExercice.reprise)) : 0,
+      exercicesRepris: immo.reprisesSubvention.filter((r) => r.nature === 'EXERCICE' && r.exerciceId !== exerciceId).length,
+      methodeDepreciation: methodeDepreciationBienSubventionne ?? null,
     });
+    // § 3.2 · « dotation globale » · le dérogatoire de l'exercice se passe
+    // avant la reprise, sans quoi elle ne suivrait que l'économique.
+    const derogatoireAttendu =
+      fonds?.regle === 'SUBVENTION' && immo.degressifFiscal && !sorti && !!dotationExercice && !derogatoireExercice;
     const dejaPassee = immo.reprisesSubvention.some((r) => r.exerciceId === exerciceId);
     // Un bien sorti avant l'exercice n'a plus rien à reprendre ici.
     const sortiAvant = immo.statut !== StatutImmobilisation.EN_SERVICE && !sorti;
@@ -125,14 +199,18 @@ export class RepriseSubventionService {
       ? 'La reprise de cet exercice est déjà passée.'
       : sortiAvant
         ? 'Le bien est sorti avant cet exercice.'
-        : proposition.motif;
+        : derogatoireAttendu
+          ? "Passez d'abord l'amortissement dérogatoire de l'exercice · la reprise suit la dotation globale (AUDCIF Titre VIII ch. 17 § 3.2)."
+          : proposition.motif;
     return {
       subvention,
       cumulRepris,
       montant: motif ? 0 : proposition.montant,
       nature: proposition.nature,
       motif,
-      comptes14: [...parCompte.entries()].map(([compteId, c]) => ({ compteId, ...c })),
+      reserve: proposition.reserve ?? null,
+      reductions,
+      comptes14: [...parCompte.entries()].filter(([, c]) => c.montant > 0).map(([compteId, c]) => ({ compteId, ...c })),
       fonds,
       designation: immo.designation,
       dateFin: exercice.dateFin,
@@ -160,7 +238,8 @@ export class RepriseSubventionService {
     const debits: { compteId: string; debit: number; credit: number }[] = [];
     let reparti = 0;
     p.comptes14.forEach((c, i) => {
-      const part = i === p.comptes14.length - 1 ? centimes(p.montant - reparti) : centimes((p.montant * c.montant) / p.subvention);
+      const base = p.comptes14.reduce((t, x) => t + x.montant, 0);
+      const part = i === p.comptes14.length - 1 ? centimes(p.montant - reparti) : centimes((p.montant * c.montant) / base);
       reparti = centimes(reparti + part);
       if (part > 0) debits.push({ compteId: c.compteId, debit: part, credit: 0 });
     });

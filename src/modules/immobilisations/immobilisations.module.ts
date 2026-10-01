@@ -10,11 +10,13 @@ import { LocationAcquisitionController } from './location-acquisition/location-a
 import { LocationAcquisitionService } from './location-acquisition/location-acquisition.service';
 import { RepriseSubventionController } from './reprise-subvention.controller';
 import { RepriseSubventionService } from './reprise-subvention.service';
+import { SubventionRattacheeController } from './subvention-rattachee.controller';
+import { SubventionRattacheeService } from './subvention-rattachee.service';
 
 @Module({
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule],
-  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController, RepriseSubventionController],
-  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService, RepriseSubventionService],
+  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController, RepriseSubventionController, SubventionRattacheeController],
+  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService, RepriseSubventionService, SubventionRattacheeService],
   exports: [ImmobilisationService],
 })
 export class ImmobilisationsModule {}
