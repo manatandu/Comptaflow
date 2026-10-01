@@ -38,6 +38,7 @@ import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi
 import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
 import { formeApplicable } from '../tenant/forme-applicable';
 import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilisations/comptes-du-bien';
+import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 
 /**
@@ -1976,6 +1977,7 @@ export class ControlesService {
           valeurOrigine: true,
           valeurResiduelle: true,
           amortissementAnterieur: true,
+          amortissementsDetaches: true,
           dotations: { select: { exerciceId: true, montant: true } },
           compteImmobilisation: { select: { numero: true } },
         },
@@ -1999,7 +2001,7 @@ export class ControlesService {
       // dotation y est la situation normale, pas un oubli.
       const base = Number(i.valeurOrigine) - Number(i.valeurResiduelle);
       const cumul =
-        Number(i.amortissementAnterieur) +
+        amortissementsHorsDotations(i) +
         i.dotations.reduce((t, d) => t + Number(d.montant), 0);
       return base - cumul > 0.005;
     });

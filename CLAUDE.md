@@ -1477,7 +1477,15 @@ relu dans les deux semis ; la nature propose son compte, le compte ses
 natures, jamais un refus. LEGS GREVÉ DE DETTES (lot 7, D-15, D-16) ·
 SYCEBNL seul, une fiche et une pièce par bien (D 2 / C 4861 / C 167), dettes
 au prorata, tout ou rien ; le 167 se reprend à la quote-part 167 ÷ valeur, et
-non à la dotation entière de l'Application 5 (écart écrit dans le code).
+non à la dotation entière de l'Application 5 (écart écrit dans le code). PRIX GLOBAL (lot 8,
+D-17 à D-19) · une pièce par bien ; terrain et bâtiment selon l'acte, sinon
+comparaison (bâtiment par différence), à défaut reconstruction (terrain par
+différence, motif), jamais prorata ni forfait (ch. 11 § 1.7.1) ; ailleurs
+art. 38 ; fonds de commerce au SYSCOHADA seul, stocks en ligne de classe 3,
+reliquat au 21500000 ; modalité sur la fiche. PARTIE NON IDENTIFIÉE (ch. 4
+§ 4.2) · détachée à sa valeur estimée (§ 3.1.2, source), amortissements au
+prorata, renouvelée par le § 4.1 ; TOUT CUMUL passe par
+`amortissementsHorsDotations` (sinon la structure garde la part sortie).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

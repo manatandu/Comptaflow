@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   Max,
   IsNumber,
@@ -17,7 +18,9 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import type { FondementVentilation } from '../ventilation-prix-global';
 import {
+  MethodeEstimationPartie,
   MethodeDepreciationBienSubventionne,
   NatureReductionSubvention,
   ModeAmortissement,
@@ -946,4 +949,139 @@ export class RecevoirLegsDto {
   @ArrayMinSize(1)
   @ArrayMaxSize(50)
   biens!: BienDuLegsDto[];
+}
+
+/** Un bien acquis pour un prix global · son montant, ou la différence. */
+export class BienDuPrixGlobalDto {
+  @IsUUID('4')
+  compteImmobilisationId!: string;
+
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: 'La désignation du bien est obligatoire.' })
+  designation!: string;
+
+  /** Montant à l'acte, valeur attribuable ou valeur directe · absent pour le bien par différence. */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  montant?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  parDifference?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeAmortissementAns?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dateMiseEnService?: string;
+}
+
+export class StockDuFondsDto {
+  @IsUUID('4')
+  compteId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  montant!: number;
+}
+
+/**
+ * LA VENTILATION D'UN PRIX GLOBAL (lot 8) · AUDCIF art. 38, Titre VIII
+ * ch. 11 § 1.7.1 (ensemble immobilier) et ch. 2 § 7.2.1 (fonds de commerce).
+ * Une pièce par bien (décision D-17).
+ */
+export class AcquerirAPrixGlobalDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  dateAcquisition!: string;
+
+  @IsString()
+  @MaxLength(120)
+  @Matches(/\S/, { message: "La référence de l'acte ou de la facture est obligatoire." })
+  referenceActe!: string;
+
+  @IsUUID('4')
+  compteContrepartieId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  prix!: number;
+
+  @IsIn(['ENSEMBLE', 'FONDS_DE_COMMERCE'])
+  nature!: 'ENSEMBLE' | 'FONDS_DE_COMMERCE';
+
+  /** ENSEMBLE seulement. */
+  @IsOptional()
+  @IsIn(['ACTE', 'VALEURS_ATTRIBUABLES', 'COMPARAISON_TERRAINS_NUS', 'COUT_RECONSTRUCTION', 'PRIX_DE_MARCHE', 'FORFAIT'])
+  fondement?: FondementVentilation;
+
+  /** D'où viennent les valeurs (transactions comparables, devis, expertise) · exigée hors acte. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  sourceValeurs?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motifSansComparaison?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => BienDuPrixGlobalDto)
+  @ArrayMaxSize(50)
+  biens!: BienDuPrixGlobalDto[];
+
+  /** FONDS_DE_COMMERCE seulement · les stocks repris, ligne de classe 3 sans fiche (décision D-18). */
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => StockDuFondsDto)
+  @ArrayMaxSize(50)
+  stocks?: StockDuFondsDto[];
+
+  /** FONDS_DE_COMMERCE seulement · durée du fonds commercial si elle est limitée (ch. 2 § 7.2.2.1). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeFondsCommercialAns?: number;
+}
+
+/**
+ * LE REMPLACEMENT IMPRÉVU D'UNE PARTIE NON IDENTIFIÉE À L'ORIGINE (lot 8) ·
+ * AUDCIF Titre VIII ch. 4 § 4.2 et § 3.1.2 (décision D-19).
+ */
+export class RemplacerPartieDto extends RenouvelerComposantDto {
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: 'Nommez la partie remplacée.' })
+  designationPartie!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  valeurOrigineEstimee!: number;
+
+  @IsIn(['COUT_ACTUEL_A_NEUF', 'POURCENTAGE_IMMOBILISATIONS_RECENTES', 'INFORMATIONS_FOURNISSEURS', 'DEPENSES_DE_RENOUVELLEMENT'])
+  methodeEstimation!: MethodeEstimationPartie;
+
+  @IsString()
+  @MaxLength(500)
+  @Matches(/\S/, { message: "Indiquez la source de l'estimation." })
+  sourceEstimation!: string;
+
+  /** La décomposition revue · durées distinctes, coût significatif (art. 38-1). */
+  @IsString()
+  @MaxLength(500)
+  @Matches(/\S/, { message: 'Indiquez pourquoi la structure se décompose.' })
+  justificationDecomposition!: string;
 }

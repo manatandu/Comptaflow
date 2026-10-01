@@ -35,8 +35,12 @@ import {
   TypeSortie,
   MiseEnServiceDto,
   RecevoirLegsDto,
+  AcquerirAPrixGlobalDto,
+  RemplacerPartieDto,
 } from './dto/immobilisation.dto';
 import { motifRefusLegs, repartirDettesLegs } from './legs-immobilisations';
+import { LIBELLE_FONDEMENT, ventilerFondsDeCommerce, ventilerPrixGlobal } from './ventilation-prix-global';
+import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
@@ -73,6 +77,7 @@ import {
   motifRefusSortieProjet,
 } from './comptes-du-bien';
 import { natureDuBareme } from './bareme-fiscal';
+import { amortissementsHorsDotations, detacherPartieRemplacee } from './partie-remplacee';
 
 const EPSILON = 0.005;
 
@@ -1401,6 +1406,8 @@ export class ImmobilisationService {
       lignesCredit?: { compteId: string; montant: number }[];
       /** Libellé de l'écriture d'acquisition, à défaut « Acquisition · … ». */
       libelle?: string;
+      /** Lot 8 · la modalité de ventilation d'un prix global, gardée pour les Notes annexes (art. 38). */
+      modaliteVentilation?: string;
     } = {},
   ) {
     // LE COMPTE DU BIEN OU LA FAMILLE (compte-du-bien.ts) · l'un des deux,
@@ -1708,6 +1715,7 @@ export class ImmobilisationService {
           typeComposant: principal ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
           justificationDecomposition: principal ? (dto.justificationDecomposition ?? null) : null,
           composantRemplaceId: interne.composantRemplaceId ?? null,
+          modaliteVentilation: interne.modaliteVentilation?.slice(0, 1000) ?? null,
         },
         include: { dotations: true },
       });
@@ -1959,7 +1967,7 @@ export class ImmobilisationService {
     if (!dateMiseEnService) return 0;
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
     const cumulAnterieur =
-      dotationsAnterieures.reduce((s, d) => s + d.montant, 0) + Math.max(0, amortissementAnterieur);
+      dotationsAnterieures.reduce((s, d) => s + d.montant, 0) + amortissementAnterieur;
     // Le reliquat tient compte de la dépréciation : ce qui a été déprécié n'a
     // plus à être amorti, sans quoi le bien s'amortirait au-delà de sa valeur.
     const reliquat = Math.max(0, base - cumulAnterieur - Math.max(0, cumulDepreciation));
@@ -2151,7 +2159,7 @@ export class ImmobilisationService {
       const cumulDotations = immo.dotations
         .filter((d) => !arret || d.exercice.dateFin <= arret)
         .reduce((t, d) => t + Number(d.montant), 0);
-      const amortissements = arrondir(cumulDotations + Math.max(0, Number(immo.amortissementAnterieur ?? 0)));
+      const amortissements = arrondir(cumulDotations + amortissementsHorsDotations(immo));
       // Même borne que les dotations · une dépréciation de décembre n'est pas
       // au tableau du 30/09.
       const depreciations = arrondir(
@@ -2322,7 +2330,7 @@ export class ImmobilisationService {
       const dotationsAnterieures = immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateFin);
       const cumulN1 = arrondir(
         dotationsAnterieures.reduce((t, d) => t + Number(d.montant), 0) +
-          Math.max(0, Number(immo.amortissementAnterieur ?? 0)),
+          amortissementsHorsDotations(immo),
       );
 
       // La dotation retenue est celle DÉJÀ PASSÉE si elle l'a été · un tableau
@@ -2349,7 +2357,7 @@ export class ImmobilisationService {
             immo.dateMiseEnService,
             dotationsAnterieures.map((d) => ({ montant: Number(d.montant) })),
             exercice,
-            Number(immo.amortissementAnterieur ?? 0),
+            amortissementsHorsDotations(immo),
             this.cumulDepreciation(
               immo.depreciations
                 .filter((d) => d.exercice.dateFin < exercice.dateFin)
@@ -2592,7 +2600,7 @@ export class ImmobilisationService {
       immo.dateMiseEnService,
       immo.dotations.map((d) => ({ montant: Number(d.montant) })),
       exercice,
-      Number(immo.amortissementAnterieur ?? 0),
+      amortissementsHorsDotations(immo),
       // Les dépréciations ANTÉRIEURES à cet exercice · celle de l'exercice en
       // cours, si elle existe, se constate à la clôture après la dotation et
       // ne peut donc pas déjà ré-étaler le plan de la même annuité.
@@ -2709,7 +2717,7 @@ export class ImmobilisationService {
     if (dto.sens === SensDepreciation.DOTATION) {
       // Une dépréciation ne peut pas descendre la valeur nette sous zéro.
       const cumulAmorti =
-        immo.dotations.reduce((t, d) => t + Number(d.montant), 0) + Math.max(0, Number(immo.amortissementAnterieur ?? 0));
+        immo.dotations.reduce((t, d) => t + Number(d.montant), 0) + amortissementsHorsDotations(immo);
       const valeurNette = Number(immo.valeurOrigine) - cumulAmorti - cumul;
       if (dto.montant > valeurNette + EPSILON) {
         throw new BadRequestException(
@@ -3009,7 +3017,7 @@ export class ImmobilisationService {
     }
 
     const cumulAmorti =
-      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
+      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + amortissementsHorsDotations(immo);
     const cumulDepreciation = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
     );
@@ -3352,7 +3360,7 @@ export class ImmobilisationService {
     // avait été amorti avant l'entrée dans le logiciel · et le compte 28 soldé
     // à la sortie ne correspondrait pas à ce que le bilan portait.
     let cumulAmorti =
-      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
+      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + amortissementsHorsDotations(immo);
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
     // Un bien jamais mis en service n'a rien à compléter · et la lecture des
     // unités d'œuvre, qui réclame un relevé, ne doit pas bloquer sa sortie.
@@ -3368,7 +3376,7 @@ export class ImmobilisationService {
           immo.dateMiseEnService,
           immo.dotations.map((d) => ({ montant: Number(d.montant) })),
           { dateDebut: exercice.dateDebut, dateFin: dateSortie },
-          Number(immo.amortissementAnterieur ?? 0),
+          amortissementsHorsDotations(immo),
           this.cumulDepreciation(
             immo.depreciations
               .filter((d) => d.exercice.dateFin < exercice.dateFin)
@@ -3660,5 +3668,272 @@ export class ImmobilisationService {
     return {
       biens: crees.map((c, i) => ({ id: c.id, dettes: parts[i], fonds: Math.round((dto.biens[i].valeurOrigine - parts[i]) * 100) / 100 })),
     };
+  }
+
+  /**
+   * LA VENTILATION D'UN PRIX GLOBAL (lot 8) · AUDCIF art. 38, Titre VIII
+   * ch. 11 § 1.7.1 (ensemble immobilier) et ch. 2 § 7.2.1 (fonds de
+   * commerce). Une fiche et une pièce par bien (décision D-17), la
+   * contrepartie recevant une ligne par bien, total égal au prix. Les stocks
+   * d'un fonds de commerce sont une ligne de classe 3 sans fiche, portée par
+   * la pièce du fonds commercial (D-18), sinon par celle du premier bien.
+   *
+   * La modalité retenue est gardée sur chaque fiche · « Mention doit être
+   * faite dans les Notes annexes des modalités d'évaluation retenues » (art.
+   * 38, dernier alinéa). Tout ou rien, comme le legs.
+   */
+  async acquerirAPrixGlobal(tenantId: string, userId: string, dto: AcquerirAPrixGlobalDto) {
+    const [{ referentiel }, contrepartie] = await Promise.all([
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId }, select: { id: true, numero: true } }),
+    ]);
+    if (!contrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce dossier');
+    const comptesBiens = await Promise.all(
+      dto.biens.map((b) =>
+        this.prisma.compte.findFirst({ where: { id: b.compteImmobilisationId, tenantId }, select: { id: true, numero: true } }),
+      ),
+    );
+    comptesBiens.forEach((c, i) => {
+      if (!c) throw new BadRequestException(`Compte du bien « ${dto.biens[i].designation} » introuvable pour ce dossier`);
+    });
+    const numeros = comptesBiens.map((c) => c!.numero);
+    const reference = dto.referenceActe.trim();
+
+    // Les fiches à créer, avec leur montant · le fonds commercial en dernier.
+    const aCreer: { compteImmobilisationId: string; numero: string; designation: string; montant: number; dureeAmortissementAns?: number; dateMiseEnService?: string }[] = [];
+    let lignesStock: { compteId: string; montant: number }[] = [];
+    let modalite: string;
+    if (dto.nature === 'ENSEMBLE') {
+      if (!dto.fondement) throw new BadRequestException('Indiquez la méthode de ventilation retenue (AUDCIF art. 38).');
+      if ((dto.stocks?.length ?? 0) > 0) throw new BadRequestException("Des stocks ne se reprennent qu'avec un fonds de commerce.");
+      if (dto.fondement !== 'ACTE' && !dto.sourceValeurs?.trim()) {
+        throw new BadRequestException("Indiquez d'où viennent les valeurs retenues · la modalité est mentionnée aux Notes annexes (AUDCIF art. 38).");
+      }
+      const v = ventilerPrixGlobal({
+        prix: dto.prix,
+        fondement: dto.fondement,
+        elements: dto.biens.map((b, i) => ({ numeroCompte: numeros[i], montant: b.montant ?? null, parDifference: !!b.parDifference })),
+        motifSansComparaison: dto.motifSansComparaison,
+      });
+      if ('motif' in v) throw new BadRequestException(v.motif);
+      dto.biens.forEach((b, i) =>
+        aCreer.push({ compteImmobilisationId: b.compteImmobilisationId, numero: numeros[i], designation: b.designation, montant: v.montants[i], dureeAmortissementAns: b.dureeAmortissementAns, dateMiseEnService: b.dateMiseEnService }),
+      );
+      modalite =
+        `Prix global ${dto.prix.toFixed(2)} (${reference}) ventilé · ${LIBELLE_FONDEMENT[dto.fondement]}` +
+        (dto.sourceValeurs?.trim() ? ` · source : ${dto.sourceValeurs.trim()}` : '') +
+        (dto.motifSansComparaison?.trim() ? ` · sans comparaison : ${dto.motifSansComparaison.trim()}` : '');
+    } else {
+      if (dto.biens.some((b) => b.parDifference || !(Number(b.montant) > 0))) {
+        throw new BadRequestException("Chaque élément séparable du fonds porte sa valeur · le reste va au fonds commercial (AUDCIF Titre VIII ch. 2 § 7.2.1).");
+      }
+      const comptesStocks = await Promise.all(
+        (dto.stocks ?? []).map((st) => this.prisma.compte.findFirst({ where: { id: st.compteId, tenantId }, select: { id: true, numero: true } })),
+      );
+      if (comptesStocks.some((c) => !c)) throw new BadRequestException('Compte de stock introuvable pour ce dossier');
+      const v = ventilerFondsDeCommerce({
+        referentiel: referentiel as 'SYSCOHADA' | 'SYCEBNL',
+        prix: dto.prix,
+        elements: dto.biens.map((b, i) => ({ numeroCompte: numeros[i], montant: Number(b.montant) })),
+        stocks: (dto.stocks ?? []).map((st, i) => ({ numeroCompte: comptesStocks[i]!.numero, montant: st.montant })),
+      });
+      if ('motif' in v) throw new BadRequestException(v.motif);
+      dto.biens.forEach((b, i) =>
+        aCreer.push({ compteImmobilisationId: b.compteImmobilisationId, numero: numeros[i], designation: b.designation, montant: Number(b.montant), dureeAmortissementAns: b.dureeAmortissementAns, dateMiseEnService: b.dateMiseEnService }),
+      );
+      if (v.fondsCommercial > 0) {
+        /*
+          LE FONDS COMMERCIAL « N'EST PAS AMORTISSABLE » EN PRINCIPE, « sa durée
+          d'utilité est présumée non limitée » (ch. 2 § 7.2.2.1) · le module ne
+          sert pas encore le bien incorporel à durée non limitée (lot 10). Il
+          ne s'inscrit ici qu'avec une durée limitée et déterminable, déclarée.
+        */
+        if (!dto.dureeFondsCommercialAns) {
+          throw new BadRequestException(
+            "Le fonds commercial n'est amorti que si sa durée d'utilité est limitée (AUDCIF Titre VIII ch. 2 § 7.2.2.1) · indiquez-la. Le fonds commercial à durée non limitée sera servi avec les incorporels à durée non limitée.",
+          );
+        }
+        const compte215 = await this.prisma.compte.findFirst({
+          where: { tenantId, numero: '21500000', typeCompte: TypeCompteDetailTotal.DETAIL },
+          select: { id: true },
+        });
+        if (!compte215) throw new BadRequestException('Le compte 21500000 Fonds commercial est absent du plan du dossier.');
+        aCreer.push({ compteImmobilisationId: compte215.id, numero: '21500000', designation: `Fonds commercial · ${reference}`, montant: v.fondsCommercial, dureeAmortissementAns: dto.dureeFondsCommercialAns });
+      }
+      lignesStock = (dto.stocks ?? []).map((st) => ({ compteId: st.compteId, montant: st.montant }));
+      modalite =
+        `Fonds de commerce ${dto.prix.toFixed(2)} (${reference}) · éléments séparables à leur valeur, stocks ` +
+        `${lignesStock.reduce((t, l) => t + l.montant, 0).toFixed(2)}, reliquat ${v.fondsCommercial.toFixed(2)} au fonds commercial (AUDCIF Titre VIII ch. 2 § 7.2.1)`;
+    }
+    // La contrepartie est vérifiée pour chaque bien avant la première fiche.
+    for (const b of aCreer) {
+      const refus = motifRefusContrepartie(referentiel, b.numero, contrepartie.numero);
+      if (refus) throw new BadRequestException(`« ${b.designation} » · ${refus}`);
+    }
+    const porteurStocks = aCreer.length - 1;
+    const totalStocks = Math.round(lignesStock.reduce((t, l) => t + l.montant, 0) * 100) / 100;
+
+    const crees: { id: string; ecritureAcquisitionId: string | null }[] = [];
+    try {
+      for (const [i, b] of aCreer.entries()) {
+        const avecStocks = i === porteurStocks && totalStocks > 0;
+        const immo = await this.creer(
+          tenantId,
+          userId,
+          {
+            compteImmobilisationId: b.compteImmobilisationId,
+            designation: b.designation,
+            dateAcquisition: dto.dateAcquisition,
+            dateMiseEnService: b.dateMiseEnService,
+            valeurOrigine: b.montant,
+            dureeAmortissementAns: b.dureeAmortissementAns,
+            exerciceId: dto.exerciceId,
+            journalId: dto.journalId,
+            ...(avecStocks ? {} : { compteContrepartieId: contrepartie.id }),
+          } as CreerImmobilisationDto,
+          {
+            libelle: `Prix global ${reference} · ${b.designation}`,
+            modaliteVentilation: modalite,
+            ...(avecStocks
+              ? {
+                  lignesCredit: [
+                    { compteId: contrepartie.id, montant: Math.round((b.montant + totalStocks) * 100) / 100 },
+                    // Une ligne négative est un débit · le stock repris.
+                    ...lignesStock.map((l) => ({ compteId: l.compteId, montant: -l.montant })),
+                  ],
+                }
+              : {}),
+          },
+        );
+        crees.push({ id: immo.id, ecritureAcquisitionId: immo.ecritureAcquisitionId ?? null });
+      }
+    } catch (err) {
+      for (const c of [...crees].reverse()) {
+        await this.prisma.immobilisation.delete({ where: { id: c.id } });
+        if (c.ecritureAcquisitionId) await this.annulerEcritureOrpheline(c.ecritureAcquisitionId);
+      }
+      throw err;
+    }
+    return {
+      modalite,
+      biens: crees.map((c, i) => ({ id: c.id, designation: aCreer[i].designation, montant: aCreer[i].montant })),
+      stocks: totalStocks,
+    };
+  }
+
+  /**
+   * LE REMPLACEMENT IMPRÉVU D'UNE PARTIE NON IDENTIFIÉE À L'ORIGINE (lot 8)
+   * · AUDCIF Titre VIII ch. 4 § 4.2 (« il faut revoir la décomposition ») et
+   * § 3.1.2 (estimation). Décision D-19 · la partie remplacée est DÉTACHÉE
+   * de la structure à sa valeur d'origine estimée, ses amortissements au
+   * prorata (`detacherPartieRemplacee`), devient un composant de la
+   * structure, puis se RENOUVELLE par le chemin du § 4.1 (`renouveler`) · le
+   * nouvel élément entre à son coût, la partie sort au 812 ou au 654.
+   *
+   * Le détachement ne passe aucune écriture · la partie reste au même compte
+   * 2x et au même 28 que la structure ; seule sa sortie en passe une. La
+   * structure garde son plan, sur une valeur d'origine réduite, et
+   * `amortissementsDetaches` retranche de son cumul ce qui est parti.
+   */
+  async remplacerPartieNonIdentifiee(tenantId: string, userId: string, structureId: string, dto: RemplacerPartieDto) {
+    const structure = await this.prisma.immobilisation.findFirst({
+      where: { id: structureId, tenantId },
+      include: {
+        dotations: { include: { exercice: { select: { dateDebut: true } } } },
+        depreciations: true,
+        derogatoires: true,
+        compteImmobilisation: { select: { numero: true, intitule: true } },
+        ecritureAcquisition: { include: { lignes: { include: { compte: { select: { numero: true } } } } } },
+        _count: { select: { subventions: true } },
+      },
+    });
+    if (!structure) throw new NotFoundException('Immobilisation introuvable');
+    const [{ referentiel }, exercice] = await Promise.all([
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { dateDebut: true, dateFin: true } }),
+    ]);
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    // La décomposition revue reste soumise à la liste des biens décomposables.
+    this.verifierDecomposition(structure, referentiel);
+
+    const n = (x: unknown) => Number(x ?? 0);
+    const financeeParUnFonds =
+      structure._count.subventions > 0 ||
+      (structure.ecritureAcquisition?.lignes ?? []).some((l) => n(l.credit) > 0 && !!fondsDuCompte(referentiel as 'SYSCOHADA' | 'SYCEBNL', l.compte.numero));
+    const cumulOuverture =
+      structure.dotations.filter((d) => d.exercice.dateDebut < exercice.dateDebut).reduce((t, d) => t + n(d.montant), 0) +
+      amortissementsHorsDotations(structure);
+    const detache = detacherPartieRemplacee(
+      {
+        valeurOrigine: n(structure.valeurOrigine),
+        valeurResiduelle: n(structure.valeurResiduelle),
+        cumulOuverture,
+        estComposant: !!structure.immobilisationPrincipaleId,
+        modeLineaire: structure.modeAmortissement === ModeAmortissement.LINEAIRE,
+        cumulDepreciation: this.cumulDepreciation(structure.depreciations.map((d) => ({ sens: d.sens, montant: n(d.montant) }))),
+        degressifOuDerogatoire: structure.degressifFiscal || structure.derogatoires.length > 0,
+        financeeParUnFonds,
+        dotationDejaPassee: structure.dotations.some((d) => d.exercice.dateDebut >= exercice.dateDebut),
+        enService: structure.statut === StatutImmobilisation.EN_SERVICE,
+      },
+      { valeurEstimee: dto.valeurOrigineEstimee, methode: dto.methodeEstimation, source: dto.sourceEstimation },
+    );
+    if ('motif' in detache) throw new BadRequestException(detache.motif);
+
+    // Le détachement, dans une transaction · la structure réduite et la
+    // partie née ensemble, jamais l'une sans l'autre.
+    const partie = await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.immobilisation.update({
+        where: { id: structure.id },
+        data: {
+          valeurOrigine: { decrement: detache.valeurPartie },
+          amortissementsDetaches: { increment: detache.amortissementsPartie },
+        },
+      });
+      return tx.immobilisation.create({
+        data: {
+          tenantId,
+          familleId: structure.familleId,
+          designation: dto.designationPartie.trim(),
+          lieuId: structure.lieuId,
+          compteImmobilisationId: structure.compteImmobilisationId,
+          compteAmortissementId: structure.compteAmortissementId,
+          compteDotationId: structure.compteDotationId,
+          dateAcquisition: structure.dateAcquisition,
+          dateMiseEnService: structure.dateMiseEnService,
+          natureFiscaleCle: structure.natureFiscaleCle,
+          valeurOrigine: detache.valeurPartie,
+          valeurResiduelle: 0,
+          dureeAmortissementAns: structure.dureeAmortissementAns,
+          amortissementAnterieur: detache.amortissementsPartie,
+          modeAmortissement: ModeAmortissement.LINEAIRE,
+          createdBy: userId,
+          immobilisationPrincipaleId: structure.id,
+          typeComposant: TypeComposant.COMPOSANT,
+          justificationDecomposition: dto.justificationDecomposition.trim(),
+          methodeEstimationPartie: dto.methodeEstimation,
+          sourceEstimationPartie: dto.sourceEstimation.trim(),
+        },
+      });
+    });
+
+    try {
+      const remplacant = await this.renouveler(tenantId, userId, partie.id, dto);
+      return { partie: { id: partie.id, valeurOrigine: detache.valeurPartie, amortissements: detache.amortissementsPartie }, remplacant, avertissement: detache.avertissement };
+    } catch (err) {
+      // Le renouvellement refusé défait le détachement · la structure
+      // retrouve sa valeur et son cumul.
+      await transactionJournalisee(this.prisma, async (tx) => {
+        await tx.immobilisation.delete({ where: { id: partie.id } });
+        await tx.immobilisation.update({
+          where: { id: structure.id },
+          data: {
+            valeurOrigine: { increment: detache.valeurPartie },
+            amortissementsDetaches: { decrement: detache.amortissementsPartie },
+          },
+        });
+      });
+      throw err;
+    }
   }
 }

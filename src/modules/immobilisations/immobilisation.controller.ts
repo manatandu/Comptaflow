@@ -20,6 +20,8 @@ import {
   RenouvelerComposantDto,
   MiseEnServiceDto,
   RecevoirLegsDto,
+  AcquerirAPrixGlobalDto,
+  RemplacerPartieDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -179,6 +181,13 @@ export class ImmobilisationController {
     return this.immobilisationService.recevoirLegs(user.tenantId, user.userId, dto);
   }
 
+  /** Lot 8 · des biens acquis pour un prix global, ventilé (AUDCIF art. 38). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('prix-global')
+  async acquerirAPrixGlobal(@CurrentUser() user: AuthenticatedUser, @Body() dto: AcquerirAPrixGlobalDto) {
+    return this.immobilisationService.acquerirAPrixGlobal(user.tenantId, user.userId, dto);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerImmobilisationDto) {
@@ -260,6 +269,21 @@ export class ImmobilisationController {
     @Body() dto: RenouvelerComposantDto,
   ) {
     return this.immobilisationService.renouveler(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * Lot 8 · le remplacement imprévu d'une partie non identifiée à l'origine
+   * (AUDCIF Titre VIII ch. 4 § 4.2) · la partie se détache de la structure à
+   * sa valeur estimée, puis se renouvelle comme un composant.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/remplacement-imprevu')
+  async remplacerPartieNonIdentifiee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RemplacerPartieDto,
+  ) {
+    return this.immobilisationService.remplacerPartieNonIdentifiee(user.tenantId, user.userId, id, dto);
   }
 
   /**

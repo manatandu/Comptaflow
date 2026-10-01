@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifNonAmortissable } from './comptes-du-bien';
 import { FONDS_REPRIS, fondsDuCompte, proposerReprise, type FondsRepris } from './reprise-subvention';
+import { amortissementsHorsDotations } from './partie-remplacee';
 
 const n = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
 const centimes = (x: number) => Math.round(x * 100) / 100;
@@ -65,6 +66,7 @@ export class RepriseSubventionService {
         dateSortie: true,
         ecritureAcquisitionId: true,
         amortissementAnterieur: true,
+        amortissementsDetaches: true,
         degressifFiscal: true,
         compteImmobilisation: { select: { numero: true } },
         // L'historique entier du bien · le rythme prospectif (décision D-12)
@@ -165,7 +167,7 @@ export class RepriseSubventionService {
     // et dépréciations nettes des exercices antérieurs déduits.
     const resteAAmortirOuverture = centimes(
       n(immo.valeurOrigine) -
-        n(immo.amortissementAnterieur) -
+        amortissementsHorsDotations(immo) -
         immo.dotations.filter(avant).reduce((t, d) => t + n(d.montant), 0) -
         derogatoires.filter(avant).reduce((t, d) => t + n(d.dotation) - n(d.reprise), 0) -
         immo.depreciations.filter(avant).reduce((t, d) => t + (d.sens === 'DOTATION' ? n(d.montant) : -n(d.montant)), 0),

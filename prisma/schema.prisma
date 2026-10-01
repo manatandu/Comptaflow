@@ -3722,6 +3722,17 @@ model Immobilisation {
   ///
   /// Zéro par défaut, ce qui est juste pour un bien acquis dans le logiciel.
   amortissementAnterieur   Decimal                   @default(0) @db.Decimal(18, 2)
+  // Lot 8 · ce qui est parti avec une partie détachée de la structure
+  // (composant non identifié à l'origine, AUDCIF Titre VIII ch. 4 § 4.2).
+  // Retranché de tout cumul par `amortissementsHorsDotations`.
+  amortissementsDetaches   Decimal                   @default(0) @db.Decimal(18, 2)
+  // Lot 8 · la modalité de ventilation d'un prix global, pour les Notes
+  // annexes (AUDCIF art. 38, dernier alinéa). Nulle pour un bien à son coût.
+  modaliteVentilation      String?
+  // Lot 8 · une partie détachée porte la voie d'estimation du § 3.1.2 et sa
+  // source · nulles pour tout autre bien.
+  methodeEstimationPartie  MethodeEstimationPartie?
+  sourceEstimationPartie   String?
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -3931,6 +3942,15 @@ model AmortissementDerogatoire {
 //    démarrer DÈS L'ACQUISITION DE L'IMMOBILISATION PRINCIPALE », qu'elle
 //    serve ou non. C'est la seule des cinq dont la date de départ soit
 //    entièrement déterminée par le principal, donc la seule vérifiable.
+// Lot 8 · les quatre voies du § 3.1.2 (AUDCIF Titre VIII ch. 4) pour estimer
+// la valeur d'origine d'une partie non identifiée à l'origine.
+enum MethodeEstimationPartie {
+  COUT_ACTUEL_A_NEUF
+  POURCENTAGE_IMMOBILISATIONS_RECENTES
+  INFORMATIONS_FOURNISSEURS
+  DEPENSES_DE_RENOUVELLEMENT
+}
+
 enum TypeComposant {
   COMPOSANT
   DEMANTELEMENT

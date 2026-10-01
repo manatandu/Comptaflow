@@ -866,3 +866,89 @@ test('SYCEBNL · un legs grevé de dettes · une pièce par bien, 4861 et 167 au
 
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · un prix global se ventile, et une partie non identifiée sort de la structure', async ({ page }) => {
+  // Lot 8 · AUDCIF art. 38, Titre VIII ch. 11 § 1.7.1 et ch. 4 § 4.2.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Prix global e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const comptesBien = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  // Un terrain nu, que le plan ne fait pas amortir (221 agricole s'amortit au 2821).
+  const terrain = comptesBien.find((c) => /^22[235678]/.test(c.numero));
+  const batiment = comptesBien.find((c) => c.numero.startsWith('231'));
+  if (!terrain || !batiment) throw new Error('Aucun compte 22 ou 231 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${batiment.id}`,
+  );
+  const fournisseur = contreparties.find((c) => c.numero === '48120000');
+  if (!fournisseur) throw new Error('Aucun 4812 proposé en contrepartie');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+
+  // Terrain par comparaison, bâtiment par différence.
+  const r = await appelApi<{ biens: Array<{ id: string; montant: number }> }>(page, 'POST', '/immobilisations/prix-global', {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    dateAcquisition: `${annee}-02-01`,
+    referenceActe: 'Acte e2e',
+    compteContrepartieId: fournisseur.id,
+    prix: 500_000_000,
+    nature: 'ENSEMBLE',
+    fondement: 'COMPARAISON_TERRAINS_NUS',
+    sourceValeurs: 'Parcelle voisine vendue nue',
+    biens: [
+      { compteImmobilisationId: terrain.id, designation: 'Terrain e2e', montant: 120_000_000 },
+      { compteImmobilisationId: batiment.id, designation: 'Bâtiment e2e', parDifference: true, dureeAmortissementAns: 30 },
+    ],
+  });
+  expect(r.biens.map((b) => b.montant)).toEqual([120_000_000, 380_000_000]);
+  const liste = await appelApi<Array<{ id: string; valeurOrigine: number; modaliteVentilation: string | null }>>(page, 'GET', '/immobilisations');
+  expect(liste.find((i) => i.id === r.biens[1].id)?.modaliteVentilation).toMatch(/comparaison/);
+
+  // Bâtiment repris, cinq annuités passées (25 000 000 sur 150 000 000 à 30 ans).
+  const structure = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: batiment.id,
+    designation: 'Siège repris e2e',
+    dateAcquisition: `${annee - 5}-01-02`,
+    dateMiseEnService: `${annee - 5}-01-02`,
+    valeurOrigine: 150_000_000,
+    dureeAmortissementAns: 30,
+    amortissementAnterieur: 25_000_000,
+    repris: true,
+    exerciceId: exercice.id,
+  });
+  await appelApi(page, 'POST', `/immobilisations/${structure.id}/remplacement-imprevu`, {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    dateRenouvellement: `${annee}-06-30`,
+    designation: 'Ascenseur neuf e2e',
+    coutRenouvellement: 40_000_000,
+    dureeAmortissementAns: 10,
+    compteContrepartieId: fournisseur.id,
+    designationPartie: 'Ascenseur d’origine e2e',
+    valeurOrigineEstimee: 30_000_000,
+    methodeEstimation: 'COUT_ACTUEL_A_NEUF',
+    sourceEstimation: 'Fiche technique',
+    justificationDecomposition: 'Ascenseur à durée distincte',
+  });
+  // La partie sort · 30 000 000 − 5 000 000 au prorata − 500 000 de janvier à juin.
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero.startsWith('812'))?.mouvementDebit)).toBeCloseTo(24_500_000, 2);
+  // La structure garde 120 000 000 et 20 000 000 d'amortissements, pas 25 000 000.
+  const tableau = await appelApi<{ groupes: Array<{ lignes: Array<{ id: string; valeurBrute: number; amortissements: number }> }> }>(page, 'GET', '/immobilisations/tableau');
+  const ligne = tableau.groupes.flatMap((g) => g.lignes).find((l) => l.id === structure.id);
+  expect(ligne?.valeurBrute).toBeCloseTo(120_000_000, 2);
+  expect(ligne?.amortissements).toBeCloseTo(20_000_000, 2);
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${structure.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  expect(Number(dotation.montant)).toBeCloseTo(4_000_000, 2);
+
+  expect(pannes).toEqual([]);
+});

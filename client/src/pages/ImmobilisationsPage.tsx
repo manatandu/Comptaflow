@@ -10,6 +10,8 @@ import { ChampsLocationAcquisition } from '../components/ChampsLocationAcquisiti
 import { ClotureLocationAcquisition } from '../components/ClotureLocationAcquisition';
 import { RepriseSubventionImmobilisations } from '../components/RepriseSubventionImmobilisations';
 import { LegsImmobilisations } from '../components/LegsImmobilisations';
+import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisations';
+import { RemplacementImprevu } from '../components/RemplacementImprevu';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
@@ -188,6 +190,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [rcCompte29, setRcCompte29] = useState('');
 
   const [renouvellementOuvertPour, setRenouvellementOuvertPour] = useState<string | null>(null);
+  const [remplacementOuvertPour, setRemplacementOuvertPour] = useState<string | null>(null);
   const [rDesignation, setRDesignation] = useState('');
   const [rCout, setRCout] = useState('');
   const [rDuree, setRDuree] = useState('');
@@ -1299,6 +1302,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           Renouveler
                         </button>
                       )}
+                      {peutEcrire && !immo.immobilisationPrincipaleId && immo.statut === 'EN_SERVICE' && (
+                        <button
+                          onClick={() => setRemplacementOuvertPour(remplacementOuvertPour === immo.id ? null : immo.id)}
+                          title="Remplacer une partie qui n'avait pas été identifiée comme composant"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Remplacement imprévu
+                        </button>
+                      )}
                       {syscohada && (
                         <button
                           onClick={() => setFiscalOuvertPour(fiscalOuvertPour === immo.id ? null : immo.id)}
@@ -1463,6 +1475,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 </form>
               )}
 
+              {remplacementOuvertPour === immo.id && (
+                <RemplacementImprevu
+                  structure={immo}
+                  exerciceId={exerciceCourant?.id}
+                  journaux={journaux}
+                  comptes={comptesFinancement}
+                  onFermer={() => setRemplacementOuvertPour(null)}
+                  onFait={(message) => {
+                    setRemplacementOuvertPour(null);
+                    setInfo(message);
+                    void charger();
+                  }}
+                />
+              )}
               {renouvellementOuvertPour === immo.id && (
                 <form onSubmit={(e) => onRenouveler(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   {/* Les deux mouvements vont ensemble · AUDCIF ch. 4 § 4.1. Porter le
@@ -1667,6 +1693,14 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         </div>
       )}
       <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
+      <PrixGlobalImmobilisations
+        exerciceId={exerciceCourant?.id}
+        journaux={journaux}
+        comptesBien={comptesBien ?? []}
+        comptes={comptesFinancement}
+        syscohada={utilisateur?.tenant?.referentiel === 'SYSCOHADA'}
+        onCree={() => void charger()}
+      />
       {utilisateur?.tenant?.referentiel === 'SYCEBNL' && (
         <LegsImmobilisations
           exerciceId={exerciceCourant?.id}
