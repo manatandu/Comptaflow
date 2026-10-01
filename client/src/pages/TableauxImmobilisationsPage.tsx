@@ -93,9 +93,14 @@ interface TableauAmort {
   totaux: { parMois: number[]; dotation: number; cumulN1: number; cumulN: number; depreciations: number; net: number };
 }
 
-export function TableauxImmobilisationsPage() {
+/**
+ * `ongletPilote` · quand la fenêtre Immobilisations héberge ces tableaux, c'est
+ * elle qui porte les onglets : ils ne sont alors pas redessinés ici.
+ */
+export function TableauxImmobilisationsPage({ ongletPilote }: { ongletPilote?: 'immobilisations' | 'amortissements' } = {}) {
   const { exerciceCourant } = useExercice();
-  const [onglet, setOnglet] = useState<'immobilisations' | 'amortissements'>('immobilisations');
+  const [ongletLocal, setOnglet] = useState<'immobilisations' | 'amortissements'>('immobilisations');
+  const onglet = ongletPilote ?? ongletLocal;
   const [dateArret, setDateArret] = useState('');
   const [immo, setImmo] = useState<TableauImmo | null>(null);
   const [amort, setAmort] = useState<TableauAmort | null>(null);
@@ -190,6 +195,7 @@ export function TableauxImmobilisationsPage() {
         </div>
       </div>
 
+      {!ongletPilote && (
       <div className="flex gap-0 mb-2 border-b border-border-dark">
         {(['immobilisations', 'amortissements'] as const).map((o) => (
           <button
@@ -204,6 +210,7 @@ export function TableauxImmobilisationsPage() {
           </button>
         ))}
       </div>
+      )}
 
       {erreur && (
         <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>

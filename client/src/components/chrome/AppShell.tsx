@@ -473,7 +473,6 @@ export function AppShell() {
           titre: 'Suivi et prévision',
           separateurAvant: true,
           items: [
-            { label: 'Immobilisations et amortissements', chemin: '/tableaux-immobilisations', onClick: () => navigate('/tableaux-immobilisations') },
             { label: 'Échéancier de trésorerie', chemin: '/echeancier', onClick: () => navigate('/echeancier') },
             { label: 'États analytiques et budgétaires', chemin: '/etats-analytiques', onClick: () => navigate('/etats-analytiques') },
             // Priorité 6 · un prévu tiré d'un exercice de référence, comparé au

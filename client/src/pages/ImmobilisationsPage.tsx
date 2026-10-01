@@ -1,3 +1,4 @@
+import { TableauxImmobilisationsPage } from './TableauxImmobilisationsPage';
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -39,7 +40,11 @@ function racinesContrepartieDepreciation(syscohada: boolean, sens: string): stri
   return sens === 'DOTATION' ? ['69'] : ['79'];
 }
 
-export function ImmobilisationsPage() {
+type VueImmobilisations = 'biens' | 'immobilisations' | 'amortissements';
+
+/** Une seule fenêtre : les biens, puis les deux tableaux qui les récapitulent. */
+export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: VueImmobilisations } = {}) {
+  const [vue, setVue] = useState<VueImmobilisations>(vueInitiale);
   const { estAdmin, peutEcrire, utilisateur } = useAuth();
   // Au SMT, la Note 1 ne connaît que le bien · ni composant ni révision
   // majeure reconstituée (lib/profil-dossier.ts). Un composant déjà porté
@@ -621,8 +626,41 @@ export function ImmobilisationsPage() {
     }
   };
 
+  const ongletsVues = (
+    <div className="flex gap-0 mb-2 border-b border-border-dark">
+      {(
+        [
+          ['biens', 'Biens'],
+          ['immobilisations', 'Tableau des immobilisations'],
+          ['amortissements', 'Tableau des amortissements'],
+        ] as const
+      ).map(([cle, libelle]) => (
+        <button
+          key={cle}
+          type="button"
+          onClick={() => setVue(cle)}
+          className={`px-3 py-1 text-[11.5px] font-semibold border border-b-0 -mb-px ${
+            vue === cle ? 'bg-surface border-border-dark' : 'bg-surface-alt border-transparent text-text-dim'
+          }`}
+        >
+          {libelle}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (vue !== 'biens') {
+    return (
+      <div className="p-2">
+        {ongletsVues}
+        <TableauxImmobilisationsPage ongletPilote={vue} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-2">
+      {ongletsVues}
       <div className="flex items-center justify-end mb-1.5 max-w-[1100px]">
         {/* Les familles sont réservées à l'administrateur (@Roles ADMIN_CABINET),
             les immobilisations s'ouvrent aussi au comptable. */}
@@ -637,18 +675,20 @@ export function ImmobilisationsPage() {
                 Lieux
               </button>
             )}
-            {estAdmin && (
+            {estAdmin && !afficherFormFamille && (
               <button
                 type="button"
-                onClick={() => setAfficherFormFamille((v) => !v)}
+                onClick={() => setAfficherFormFamille(true)}
                 className="border border-border rounded-[3px] bg-surface px-3 py-[3px] text-[11.5px] font-semibold hover:bg-surface-alt"
               >
                 Nouvelle famille
               </button>
             )}
-            <button type="button" onClick={() => setAfficherFormImmo((v) => !v)} className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90">
-              Nouvelle immobilisation
-            </button>
+            {!afficherFormImmo && (
+              <button type="button" onClick={() => setAfficherFormImmo(true)} className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90">
+                Nouvelle immobilisation
+              </button>
+            )}
           </div>
         )}
       </div>

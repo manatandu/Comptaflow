@@ -40,7 +40,6 @@ const DevisPage = lazy(() => import('../pages/DevisPage').then((m) => ({ default
 const FacturationPage = lazy(() => import('../pages/FacturationPage').then((m) => ({ default: m.FacturationPage })));
 const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
 const ConstitutionPage = lazy(() => import('../pages/ConstitutionPage').then((m) => ({ default: m.ConstitutionPage })));
-const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobilisationsPage').then((m) => ({ default: m.TableauxImmobilisationsPage })));
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
 const RapprochementPage = lazy(() => import('../pages/RapprochementPage').then((m) => ({ default: m.RapprochementPage })));
@@ -307,9 +306,9 @@ export const FENETRES: DefinitionFenetre[] = [
   },
   {
     motif: /^\/tableaux-immobilisations$/,
-    titre: 'Immobilisations et amortissements',
-    titreCourt: 'Tabl. immos',
-    rendre: () => <TableauxImmobilisationsPage />,
+    titre: 'Immobilisations',
+    titreCourt: 'Immobilisations',
+    rendre: () => <ImmobilisationsPage vueInitiale="immobilisations" />,
   },
   {
     motif: /^\/echeancier$/,

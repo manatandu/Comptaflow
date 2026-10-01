@@ -131,7 +131,6 @@ const GROUPES: GroupeDef[] = [
       { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
       { label: 'Évolution des soldes', chemin: '/evolution-soldes', Icon: IconSearch },
       { label: 'Immobilisations', chemin: '/immobilisations', Icon: IconImmo },
-      { label: 'Immobilisations et amortissements', chemin: '/tableaux-immobilisations', Icon: IconImmo },
       { label: 'Régularisations et abonnements', chemin: '/regularisations', Icon: IconRefresh },
     ],
   },

@@ -232,7 +232,9 @@ describe('menu « État » à 360 px', () => {
     // écrivent ou s'alimentent, ce ne sont pas des éditions. Et la balance en
     // monnaie fonctionnelle est passée de « Contrôle et révision » à
     // « Analyse des comptes », sans changer le total.
-    expect(tous).toHaveLength(31);
+    // Le 2026-10-01, « Immobilisations et amortissements » a quitté ce menu : ses
+    // deux tableaux sont des onglets de la fenêtre Immobilisations.
+    expect(tous).toHaveLength(30);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber
