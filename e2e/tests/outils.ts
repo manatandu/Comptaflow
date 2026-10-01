@@ -88,6 +88,12 @@ export async function creerDossier(
   // limite elle-même ne bouge pas.
   const n = (Date.now() + Math.floor(Math.random() * 1_000)) % 16_777_216;
   const adresse = `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}`;
+  // TOUTE LA SUITE DU TEST PART DE CETTE ADRESSE · la limite générale (trois
+  // cents requêtes par minute et par adresse, app.module.ts) se partageait
+  // entre les tests qui s'enchaînent, et la connexion de trois d'entre eux
+  // tombait en 429 (tests navigateur, run 232). Même raison que
+  // l'inscription · chaque test est un client, la limite ne bouge pas.
+  await page.setExtraHTTPHeaders({ 'X-Forwarded-For': adresse });
   await appelApi(page, 'POST', '/auth/register', {
     nomEntite: options.nom,
     referentiel: options.referentiel,
