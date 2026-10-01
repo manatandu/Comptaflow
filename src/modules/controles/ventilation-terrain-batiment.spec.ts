@@ -97,6 +97,10 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {
       count: jest.fn().mockResolvedValue(0),
       // UNE SEULE FONCTION SERT TOUTES LES LECTURES D'IMMOBILISATIONS du

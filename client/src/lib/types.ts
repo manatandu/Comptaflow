@@ -1416,6 +1416,11 @@ export interface ModeleEcriture {
    * refuse à un dossier qui constate à l'encaissement.
    */
   exigeDroitDAgir?: boolean;
+  /**
+   * Lot 9 · le bien passe par sa fiche · le modèle renvoie à la fenêtre
+   * Immobilisations, et le serveur refuse de le chiffrer.
+   */
+  renvoiModule?: { fenetre: string; geste: string };
 }
 
 export interface OperationSpecifique {

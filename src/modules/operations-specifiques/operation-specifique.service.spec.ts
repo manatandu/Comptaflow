@@ -151,22 +151,6 @@ describe('Guide, Application 3 · subvention d’investissement', () => {
    * compris. Le même modèle sert les deux · c'est le paramètre « mois » qui
    * porte la différence.
    */
-  it('terrain non amortissable : 20 000 000 × 1/10, sans prorata → 2 000 000', async () => {
-    const e = await ecriture('B15-REPRISE', { baseSubvention: 20_000_000, duree: 10, mois: 12 }, { '141': '14170000' });
-    expect(e.table).toEqual([
-      { numero: '14170000', debit: 2_000_000, credit: 0 },
-      { numero: '79900000', debit: 0, credit: 2_000_000 },
-    ]);
-  });
-
-  it('entrepôt amortissable : 100 000 000 × 1/20 × 6/12 → 2 500 000', async () => {
-    const e = await ecriture('B15-REPRISE', { baseSubvention: 100_000_000, duree: 20, mois: 6 }, { '141': '14170000' });
-    expect(e.table).toEqual([
-      { numero: '14170000', debit: 2_500_000, credit: 0 },
-      { numero: '79900000', debit: 0, credit: 2_500_000 },
-    ]);
-  });
-
   it('notification : 4731 par le crédit de la subvention d’équipement', async () => {
     const e = await ecriture('B15-NOTIFICATION', { subvention: 120_000_000 }, { '141': '14170000' });
     expect(e.table).toEqual([
@@ -199,25 +183,6 @@ describe('Guide, Application 4 · fonds affectés à un projet spécifique', () 
 });
 
 describe('Guide, Application 5 · legs d’immobilisations à conserver', () => {
-  it('447 000 000 de biens, 25 000 000 de dettes successorales → 422 000 000 de fonds', async () => {
-    const e = await ecriture(
-      'B16-RECEPTION-LEGS',
-      { valeurBiens: 447_000_000, dettes: 25_000_000 },
-      { '2': '23130000', '167': '16710000' },
-    );
-    expect(e.table).toEqual([
-      { numero: '23130000', debit: 447_000_000, credit: 0 },
-      { numero: '48610000', debit: 0, credit: 25_000_000 },
-      { numero: '16710000', debit: 0, credit: 422_000_000 },
-    ]);
-    expect(e.equilibree).toBe(true);
-  });
-
-  it('sans dette successorale, la ligne à zéro n’encombre pas l’écriture', async () => {
-    const e = await ecriture('B16-RECEPTION-LEGS', { valeurBiens: 100_000, dettes: 0 }, { '2': '23130000', '167': '16710000' });
-    expect(e.table.map((l) => l.numero)).toEqual(['23130000', '16710000']);
-  });
-
   it('provision pour l’obligation d’entretien : 1679 / 192 pour 12 500 000', async () => {
     expect((await ecriture('B16-PROVISION-CHARGE', { obligation: 12_500_000 })).table).toEqual([
       { numero: '16790000', debit: 12_500_000, credit: 0 },
@@ -225,54 +190,49 @@ describe('Guide, Application 5 · legs d’immobilisations à conserver', () => 
     ]);
   });
 
-  it('reprise des fonds à hauteur des amortissements : 18 625 000', async () => {
-    const e = await ecriture('B16-REPRISE-FONDS', { dotation: 18_625_000 }, { '167': '16710000' });
-    expect(e.table).toEqual([
-      { numero: '16710000', debit: 18_625_000, credit: 0 },
-      { numero: '79230000', debit: 0, credit: 18_625_000 },
-    ]);
-  });
 });
 
-describe('Guide, Application 6 · legs destinés à la vente', () => {
-  it('400 000 000 de bâtiments + 47 000 000 de matériels → 447 000 000 de fonds reporté', async () => {
-    const e = await ecriture('B17-COMPTABILISATION', { batiments: 400_000_000, materiels: 47_000_000 });
-    expect(e.table).toEqual([
-      { numero: '20300000', debit: 400_000_000, credit: 0 },
-      { numero: '20400000', debit: 47_000_000, credit: 0 },
-      { numero: '17200000', debit: 0, credit: 447_000_000 },
-    ]);
+describe('Lot 9 · un bien passe par sa fiche (décision D-20)', () => {
+  /**
+   * Les Applications 3, 5, 6 et 7 du Guide se chiffrent désormais au module
+   * d'immobilisations (lots 4, 5 et 7, `reprise-subvention.spec.ts`,
+   * `legs-immobilisations.spec.ts`) · ici, le catalogue les REFUSE, à la
+   * proposition comme à l'application, sans rien créer.
+   */
+  const RENVOYES = [
+    'B15-REPRISE',
+    'B16-RECEPTION-LEGS',
+    'B16-REPRISE-FONDS',
+    'B17-COMPTABILISATION',
+    'B17-DEPRECIATION',
+    'B17-SOLDE-FONDS',
+    'B18-RECEPTION',
+    'B18-AMORTISSEMENT',
+    'B18-REPRISE',
+  ];
+
+  it('exactement ces neuf modèles renvoient au module', () => {
+    const marques = CATALOGUE.flatMap((o) => o.modeles).filter((m) => m.renvoiModule).map((m) => m.code);
+    expect(marques.sort()).toEqual([...RENVOYES].sort());
   });
 
-  it('dépréciation de 25 % du bâtiment : 100 000 000', async () => {
-    expect((await ecriture('B17-DEPRECIATION', { depreciation: 100_000_000 })).table).toEqual([
-      { numero: '69520000', debit: 100_000_000, credit: 0 },
-      { numero: '29020000', debit: 0, credit: 100_000_000 },
-    ]);
+  it.each(RENVOYES)('%s · refusé à la proposition et à l’application, aucune écriture', async (code) => {
+    const { svc, creer } = service();
+    await expect(svc.proposer('t1', { codeModele: code, parametres: {} })).rejects.toThrow(/fenêtre Immobilisations/);
+    await expect(
+      svc.appliquer('t1', 'u1', { codeModele: code, parametres: {}, exerciceId: 'ex', journalId: 'od', date: '2026-01-31' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(creer).not.toHaveBeenCalled();
   });
 
-  it('solde du fonds reporté après cession : 447 000 000', async () => {
-    expect((await ecriture('B17-SOLDE-FONDS', { fondsReporte: 447_000_000 })).table).toEqual([
-      { numero: '17200000', debit: 447_000_000, credit: 0 },
-      { numero: '79620000', debit: 0, credit: 447_000_000 },
-    ]);
-  });
-});
-
-describe('Guide, Application 7 · donation temporaire d’usufruit', () => {
-  it('usufruit de 150 000 000 sur 10 ans : amortissement et reprise de 15 000 000 chacun', async () => {
-    expect((await ecriture('B18-RECEPTION', { valeur: 150_000_000 })).table).toEqual([
-      { numero: '20110000', debit: 150_000_000, credit: 0 },
-      { numero: '17100000', debit: 0, credit: 150_000_000 },
-    ]);
-    expect((await ecriture('B18-AMORTISSEMENT', { valeur: 150_000_000, duree: 10, mois: 12 })).table).toEqual([
-      { numero: '68000000', debit: 15_000_000, credit: 0 },
-      { numero: '28000000', debit: 0, credit: 15_000_000 },
-    ]);
-    expect((await ecriture('B18-REPRISE', { dotation: 15_000_000 })).table).toEqual([
-      { numero: '17100000', debit: 15_000_000, credit: 0 },
-      { numero: '79610000', debit: 0, credit: 15_000_000 },
-    ]);
+  it('aucun autre modèle n’inscrit, ne dote, ne déprécie un bien ni ne reprend son fonds', () => {
+    // Classe 2 (le bien, son 28, son 29), 68 et 69 (dotations), 799, 7923 et
+    // 796 (reprises des fonds qui financent un bien).
+    const touche = /^(2|68|69|799|7923|796)/;
+    const fautifs = CATALOGUE.flatMap((o) => o.modeles)
+      .filter((m) => !m.renvoiModule)
+      .flatMap((m) => m.lignes.filter((l) => touche.test(l.compte)).map((l) => `${m.code} ${l.compte}`));
+    expect(fautifs).toEqual([]);
   });
 });
 

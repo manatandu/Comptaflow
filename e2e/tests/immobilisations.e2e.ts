@@ -952,3 +952,51 @@ test('SYSCOHADA · un prix global se ventile, et une partie non identifiée sort
 
   expect(pannes).toEqual([]);
 });
+
+test('SYCEBNL · le catalogue renvoie au module, et le bien à vendre se déprécie au 2902 par sa fiche', async ({ page }) => {
+  // Lot 9 · SYCEBNL Partie 3 ch. 2 § 2.2 ; décisions D-20, D-21.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Catalogue e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  await expect(
+    appelApi(page, 'POST', '/operations-specifiques/proposition', { codeModele: 'B18-AMORTISSEMENT', parametres: { valeur: 150_000_000, duree: 10, mois: 12 } }),
+  ).rejects.toThrow(/fenêtre Immobilisations/);
+
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c;
+  };
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  // B17-COMPTABILISATION par la fiche · D 203 / C 172.
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('20300000').id,
+    designation: 'Bâtiment légué à vendre e2e',
+    dateAcquisition: debut,
+    valeurOrigine: 400_000_000,
+    compteContrepartieId: compte('17200000').id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const depreciation = (compte29: string, contrepartie: string) =>
+    appelApi(page, 'POST', `/immobilisations/${bien.id}/depreciation`, {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      sens: 'DOTATION',
+      montant: 100_000_000,
+      compteDepreciationId: compte(compte29).id,
+      compteContrepartieId: compte(contrepartie).id,
+      indice: 'Estimation du notaire à 300 000 000',
+    });
+  await expect(depreciation('29010000', '69520000')).rejects.toThrow(/2902/);
+  await expect(depreciation('29020000', '69510000')).rejects.toThrow(/6952/);
+  await depreciation('29020000', '69520000');
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementCredit: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${exercice.id}`);
+  expect(Number(lignes.find((l) => l.numero === '29020000')?.mouvementCredit)).toBeCloseTo(100_000_000, 2);
+
+  expect(pannes).toEqual([]);
+});

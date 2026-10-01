@@ -1485,7 +1485,11 @@ art. 38 ; fonds de commerce au SYSCOHADA seul, stocks en ligne de classe 3,
 reliquat au 21500000 ; modalité sur la fiche. PARTIE NON IDENTIFIÉE (ch. 4
 § 4.2) · détachée à sa valeur estimée (§ 3.1.2, source), amortissements au
 prorata, renouvelée par le § 4.1 ; TOUT CUMUL passe par
-`amortissementsHorsDotations` (sinon la structure garde la part sortie).
+`amortissementsHorsDotations` (sinon la structure garde la part sortie). VOIES
+PARALLÈLES (lot 9, D-20, D-21) · tout modèle du catalogue qui touche un bien
+porte `renvoiModule` et se refuse au serveur ; division 20 du SYCEBNL · 2902,
+6952, 7952 au bien à vendre, 2901, 6951, 7951 à l'usufruit ;
+`AMORTISSEMENT_IMMO_HORS_MODULE` relit les crédits du 28 hors fiche.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

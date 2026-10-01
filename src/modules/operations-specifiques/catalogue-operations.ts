@@ -212,6 +212,7 @@ const B15: OperationSpecifique = {
     },
     {
       code: 'B15-REPRISE',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Reprise d\'une subvention › cadre « Reprises des subventions et des fonds » (subvention rattachée au bien)' },
       libelle: "Reprise de la subvention d'investissement",
       objet: "Rapporte au résultat la quote-part de subvention correspondant à l'amortissement du bien financé.",
       source:
@@ -281,6 +282,7 @@ const B16: OperationSpecifique = {
   modeles: [
     {
       code: 'B16-RECEPTION-LEGS',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Recevoir un legs › cadre « Legs d\'immobilisations »' },
       libelle: "Réception d'un legs d'immobilisations",
       objet: "Inscrit à l'actif les biens légués, déduction faite des dettes successorales reprises.",
       source:
@@ -310,6 +312,7 @@ const B16: OperationSpecifique = {
     },
     {
       code: 'B16-REPRISE-FONDS',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Reprise du 167 › cadre « Reprises des subventions et des fonds »' },
       libelle: 'Reprise des fonds à hauteur des amortissements',
       objet: "Rapporte au résultat la part du legs correspondant à l'amortissement des biens reçus.",
       source:
@@ -338,6 +341,7 @@ const B17: OperationSpecifique = {
   modeles: [
     {
       code: 'B17-COMPTABILISATION',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Nouvelle immobilisation au compte 20, contrepartie 172' },
       libelle: "Acceptation d'un legs de biens destinés à la vente",
       objet: 'Inscrit les biens légués et le fonds reporté correspondant, avant leur mise à disposition.',
       source:
@@ -355,6 +359,7 @@ const B17: OperationSpecifique = {
     },
     {
       code: 'B17-DEPRECIATION',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Dépréciation du bien (2902, 6952)' },
       libelle: 'Dépréciation des biens destinés à la vente',
       objet: 'Constate la perte de valeur révélée par le test de dépréciation à la clôture.',
       source: 'Guide App. 6 : compte 695 Dotations aux dépréciations par le crédit du 2902.',
@@ -367,6 +372,7 @@ const B17: OperationSpecifique = {
     },
     {
       code: 'B17-SOLDE-FONDS',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Sortie du bien cédé, puis reprise du 172 › cadre « Reprises des subventions et des fonds »' },
       libelle: 'Solde du fonds reporté après cession',
       objet: 'Rapporte au résultat le fonds reporté, une fois les biens vendus.',
       source: 'Guide App. 6 : compte 172 par le crédit du 796 Reprises des fonds reportés.',
@@ -392,6 +398,7 @@ const B18: OperationSpecifique = {
   modeles: [
     {
       code: 'B18-RECEPTION',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Nouvelle immobilisation au compte 2011, contrepartie 171' },
       libelle: "Réception d'un usufruit temporaire",
       objet: "Inscrit le droit d'usage reçu et le fonds reporté correspondant.",
       source:
@@ -405,6 +412,7 @@ const B18: OperationSpecifique = {
     },
     {
       code: 'B18-AMORTISSEMENT',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Dotation du bien (280, 680)' },
       libelle: "Amortissement de l'usufruit",
       objet: "Étale la valeur de l'usufruit sur la durée de la donation.",
       source: 'Guide App. 7 : compte 680 par le crédit du 280 Amortissements d’usufruit temporaire.',
@@ -421,6 +429,7 @@ const B18: OperationSpecifique = {
     },
     {
       code: 'B18-REPRISE',
+      renvoiModule: { fenetre: 'Immobilisations', geste: 'Reprise du 171 › cadre « Reprises des subventions et des fonds »' },
       libelle: "Reprise du fonds d'usufruit au même rythme",
       objet: "Neutralise au résultat l'amortissement de l'usufruit, qui n'appauvrit pas l'entité.",
       source: 'Guide App. 7 : compte 171 par le crédit du 796, « au même rythme » que l’amortissement.',

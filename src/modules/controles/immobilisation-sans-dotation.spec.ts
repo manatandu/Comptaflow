@@ -84,6 +84,11 @@ function service(
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 12 (bien repris sans amortissement antérieur) interroge la
     // même table, filtrée sur dateMiseEnService < ouverture du dossier.
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {
       findMany: jest.fn(async (args: { where?: { dateMiseEnService?: FiltreDate } }) =>
         immobilisations.filter((i) => passeFiltreDate(i.dateMiseEnService, args?.where?.dateMiseEnService)),

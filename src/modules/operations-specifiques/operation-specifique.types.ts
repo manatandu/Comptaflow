@@ -152,6 +152,15 @@ export interface ModeleEcriture {
    * que l'entité n'a aucun moyen de poursuivre, et gonflerait son bilan.
    */
   exigeDroitDAgir?: boolean;
+  /**
+   * LE BIEN PASSE PAR SA FICHE (lot 9, décision D-20 de Manasse du
+   * 2026-10-01). Un modèle qui fait entrer un bien, le dote, le déprécie ou
+   * reprend le fonds qui le finance renvoie au module d'immobilisations · une
+   * écriture passée ici échappait à la fiche, que le module ne dotait jamais
+   * et dont il reproposait la reprise (une reprise deux fois). Le service
+   * refuse de chiffrer un tel modèle ; l'écran montre le renvoi.
+   */
+  renvoiModule?: { fenetre: string; geste: string };
 }
 
 /** Le jeu d'états financiers auquel l'opération se rattache. */

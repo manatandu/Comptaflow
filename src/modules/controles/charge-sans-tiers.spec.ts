@@ -52,6 +52,11 @@ function service(
     // échéances douanières n'a rien à signaler, et n'interfère donc pas.
     // Aucun bien repris dans ce dossier de test · le contrôle des
     // immobilisations mises en service avant l'ouverture n'a rien à signaler.
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·

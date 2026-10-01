@@ -63,6 +63,10 @@ function service(options: {
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
   } as Record<string, unknown>;
   return new ControlesService(prisma as unknown as PrismaService);

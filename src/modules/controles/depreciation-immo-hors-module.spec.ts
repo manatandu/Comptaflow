@@ -68,6 +68,10 @@ function service(
         duModule.map((d) => ({ sens: d.sens, montant: d.montant, compteDepreciation: { numero: d.numero } })),
       ),
     },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(nombreImmobilisations),

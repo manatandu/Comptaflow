@@ -2218,6 +2218,89 @@ export class ControlesService {
       }
     }
 
+    // --- 15 bis. Amortissement porté hors du module (lot 9, décision D-21) ----
+    //
+    // JUMEAU DU CONTRÔLE 15. Le catalogue des opérations passait l'amortissement
+    // de l'usufruit (B18-AMORTISSEMENT) hors fiche, et le compte 28 reste
+    // mouvementable à la main · le module ignore alors cette dotation. Sur un
+    // bien qui a sa fiche, il la passera une seconde fois (amortissement au
+    // double, VNC fausse) ; sur un bien sans fiche, aucun tableau ne le porte
+    // et sa sortie ne soldera jamais le 28. Depuis le lot 9 le catalogue
+    // renvoie au module · ce contrôle relit ce qui a pu être passé avant, ou
+    // à la main.
+    //
+    // Ne compte que les CRÉDITS du 28 dans l'exercice, hors des écritures que
+    // le module retient (acquisition, sortie, dotation, dépréciation,
+    // reclassement, dérogatoire, location-acquisition) et hors clôture.
+    // AVERTISSEMENT · rien n'est corrigé d'office.
+    {
+      const [immosEcr, dotationsEcr, depreciationsEcr, reclassementsEcr, derogatoiresEcr, cloturesEcr] = await Promise.all([
+        this.prisma.immobilisation.findMany({
+          where: {
+            tenantId,
+            OR: [
+              { ecritureAcquisition: { exerciceId } },
+              { ecritureSortie: { exerciceId } },
+              { ecritureProduitCession: { exerciceId } },
+            ],
+          },
+          select: { ecritureAcquisitionId: true, ecritureSortieId: true, ecritureProduitCessionId: true },
+        }),
+        this.prisma.dotationAmortissement.findMany({ where: { exerciceId, immobilisation: { tenantId } }, select: { ecritureId: true } }),
+        this.prisma.depreciationImmobilisation.findMany({ where: { exerciceId, immobilisation: { tenantId } }, select: { ecritureId: true } }),
+        this.prisma.reclassementImmobilisation.findMany({ where: { exerciceId, immobilisation: { tenantId } }, select: { ecritureId: true } }),
+        this.prisma.amortissementDerogatoire.findMany({ where: { tenantId, exerciceId }, select: { ecritureId: true } }),
+        this.prisma.clotureLocationAcquisition.findMany({ where: { tenantId, exerciceId }, select: { ecritureId: true, ecritureExtourneId: true } }),
+      ]);
+      const retenues = new Set<string>(
+        [
+          ...immosEcr.flatMap((i) => [i.ecritureAcquisitionId, i.ecritureSortieId, i.ecritureProduitCessionId]),
+          ...dotationsEcr.map((d) => d.ecritureId),
+          ...depreciationsEcr.map((d) => d.ecritureId),
+          ...reclassementsEcr.map((d) => d.ecritureId),
+          ...derogatoiresEcr.map((d) => d.ecritureId),
+          ...cloturesEcr.flatMap((c) => [c.ecritureId, c.ecritureExtourneId]),
+        ].filter((x): x is string => !!x),
+      );
+      const lignes28 = await this.prisma.ligneEcriture.findMany({
+        where: {
+          compte: { tenantId, numero: { startsWith: '28' } },
+          credit: { gt: 0 },
+          ecriture: { tenantId, exerciceId, estGenereeParCloture: false, estANouveauProvisoire: false, id: { notIn: [...retenues] } },
+        },
+        select: { credit: true, compte: { select: { numero: true, intitule: true } } },
+      });
+      const hors = new Map<string, { intitule: string; montant: number }>();
+      for (const l of lignes28) {
+        const acc = hors.get(l.compte.numero) ?? { intitule: l.compte.intitule, montant: 0 };
+        acc.montant += Number(l.credit);
+        hors.set(l.compte.numero, acc);
+      }
+      const amortissementsHors = [...hors.entries()].filter(([, v]) => v.montant > 0.005).sort(([a], [b]) => a.localeCompare(b));
+      if (amortissementsHors.length > 0) {
+        const source =
+          tenant.referentiel === Referentiel.SYCEBNL ? 'SYCEBNL, Partie 2 ch. 3, fiche du compte 28' : 'AUDCIF, Titre VII, fiche du compte 28';
+        anomalies.push({
+          code: 'AMORTISSEMENT_IMMO_HORS_MODULE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Amortissement d’immobilisation que le module ne connaît pas',
+          consequence:
+            `Le compte 28 (${source}) a reçu dans l’exercice des amortissements passés hors de la fiche du bien. ` +
+            'Le module ne les connaît pas : sur un bien qui a sa fiche, il passera sa propre dotation et le bien sera ' +
+            'amorti deux fois ; sur un bien sans fiche, aucun tableau ne le porte et sa sortie ne soldera pas le 28. ' +
+            'Rien ne se déséquilibre : l’écriture reste équilibrée et la balance boucle.',
+          action:
+            'Créez la fiche du bien (ou déclarez-le repris avec son amortissement antérieur), puis contre-passez ' +
+            'l’amortissement passé à la main et dotez par la fiche.',
+          occurrences: amortissementsHors.slice(0, 200).map(([numero, v]) => ({
+            reference: `${numero} ${v.intitule}`,
+            detail: 'Amortissement porté hors du module d’immobilisations',
+            montant: Math.round(v.montant * 100) / 100,
+          })),
+        });
+      }
+    }
+
     // --- 16. Réévaluation portée hors du module d'immobilisations -------------
     //
     // MÊME FAMILLE QUE LE CONTRÔLE 15, ET LE MÊME MÉCANISME · le module range

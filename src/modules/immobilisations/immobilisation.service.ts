@@ -72,7 +72,7 @@ import {
   motifRefusCompteDepreciation,
   motifRefusContrepartieCession,
   motifRefusContrepartieDepreciation,
-  motifRefusContrepartieUsufruit,
+  motifRefusDepreciationDivision20,
   motifSansAmortissementProjet,
   motifRefusSortieProjet,
 } from './comptes-du-bien';
@@ -2695,7 +2695,7 @@ export class ImmobilisationService {
     const refusCompte =
       motifRefusCompteDepreciation(referentiel, immo.compteImmobilisation.numero, compte29.numero) ??
       motifRefusContrepartieDepreciation(referentiel, dto.sens, contrepartie.numero) ??
-      motifRefusContrepartieUsufruit(referentiel, immo.compteImmobilisation.numero, dto.sens, contrepartie.numero);
+      motifRefusDepreciationDivision20(referentiel, immo.compteImmobilisation.numero, dto.sens, compte29.numero, contrepartie.numero);
     if (refusCompte) throw new BadRequestException(refusCompte);
 
     const cumul = this.cumulDepreciation(

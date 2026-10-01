@@ -696,7 +696,16 @@ export function ModelesSaisieModale({
                     </div>
                   )}
   
-                  {selection.modele.parametres.length > 0 && (
+                  {/* LE BIEN PASSE PAR SA FICHE (lot 9) · le serveur refuse ce
+                      modèle ; l'écran dit où le geste se fait au lieu de
+                      laisser remplir des montants pour un 400. */}
+                  {selection.modele.renvoiModule && (
+                    <div className="mb-3 px-2.5 py-2 text-[11.5px] leading-[1.5] border border-border">
+                      Se passe dans la fenêtre {selection.modele.renvoiModule.fenetre} · {selection.modele.renvoiModule.geste}.
+                    </div>
+                  )}
+
+                  {!selection.modele.renvoiModule && selection.modele.parametres.length > 0 && (
                     <div className="grid grid-cols-[220px_180px] items-center gap-x-3 gap-y-2 mb-3">
                       {selection.modele.parametres.map((p) => (
                         <div key={p.nom} className="contents">
@@ -715,6 +724,7 @@ export function ModelesSaisieModale({
                     </div>
                   )}
   
+                  {!selection.modele.renvoiModule && (
                   <button
                     type="button"
                     disabled={calcul}
@@ -723,6 +733,7 @@ export function ModelesSaisieModale({
                   >
                     {calcul ? 'Calcul…' : "Calculer l'écriture"}
                   </button>
+                  )}
   
                   {proposition && (
                     <div className="mt-3 border border-border">

@@ -173,6 +173,16 @@ export class OperationSpecifiqueService {
    */
   async proposer(tenantId: string, dto: ProposerModeleDto): Promise<EcritureProposee> {
     const { modele } = this.trouverModele(dto.codeModele);
+    // Lot 9 (D-20) · un bien ne s'inscrit, ne se dote, ne se déprécie ni ne
+    // voit son fonds repris qu'à sa fiche. Refusé ici, pour la proposition
+    // comme pour l'application · masquer le modèle sans le refuser laisserait
+    // la route ouverte.
+    if (modele.renvoiModule) {
+      throw new BadRequestException(
+        `« ${modele.libelle} » se passe dans la fenêtre ${modele.renvoiModule.fenetre} · ${modele.renvoiModule.geste}. ` +
+          "Le bien a sa fiche, qui calcule et retient l'écriture ; passée ici, elle échapperait au plan d'amortissement et la reprise serait proposée deux fois.",
+      );
+    }
     await this.verifierDroitDAgir(modele, tenantId);
     const valeurs = dto.parametres ?? {};
     const choix = dto.comptesChoisis ?? {};

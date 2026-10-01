@@ -175,6 +175,11 @@ function serviceControles(referentiel: Referentiel, manuel: Faux | null) {
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(manuel) },
     // Dossiers de subvention · vides ici, ce spec ne les teste pas. Sans cette

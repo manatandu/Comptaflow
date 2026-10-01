@@ -67,6 +67,10 @@ function service(
     // d'immobilisations y a lui-même posté · sans ce faux, il croirait la
     // table absente.
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(nombreImmobilisations),

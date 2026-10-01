@@ -316,6 +316,11 @@ function serviceControles(
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
+    dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
+    depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
+    clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue(mandats) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.

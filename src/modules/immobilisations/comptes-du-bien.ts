@@ -247,6 +247,40 @@ export function motifRefusContrepartieUsufruit(
 }
 
 /**
+ * LA DIVISION 20 DU SYCEBNL · ses comptes de dépréciation sont écrits, bien
+ * par bien (lot 9). Partie 3 ch. 2 § 2.2.2 · le bien destiné à la vente se
+ * déprécie « 6952 [...] / 2902 », § 2.2.3 · « 2902 / 7952 » à la reprise ;
+ * § 2.3.2 · l'usufruit temporaire « 6951 / 2901 », reprise « 2901 / 7951 ».
+ * Les deux natures partagent le 290, le 695 et le 795 · croisées, elles
+ * s'équilibrent sans un mot et la Note 5D comme le compte de résultat sont
+ * faux d'autant. Le catalogue, qui passait la dépréciation du bien à vendre
+ * hors fiche (B17-DEPRECIATION), y renvoie désormais.
+ */
+export function motifRefusDepreciationDivision20(
+  referentiel: Referentiel,
+  numeroBien: string,
+  sens: SensDepreciation,
+  numeroCompte29: string,
+  numeroContrepartie: string,
+): string | null {
+  if (referentiel !== Referentiel.SYCEBNL || !numeroBien.startsWith('20')) return null;
+  const usufruit = numeroBien.startsWith('2011');
+  const attendu29 = usufruit ? '2901' : '2902';
+  if (!numeroCompte29.startsWith(attendu29)) {
+    return usufruit
+      ? `L'usufruit temporaire se déprécie au 2901, pas au ${numeroCompte29} (SYCEBNL Partie 3 ch. 2 § 2.3.2).`
+      : `Un bien destiné à la vente se déprécie au 2902, pas au ${numeroCompte29} (SYCEBNL Partie 3 ch. 2 § 2.2.2).`;
+  }
+  if (usufruit) return motifRefusContrepartieUsufruit(referentiel, numeroBien, sens, numeroContrepartie);
+  const attendu = sens === SensDepreciation.DOTATION ? '6952' : '7952';
+  if (numeroContrepartie.startsWith(attendu)) return null;
+  return (
+    `Un bien destiné à la vente se ${sens === SensDepreciation.DOTATION ? 'déprécie' : 'reprend'} au ${attendu}, ` +
+    `pas au ${numeroContrepartie} (SYCEBNL Partie 3 ch. 2 § ${sens === SensDepreciation.DOTATION ? '2.2.2' : '2.2.3'}).`
+  );
+}
+
+/**
  * LA CRÉANCE NÉE D'UNE CESSION · SYSCOHADA, deux exclusions écrites, et deux
  * seulement (passe R1, B6).
  *
