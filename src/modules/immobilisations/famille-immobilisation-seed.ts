@@ -26,9 +26,10 @@
  *  - mobilier de bureau : 2444 en SYSCOHADA (2441 y est « Matériel de
  *    bureau »), là où le SYCEBNL le range en 2441 « Matériel et mobilier de
  *    bureau » ;
- *  - amortissement des agencements : 2834 en SYSCOHADA (« aménagements,
- *    agencements et installations techniques », l'exact vis-à-vis du 234),
- *    là où le semis SYCEBNL passe par 2835.
+ *  - amortissement des agencements : 2834 aux DEUX plans (« aménagements,
+ *    agencements et installations techniques », l'exact vis-à-vis du 234).
+ *    La liste SYCEBNL portait le 2835 « aménagements de bureaux » jusqu'au
+ *    2026-10-01 · les familles déjà semées gardent leur compte.
  */
 type FamilleSeed = {
   code: string;
@@ -111,7 +112,11 @@ export const FAMILLES_IMMOBILISATION_DEFAUT: FamilleSeed[] = [
     code: 'AGENCEMENTS',
     intitule: 'Agencements et aménagements',
     numeroCompteImmobilisation: '23450000',
-    numeroCompteAmortissement: '28350000',
+    // 2345 relève du 234 · son amortissement est au 2834 « aménagements,
+    // agencements et installations techniques », jamais au 2835 « aménagements
+    // de bureaux » (SYCEBNL, Partie 2 ch. 2, compte 283 ; corrigé le
+    // 2026-10-01, compte-du-bien.spec.ts relit les deux semis).
+    numeroCompteAmortissement: '28340000',
     numeroCompteDotation: '68130000',
     dureeAmortissementAns: 10, // arrêté 013/2025, VI.1 "Agencements, aménagements, installations"
   },
@@ -125,9 +130,6 @@ export const FAMILLES_IMMOBILISATION_DEFAUT: FamilleSeed[] = [
 export const FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA: FamilleSeed[] = FAMILLES_IMMOBILISATION_DEFAUT.map((f) => {
   if (f.code === 'MOBILIER') {
     return { ...f, intitule: 'Mobilier de bureau', numeroCompteImmobilisation: '24440000' };
-  }
-  if (f.code === 'AGENCEMENTS') {
-    return { ...f, numeroCompteAmortissement: '28340000' };
   }
   if (f.code === 'INFORMATIQUE') {
     // 2442 « Matériel informatique » en SYSCOHADA (la bureautique a son

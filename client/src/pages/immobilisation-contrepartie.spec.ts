@@ -3,18 +3,19 @@ import { join } from 'node:path';
 
 // Aucun import de « vitest » · convention du dépôt.
 
-/** La contrepartie d'une acquisition ne se choisit que dans la liste servie pour la famille. */
+/** La contrepartie d'une acquisition ne se choisit que dans la liste servie pour le compte du bien. */
 describe('immobilisation · contrepartie d’acquisition', () => {
   const page = readFileSync(join(__dirname, 'ImmobilisationsPage.tsx'), 'utf8');
-  it('la liste vient du serveur, pour la famille choisie', () => {
-    expect(page).toContain('`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}${type}`');
+  it('la liste vient du serveur, pour le compte du bien, rangée par mode d’acquisition', () => {
+    expect(page).toContain('`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`');
+    expect(page).toContain("const contrepartiesDuMode = (contrepartiesAdmises ?? []).filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);");
     const debut = page.indexOf('value={iCompteContrepartie}');
-    expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('(contrepartiesAdmises ?? []).map');
+    expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('contrepartiesDuMode.map');
   });
 
   it('le type du composant voyage avec la demande · il ouvre le 1984 d’un démantèlement', () => {
     // Passe R1, A2 · la liste servie doit être recalculée quand le type change.
-    expect(page).toContain('}, [iFamilleId, typeComposantServi]);');
+    expect(page).toContain('}, [iCompteBienId, typeComposantServi]);');
     expect(page).toContain('`&typeComposant=${typeComposantServi}`');
   });
 });

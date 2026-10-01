@@ -115,3 +115,53 @@ test('SYSCOHADA · une révision majeure sans durée prend celle de sa famille, 
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * LE COMPTE DU BIEN, SUR LA BASE RÉELLE (2026-10-01) · la liste vient du plan
+ * semé, le 28 et le 68 en sont déduits, et la famille naît à la première
+ * création pour être reprise à la seconde.
+ */
+test('SYCEBNL · un bien se crée par son compte, la famille suit et se reprend', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Compte du bien e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+
+  const comptes = await appelApi<Array<{ id: string; numero: string; compteAmortissement: { numero: string } | null; motifComptes: string | null }>>(
+    page,
+    'GET',
+    '/immobilisations/comptes-du-bien',
+  );
+  const vehicule = comptes.find((c) => c.numero.startsWith('2451'));
+  if (!vehicule) throw new Error('Aucun compte 2451 au plan semé');
+  expect(vehicule.motifComptes).toBeNull();
+  expect(vehicule.compteAmortissement?.numero.startsWith('2845')).toBe(true);
+
+  const contreparties = await appelApi<Array<{ id: string; numero: string; mode: string | null }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${vehicule.id}`,
+  );
+  const tresorerie = contreparties.find((c) => c.mode === 'ACHAT_COMPTANT');
+  if (!tresorerie) throw new Error('Aucune contrepartie de trésorerie admise');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const bien = {
+    compteImmobilisationId: vehicule.id,
+    designation: 'TOYOTA RAV4',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 30_000_000,
+    dureeAmortissementAns: 4,
+    modeAmortissement: 'LINEAIRE',
+    compteContrepartieId: tresorerie.id,
+    journalId: od.id,
+    exerciceId: exercice.id,
+  };
+  const premier = await appelApi<{ familleId: string }>(page, 'POST', '/immobilisations', bien);
+  const second = await appelApi<{ familleId: string }>(page, 'POST', '/immobilisations', { ...bien, designation: 'TOYOTA RAV4 bis' });
+  expect(second.familleId).toBe(premier.familleId);
+
+  expect(pannes).toEqual([]);
+});

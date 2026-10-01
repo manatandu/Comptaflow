@@ -17,11 +17,13 @@ describe('F128 · mode et unités d’œuvre se choisissent à la création', ()
   it('l’envoi porte le mode choisi et, aux unités d’œuvre, le total et l’unité', () => {
     const envoi = bloc('const onCreerImmo = async', 'setIDesignation(');
     expect(envoi).toContain("...(iMode ? { modeAmortissement: iMode } : {})");
+    // Le mode part toujours · une famille reprise pour le compte ne l'impose plus.
+    expect(page).toContain("useState<'LINEAIRE' | 'UNITES_DOEUVRE'>('LINEAIRE')");
     expect(envoi).toContain("modeRetenu === 'UNITES_DOEUVRE' ? { unitesOeuvrePrevues: Number(iUnites), uniteOeuvreLibelle: iUniteLibelle } : {}");
   });
 
-  it('le mode retenu à l’écran suit celui de la famille quand rien n’est choisi', () => {
-    expect(page).toContain("const modeRetenu = iMode || familleChoisie?.modeAmortissement || 'LINEAIRE';");
+  it('le mode retenu à l’écran est celui choisi, linéaire par défaut', () => {
+    expect(page).toContain('const modeRetenu = iMode;');
   });
 
   it('le choix n’est pas proposé au SMT SYSCOHADA, que le Titre X borne au linéaire', () => {
@@ -32,10 +34,9 @@ describe('F128 · mode et unités d’œuvre se choisissent à la création', ()
   });
 });
 
-describe('F129 · une famille en sommeil n’est plus proposée à la création', () => {
-  it('le sélecteur de famille du formulaire ne liste que les familles actives', () => {
-    const selecteur = bloc('Une famille en sommeil ne reçoit plus de bien', '</select>');
-    expect(selecteur).toContain('(familles ?? []).filter((f) => f.estActif).map((f) => (');
+describe('F129 · une famille en sommeil ne reçoit plus de bien', () => {
+  it('la famille se lit sur le compte du bien · le serveur ne reprend qu’une famille ACTIVE (compte-du-bien.spec.ts)', () => {
+    expect(page).toContain('compteImmobilisationId: iCompteBienId,');
   });
 });
 

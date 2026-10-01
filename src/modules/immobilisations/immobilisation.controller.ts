@@ -6,11 +6,9 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ImmobilisationService } from './immobilisation.service';
 import {
-  CreerFamilleDto,
   CreerImmobilisationDto,
   AffecterLieuDto,
   LieuBienDto,
-  ModifierFamilleDto,
   PasserDotationDto,
   SaisirConsommationDto,
   SortirImmobilisationDto,
@@ -59,17 +57,10 @@ export class ImmobilisationController {
     return this.immobilisationService.listerFamilles(user.tenantId);
   }
 
-  @Roles(RoleUtilisateur.ADMIN_CABINET)
-  @Post('familles')
-  async creerFamille(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerFamilleDto) {
-    return this.immobilisationService.creerFamille(user.tenantId, dto);
-  }
-
-  @Roles(RoleUtilisateur.ADMIN_CABINET)
-  @Patch('familles/:id')
-  async modifierFamille(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierFamilleDto) {
-    return this.immobilisationService.modifierFamille(user.tenantId, id, dto);
-  }
+  // LA FAMILLE NE SE SAISIT PLUS (2026-10-01, décision de Manasse) · elle
+  // suit le compte du bien (compte-du-bien.ts), trouvée ou créée par `creer`.
+  // Les routes de création et de modification sont retirées avec leur écran ·
+  // une route d'écriture sans geste resterait ouverte à un appel direct.
 
   // Lieux des biens · la STRUCTURE (créer, supprimer) est à
   // l'administrateur, comme les familles ; déplacer un bien est un geste de
@@ -118,11 +109,28 @@ export class ImmobilisationController {
     return baremeFiscal();
   }
 
-  /** Contreparties admises pour une acquisition de la famille donnée. */
+  /**
+   * Les comptes qui peuvent porter un bien, avec les comptes 28 et 68 que le
+   * plan leur donne et les sections du barème proposées (compte-du-bien.ts).
+   */
+  @Get('comptes-du-bien')
+  async comptesDuBien(@CurrentUser() user: AuthenticatedUser) {
+    return this.immobilisationService.comptesDuBien(user.tenantId);
+  }
+
+  /** Seuil du petit matériel (arrêté n° 014/2025, art. 2), en francs, à une date. */
+  @Get('seuil-petit-materiel')
+  async seuilPetitMateriel(@CurrentUser() user: AuthenticatedUser, @Query('date') date?: string) {
+    if (!date || !/^\d{4}-\d{2}-\d{2}/.test(date)) throw new BadRequestException('Date attendue (AAAA-MM-JJ)');
+    return this.immobilisationService.seuilPetitMateriel(user.tenantId, date);
+  }
+
+  /** Contreparties admises pour une acquisition, par compte du bien ou par famille. */
   @Get('contreparties-acquisition')
   async contrepartiesAcquisition(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('familleId', ParseUUIDPipe) familleId: string,
+    @Query('familleId', new ParseUUIDPipe({ optional: true })) familleId: string | undefined,
+    @Query('compteImmobilisationId', new ParseUUIDPipe({ optional: true })) compteImmobilisationId: string | undefined,
     // Le type d'un composant ouvre sa propre contrepartie (1984 pour un
     // démantèlement, AUDCIF Titre VII, classe 2) · un type inconnu est refusé.
     @Query('typeComposant') typeComposant?: string,
@@ -130,9 +138,12 @@ export class ImmobilisationController {
     if (typeComposant !== undefined && !(Object.values(TypeComposant) as string[]).includes(typeComposant)) {
       throw new BadRequestException(`Type de composant inconnu : ${typeComposant}`);
     }
+    if (!!familleId === !!compteImmobilisationId) {
+      throw new BadRequestException('Indiquez le compte du bien (ou la famille), un seul des deux.');
+    }
     return this.immobilisationService.contrepartiesAcquisition(
       user.tenantId,
-      familleId,
+      { familleId, compteImmobilisationId },
       (typeComposant as TypeComposant | undefined) ?? null,
     );
   }

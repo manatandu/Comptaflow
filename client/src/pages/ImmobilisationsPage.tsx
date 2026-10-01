@@ -8,6 +8,14 @@ import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
+import {
+  avertissementPetitMateriel,
+  comptesParDivision,
+  modesPresents,
+  type CompteDuBien,
+  type ContrepartieAdmise,
+  type SeuilPetitMateriel,
+} from '../lib/compte-du-bien';
 import { libelleExercice } from '../lib/libelle-exercice';
 import {
   avertissementEcartBareme,
@@ -61,7 +69,6 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [comptesFinancement, setComptesFinancement] = useState<Compte[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
 
-  const [afficherFormFamille, setAfficherFormFamille] = useState(false);
   // Lieux des biens · référentiel du dossier (Sage Immobilisations).
   const [lieux, setLieux] = useState<LieuBien[]>([]);
   const [afficherLieux, setAfficherLieux] = useState(false);
@@ -82,16 +89,14 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
-  // --- formulaire famille ---
-  const [fCode, setFCode] = useState('');
-  const [fIntitule, setFIntitule] = useState('');
-  const [fCompteImmo, setFCompteImmo] = useState('');
-  const [fCompteAmort, setFCompteAmort] = useState('');
-  const [fCompteDotation, setFCompteDotation] = useState('');
-  const [fDuree, setFDuree] = useState('5');
-
   // --- formulaire immobilisation ---
-  const [iFamilleId, setIFamilleId] = useState('');
+  // LE COMPTE DU BIEN (compte-du-bien.ts, serveur) · il donne le 28, le 68,
+  // les catégories du barème proposées et les contreparties admises.
+  const [comptesBien, setComptesBien] = useState<CompteDuBien[] | null>(null);
+  const [iCompteBienId, setICompteBienId] = useState('');
+  const [toutesCategories, setToutesCategories] = useState(false);
+  const [iModeAcquisition, setIModeAcquisition] = useState('');
+  const [seuilPetit, setSeuilPetit] = useState<SeuilPetitMateriel | null>(null);
   const [iDesignation, setIDesignation] = useState('');
   const [iNumeroInventaire, setINumeroInventaire] = useState('');
   const [iDateAcquisition, setIDateAcquisition] = useState(() => new Date().toISOString().slice(0, 10));
@@ -121,7 +126,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
   // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
   // choix n'y est pas proposé, et le serveur le refuse aussi.
-  const [iMode, setIMode] = useState<'' | 'LINEAIRE' | 'UNITES_DOEUVRE'>('');
+  const [iMode, setIMode] = useState<'LINEAIRE' | 'UNITES_DOEUVRE'>('LINEAIRE');
   const [iUnites, setIUnites] = useState('');
   const [iUniteLibelle, setIUniteLibelle] = useState('');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
@@ -174,19 +179,21 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [rContrepartie, setRContrepartie] = useState('');
 
   const charger = async () => {
-    const [f, i, c2, ctrésorerie, jrn, lx, bf] = await Promise.all([
+    const [f, i, c2, ctrésorerie, jrn, lx, cb, bf] = await Promise.all([
       api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
       api.get<Immobilisation[]>('/immobilisations'),
       api.get<Compte[]>('/comptes?classe=CLASSE_2&typeCompte=DETAIL'),
       api.get<Compte[]>('/comptes?typeCompte=DETAIL'),
       api.get<Journal[]>('/journaux'),
       api.get<LieuBien[]>('/immobilisations/lieux'),
+      api.get<CompteDuBien[]>('/immobilisations/comptes-du-bien'),
       // Le barème ne conditionne rien · illisible, le choix de nature
       // disparaît et la saisie reste entière.
       api.get<NatureBaremeFiscal[]>('/immobilisations/bareme-fiscal').catch(() => [] as NatureBaremeFiscal[]),
     ]);
     setBareme(bf);
     setLieux(lx);
+    setComptesBien(cb);
     setFamilles(f);
     setImmobilisations(i);
     setComptesClasse2(c2);
@@ -204,87 +211,49 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onCreerFamille = async (e: FormEvent) => {
-    e.preventDefault();
-    setErreur(null);
-    setEnvoi(true);
-    try {
-      await api.post('/immobilisations/familles', {
-        code: fCode,
-        intitule: fIntitule,
-        compteImmobilisationId: fCompteImmo,
-        compteAmortissementId: fCompteAmort,
-        compteDotationId: fCompteDotation,
-        dureeAmortissementAns: Number(fDuree),
-      });
-      setFCode('');
-      setFIntitule('');
-      setFCompteImmo('');
-      setFCompteAmort('');
-      setFCompteDotation('');
-      setFDuree('5');
-      setAfficherFormFamille(false);
-      await charger();
-    } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Impossible de créer cette famille');
-    } finally {
-      setEnvoi(false);
-    }
-  };
-
-  /**
-   * Modifier une famille (audit de l'interface du 2026-09-27, I11) · la route
-   * existait sans geste, réservée à l'administrateur comme la création. Elle
-   * ne porte que l'intitulé, la durée par défaut et la mise en sommeil : les
-   * comptes d'une famille ne se changent pas, un bien déjà porté changeant de
-   * famille par le reclassement.
-   */
-  const modifierFamille = async (f: FamilleImmobilisation, corps: { intitule?: string; dureeAmortissementAns?: number; estActif?: boolean }) => {
-    setErreur(null);
-    try {
-      await api.patch(`/immobilisations/familles/${f.id}`, corps);
-      await charger();
-    } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier cette famille');
-    }
-  };
-
-  const renommerFamille = (f: FamilleImmobilisation) => {
-    const intitule = window.prompt('Intitulé de la famille', f.intitule);
-    if (intitule === null) return;
-    const duree = window.prompt("Durée d'amortissement par défaut (années)", String(f.dureeAmortissementAns));
-    if (duree === null) return;
-    const ans = Number(duree);
-    if (!Number.isFinite(ans) || ans <= 0) {
-      setErreur("Durée d'amortissement illisible ou nulle.");
-      return;
-    }
-    void modifierFamille(f, { intitule: intitule.trim() || f.intitule, dureeAmortissementAns: ans });
-  };
-
-  const familleChoisie = (familles ?? []).find((x) => x.id === iFamilleId);
+  const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
 
   // LA CONTREPARTIE SE LIT DANS LA FICHE DES COMPTES 21 À 24 · liste fermée,
-  // servie par le serveur pour la famille choisie
+  // servie par le serveur pour le compte du bien choisi
   // (`immobilisations/contrepartie-acquisition.ts`), la même règle que son refus.
   // Le type d'un composant ouvre sa propre contrepartie (1984 pour un
   // démantèlement, AUDCIF Titre VII, classe 2) · la même règle que le serveur.
   const typeComposantServi = estComposant && iPrincipal ? iTypeComposant : '';
-  const [contrepartiesAdmises, setContrepartiesAdmises] = useState<Compte[] | null>(null);
+  const [contrepartiesAdmises, setContrepartiesAdmises] = useState<ContrepartieAdmise[] | null>(null);
   useEffect(() => {
     setContrepartiesAdmises(null);
-    if (!iFamilleId) return;
+    if (!iCompteBienId) return;
     let vivant = true;
     const type = typeComposantServi ? `&typeComposant=${typeComposantServi}` : '';
     api
-      .get<Compte[]>(`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}${type}`)
+      .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`)
       .then((c) => vivant && setContrepartiesAdmises(c))
       .catch(() => vivant && setContrepartiesAdmises([]));
     return () => {
       vivant = false;
     };
-  }, [iFamilleId, typeComposantServi]);
-  const modeRetenu = iMode || familleChoisie?.modeAmortissement || 'LINEAIRE';
+  }, [iCompteBienId, typeComposantServi]);
+  const modeRetenu = iMode;
+  // Les modes d'acquisition présents dans la liste fermée, dans l'ordre servi.
+  const modesAcquisition = modesPresents(contrepartiesAdmises ?? []);
+  const contrepartiesDuMode = (contrepartiesAdmises ?? []).filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);
+
+  // SEUIL DU PETIT MATÉRIEL (arrêté n° 014/2025, art. 2) · règle FISCALE de
+  // l'IS et de l'IRPP, donc des seuls dossiers SYSCOHADA (une EBNL est
+  // exemptée d'IS, loi n° 23/053, art. 5). Le seuil en francs vient du serveur,
+  // au cours de l'USD en vigueur à la date d'acquisition, jamais supposé.
+  useEffect(() => {
+    setSeuilPetit(null);
+    if (!syscohada || !/^\d{4}-\d{2}-\d{2}$/.test(iDateAcquisition)) return;
+    let vivant = true;
+    api
+      .get<SeuilPetitMateriel>(`/immobilisations/seuil-petit-materiel?date=${iDateAcquisition}`)
+      .then((s) => vivant && setSeuilPetit(s))
+      .catch(() => vivant && setSeuilPetit(null));
+    return () => {
+      vivant = false;
+    };
+  }, [syscohada, iDateAcquisition]);
   const unitesServies = !(utilisateur?.tenant?.referentiel === 'SYSCOHADA' && utilisateur?.tenant?.systemeComptableSyscohada === 'MINIMAL_TRESORERIE');
 
   const onCreerImmo = async (e: FormEvent) => {
@@ -293,7 +262,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     setEnvoi(true);
     try {
       await api.post('/immobilisations', {
-        familleId: iFamilleId,
+        compteImmobilisationId: iCompteBienId,
         designation: iDesignation,
         numeroInventaire: iNumeroInventaire || undefined,
         lieuId: iLieuId || undefined,
@@ -325,7 +294,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       setIRepris(false);
       setIAmortissementAnterieur('0');
       setIDuree('');
-      setIMode('');
+      setIMode('LINEAIRE');
+      setIModeAcquisition('');
       setINatureFiscale('');
       setEstComposant(false);
       setIUnites('');
@@ -662,8 +632,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     <div className="p-2">
       {ongletsVues}
       <div className="flex items-center justify-end mb-1.5 max-w-[1100px]">
-        {/* Les familles sont réservées à l'administrateur (@Roles ADMIN_CABINET),
-            les immobilisations s'ouvrent aussi au comptable. */}
+        {/* Les lieux sont réservés à l'administrateur, les immobilisations
+            s'ouvrent aussi au comptable. La famille n'est plus saisie · elle
+            suit le compte du bien (compte-du-bien.ts, serveur). */}
         {peutEcrire && (
           <div className="flex items-center gap-1.5">
             {estAdmin && (
@@ -673,15 +644,6 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 className="border border-border rounded-[3px] bg-surface px-3 py-[3px] text-[11.5px] font-semibold hover:bg-surface-alt"
               >
                 Lieux
-              </button>
-            )}
-            {estAdmin && !afficherFormFamille && (
-              <button
-                type="button"
-                onClick={() => setAfficherFormFamille(true)}
-                className="border border-border rounded-[3px] bg-surface px-3 py-[3px] text-[11.5px] font-semibold hover:bg-surface-alt"
-              >
-                Nouvelle famille
               </button>
             )}
             {!afficherFormImmo && (
@@ -766,91 +728,6 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         </div>
       )}
 
-      {estAdmin && afficherFormFamille && (
-        <form onSubmit={onCreerFamille} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
-          <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-3">Nouvelle famille</div>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Code
-              <input required value={fCode} onChange={(e) => setFCode(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
-            </label>
-            <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-              Intitulé
-              <input required value={fIntitule} onChange={(e) => setFIntitule(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal" />
-            </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Compte d'immobilisation (classe 2)
-              <select required value={fCompteImmo} onChange={(e) => setFCompteImmo(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                <option value="" />
-                {comptesClasse2.map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Compte d'amortissement (classe 28)
-              <select required value={fCompteAmort} onChange={(e) => setFCompteAmort(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                <option value="" />
-                {comptesFinancement.filter((c) => c.numero.startsWith('28')).map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Compte de dotation (classe 68)
-              <select required value={fCompteDotation} onChange={(e) => setFCompteDotation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                <option value="" />
-                {comptesFinancement.filter((c) => c.numero.startsWith('68')).map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Durée d'amortissement (années)
-              <input required type="number" min={1} value={fDuree} onChange={(e) => setFDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
-            <button type="button" onClick={() => setAfficherFormFamille(false)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
-          </div>
-          {(familles ?? []).length > 0 && (
-            <table className="w-full text-[11.5px] mt-4">
-              <thead>
-                <tr>
-                  <th className="text-left">Code</th>
-                  <th className="text-left">Intitulé</th>
-                  <th className="text-left">Compte</th>
-                  <th className="text-right">Durée</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {(familles ?? []).map((f) => (
-                  <tr key={f.id} className={f.estActif ? '' : 'text-text-dim'}>
-                    <td>{f.code}</td>
-                    <td>
-                      {f.intitule}
-                      {!f.estActif && ' · en sommeil'}
-                    </td>
-                    <td>{f.compteImmobilisation?.numero ?? ''}</td>
-                    <td className="text-right">{f.dureeAmortissementAns} ans</td>
-                    <td className="text-right whitespace-nowrap">
-                      <button type="button" onClick={() => renommerFamille(f)} className="text-sel hover:underline mr-2">
-                        Modifier
-                      </button>
-                      <button type="button" onClick={() => void modifierFamille(f, { estActif: !f.estActif })} className="hover:underline">
-                        {f.estActif ? 'Mettre en sommeil' : 'Réactiver'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </form>
-      )}
-
       {peutEcrire && afficherFormImmo && (
         <form onSubmit={onCreerImmo} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
           <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-3 flex items-center gap-1.5">
@@ -886,22 +763,50 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 ))}
               </select>
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
+            <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
               <span className="flex items-center gap-1">
-                Famille
+                Compte du bien
                 <Aide
-                  titre="Famille d'immobilisations"
-                  texte="Gabarit qui donne au bien ses comptes (immobilisation 2x, amortissements 28, dotations 681) ainsi que la durée et le mode d'amortissement proposés. La durée et le mode se changent sur le bien ; les comptes ne changent que par un reclassement."
-                  source="Structure > Familles d'immobilisations"
+                  titre="Compte du bien"
+                  texte="Le compte de classe 2 où le bien est porté à l'actif. Le compte d'amortissement (28) et le compte de dotation (68) s'en déduisent, lus dans le plan du dossier : le 28 suit la division du bien, la dotation sa nature (incorporelle ou corporelle)."
+                  source="AUDCIF, Titre VII ch. 2 · SYCEBNL, Partie 2 ch. 2"
                 />
               </span>
-              <select required value={iFamilleId} onChange={(e) => setIFamilleId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select
+                required
+                value={iCompteBienId}
+                onChange={(e) => {
+                  setICompteBienId(e.target.value);
+                  setINatureFiscale('');
+                  setIModeAcquisition('');
+                  setICompteContrepartie('');
+                }}
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+              >
                 <option value="" />
-                {/* Une famille en sommeil ne reçoit plus de bien (audit final F129). */}
-                {(familles ?? []).filter((f) => f.estActif).map((f) => (
-                  <option key={f.id} value={f.id}>{f.intitule} ({f.dureeAmortissementAns} ans)</option>
+                {comptesParDivision(comptesBien ?? []).map((g) => (
+                  <optgroup key={g.numero} label={`${g.numero} · ${g.intitule}`}>
+                    {g.comptes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
+              {compteBien && (
+                <span className="block mt-1 text-[11px] font-normal">
+                  {compteBien.motifComptes ? (
+                    <span className="text-danger">{compteBien.motifComptes}</span>
+                  ) : compteBien.motifNonAmortissable ? (
+                    <span className="text-warning">Bien non amortissable · seule la dépréciation (29) s'y applique.</span>
+                  ) : (
+                    <>
+                      Amortissement {compteBien.compteAmortissement?.numero} · {compteBien.compteAmortissement?.intitule}
+                      <br />
+                      Dotation {compteBien.compteDotation?.numero} · {compteBien.compteDotation?.intitule}
+                    </>
+                  )}
+                </span>
+              )}
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Date d'acquisition
@@ -921,6 +826,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
             <label className="text-[11.5px] font-semibold text-text-dim">
               Valeur d'origine
               <input required type="number" step="0.01" min={0} value={iValeurOrigine} onChange={(e) => setIValeurOrigine(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              {(() => {
+                const a = avertissementPetitMateriel(iValeurOrigine ? Number(iValeurOrigine) : null, seuilPetit);
+                return a ? <span className="block mt-1 text-[11px] font-normal text-warning">{a}</span> : null;
+              })()}
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Valeur résiduelle
@@ -946,7 +855,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
                 >
                   <option value="">Non précisée</option>
-                  {sectionsDuBareme(bareme).map((g) => (
+                  {sectionsDuBareme(bareme)
+                    .filter((g) => toutesCategories || !compteBien?.sectionsBareme || compteBien.sectionsBareme.includes(g.section))
+                    .map((g) => (
                     <optgroup key={g.section} label={`${g.section} · ${g.intitule}`}>
                       {g.lignes.map((n) => (
                         <option key={n.cle} value={n.cle}>{n.designation} · {n.dureeAns} ans</option>
@@ -954,6 +865,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     </optgroup>
                   ))}
                 </select>
+                {/* Les catégories proposées pour le compte sont une lecture de
+                    l'éditeur (compte-du-bien.ts) · jamais un refus. */}
+                <span className="flex items-center gap-1 mt-1 text-[11px] font-normal">
+                  <input type="checkbox" checked={toutesCategories} onChange={(e) => setToutesCategories(e.target.checked)} />
+                  Toutes les catégories
+                </span>
               </label>
             )}
             <label className="text-[11.5px] font-semibold text-text-dim">
@@ -961,7 +878,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 Durée d'amortissement (années)
                 <Aide
                   titre="Durée propre"
-                  texte="Vide, le bien prend la durée de sa famille. Une révision majeure s'amortit sur l'intervalle qui sépare deux révisions, plus court que la durée du bien principal."
+                  texte="La durée d'utilité du bien. Choisir la catégorie du barème la propose ; elle reste libre. Une révision majeure s'amortit sur l'intervalle qui sépare deux révisions, plus court que la durée du bien principal."
                   source="AUDCIF Titre VIII ch. 5 § 1"
                 />
               </span>
@@ -970,18 +887,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 min={1}
                 value={iDuree}
                 onChange={(e) => setIDuree(e.target.value)}
-                placeholder={(() => {
-                  const f = (familles ?? []).find((x) => x.id === iFamilleId);
-                  return f ? `${f.dureeAmortissementAns} (famille)` : '';
-                })()}
+                required={!compteBien?.motifNonAmortissable}
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
               {/* Écart au barème fiscal · signalé, jamais refusé (arrêté
-                  n° 013/2025, art. 4). Vide, la durée est celle de la famille.
-                  Le plancher de la location-acquisition (art. 5) se lit sur le
-                  compte de la famille, indépendamment de la nature choisie. */}
+                  n° 013/2025, art. 4). Le plancher de la location-acquisition
+                  (art. 5) se lit sur le compte du bien, indépendamment de la
+                  nature choisie. */}
               {(() => {
-                const duree = iDuree ? Number(iDuree) : familleChoisie?.dureeAmortissementAns ?? null;
+                const duree = iDuree ? Number(iDuree) : null;
                 const alertes = [
                   avertissementEcartBareme(
                     duree,
@@ -991,8 +905,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   avertissementPlancherLocationAcquisition(
                     duree,
                     utilisateur?.tenant?.referentiel,
-                    familleChoisie?.compteImmobilisation?.numero
-                      ?? comptesClasse2.find((c) => c.id === familleChoisie?.compteImmobilisationId)?.numero,
+                    compteBien?.numero,
                     exerciceCourant?.dateFin,
                   ),
                 ].filter((a): a is string => !!a);
@@ -1007,12 +920,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   Mode d'amortissement
                   <Aide
                     titre="Mode d'amortissement"
-                    texte="Vide, le bien prend le mode de sa famille. Aux unités d'œuvre, la dotation suit l'usage : base amortissable × unités consommées / total d'unités prévues, sans prorata temporis."
+                    texte="Linéaire par défaut. Aux unités d'œuvre, la dotation suit l'usage : base amortissable × unités consommées / total d'unités prévues, sans prorata temporis."
                     source="AUDCIF art. 45 et Titre VI"
                   />
                 </span>
                 <select value={iMode} onChange={(e) => setIMode(e.target.value as typeof iMode)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                  <option value="">{familleChoisie ? `Celui de la famille (${familleChoisie.modeAmortissement === 'UNITES_DOEUVRE' ? "unités d'œuvre" : 'linéaire'})` : 'Celui de la famille'}</option>
                   <option value="LINEAIRE">Linéaire</option>
                   <option value="UNITES_DOEUVRE">Unités d'œuvre</option>
                 </select>
@@ -1059,15 +971,42 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 />
               </label>
             ) : (
-              <label className="text-[11.5px] font-semibold text-text-dim">
-                Financement (contrepartie)
-                <select required disabled={!iFamilleId} value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                  <option value="">{iFamilleId ? '' : 'Choisissez d’abord la famille'}</option>
-                  {(contrepartiesAdmises ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  <span className="flex items-center gap-1">
+                    Mode d'acquisition
+                    <Aide
+                      titre="Mode d'acquisition"
+                      texte="Comment le bien arrive : achat à crédit ou au comptant, apport, don ou subvention en nature, production propre, travaux en cours achevés. Il range les contreparties que la fiche du compte du bien admet ; la liste reste fermée."
+                      source="Fiches des comptes 21 à 24"
+                    />
+                  </span>
+                  <select
+                    required
+                    disabled={!iCompteBienId}
+                    value={iModeAcquisition}
+                    onChange={(e) => {
+                      setIModeAcquisition(e.target.value);
+                      setICompteContrepartie('');
+                    }}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                  >
+                    <option value="">{iCompteBienId ? '' : 'Choisissez d’abord le compte du bien'}</option>
+                    {modesAcquisition.map((m) => (
+                      <option key={m.mode} value={m.mode}>{m.libelle}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Contrepartie
+                  <select required disabled={!iModeAcquisition} value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                    <option value="" />
+                    {contrepartiesDuMode.map((c) => (
+                      <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
             )}
           </div>
           {/* APPROCHE PAR COMPOSANTS · facultative. Laisser le principal vide crée

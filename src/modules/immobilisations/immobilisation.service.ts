@@ -33,6 +33,13 @@ import { transactionJournalisee } from '../../common/audit/transaction-journalis
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 import {
+  comptesSuivantLeBien,
+  estCompteDeBien,
+  modeDuCompteDeContrepartie,
+  LIBELLES_MODE_ACQUISITION,
+  sectionsBaremeDuCompte,
+} from './compte-du-bien';
+import {
   motifNonAmortissable,
   motifRefusCompteAmortissement,
   motifRefusCompteDepreciation,
@@ -970,22 +977,34 @@ export class ImmobilisationService {
 
   /**
    * Les comptes que l'écran propose en contrepartie d'une acquisition, pour la
-   * famille choisie · la même règle que le refus de `creer`
-   * (`contrepartie-acquisition.ts`), servie une fois.
+   * famille ou le compte du bien choisi · la même règle que le refus de
+   * `creer` (`contrepartie-acquisition.ts`), servie une fois. Chaque compte
+   * porte son MODE D'ACQUISITION (`compte-du-bien.ts`), qui ne fait que
+   * ranger la liste fermée pour l'écran.
    */
-  async contrepartiesAcquisition(tenantId: string, familleId: string, typeComposant: TypeComposant | null = null) {
-    const [dossier, famille] = await Promise.all([
-      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } }),
-      this.prisma.familleImmobilisation.findFirst({
-        where: { id: familleId, tenantId },
+  async contrepartiesAcquisition(
+    tenantId: string,
+    cible: { familleId?: string; compteImmobilisationId?: string },
+    typeComposant: TypeComposant | null = null,
+  ) {
+    const dossier = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    let numeroBien: string | null = null;
+    if (cible.compteImmobilisationId) {
+      const compte = await this.prisma.compte.findFirst({
+        where: { id: cible.compteImmobilisationId, tenantId },
+        select: { numero: true },
+      });
+      numeroBien = compte?.numero ?? null;
+    } else if (cible.familleId) {
+      const famille = await this.prisma.familleImmobilisation.findFirst({
+        where: { id: cible.familleId, tenantId },
         select: { compteImmobilisation: { select: { numero: true } } },
-      }),
-    ]);
-    if (!dossier || !famille) throw new BadRequestException('Famille introuvable pour ce tenant');
-    const racines = racinesContrepartieAcquisition(dossier.referentiel, famille.compteImmobilisation.numero, {
-      typeComposant,
-    });
-    return this.prisma.compte.findMany({
+      });
+      numeroBien = famille?.compteImmobilisation.numero ?? null;
+    }
+    if (!dossier || !numeroBien) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
+    const racines = racinesContrepartieAcquisition(dossier.referentiel, numeroBien, { typeComposant });
+    const comptes = await this.prisma.compte.findMany({
       where: {
         tenantId,
         typeCompte: TypeCompteDetailTotal.DETAIL,
@@ -995,6 +1014,151 @@ export class ImmobilisationService {
       select: { id: true, numero: true, intitule: true },
       orderBy: { numero: 'asc' },
     });
+    return comptes.map((c) => {
+      const mode = modeDuCompteDeContrepartie(dossier.referentiel, c.numero, racines);
+      return { ...c, mode, libelleMode: mode ? LIBELLES_MODE_ACQUISITION[mode] : null };
+    });
+  }
+
+  /**
+   * LES COMPTES QUI PEUVENT PORTER UN BIEN · comptes de DÉTAIL actifs des
+   * divisions 21 à 24 (et 20 au SYCEBNL), chacun avec les comptes 28 et 68
+   * qui le suivent, le motif s'il ne s'amortit pas ou si un compte manque, et
+   * les sections du barème que l'éditeur propose pour lui. Lu en une fois sur
+   * le plan, pour que l'écran ne recompose aucun numéro.
+   */
+  async comptesDuBien(tenantId: string) {
+    const [{ referentiel }, plan, divisions] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findMany({
+        where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+        select: { id: true, numero: true, intitule: true },
+        orderBy: { numero: 'asc' },
+      }),
+      // Les en-têtes de division (20 à 24), pour grouper la liste à l'écran
+      // sous l'intitulé du plan du dossier, jamais sous un libellé recopié.
+      this.prisma.compte.findMany({
+        where: { tenantId, typeCompte: TypeCompteDetailTotal.TOTAL, numero: { in: ['20', '21', '22', '23', '24'] } },
+        select: { numero: true, intitule: true },
+      }),
+    ]);
+    const intituleDivision = new Map(divisions.map((d) => [d.numero, d.intitule]));
+    const numeros = plan.map((c) => c.numero);
+    const parNumero = new Map(plan.map((c) => [c.numero, c]));
+    return plan
+      .filter((c) => estCompteDeBien(referentiel, c.numero))
+      .map((c) => {
+        const nonAmortissable = motifNonAmortissable(c.numero, referentiel);
+        const suivants = comptesSuivantLeBien(referentiel, c.numero, numeros, !!nonAmortissable);
+        return {
+          id: c.id,
+          numero: c.numero,
+          intitule: c.intitule,
+          compteAmortissement: suivants.amortissement ? (parNumero.get(suivants.amortissement) ?? null) : null,
+          compteDotation: suivants.dotation ? (parNumero.get(suivants.dotation) ?? null) : null,
+          motifComptes: suivants.motif,
+          motifNonAmortissable: nonAmortissable,
+          sectionsBareme: sectionsBaremeDuCompte(c.numero),
+          division: { numero: c.numero.slice(0, 2), intitule: intituleDivision.get(c.numero.slice(0, 2)) ?? null },
+        };
+      });
+  }
+
+  /**
+   * LA FAMILLE DU COMPTE CHOISI · trouvée, ou créée avec les comptes que le
+   * plan donne (`comptesSuivantLeBien`). La famille n'est plus qu'un support
+   * technique · elle naît donc aussi sous la main du comptable, qui n'a pas
+   * le droit de créer une famille par la route dédiée, puisqu'il ne choisit
+   * ici que le compte du bien et que les deux autres comptes ne se saisissent
+   * pas. Une famille active du même compte est reprise, la plus ancienne ;
+   * une famille en sommeil ne l'est jamais (audit final F129).
+   */
+  private async famillePourCompte(
+    tenantId: string,
+    compteImmobilisationId: string,
+    dureeAmortissementAns: number | undefined,
+    modeAmortissement: ModeAmortissement | undefined,
+  ) {
+    const existante = await this.prisma.familleImmobilisation.findFirst({
+      where: { tenantId, compteImmobilisationId, estActif: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existante) return existante;
+    const compte = await this.prisma.compte.findFirst({
+      where: { id: compteImmobilisationId, tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+      select: { id: true, numero: true, intitule: true },
+    });
+    if (!compte) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
+    const { referentiel } = await this.regimeComptable(tenantId);
+    if (!estCompteDeBien(referentiel, compte.numero)) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} ne porte pas un bien · choisissez un compte des divisions ` +
+          `${referentiel === Referentiel.SYCEBNL ? '20 à 24' : '21 à 24'}.`,
+      );
+    }
+    const plan = await this.prisma.compte.findMany({
+      where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+      select: { id: true, numero: true },
+    });
+    const nonAmortissable = !!motifNonAmortissable(compte.numero, referentiel);
+    const suivants = comptesSuivantLeBien(referentiel, compte.numero, plan.map((c) => c.numero), nonAmortissable);
+    if (suivants.motif || !suivants.amortissement || !suivants.dotation) {
+      throw new BadRequestException(suivants.motif ?? `Comptes du bien ${compte.numero} introuvables`);
+    }
+    if (!nonAmortissable && (dureeAmortissementAns == null || dureeAmortissementAns < 1)) {
+      throw new BadRequestException("Indiquez la durée d'amortissement du bien, en années.");
+    }
+    const id28 = plan.find((c) => c.numero === suivants.amortissement)!.id;
+    const id68 = plan.find((c) => c.numero === suivants.dotation)!.id;
+    // Le code est le numéro du compte · unique par dossier, sauf si le cabinet
+    // l'a déjà donné à une autre famille, auquel cas il est suffixé.
+    const pris = await this.prisma.familleImmobilisation.count({
+      where: { tenantId, code: { startsWith: compte.numero } },
+    });
+    return this.prisma.familleImmobilisation.create({
+      data: {
+        tenantId,
+        code: pris ? `${compte.numero}-${pris + 1}` : compte.numero,
+        intitule: compte.intitule,
+        compteImmobilisationId: compte.id,
+        compteAmortissementId: id28,
+        compteDotationId: id68,
+        // Inerte pour un bien non amortissable · la dotation y est refusée.
+        dureeAmortissementAns: dureeAmortissementAns ?? 1,
+        modeAmortissement: modeAmortissement ?? ModeAmortissement.LINEAIRE,
+      },
+    });
+  }
+
+  /**
+   * LE SEUIL DU PETIT MATÉRIEL EN FRANCS, À UNE DATE · arrêté n° 014/CAB/MIN/
+   * FINANCES/2025, art. 2 · « valeur unitaire inférieure à l'équivalent en
+   * francs congolais de cinq cents dollars américains (500 USD) », en vigueur
+   * au 1er janvier 2026 (art. 3). L'arrêté ne dit pas quel cours retenir ·
+   * OmegaX prend le cours de l'USD EN VIGUEUR à la date d'acquisition (le
+   * dernier saisi à cette date ou avant), et le dit. Sans cours, aucune
+   * comparaison · jamais un cours supposé.
+   */
+  async seuilPetitMateriel(tenantId: string, date: string) {
+    const jour = new Date(date);
+    if (Number.isNaN(jour.getTime())) throw new BadRequestException('Date illisible');
+    if (date.slice(0, 10) < '2026-01-01') {
+      return { seuil: null, cours: null, dateCours: null, motif: 'Arrêté n° 014/2025 en vigueur au 1er janvier 2026 (art. 3).' };
+    }
+    // La devise d'abord, bornée au dossier · les cours sont portés par elle.
+    const usd = await this.prisma.devise.findFirst({ where: { tenantId, code: 'USD' }, select: { id: true } });
+    const cours = usd
+      ? await this.prisma.coursDevise.findFirst({
+          where: { deviseId: usd.id, date: { lte: jour } },
+          orderBy: { date: 'desc' },
+          select: { cours: true, date: true },
+        })
+      : null;
+    if (!cours) {
+      return { seuil: null, cours: null, dateCours: null, motif: 'Aucun cours de l’USD saisi à cette date ou avant (fenêtre Devises).' };
+    }
+    const valeur = Number(cours.cours);
+    return { seuil: Math.round(500 * valeur * 100) / 100, cours: valeur, dateCours: cours.date, motif: null };
   }
 
   async creer(
@@ -1009,7 +1173,14 @@ export class ImmobilisationService {
      */
     interne: { composantRemplaceId?: string } = {},
   ) {
-    const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } });
+    // LE COMPTE DU BIEN OU LA FAMILLE (compte-du-bien.ts) · l'un des deux,
+    // jamais les deux, pour qu'aucun des deux ne contredise l'autre en silence.
+    if (!!dto.familleId === !!dto.compteImmobilisationId) {
+      throw new BadRequestException('Indiquez le compte du bien.');
+    }
+    const famille = dto.familleId
+      ? await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } })
+      : await this.famillePourCompte(tenantId, dto.compteImmobilisationId!, dto.dureeAmortissementAns, dto.modeAmortissement);
     if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
     // UNE FAMILLE EN SOMMEIL NE REÇOIT PLUS DE BIEN (audit final F129) · la
     // mise en sommeil n'avait aucun effet, la famille restait proposée et

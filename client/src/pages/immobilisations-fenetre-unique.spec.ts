@@ -23,8 +23,9 @@ describe('le bouton de création s’efface formulaire ouvert', () => {
     expect(bouton).toContain('setAfficherFormImmo(true)');
   });
 
-  it('« Nouvelle famille » aussi, et reste réservé à l’administrateur', () => {
-    expect(page).toContain('{estAdmin && !afficherFormFamille && (');
+  it('la famille ne se saisit plus · le bien se choisit par son compte (compte-du-bien.ts)', () => {
+    expect(page).toContain('compteImmobilisationId: iCompteBienId,');
+    expect(page).toContain('Compte du bien');
   });
 
   it('le formulaire garde son « Annuler » pour se refermer', () => {

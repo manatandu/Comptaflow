@@ -171,10 +171,10 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
       compte: { findMany },
     };
     const svc = new ImmobilisationService(prisma as never, {} as never);
-    await svc.contrepartiesAcquisition('t1', 'f1', TypeComposant.DEMANTELEMENT);
+    await svc.contrepartiesAcquisition('t1', { familleId: 'f1' }, TypeComposant.DEMANTELEMENT);
     const racines = (findMany.mock.calls[0][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
     expect(racines).toContain('1984');
-    await svc.contrepartiesAcquisition('t1', 'f1');
+    await svc.contrepartiesAcquisition('t1', { familleId: 'f1' });
     const sans = (findMany.mock.calls[1][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
     expect(sans).not.toContain('1984');
   });

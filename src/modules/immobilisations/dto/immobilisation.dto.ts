@@ -53,8 +53,18 @@ export class ModifierFamilleDto {
 }
 
 export class CreerImmobilisationDto {
+  /**
+   * Le compte du bien (classe 2) OU la famille, l'un des deux · l'écran envoie
+   * le compte, la famille reste admise pour les chemins internes
+   * (renouvellement, vitrine). Le service refuse les deux ou aucun.
+   */
+  @IsOptional()
   @IsUUID('4')
-  familleId!: string;
+  familleId?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  compteImmobilisationId?: string;
 
   @IsString()
   designation!: string;

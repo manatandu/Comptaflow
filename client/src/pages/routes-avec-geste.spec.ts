@@ -178,13 +178,6 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     appel: 'api.patch(`/ribs-banque/${id}`, rib)',
   },
   {
-    route: 'PATCH /immobilisations/familles/:id',
-    controleur: 'immobilisations/immobilisation.controller.ts',
-    decorateur: "@Patch('familles/:id')",
-    page: 'ImmobilisationsPage.tsx',
-    appel: 'api.patch(`/immobilisations/familles/${f.id}`, corps)',
-  },
-  {
     route: 'PATCH /modeles-reglement/:id',
     controleur: 'tiers/tiers.controller.ts',
     decorateur: "@Patch(':id')",
