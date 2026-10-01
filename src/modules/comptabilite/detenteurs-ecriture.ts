@@ -52,6 +52,9 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // plus, et la clôture suivante extournerait des courus jamais passés.
   'ClotureLocationAcquisition.ecritureId',
   'ClotureLocationAcquisition.ecritureExtourneId',
+  // La reprise d'une subvention en nature · retirée seule, elle se
+  // reproposerait et le 14 serait repris deux fois.
+  'RepriseSubventionImmobilisation.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

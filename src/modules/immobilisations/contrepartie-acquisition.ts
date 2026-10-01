@@ -48,9 +48,23 @@ import { Referentiel, TypeComposant } from '@prisma/client';
  *     titre onéreux) : « le SYSCOHADA autorise que le sous-compte composant
  *     démantèlement soit débité directement par le crédit du 1984 » · pour
  *     un composant de type DEMANTELEMENT seulement, au SYSCOHADA seulement.
- *   · LA SUBVENTION EN NATURE · SYCEBNL, fiche 14 : « crédité […] par le
- *     débit du compte approprié de la classe 2, sur la base de l'évaluation
- *     des immobilisations transférées gratuitement ».
+ *   · LA SUBVENTION EN NATURE · fiche du compte 14, la même aux deux textes :
+ *     « crédité […] par le débit du compte approprié de la classe 2, sur la
+ *     base de l'évaluation des immobilisations transférées gratuitement » ·
+ *     au SYSCOHADA aussi depuis le 2026-10-01 (décision de Manasse), le bien
+ *     entrant à sa VALEUR ACTUELLE (AUDCIF art. 36 et 42). Sauf un droit
+ *     d'exclusivité public (2128) · « Par prudence, le Système comptable
+ *     OHADA considère que les droits publics acquis à titre gratuit ont une
+ *     valeur nulle » (Titre VIII ch. 1 § 1.3.2) · refusé, voir
+ *     `motifRefusContrepartie`.
+ *   · LA CONSTRUCTION REÇUE EN FIN DE BAIL · AUDCIF Titre VIII ch. 9 § 1.4,
+ *     chez le propriétaire du terrain · « Si elle est reçue à titre gratuit,
+ *     la construction est comptabilisée pour sa valeur actuelle, la
+ *     contrepartie constituant un produit HAO à inscrire au crédit du compte
+ *     841 Produits HAO constatés » · un sous-compte du 231 seulement, hors le
+ *     2316 de location-acquisition, au SYSCOHADA seulement. Le 845 « Dons et
+ *     libéralités obtenus » n'est pas ouvert · aucune fiche lue ne le donne
+ *     pour contrepartie d'une immobilisation.
  *   · LE FONDS REPORTÉ · SYCEBNL, fiche 20 : « débité le compte 20 de la
  *     valeur actuelle ; par le crédit du compte 17 – Fonds reportés » · pour
  *     un bien de la division 20 seulement, 171 (donation temporaire
@@ -125,6 +139,8 @@ function racinesDeLaFiche(referentiel: Referentiel, compte: string, options: Opt
   if (division === '26' || division === '27') ajouts.push('4813');
   if (referentiel === Referentiel.SYSCOHADA) {
     if (options.typeComposant === TypeComposant.DEMANTELEMENT) ajouts.push('1984');
+    if (!compte.startsWith('2128')) ajouts.push('14');
+    if (compte.startsWith('231') && !compte.startsWith('2316')) ajouts.push('841');
   } else {
     ajouts.push('14');
     if (division === '20') ajouts.push(compte.startsWith('2011') ? '171' : '172');
@@ -173,6 +189,15 @@ export function motifRefusContrepartie(
   options: OptionsContrepartie = {},
 ): string | null {
   if (contrepartieAcquisitionAdmise(referentiel, compteImmobilisation, contrepartie, options)) return null;
+  // Le droit public reçu gratuitement a une valeur nulle · le refus le dit,
+  // plutôt qu'une liste de racines où le 14 manque sans raison apparente.
+  if (referentiel === Referentiel.SYSCOHADA && compteImmobilisation.startsWith('2128') && contrepartie.startsWith('14')) {
+    return (
+      "Un droit d'exclusivité public reçu à titre gratuit n'entre pas à l'actif · « Par prudence, le Système " +
+      "comptable OHADA considère que les droits publics acquis à titre gratuit ont une valeur nulle » (AUDCIF, " +
+      'Titre VIII ch. 1 § 1.3.2).'
+    );
+  }
   const division = compteImmobilisation.slice(0, 2);
   const fiche =
     referentiel === Referentiel.SYSCOHADA

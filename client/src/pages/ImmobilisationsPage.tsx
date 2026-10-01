@@ -8,6 +8,7 @@ import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import { ChampsLocationAcquisition } from '../components/ChampsLocationAcquisition';
 import { ClotureLocationAcquisition } from '../components/ClotureLocationAcquisition';
+import { RepriseSubventionImmobilisations } from '../components/RepriseSubventionImmobilisations';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
@@ -1587,6 +1588,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         </div>
       )}
       <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
+      <RepriseSubventionImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} />
     </div>
   );
 }

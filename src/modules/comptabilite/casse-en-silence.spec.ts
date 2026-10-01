@@ -87,6 +87,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROU
     consignation: { count: compteur('consignation') },
     ecartInventaire: { count: compteur('ecartInventaire') },
     clotureLocationAcquisition: { count: compteur('clotureLocationAcquisition') },
+    repriseSubventionImmobilisation: { count: compteur('repriseSubventionImmobilisation') },
     bulletinPaie: { count: compteur('bulletinPaie') },
     ligneOrdreVirement: { count: compteur('ligneOrdreVirement') },
     amortissementDerogatoire: { count: compteur('amortissementDerogatoire') },
@@ -347,7 +348,7 @@ describe('3 bis · une écriture qu’un module tient ne se retouche pas non plu
     'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
     'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
     'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
-    'ecartInventaire', 'clotureLocationAcquisition',
+    'ecartInventaire', 'clotureLocationAcquisition', 'repriseSubventionImmobilisation',
   ];
   const gestes: Array<[string, string, (s: EcritureService) => Promise<unknown>]> = [
     ['supprimer', 'BROUILLARD', (s) => s.supprimer('t1', 'e1')],

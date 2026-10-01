@@ -116,6 +116,9 @@ export const MODELES_AUDITES = new Set<string>([
   // Sa clôture par exercice · elle fige la ventilation des loyers entre la
   // dette et les intérêts, et les courus que l'exercice suivant extournera.
   'ClotureLocationAcquisition',
+  // La reprise au 799 d'une subvention en nature · elle fixe la part du 14
+  // rapportée au résultat de l'exercice.
+  'RepriseSubventionImmobilisation',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

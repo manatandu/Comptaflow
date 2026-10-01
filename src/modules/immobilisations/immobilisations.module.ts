@@ -8,11 +8,13 @@ import { JwtAuthModule } from '../auth/jwt-auth.module';
 import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { LocationAcquisitionController } from './location-acquisition/location-acquisition.controller';
 import { LocationAcquisitionService } from './location-acquisition/location-acquisition.service';
+import { RepriseSubventionController } from './reprise-subvention.controller';
+import { RepriseSubventionService } from './reprise-subvention.service';
 
 @Module({
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule],
-  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController],
-  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService],
+  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController, RepriseSubventionController],
+  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService, RepriseSubventionService],
   exports: [ImmobilisationService],
 })
 export class ImmobilisationsModule {}

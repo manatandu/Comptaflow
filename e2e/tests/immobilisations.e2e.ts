@@ -392,3 +392,63 @@ test('SYSCOHADA · l’option non levée sort le bien, la dette du 17 pour prix'
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * LE BIEN REÇU EN SUBVENTION, SUR LA BASE RÉELLE (fiche du compte 14) · il
+ * entre par le 14 au SYSCOHADA, la reprise au 799 se propose une fois la
+ * dotation passée, au même montant, et ne se passe qu'une fois.
+ */
+test('SYSCOHADA · un bien reçu en subvention se reprend au 799 au rythme de sa dotation', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Subvention en nature e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const vehicule = comptes.find((c) => c.numero.startsWith('2451'));
+  if (!vehicule) throw new Error('Aucun compte 2451 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string; mode: string | null }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${vehicule.id}`,
+  );
+  const subvention = contreparties.find((c) => c.numero === '14170000');
+  expect(subvention?.mode).toBe('DON_SUBVENTION');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: vehicule.id,
+    designation: 'Véhicule reçu e2e',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 6_000_000,
+    dureeAmortissementAns: 5,
+    compteContrepartieId: subvention!.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const avant = await appelApi<{ motif: string | null }>(page, 'GET', `/immobilisations/${bien.id}/reprise-subvention?exerciceId=${exercice.id}`);
+  expect(avant.motif).toMatch(/dotation/);
+
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  const { biens } = await appelApi<{ biens: Array<{ id: string; montant: number; subvention: number }> }>(
+    page,
+    'GET',
+    `/immobilisations/reprises-subvention?exerciceId=${exercice.id}`,
+  );
+  const proposition = biens.find((b) => b.id === bien.id);
+  expect(proposition?.subvention).toBe(6_000_000);
+  expect(proposition?.montant).toBeCloseTo(Number(dotation.montant), 2);
+
+  const corps = { exerciceId: exercice.id, journalId: od.id };
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/reprise-subvention`, corps);
+  await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/reprise-subvention`, corps)).rejects.toThrow(/déjà passée/);
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '79900000')?.mouvementCredit)).toBeCloseTo(Number(dotation.montant), 2);
+
+  expect(pannes).toEqual([]);
+});

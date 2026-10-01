@@ -73,8 +73,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // 122 avec le registre des licences sur site, HORS DOSSIER et donc hors archive,
     // 126 avec les formules, abonnements, options et factures d'abonnement de l'éditeur, hors dossier de même,
     // 127 avec les en-cours d'ouverture du premier rapprochement bancaire, bornés par leur tenantId,
-    // 128 avec les contrats de location-acquisition, bornés de même, 129 avec leurs clôtures par exercice.
-    expect(modeles).toHaveLength(129);
+    // 128 avec les contrats de location-acquisition, bornés de même, 129 avec leurs clôtures par exercice,
+    // 130 avec les reprises au 799 des subventions en nature.
+    expect(modeles).toHaveLength(130);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
     for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
       expect(modeles).toContain(m);

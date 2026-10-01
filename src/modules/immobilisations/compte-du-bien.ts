@@ -146,7 +146,8 @@ export type ModeAcquisition =
   | 'EN_COURS_ACHEVE'
   | 'AVANCE_SOLDEE'
   | 'TITRES_NON_LIBERES'
-  | 'DEMANTELEMENT';
+  | 'DEMANTELEMENT'
+  | 'CONSTRUCTION_FIN_DE_BAIL';
 
 export const LIBELLES_MODE_ACQUISITION: Record<ModeAcquisition, string> = {
   ACHAT_A_CREDIT: 'Achat à crédit (fournisseur d’investissement)',
@@ -159,6 +160,7 @@ export const LIBELLES_MODE_ACQUISITION: Record<ModeAcquisition, string> = {
   AVANCE_SOLDEE: 'Avance soldée à la facture définitive',
   TITRES_NON_LIBERES: 'Titres · part non libérée',
   DEMANTELEMENT: 'Composant démantèlement (provision)',
+  CONSTRUCTION_FIN_DE_BAIL: 'Construction reçue gratuitement en fin de bail',
 };
 
 /** Le mode d'une racine de contrepartie admise, selon le référentiel. */
@@ -170,9 +172,12 @@ export function modeDeLaRacine(referentiel: Referentiel, racine: string): ModeAc
   if (/^2[1-4]9/.test(racine)) return 'EN_COURS_ACHEVE';
   if (racine === '251' || racine === '252') return 'AVANCE_SOLDEE';
   if (racine === '1984') return 'DEMANTELEMENT';
+  // La subvention en nature, aux deux référentiels (fiche du compte 14).
+  if (racine === '14') return 'DON_SUBVENTION';
+  if (referentiel === Referentiel.SYSCOHADA && racine === '841') return 'CONSTRUCTION_FIN_DE_BAIL';
   if (referentiel === Referentiel.SYCEBNL) {
     if (['162', '163', '164', '165'].includes(racine)) return 'FONDS_AFFECTES';
-    if (racine === '14' || racine === '167' || racine === '171' || racine === '172') return 'DON_SUBVENTION';
+    if (racine === '167' || racine === '171' || racine === '172') return 'DON_SUBVENTION';
   }
   // 101 à 104 (capital, dotation), 46 (apporteurs), 45 (fondateurs).
   return 'APPORT';

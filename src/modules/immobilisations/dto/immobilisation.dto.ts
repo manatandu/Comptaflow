@@ -675,3 +675,19 @@ export class DeclarerOptionLocationAcquisitionDto {
   @IsBoolean()
   cessionCourante?: boolean;
 }
+
+/** La reprise au 799 d'une subvention en nature, pour un exercice. */
+export class RepriseSubventionDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  /** Clause d'inaliénabilité d'un bien non amortissable · à défaut, le dixième (fiche du compte 14). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeInalienabiliteAns?: number;
+}

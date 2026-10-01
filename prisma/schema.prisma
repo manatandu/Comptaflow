@@ -773,6 +773,7 @@ model Tenant {
 
   contratsLocationAcquisition ContratLocationAcquisition[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
+  reprisesSubvention          RepriseSubventionImmobilisation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1395,6 +1396,7 @@ model Exercice {
   ecritures                   Ecriture[]
   clotures                    Cloture[]
   dotationsAmortissement      DotationAmortissement[]
+  reprisesSubvention          RepriseSubventionImmobilisation[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1469,15 +1471,16 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id                          String                      @id @default(uuid())
-  clotureLocationAcquisition  ClotureLocationAcquisition? @relation("ClotureLocationAcquisitionEcriture")
-  extourneLocationAcquisition ClotureLocationAcquisition? @relation("ClotureLocationAcquisitionExtourne")
+  id                          String                           @id @default(uuid())
+  repriseSubvention           RepriseSubventionImmobilisation?
+  clotureLocationAcquisition  ClotureLocationAcquisition?      @relation("ClotureLocationAcquisitionEcriture")
+  extourneLocationAcquisition ClotureLocationAcquisition?      @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
-  tenant                      Tenant                      @relation(fields: [tenantId], references: [id])
+  tenant                      Tenant                           @relation(fields: [tenantId], references: [id])
   exerciceId                  String
-  exercice                    Exercice                    @relation(fields: [exerciceId], references: [id])
+  exercice                    Exercice                         @relation(fields: [exerciceId], references: [id])
   journalId                   String
-  journal                     Journal                     @relation(fields: [journalId], references: [id])
+  journal                     Journal                          @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
   numeroPiece                 Int?
@@ -1490,7 +1493,7 @@ model Ecriture {
   dateValeur                  DateTime?
   libelle                     String
   reference                   String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt                   DateTime                    @default(now())
+  createdAt                   DateTime                         @default(now())
   createdBy                   String // piste d'audit : jamais modifiable après clôture de l'exercice
   lignesOrdreVirement         LigneOrdreVirement[]
   amortissementDerogatoire    AmortissementDerogatoire?
@@ -3800,6 +3803,7 @@ model Immobilisation {
   fichesInventaire FicheInventaire[]
 
   contratLocationAcquisition ContratLocationAcquisition?
+  reprisesSubvention         RepriseSubventionImmobilisation[]
 
   @@index([immobilisationPrincipaleId])
   // AUDIT FINAL F261 · le registre, les dotations, les contrôles et
@@ -8132,4 +8136,39 @@ model ClotureLocationAcquisition {
   @@index([tenantId])
   @@index([exerciceId])
   @@map("clotures_location_acquisition")
+}
+
+enum NatureRepriseSubvention {
+  EXERCICE
+  SORTIE
+}
+
+/// LA REPRISE AU 799 D'UNE SUBVENTION D'INVESTISSEMENT EN NATURE · fiche du
+/// compte 14 (AUDCIF Titre VII, SYCEBNL Partie 2 ch. 3) · au rythme de la
+/// dotation, le solde à la sortie. PROPOSÉE par le module, passée par le
+/// cabinet ; une par bien et par exercice (index unique).
+model RepriseSubventionImmobilisation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  immobilisationId String
+  immobilisation   Immobilisation          @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  exerciceId       String
+  exercice         Exercice                @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+  nature           NatureRepriseSubvention
+  montant          Decimal                 @db.Decimal(18, 2)
+
+  /// RESTRICT déclaré · retirée seule, la reprise se reproposerait et le 14
+  /// serait repris deux fois.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([immobilisationId, exerciceId])
+  @@index([tenantId])
+  @@index([exerciceId])
+  @@map("reprises_subvention_immobilisation")
 }

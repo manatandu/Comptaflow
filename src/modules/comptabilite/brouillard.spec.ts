@@ -39,7 +39,7 @@ const MODELES_DETENTEURS = [
   'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
   'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
   'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
-  'ecartInventaire', 'clotureLocationAcquisition',
+  'ecartInventaire', 'clotureLocationAcquisition', 'repriseSubventionImmobilisation',
 ];
 function detenteurs(tenus: Record<string, number> = {}): Faux {
   return {

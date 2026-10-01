@@ -1191,6 +1191,7 @@ export class EcritureService {
       ["la clôture d'un contrat de location-acquisition", this.prisma.clotureLocationAcquisition.count({
         where: { tenantId, OR: [{ ecritureId }, { ecritureExtourneId: ecritureId }] },
       })],
+      ["la reprise d'une subvention d'investissement", this.prisma.repriseSubventionImmobilisation.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La
