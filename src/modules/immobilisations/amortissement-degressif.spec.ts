@@ -296,3 +296,129 @@ describe('DegressifService.opter au Système minimal de trésorerie', () => {
     expect(update).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * AMORTISSEMENT EXCEPTIONNEL · loi n° 23/053, art. 36 à 38, décisions D-8 à
+ * D-10 du 2026-10-01. 60 % plein la première période (le renvoi « article
+ * 31 » de l'art. 38, 1° se lit « article 34 », comme l'O.-L. n° 69/009 écartait
+ * le prorata), puis le dégressif et la bascule ; ouvert à toute entreprise ;
+ * prorata d'export déclaré et calculé, refusé sous 20 %.
+ */
+describe('amortissement exceptionnel · art. 36 à 38', () => {
+  it('60 % du coût de revient la première année, SANS prorata, puis le dégressif et la bascule, total égal à la base', () => {
+    const plan = planFiscalDegressif({
+      base: 1_000_000,
+      dureeFiscaleAns: 5,
+      dateMiseEnService: d('2026-07-15'),
+      exercices,
+      exceptionnel: true,
+    });
+    // Le dégressif seul donnait 200 000 en 2026 (six mois de 40 %).
+    expect(plan[0]).toMatchObject({ annuite: 600_000, mode: 'EXCEPTIONNEL_ART_38' });
+    expect(plan.map((l) => l.annuite)).toEqual([600_000, 160_000, 96_000, 57_600, 57_600, 28_800]);
+    expect(plan[4].mode).toBe('LINEAIRE_ART_35');
+    expect(plan.reduce((s, l) => s + l.annuite, 0)).toBe(1_000_000);
+  });
+
+  it('un premier exercice long garde la première annuité exceptionnelle et ajoute la suivante', () => {
+    const long = [{ id: 'eLong', dateDebut: d('2026-01-01'), dateFin: d('2027-12-31') }];
+    const plan = planFiscalDegressif({ base: 1_000_000, dureeFiscaleAns: 5, dateMiseEnService: d('2026-03-01'), exercices: long, exceptionnel: true });
+    expect(plan[0]).toMatchObject({ annuite: 760_000, mode: 'EXCEPTIONNEL_ART_38' });
+  });
+
+  const base = {
+    referentiel: 'SYSCOHADA', personnePhysique: false, numeroCompteImmobilisation: '24110000', categorie: 'MATERIEL_INDUSTRIEL',
+    bienNeuf: true, dureeFiscaleAns: 5, amortissementAnterieur: 0, dotationsPassees: 0, dateMiseEnService: d('2026-07-15') as Date | null,
+  };
+  const declaration = { activiteIndustrielle: true, chiffreAffairesExportHt: 200, chiffreAffairesTotalHt: 1000, source: 'Déclaration IS 2026' };
+
+  it('le seuil de 20 % est inclus, 19,99 % est refusé avec le prorata dit', () => {
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: declaration })).toBeNull();
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: { ...declaration, chiffreAffairesExportHt: 199.9 } })).toContain('19.99 %');
+  });
+
+  it('ouvert à une entreprise individuelle (art. 36), quand le dégressif seul lui reste fermé (art. 31)', () => {
+    expect(motifRefusOptionDegressif({ ...base, personnePhysique: true, exceptionnel: declaration })).toBeNull();
+    expect(motifRefusOptionDegressif({ ...base, personnePhysique: true })).toContain('sociétés');
+  });
+
+  it('refuse sans activité industrielle attestée, sans chiffres, sans source, ou un export supérieur au total', () => {
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: { ...declaration, activiteIndustrielle: false } })).toContain('ouvrés ou semi-ouvrés');
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: { ...declaration, chiffreAffairesTotalHt: null } })).toContain('saisissez');
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: { ...declaration, source: '  ' } })).toContain('source');
+    expect(motifRefusOptionDegressif({ ...base, exceptionnel: { ...declaration, chiffreAffairesExportHt: 1200 } })).toContain('dépasser');
+  });
+
+  it('loi n° 23/053, art. 37 · les conditions des art. 31 et 32 restent exigées (incorporel, occasion, durée hors bornes) et le référentiel associatif reste fermé', () => {
+    expect(motifRefusOptionDegressif({ ...base, numeroCompteImmobilisation: '21300000', exceptionnel: declaration })).toContain('art. 32');
+    expect(motifRefusOptionDegressif({ ...base, bienNeuf: false, exceptionnel: declaration })).toContain('NEUFS');
+    expect(motifRefusOptionDegressif({ ...base, dureeFiscaleAns: 3, exceptionnel: declaration })).toContain('quatre à vingt');
+    expect(motifRefusOptionDegressif({ ...base, referentiel: 'SYCEBNL', exceptionnel: declaration })).toContain('SYCEBNL');
+  });
+});
+
+describe('DegressifService.opter · amortissement exceptionnel', () => {
+  function monter(forme: string) {
+    const update = jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'i', ...data }));
+    const prisma = {
+      immobilisation: {
+        findFirst: jest.fn(async () => ({
+          id: 'i', degressifFiscal: false, amortissementAnterieur: 0, dotations: [], derogatoires: [],
+          compteImmobilisation: { numero: '24110000' }, dateMiseEnService: d('2026-02-01'), natureFiscaleCle: null,
+        })),
+        update,
+      },
+      tenant: {
+        findUniqueOrThrow: jest.fn(async () => ({ referentiel: 'SYSCOHADA', formeJuridiqueSyscohada: forme, systemeComptableSyscohada: 'NORMAL' })),
+      },
+    };
+    return { s: new DegressifService(prisma as never, {} as never), update };
+  }
+  const option = {
+    categorie: 'MATERIEL_INDUSTRIEL', bienNeuf: true, dureeFiscaleAns: 5, exceptionnel: true, activiteIndustrielle: true,
+    chiffreAffairesExportHt: 300_000, chiffreAffairesTotalHt: 1_000_000, sourceChiffreAffaires: ' États financiers 2026 ',
+  };
+
+  it('garde la déclaration de l’art. 36 sur le bien, même pour une entreprise individuelle', async () => {
+    const { s, update } = monter('ENTREPRISE_INDIVIDUELLE');
+    await s.opter('t', 'i', option as never);
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      degressifFiscal: true,
+      amortissementExceptionnel: true,
+      chiffreAffairesExportHt: 300_000,
+      chiffreAffairesTotalHt: 1_000_000,
+      sourceChiffreAffairesExport: 'États financiers 2026',
+    });
+  });
+
+  it('refuse sous 20 % sans rien écrire', async () => {
+    const { s, update } = monter('SARL');
+    await expect(s.opter('t', 'i', { ...option, chiffreAffairesExportHt: 150_000 } as never)).rejects.toThrow(/15\.00 %/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('le dégressif seul ne pose aucune déclaration d’export', async () => {
+    const { s, update } = monter('SARL');
+    await s.opter('t', 'i', { categorie: 'MATERIEL_INDUSTRIEL', bienNeuf: true, dureeFiscaleAns: 5 } as never);
+    expect(update.mock.calls[0][0].data.amortissementExceptionnel).toBeUndefined();
+  });
+});
+
+describe('DegressifService.planFiscal · un bien sous exceptionnel', () => {
+  it('rend la première annuité à 60 %, sans prorata, et le prorata déclaré', async () => {
+    const prisma = {
+      immobilisation: {
+        findFirst: jest.fn(async () => ({
+          id: 'i', degressifFiscal: true, amortissementExceptionnel: true, dureeFiscaleAns: 5, categorieDegressif: 'MATERIEL_INDUSTRIEL',
+          valeurOrigine: 1_000_000, valeurResiduelle: 0, amortissementAnterieur: 0, dotations: [], derogatoires: [],
+          chiffreAffairesExportHt: 250_000, chiffreAffairesTotalHt: 1_000_000, sourceChiffreAffairesExport: 'EF 2026',
+          compteImmobilisation: { numero: '24110000' }, dateMiseEnService: d('2026-07-15'), natureFiscaleCle: null,
+        })),
+      },
+      exercice: { findMany: jest.fn(async () => exercices) },
+    };
+    const plan = await new DegressifService(prisma as never, {} as never).planFiscal('t', 'i');
+    expect(plan.lignes[0]).toMatchObject({ annuiteFiscale: 600_000, mode: 'EXCEPTIONNEL_ART_38' });
+    expect(plan).toMatchObject({ amortissementExceptionnel: true, prorataExport: 0.25, sourceChiffreAffairesExport: 'EF 2026' });
+  });
+});

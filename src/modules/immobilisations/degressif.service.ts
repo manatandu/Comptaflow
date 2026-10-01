@@ -60,6 +60,7 @@ export class DegressifService {
       dureeFiscaleAns: immo.dureeFiscaleAns ?? 0,
       dateMiseEnService: immo.dateMiseEnService,
       exercices,
+      exceptionnel: immo.amortissementExceptionnel,
     });
     return { exercices, plan };
   }
@@ -104,6 +105,12 @@ export class DegressifService {
     });
     return {
       degressifFiscal: true,
+      amortissementExceptionnel: immo.amortissementExceptionnel,
+      prorataExport:
+        immo.amortissementExceptionnel && immo.chiffreAffairesTotalHt != null && n(immo.chiffreAffairesTotalHt) > 0
+          ? Math.round((n(immo.chiffreAffairesExportHt) / n(immo.chiffreAffairesTotalHt)) * 10000) / 10000
+          : null,
+      sourceChiffreAffairesExport: immo.sourceChiffreAffairesExport,
       categorie: immo.categorieDegressif,
       dureeFiscaleAns: immo.dureeFiscaleAns,
       coefficient: coefficientDegressif(immo.dureeFiscaleAns ?? 0),
@@ -135,12 +142,35 @@ export class DegressifService {
       amortissementAnterieur: n(immo.amortissementAnterieur),
       dotationsPassees: immo.dotations.length,
       dateMiseEnService: immo.dateMiseEnService,
+      exceptionnel: dto.exceptionnel
+        ? {
+            activiteIndustrielle: dto.activiteIndustrielle,
+            chiffreAffairesExportHt: dto.chiffreAffairesExportHt,
+            chiffreAffairesTotalHt: dto.chiffreAffairesTotalHt,
+            source: dto.sourceChiffreAffaires,
+          }
+        : null,
     });
     if (refus) throw new BadRequestException(refus);
     const retenu = await this.prisma.immobilisation.update({
       where: { id: immo.id },
-      data: { degressifFiscal: true, categorieDegressif: dto.categorie, dureeFiscaleAns: dto.dureeFiscaleAns, optionDegressifLe: new Date() },
-      select: { id: true, degressifFiscal: true, categorieDegressif: true, dureeFiscaleAns: true },
+      data: {
+        degressifFiscal: true,
+        categorieDegressif: dto.categorie,
+        dureeFiscaleAns: dto.dureeFiscaleAns,
+        optionDegressifLe: new Date(),
+        // La déclaration de l'art. 36 est GARDÉE · c'est elle que le contrôle
+        // demandera, et le prorata ne se recalcule jamais sur d'autres chiffres.
+        ...(dto.exceptionnel
+          ? {
+              amortissementExceptionnel: true,
+              chiffreAffairesExportHt: dto.chiffreAffairesExportHt,
+              chiffreAffairesTotalHt: dto.chiffreAffairesTotalHt,
+              sourceChiffreAffairesExport: dto.sourceChiffreAffaires!.trim(),
+            }
+          : {}),
+      },
+      select: { id: true, degressifFiscal: true, categorieDegressif: true, dureeFiscaleAns: true, amortissementExceptionnel: true },
     });
     // L'écart avec le barème se SIGNALE, l'option est prise (arrêté n° 013/2025, art. 4).
     return { ...retenu, avertissements: avertissementsDureeFiscale({ natureFiscaleCle: immo.natureFiscaleCle, dureeFiscaleAns: dto.dureeFiscaleAns }) };

@@ -3798,6 +3798,14 @@ model Immobilisation {
   categorieDegressif String?
   dureeFiscaleAns    Int?
   optionDegressifLe  DateTime?
+  /// AMORTISSEMENT EXCEPTIONNEL (loi n° 23/053, art. 36 à 38) · variante du
+  /// dégressif (première annuité de 60 %), sur déclaration de l'activité
+  /// industrielle et des chiffres d'affaires HT de l'année de mise en service,
+  /// gardés avec leur source pour le contrôle (décisions D-8 à D-10).
+  amortissementExceptionnel     Boolean  @default(false)
+  chiffreAffairesExportHt       Decimal? @db.Decimal(18, 2)
+  chiffreAffairesTotalHt        Decimal? @db.Decimal(18, 2)
+  sourceChiffreAffairesExport   String?
   derogatoires       AmortissementDerogatoire[]
 
   fichesInventaire FicheInventaire[]

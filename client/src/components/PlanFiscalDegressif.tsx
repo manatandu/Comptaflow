@@ -10,13 +10,17 @@ interface LignePlan {
   dateFin: string;
   valeurResiduelleDebut: number;
   annuiteFiscale: number;
-  mode: 'DEGRESSIF' | 'LINEAIRE_ART_35';
+  mode: 'DEGRESSIF' | 'LINEAIRE_ART_35' | 'EXCEPTIONNEL_ART_38';
   dotationComptable: number | null;
   derogatoire: { dotation: number; reprise: number; excedentAReintegrer: number } | null;
 }
 
 interface PlanFiscal {
   degressifFiscal: boolean;
+  /** Amortissement exceptionnel (loi n° 23/053, art. 36 à 38) et la déclaration gardée. */
+  amortissementExceptionnel?: boolean;
+  prorataExport?: number | null;
+  sourceChiffreAffairesExport?: string | null;
   categorie?: string | null;
   dureeFiscaleAns?: number | null;
   coefficient?: number | null;
@@ -51,6 +55,16 @@ export function PlanFiscalDegressif({
   const [plan, setPlan] = useState<PlanFiscal | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [option, setOption] = useState({ categorie: '', dureeFiscaleAns: '', bienNeuf: false });
+  // L'exceptionnel se DÉCLARE (décision D-10) · activité attestée, chiffres
+  // d'affaires HT de l'année de mise en service et leur source ; le prorata
+  // et le seuil de 20 % se jugent au serveur.
+  const [exceptionnel, setExceptionnel] = useState({
+    retenu: false,
+    activiteIndustrielle: false,
+    export: '',
+    total: '',
+    source: '',
+  });
 
   const charger = () =>
     api.get<PlanFiscal>(`/immobilisations/${immoId}/plan-fiscal`).then((p) => {
@@ -82,6 +96,15 @@ export function PlanFiscalDegressif({
         categorie: option.categorie,
         bienNeuf: option.bienNeuf,
         dureeFiscaleAns: Number(option.dureeFiscaleAns),
+        ...(exceptionnel.retenu
+          ? {
+              exceptionnel: true,
+              activiteIndustrielle: exceptionnel.activiteIndustrielle,
+              chiffreAffairesExportHt: exceptionnel.export === '' ? undefined : Number(exceptionnel.export),
+              chiffreAffairesTotalHt: exceptionnel.total === '' ? undefined : Number(exceptionnel.total),
+              sourceChiffreAffaires: exceptionnel.source,
+            }
+          : {}),
       }),
     );
   };
@@ -138,8 +161,60 @@ export function PlanFiscalDegressif({
             <input type="checkbox" checked={option.bienNeuf} onChange={(e) => setOption({ ...option, bienNeuf: e.target.checked })} />
             Bien neuf
           </label>
+          <label className="flex items-center gap-1" title="Loi n° 23/053, art. 36 à 38">
+            <input
+              type="checkbox"
+              checked={exceptionnel.retenu}
+              onChange={(e) => setExceptionnel({ ...exceptionnel, retenu: e.target.checked })}
+            />
+            Amortissement exceptionnel
+            <Aide
+              titre="Amortissement exceptionnel"
+              texte="Réservé aux entreprises industrielles qui fabriquent des produits ouvrés ou semi-ouvrés et dont le chiffre d'affaires hors taxes à l'exportation atteint au moins 20 % du total hors taxes, celui de l'année de mise en service du bien. Il vise les mêmes biens que le dégressif. Première annuité de 60 % du coût de revient, prise en entier quel que soit le mois de mise en service, puis le dégressif sur la valeur résiduelle et la bascule en linéaire. Le texte écrit que « les dispositions de l'article 31 » ne s'appliquent pas à l'exceptionnel, ce qui contredit l'article 37 ; le texte d'origine écartait le prorata temporis, et c'est cette lecture qui est retenue. Les chiffres et leur source sont gardés pour le contrôle."
+              source="Loi n° 23/053, art. 36 à 38 · O.-L. n° 69/009, art. 43 ter J à L (abrogée)"
+            />
+          </label>
+          {exceptionnel.retenu && (
+            <>
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={exceptionnel.activiteIndustrielle}
+                  onChange={(e) => setExceptionnel({ ...exceptionnel, activiteIndustrielle: e.target.checked })}
+                />
+                Entreprise industrielle (produits ouvrés ou semi-ouvrés)
+              </label>
+              <input
+                aria-label="Chiffre d'affaires HT à l'exportation"
+                placeholder="CA HT export"
+                type="number"
+                step="0.01"
+                min={0}
+                value={exceptionnel.export}
+                onChange={(e) => setExceptionnel({ ...exceptionnel, export: e.target.value })}
+                className="border border-border px-1.5 py-0.5 w-[130px]"
+              />
+              <input
+                aria-label="Chiffre d'affaires HT total"
+                placeholder="CA HT total"
+                type="number"
+                step="0.01"
+                min={0}
+                value={exceptionnel.total}
+                onChange={(e) => setExceptionnel({ ...exceptionnel, total: e.target.value })}
+                className="border border-border px-1.5 py-0.5 w-[130px]"
+              />
+              <input
+                aria-label="Source des chiffres d'affaires"
+                placeholder="Source (année de mise en service)"
+                value={exceptionnel.source}
+                onChange={(e) => setExceptionnel({ ...exceptionnel, source: e.target.value })}
+                className="border border-border px-1.5 py-0.5 w-[220px]"
+              />
+            </>
+          )}
           <button type="submit" className="bg-sel text-white font-semibold px-3 py-1">
-            Opter pour le dégressif
+            {exceptionnel.retenu ? "Opter pour l'exceptionnel" : 'Opter pour le dégressif'}
           </button>
         </form>
       )}
@@ -148,6 +223,12 @@ export function PlanFiscalDegressif({
       {plan.degressifFiscal && (
         <>
           <div>
+            {plan.amortissementExceptionnel && (
+              <span title={`Loi n° 23/053, art. 36 à 38 · ${plan.sourceChiffreAffairesExport ?? ''}`}>
+                Amortissement exceptionnel
+                {plan.prorataExport != null && ` (export ${(plan.prorataExport * 100).toFixed(2)} %)`} ·{' '}
+              </span>
+            )}
             Durée fiscale {plan.dureeFiscaleAns} ans · coefficient {plan.coefficient} · dérogatoire au 151 :{' '}
             <strong>{fc(plan.cumulDerogatoire)}</strong>
             {peutEcrire && plan.cumulDerogatoire > 0 && journalId && exerciceId && (
@@ -180,6 +261,7 @@ export function PlanFiscalDegressif({
                   <td className="px-2 py-1">
                     {libelleExercice(l)}
                     {l.mode === 'LINEAIRE_ART_35' && <span className="text-text-dim" title="Loi n° 23/053, art. 35"> · bascule en linéaire</span>}
+                    {l.mode === 'EXCEPTIONNEL_ART_38' && <span className="text-text-dim" title="Loi n° 23/053, art. 38, 1°"> · 60 % du coût</span>}
                   </td>
                   <td className="px-2 py-1 text-right">{fc(l.valeurResiduelleDebut)}</td>
                   <td className="px-2 py-1 text-right">{fc(l.annuiteFiscale)}</td>

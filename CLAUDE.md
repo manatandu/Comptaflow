@@ -2142,7 +2142,14 @@ MIS EN SERVICE depuis le 1er janvier 2026 (passe F12 · loi n° 23/053, art. 153
 arrêté n° 013/2025, art. 6), jamais lu sur l'ouverture de l'exercice (premier
 exercice long ouvert en 2025, période imposable 2026) ; sinon refus nommé, plan ni
 prolongé ni recommencé, reprise ouverte ; `common/entree-en-vigueur-loi-23-053.ts`.
-Durée du barème proposée, plus courte signalée (art. 4).
+Durée du barème proposée, plus courte signalée (art. 4). AMORTISSEMENT EXCEPTIONNEL (2026-10-01, lot 2, décisions D-8 à D-10) · variante
+de la même option (art. 36 à 38), ouverte à TOUTE entreprise industrielle du
+SYSCOHADA (« les entreprises industrielles », art. 36), biens et bornes des
+art. 31 et 32 ; 60 % PLEIN la première période · le renvoi « article 31 » de
+l'art. 38, 1° se lit « article 34 » (l'O.-L. n° 69/009, art. 43 ter L,
+écartait le prorata), anomalie écrite ; prorata d'export DÉCLARÉ (chiffres de
+l'année de mise en service et leur source, gardés sur le bien), refus sous
+20 %.
 
 **Barèmes de paie datés (2026-09-26, priorité 4).** `personnel/baremes-dossier.ts`,
 `VersionBaremePaie`. (1) Se saisissent CNSS, INPP, ONEM et SMIG du manœuvre (décret

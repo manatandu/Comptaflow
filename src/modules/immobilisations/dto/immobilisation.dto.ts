@@ -498,6 +498,34 @@ export class OptionDegressifDto {
   @Min(1)
   @Max(99)
   dureeFiscaleAns!: number;
+
+  /**
+   * AMORTISSEMENT EXCEPTIONNEL (loi n° 23/053, art. 36 à 38) · la déclaration
+   * de l'art. 36 accompagne l'option ; ses conditions se jugent au service,
+   * avec leur motif (`motifRefusDeclarationExceptionnel`).
+   */
+  @IsOptional()
+  @IsBoolean()
+  exceptionnel?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  activiteIndustrielle?: boolean;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  chiffreAffairesExportHt?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  chiffreAffairesTotalHt?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  sourceChiffreAffaires?: string;
 }
 
 export class PasserDerogatoireDto {

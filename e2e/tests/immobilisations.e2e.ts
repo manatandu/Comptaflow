@@ -531,3 +531,75 @@ for (const [referentiel, fournisseur] of [
     expect(pannes).toEqual([]);
   });
 }
+
+/**
+ * L'AMORTISSEMENT EXCEPTIONNEL, SUR LA BASE RÉELLE (loi n° 23/053, art. 36 à
+ * 38, décisions D-8 à D-10) · les colonnes de la déclaration de l'art. 36
+ * naissent d'une migration écrite à la main ; l'option se prend sous 20 %
+ * refusée, au-dessus retenue, et le dérogatoire de la première année porte
+ * 60 % du coût moins la dotation comptable, au 851 contre le 151.
+ */
+test('SYSCOHADA · l’amortissement exceptionnel passe 60 % du coût la première année, l’écart au 851', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Exceptionnel e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const materiel = comptes.find((c) => c.numero.startsWith('241'));
+  if (!materiel) throw new Error('Aucun compte 241 au plan semé');
+  const contreparties = await appelApi<Array<{ id: string; numero: string; mode: string | null }>>(
+    page,
+    'GET',
+    `/immobilisations/contreparties-acquisition?compteImmobilisationId=${materiel.id}`,
+  );
+  const fournisseur = contreparties.find((c) => c.mode === 'ACHAT_A_CREDIT');
+  if (!fournisseur) throw new Error('Aucun fournisseur d’investissement proposé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const bien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: materiel.id,
+    designation: 'Presse industrielle e2e',
+    dateAcquisition: debut,
+    dateMiseEnService: debut,
+    valeurOrigine: 10_000_000,
+    dureeAmortissementAns: 5,
+    compteContrepartieId: fournisseur.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const option = {
+    categorie: 'MATERIEL_INDUSTRIEL',
+    bienNeuf: true,
+    dureeFiscaleAns: 5,
+    exceptionnel: true,
+    activiteIndustrielle: true,
+    chiffreAffairesExportHt: 150_000,
+    chiffreAffairesTotalHt: 1_000_000,
+    sourceChiffreAffaires: 'Déclaration e2e',
+  };
+  await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/option-degressif`, option)).rejects.toThrow(/15\.00 %/);
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/option-degressif`, { ...option, chiffreAffairesExportHt: 300_000 });
+
+  const plan = await appelApi<{ amortissementExceptionnel: boolean; prorataExport: number; lignes: Array<{ annuiteFiscale: number; mode: string }> }>(
+    page,
+    'GET',
+    `/immobilisations/${bien.id}/plan-fiscal`,
+  );
+  expect(plan.amortissementExceptionnel).toBe(true);
+  expect(plan.prorataExport).toBe(0.3);
+  expect(plan.lignes[0]).toMatchObject({ annuiteFiscale: 6_000_000, mode: 'EXCEPTIONNEL_ART_38' });
+
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  await appelApi(page, 'POST', `/immobilisations/${bien.id}/derogatoire`, { exerciceId: exercice.id, journalId: od.id });
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  const attendu = 6_000_000 - Number(dotation.montant);
+  expect(Number(lignes.find((l) => l.numero === '85100000')?.mouvementDebit)).toBeCloseTo(attendu, 2);
+  expect(Number(lignes.find((l) => l.numero === '15100000')?.mouvementCredit)).toBeCloseTo(attendu, 2);
+
+  expect(pannes).toEqual([]);
+});

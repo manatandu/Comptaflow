@@ -153,6 +153,59 @@ export function avertissementsDureeFiscale(o: {
   return [];
 }
 
+/**
+ * AMORTISSEMENT EXCEPTIONNEL · loi n° 23/053, art. 36 à 38.
+ *
+ * Art. 36 · « Les entreprises industrielles qui fabriquent des produits
+ * ouvrés ou semi-ouvrés et dont le prorata de chiffre d'affaires hors taxes à
+ * l'exportation est au moins égal à 20 % peuvent opter pour un système
+ * d'amortissement exceptionnel », le prorata étant « le quotient du chiffre
+ * d'affaires hors taxes à l'exportation sur le total du chiffre d'affaires
+ * hors taxes de l'entreprise », celui « de l'année de mise en service du bien
+ * considéré ». Art. 37 · applicable aux éléments de l'art. 31 « amortissables
+ * selon le système dégressif » · catégorie, bien neuf et bornes de l'art. 32
+ * restent exigés. Art. 38 · première annuité de 60 % du coût de revient,
+ * puis le dégressif sur la valeur résiduelle, et la même bascule que l'art. 35.
+ *
+ * DÉCLARÉ, JAMAIS DÉDUIT (décision D-10) · aucun compte ne sépare le chiffre
+ * d'affaires à l'export, et l'année de mise en service n'est pas toujours un
+ * exercice du dossier. Les deux montants et leur source se saisissent, le
+ * prorata se calcule. Le seuil de 20 % est celui de la loi ; un arrêté peut le
+ * réévaluer (art. 36, al. 2), et c'est alors ici qu'il se change.
+ */
+export const SEUIL_PRORATA_EXPORT_ARTICLE_36 = 0.2;
+
+export type DeclarationExceptionnel = {
+  activiteIndustrielle: boolean | undefined;
+  chiffreAffairesExportHt: number | null | undefined;
+  chiffreAffairesTotalHt: number | null | undefined;
+  source: string | null | undefined;
+};
+
+export function prorataExport(d: { chiffreAffairesExportHt: number; chiffreAffairesTotalHt: number }): number {
+  return d.chiffreAffairesExportHt / d.chiffreAffairesTotalHt;
+}
+
+export function motifRefusDeclarationExceptionnel(d: DeclarationExceptionnel): string | null {
+  if (d.activiteIndustrielle !== true) {
+    return "L'amortissement exceptionnel est réservé aux « entreprises industrielles qui fabriquent des produits ouvrés ou semi-ouvrés » (loi n° 23/053, art. 36) · le cabinet doit l'attester.";
+  }
+  const exp = d.chiffreAffairesExportHt;
+  const tot = d.chiffreAffairesTotalHt;
+  if (exp == null || tot == null || !(tot > 0) || exp < 0) {
+    return "Le prorata de l'art. 36 se calcule sur le chiffre d'affaires hors taxes à l'exportation et le total hors taxes de l'année de mise en service · saisissez les deux montants.";
+  }
+  if (exp > tot) return "Le chiffre d'affaires à l'exportation ne peut pas dépasser le total du chiffre d'affaires.";
+  if (!d.source?.trim()) {
+    return "Indiquez la source des chiffres d'affaires (déclaration, états financiers de l'année de mise en service) · le prorata se justifie lors du contrôle.";
+  }
+  const prorata = prorataExport({ chiffreAffairesExportHt: exp, chiffreAffairesTotalHt: tot });
+  if (prorata < SEUIL_PRORATA_EXPORT_ARTICLE_36) {
+    return `Prorata à l'exportation de ${(prorata * 100).toFixed(2)} %, sous les 20 % de la loi n° 23/053, art. 36 · le dégressif reste ouvert, pas l'exceptionnel.`;
+  }
+  return null;
+}
+
 export function motifRefusOptionDegressif(o: {
   referentiel: string;
   personnePhysique: boolean;
@@ -164,12 +217,21 @@ export function motifRefusOptionDegressif(o: {
   dotationsPassees: number;
   /** Nulle tant que le bien n'est pas mis en service · la borne se revérifie alors au dérogatoire. */
   dateMiseEnService: Date | null;
+  /** L'option porte sur l'amortissement EXCEPTIONNEL (art. 36 à 38) et non sur le seul dégressif. */
+  exceptionnel?: DeclarationExceptionnel | null;
 }): string | null {
   if (o.referentiel !== 'SYSCOHADA') {
     return "Le dégressif est une option de l'impôt sur les sociétés (loi n° 23/053, art. 31) · un dossier SYCEBNL n'y est pas soumis.";
   }
-  if (o.personnePhysique) {
+  // « Les sociétés peuvent opter » vaut du dégressif (art. 31) ; l'exceptionnel
+  // est ouvert aux « entreprises industrielles » (art. 36), sans condition de
+  // forme (décision D-9).
+  if (o.personnePhysique && !o.exceptionnel) {
     return '« Les sociétés peuvent opter » (art. 31) · une entreprise individuelle ou un entreprenant n’est pas une société.';
+  }
+  if (o.exceptionnel) {
+    const refus = motifRefusDeclarationExceptionnel(o.exceptionnel);
+    if (refus) return refus;
   }
   const anterieur = motifRegimeAnterieurDegressif(o.dateMiseEnService);
   if (anterieur) return anterieur;
@@ -219,8 +281,11 @@ export type LignePlanFiscal = {
   exerciceId: string;
   valeurResiduelleDebut: number;
   annuite: number;
-  mode: 'DEGRESSIF' | 'LINEAIRE_ART_35';
+  mode: 'DEGRESSIF' | 'LINEAIRE_ART_35' | 'EXCEPTIONNEL_ART_38';
 };
+
+/** Art. 38, 1° · « un taux de 60 % au coût de revient de l'élément considéré ». */
+export const TAUX_PREMIERE_ANNUITE_EXCEPTIONNELLE = 0.6;
 
 /**
  * LE PLAN FISCAL, exercice par exercice, depuis celui qui contient la mise en
@@ -233,6 +298,8 @@ export function planFiscalDegressif(p: {
   /** Nulle tant que le bien n'est pas mis en service · aucun plan ne court alors (art. 34). */
   dateMiseEnService: Date | null;
   exercices: readonly { id: string; dateDebut: Date; dateFin: Date }[];
+  /** Amortissement exceptionnel (art. 38) · seule la première annuité change. */
+  exceptionnel?: boolean;
 }): LignePlanFiscal[] {
   const coef = coefficientDegressif(p.dureeFiscaleAns);
   // La première annuité part du mois de mise en service (art. 34) · sans cette
@@ -253,7 +320,21 @@ export function planFiscalDegressif(p: {
     for (const periode of periodesImposables(e)) {
       if (periode.dateFin < mes || vr <= 0.005) continue;
       let annuite: number;
-      if (premiere) {
+      if (premiere && p.exceptionnel) {
+        /*
+          ART. 38, 1° · 60 % du coût de revient, EN ENTIER, la première période.
+          Le texte écrit « Les dispositions de l'article 31 de la présente loi ne
+          sont pas applicables à l'amortissement exceptionnel », ce qui
+          contredit l'art. 37 (l'exceptionnel ne vise QUE les biens de
+          l'art. 31). L'O.-L. n° 69/009 dont l'article est repris mot pour mot
+          écartait l'art. 43 ter H, le PRORATA TEMPORIS, devenu l'art. 34 ·
+          lecture retenue par Manasse (décision D-8), anomalie non corrigée
+          dans le texte et dite à l'écran.
+        */
+        annuite = vr * TAUX_PREMIERE_ANNUITE_EXCEPTIONNELLE;
+        mode = 'EXCEPTIONNEL_ART_38';
+        premiere = false;
+      } else if (premiere) {
         // Art. 34 · première annuité au prorata, à compter du premier jour du mois de mise en service.
         const mois = Math.max(0, moisEntre(mes > periode.dateDebut ? mes : periode.dateDebut, periode.dateFin));
         annuite = vr * taux * (mois / 12);
@@ -264,12 +345,15 @@ export function planFiscalDegressif(p: {
         const restantes = p.dureeFiscaleAns - ecoules;
         const degressive = vr * taux;
         const lineaire = restantes <= 1 ? vr : vr / restantes;
+        // Un premier exercice long porte la première annuité exceptionnelle et
+        // la suivante · la ligne garde le mode de la première.
+        const garde = mode === 'EXCEPTIONNEL_ART_38';
         if (degressive < lineaire) {
           annuite = lineaire;
-          mode = 'LINEAIRE_ART_35';
+          if (!garde) mode = 'LINEAIRE_ART_35';
         } else {
           annuite = degressive;
-          mode = 'DEGRESSIF';
+          if (!garde) mode = 'DEGRESSIF';
         }
       }
       annuite = arrondi(Math.min(annuite, vr));
