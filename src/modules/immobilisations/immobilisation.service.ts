@@ -54,6 +54,7 @@ import {
   motifRefusDureeDixAns,
   motifRefusDureeNonLimitee,
 } from './incorporel-duree-non-limitee';
+import { motifRefusRepriseDepreciation, plafondRepriseDepreciation } from './plafond-reprise-depreciation';
 import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
@@ -2831,6 +2832,118 @@ export class ImmobilisationService {
 
 
   /**
+   * LOT 12 · LES TROIS VALEURS DU PLAFOND DE REPRISE (AUDCIF Titre VIII ch. 12
+   * § 2.4.2), en fin d'exercice, dotation de l'exercice comprise · « la
+   * nouvelle valeur comptable après amortissement et reprise ».
+   *
+   * LA VALEUR SANS DÉPRÉCIATION REJOUE LE MÊME MOTEUR, exercice par exercice
+   * du dossier jusqu'à celui de la reprise, dépréciation nulle · même valeur,
+   * même durée, même amortissement antérieur, même plan (`planDuBien`), même
+   * régime de prorata. Ce qui sépare les deux valeurs est alors la seule
+   * dépréciation et son ré-étalement (§ 2.4.1). Un bien que le plan ne fait
+   * pas amortir garde sa valeur d'entrée · le plafond y est le cumul du 29.
+   */
+  async plafondReprise(tenantId: string, id: string, exerciceId: string) {
+    const immo = await this.trouver(tenantId, id);
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const valeurs = await this.plafondRepriseDe(tenantId, immo, exercice);
+    return { ...valeurs, plafond: plafondRepriseDepreciation(valeurs) };
+  }
+
+  private async plafondRepriseDe(
+    tenantId: string,
+    immo: Awaited<ReturnType<ImmobilisationService['trouver']>>,
+    exercice: { id: string; dateDebut: Date; dateFin: Date },
+  ): Promise<{ cumulDepreciation: number; valeurNette: number; valeurSansDepreciation: number }> {
+    const jusquA = (d: { exercice: { dateFin: Date } }) => d.exercice.dateFin <= exercice.dateFin;
+    const cumulDepreciation = this.cumulDepreciation(
+      immo.depreciations.filter(jusquA).map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+    );
+    const valeurOrigine = Number(immo.valeurOrigine);
+    const horsDotations = amortissementsHorsDotations(immo);
+    const regime = await this.regimeComptable(tenantId);
+    const sansDotation =
+      !!motifSansAmortissementProjet(regime.jeuEtatsFinanciersSycebnl) ||
+      !!motifNonAmortissable(immo.compteImmobilisation.numero, regime.referentiel) ||
+      immo.dureeNonLimitee ||
+      // Une durée nulle diviserait par zéro · le moteur rendrait le reliquat
+      // entier, et le plafond tomberait à rien.
+      (immo.modeAmortissement !== ModeAmortissement.UNITES_DOEUVRE && !(immo.dureeAmortissementAns > 0));
+    if (sansDotation) {
+      const nette = valeurOrigine - horsDotations - immo.dotations.filter(jusquA).reduce((t, d) => t + Number(d.montant), 0);
+      return { cumulDepreciation, valeurNette: nette - cumulDepreciation, valeurSansDepreciation: nette };
+    }
+    const sansProrata = this.sansProrataTemporis(regime);
+    const plan = planDuBien(immo);
+    const consommations =
+      immo.modeAmortissement === ModeAmortissement.UNITES_DOEUVRE
+        ? await this.prisma.consommationUniteOeuvre.findMany({ where: { tenantId, immobilisationId: immo.id } })
+        : [];
+    const unites = (exerciceId: string) => {
+      if (immo.modeAmortissement !== ModeAmortissement.UNITES_DOEUVRE) return null;
+      const ligne = consommations.find((c) => c.exerciceId === exerciceId);
+      // Rejoué sans dépréciation, le dénominateur est le total prévu · le
+      // cumul antérieur ne sert qu'au ré-étalement (calculerDotation).
+      return { prevues: Number(immo.unitesOeuvrePrevues ?? 0), consommees: Number(ligne?.unitesConsommees ?? 0), consommeesAnterieures: 0 };
+    };
+
+    // La valeur nette en fin d'exercice · les dotations passées jusqu'à lui,
+    // et celle de l'exercice si elle n'est pas encore passée, calculée comme
+    // `passerDotation` la calculera (dépréciations ANTÉRIEURES seules).
+    const dotationsPassees = immo.dotations.filter(jusquA);
+    let cumulAmorti = horsDotations + dotationsPassees.reduce((t, d) => t + Number(d.montant), 0);
+    if (!dotationsPassees.some((d) => d.exerciceId === exercice.id)) {
+      cumulAmorti += this.calculerDotation(
+        valeurOrigine,
+        Number(immo.valeurResiduelle),
+        immo.dureeAmortissementAns,
+        debutAmortissement(immo),
+        immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateFin).map((d) => ({ montant: Number(d.montant) })),
+        exercice,
+        horsDotations,
+        this.cumulDepreciation(
+          immo.depreciations
+            .filter((d) => d.exercice.dateFin < exercice.dateFin)
+            .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+        ),
+        sansProrata,
+        immo.modeAmortissement === ModeAmortissement.UNITES_DOEUVRE
+          ? await this.unitesOeuvreDe(tenantId, immo, exercice.id, exercice.dateFin)
+          : null,
+        plan,
+      );
+    }
+
+    // Le plan d'origine rejoué · une dotation nulle n'est jamais enregistrée
+    // (`passerDotation` la refuse), elle n'entre donc pas dans les antérieures.
+    const exercices = await this.prisma.exercice.findMany({
+      where: { tenantId, dateFin: { lte: exercice.dateFin } },
+      orderBy: { dateDebut: 'asc' },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    const rejouees: Array<{ montant: number }> = [];
+    for (const e of exercices) {
+      const m = this.calculerDotation(
+        valeurOrigine,
+        Number(immo.valeurResiduelle),
+        immo.dureeAmortissementAns,
+        debutAmortissement(immo),
+        rejouees,
+        e,
+        horsDotations,
+        0,
+        sansProrata,
+        unites(e.id),
+        plan,
+      );
+      if (m > EPSILON) rejouees.push({ montant: m });
+    }
+    const valeurSansDepreciation = valeurOrigine - horsDotations - rejouees.reduce((t, d) => t + d.montant, 0);
+    return { cumulDepreciation, valeurNette: valeurOrigine - cumulAmorti - cumulDepreciation, valeurSansDepreciation };
+  }
+
+  /**
    * DÉPRÉCIATION D'UNE IMMOBILISATION · dotation ou reprise.
    *
    * Le module tenait le bien au coût historique et ne savait rien des comptes
@@ -2887,18 +3000,14 @@ export class ImmobilisationService {
     const cumul = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
     );
-    if (dto.sens === SensDepreciation.REPRISE && dto.montant > cumul + EPSILON) {
-      // Une reprise supérieure au cumul rendrait le compte 29 DÉBITEUR, ce qui
-      // ferait de la correction d'actif « de sens négatif » (fiche du COMPTE
-      // 29) une majoration de valeur déguisée. Le ch. 12 § 2.4.2 pose en outre
-      // un plafond plus fin, que ce contrôle n'atteint pas : la valeur
-      // comptable après reprise ne doit pas dépasser celle qui aurait existé
-      // sans dépréciation. Le reconstituer supposerait de rejouer le plan
-      // d'origine exercice par exercice · non fait, et dit ici plutôt que
-      // laissé croire.
-      throw new BadRequestException(
-        `La reprise ne peut pas dépasser la dépréciation encore inscrite (${cumul.toFixed(2)})`,
-      );
+    if (dto.sens === SensDepreciation.REPRISE) {
+      // Deux plafonds, le plus bas l'emporte · le cumul inscrit (au-delà, le
+      // 29 deviendrait DÉBITEUR, fiche du COMPTE 29, « corrections d'actif de
+      // sens négatif ») et, lot 12, la valeur sans dépréciation du ch. 12
+      // § 2.4.2, plan d'origine rejoué (`plafond-reprise-depreciation.ts`).
+      const valeurs = await this.plafondRepriseDe(tenantId, immo, exercice);
+      const refusReprise = motifRefusRepriseDepreciation({ montant: dto.montant, ...valeurs });
+      if (refusReprise) throw new BadRequestException(refusReprise);
     }
     if (dto.sens === SensDepreciation.DOTATION) {
       // Une dépréciation ne peut pas descendre la valeur nette sous zéro.

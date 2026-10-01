@@ -259,6 +259,20 @@ export class ImmobilisationController {
   }
 
   /**
+   * LOT 12 · le plafond d'une reprise de dépréciation (AUDCIF Titre VIII
+   * ch. 12 § 2.4.2) · valeur nette, valeur sans dépréciation, plan d'origine
+   * rejoué, et reprise au plus. Lecture seule, montrée avant la saisie.
+   */
+  @Get(':id/plafond-reprise-depreciation')
+  async plafondReprise(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.immobilisationService.plafondReprise(user.tenantId, id, exerciceId);
+  }
+
+  /**
    * RENOUVELLEMENT D'UN COMPOSANT · AUDCIF Titre VIII ch. 4 § 4.1. Une seule
    * route pour les deux mouvements : sortir l'ancien de l'actif ET porter le
    * nouveau. Les séparer laisserait deux ascenseurs au bilan pour une cage.

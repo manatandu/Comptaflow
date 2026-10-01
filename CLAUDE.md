@@ -1531,8 +1531,12 @@ montant ni l'indice ne sont décidés · § 2.1, « s'il n'existe pas d'indice d
 perte de valeur, aucun test n'est requis » ; l'indice est saisi
 (`DepreciationImmobilisation.indice`). Seul contrôle de compte · le préfixe
 **29**, hors 39 stocks, 49 tiers, 59 trésorerie. Le contrôle 15 retranche ce que
-le module a posté. Limite ASSUMÉE · plafond de reprise = cumul inscrit, pas
-celui du § 2.4.2 (valeur sans dépréciation), qui rejouerait le plan d'origine.
+le module a posté. PLAFOND DE REPRISE (lot 12, § 2.4.2) · le plus bas du
+cumul inscrit et de l'écart avec la valeur SANS DÉPRÉCIATION, le MÊME moteur
+rejoué exercice par exercice dépréciation nulle
+(`plafond-reprise-depreciation.ts`, `plafondRepriseDe`), comparé en fin
+d'exercice dotation comprise, passée ou due ; jamais une soustraction (après
+une perte l'annuité baisse) ; sans dotation, le plafond est le cumul.
 
 **Acomptes provisionnels.** Art. 57 bis LPF, TEL QUE MODIFIÉ par la loi de
 finances n° 25/060 du 29 décembre 2025 · au plus tard les 25 juillet, 25

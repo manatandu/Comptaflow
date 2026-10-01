@@ -14,6 +14,7 @@ import { PrixGlobalImmobilisations } from '../components/PrixGlobalImmobilisatio
 import { RemplacementImprevu } from '../components/RemplacementImprevu';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
+import { PlafondRepriseDepreciation } from '../components/PlafondRepriseDepreciation';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
@@ -1679,6 +1680,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       </select>
                     </label>
                   </div>
+                  {dSens === 'REPRISE' && exerciceCourant && (
+                    <PlafondRepriseDepreciation immobilisationId={immo.id} exerciceId={exerciceCourant.id} />
+                  )}
                   <label className="block text-[11.5px] font-semibold text-text-dim mt-3">
                     Indice de perte de valeur
                     <input

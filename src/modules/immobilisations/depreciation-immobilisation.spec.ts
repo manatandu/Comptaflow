@@ -84,7 +84,16 @@ function harnais(
     },
     compteDotationId: 'cd',
     compteAmortissementId: 'ca',
-    dotations: (b.dotations ?? []).map((m, i) => ({ montant: m, exerciceId: `exAnt${i}` })),
+    // Une dotation par exercice civil depuis l'année de mise en service · le
+    // plafond de reprise (lot 12) lit leur date de clôture.
+    dotations: (b.dotations ?? []).map((m, i) => ({
+      montant: m,
+      exerciceId:
+        new Date(b.dateMiseEnService).getUTCFullYear() + i === new Date(exercice.dateFin).getUTCFullYear()
+          ? 'exN'
+          : `exAnt${i}`,
+      exercice: { dateFin: new Date(`${new Date(b.dateMiseEnService).getUTCFullYear() + i}-12-31`) },
+    })),
     depreciations: (b.depreciations ?? []).map((d) => ({
       sens: d.sens,
       montant: d.montant,
@@ -126,6 +135,21 @@ function harnais(
         id: 'exN',
         dateDebut: new Date(exercice.dateDebut),
         dateFin: new Date(exercice.dateFin),
+      }),
+      // Les exercices du dossier, civils, de l'année de mise en service à
+      // celui de la saisie · le plafond de reprise (lot 12) y rejoue le plan.
+      findMany: jest.fn().mockImplementation(({ where }: { where: { dateFin: { lte: Date } } }) => {
+        const premiere = new Date(b.dateMiseEnService).getUTCFullYear();
+        const derniere = new Date(exercice.dateFin).getUTCFullYear();
+        return Promise.resolve(
+          Array.from({ length: derniere - premiere + 1 }, (_, i) => premiere + i)
+            .map((a) => ({
+              id: a === derniere ? 'exN' : `ex${a}`,
+              dateDebut: new Date(`${a}-01-01`),
+              dateFin: new Date(`${a}-12-31`),
+            }))
+            .filter((e) => e.dateFin <= where.dateFin.lte),
+        );
       }),
     },
     compte: {
@@ -676,5 +700,82 @@ describe('fin de projet de développement · le fonds reprend le bien', () => {
     expect(motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16200000', cumulAmorti: 100, cumulDepreciation: 0 })).toContain('art. 7 et 9');
     expect(motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16300000', cumulAmorti: 0, cumulDepreciation: 0 })).toBeNull();
     expect(motifRefusSortieProjet({ projet: false, numeroCompteFonds: null, cumulAmorti: 5, cumulDepreciation: 0 })).toBeNull();
+  });
+});
+
+describe('lot 12 · le plafond de reprise, plan d’origine rejoué (ch. 12 § 2.4.2)', () => {
+  /*
+    L'exemple du texte, repris tel quel. Matériel de 30 000 000 acquis le
+    02 janvier N-1 (ici 2024), dix ans · 3 000 000 par an. Fin N (2025),
+    valeur actuelle 20 000 000, perte de valeur de 4 000 000, puis 2 500 000
+    par an sur les huit années restantes. Fin N+2 (2027), valeur nette
+    15 000 000, valeur sans dépréciation 18 000 000 · « l'entité peut reprendre
+    la perte de valeur à hauteur de 2 000 000 » si la valeur actuelle est de
+    17 000 000, et « limitera la reprise à 3 000 000 » si elle est de
+    19 000 000.
+  */
+  const pont = {
+    valeurOrigine: 30_000_000,
+    dureeAns: 10,
+    dateMiseEnService: '2024-01-02',
+    dotations: [3_000_000, 3_000_000, 2_500_000, 2_500_000],
+    depreciations: [{ sens: SensDepreciation.DOTATION, montant: 4_000_000, dateFin: '2025-12-31' }],
+    exercice: { dateDebut: '2027-01-01', dateFin: '2027-12-31' },
+  };
+  const reprise = (montant: number) =>
+    ({ ...DEPRECIATION, sens: SensDepreciation.REPRISE, montant, compteContrepartieId: 'c79' }) as never;
+
+  it('les trois valeurs du texte · 15 000 000, 18 000 000, 3 000 000 au plus', async () => {
+    const { svc } = harnais(pont);
+    await expect(svc.plafondReprise('t1', 'i1', 'exN')).resolves.toEqual({
+      cumulDepreciation: 4_000_000,
+      valeurNette: 15_000_000,
+      valeurSansDepreciation: 18_000_000,
+      plafond: 3_000_000,
+    });
+  });
+
+  it('2 000 000 et 3 000 000 passent, 3 000 001 est refusé · le cumul du 29 (4 000 000) ne suffit plus', async () => {
+    for (const montant of [2_000_000, 3_000_000]) {
+      const { svc, ecrituresPostees } = harnais(pont);
+      await svc.enregistrerDepreciation('t1', 'u1', 'i1', reprise(montant));
+      expect(ecrituresPostees[0].lignes[0]).toEqual({ compteId: 'c29', debit: montant, credit: 0 });
+    }
+    const { svc, ecrituresPostees } = harnais(pont);
+    await expect(svc.enregistrerDepreciation('t1', 'u1', 'i1', reprise(3_000_001))).rejects.toThrow(
+      /plafonnée à 3000000\.00.*18000000\.00.*15000000\.00.*§ 2\.4\.2/,
+    );
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+
+  it('la dotation de l’exercice non encore passée compte comme le texte l’écrit (« après amortissement et reprise »)', async () => {
+    const { svc } = harnais({ ...pont, dotations: [3_000_000, 3_000_000, 2_500_000] });
+    const v = await svc.plafondReprise('t1', 'i1', 'exN');
+    expect(v.valeurNette).toBeCloseTo(15_000_000, 2);
+    expect(v.plafond).toBeCloseTo(3_000_000, 2);
+  });
+
+  it('l’année même de la perte, rien ne se reprend au-delà de ce que le plan d’origine aurait laissé', async () => {
+    // Fin 2025 · valeur nette 20 000 000, sans dépréciation 24 000 000 · le
+    // plafond est le cumul, 4 000 000, l'écart lui étant égal.
+    const { svc } = harnais({ ...pont, dotations: [3_000_000, 3_000_000], exercice: { dateDebut: '2025-01-01', dateFin: '2025-12-31' } });
+    await expect(svc.plafondReprise('t1', 'i1', 'exN')).resolves.toMatchObject({ valeurNette: 20_000_000, valeurSansDepreciation: 24_000_000, plafond: 4_000_000 });
+  });
+
+  it('un terrain ne s’amortit pas · son plafond est le cumul du 29', async () => {
+    const { svc } = harnais(
+      // Une durée saisie par erreur n'y change rien · le plan ne l'amortit pas.
+      { valeurOrigine: 50_000_000, dureeAns: 20, dateMiseEnService: '2024-01-02', depreciations: [{ sens: SensDepreciation.DOTATION, montant: 8_000_000, dateFin: '2025-12-31' }] },
+      { compteImmobilisation: '22310000', compte29: '29230000' },
+    );
+    await expect(svc.plafondReprise('t1', 'i1', 'exN')).resolves.toMatchObject({ valeurSansDepreciation: 50_000_000, plafond: 8_000_000 });
+  });
+
+  it('une durée nulle ne divise pas par zéro · le bien garde sa valeur, le plafond est le cumul', async () => {
+    const { svc } = harnais(
+      { valeurOrigine: 50_000_000, dureeAns: 0, dateMiseEnService: '2024-01-02', depreciations: [{ sens: SensDepreciation.DOTATION, montant: 8_000_000, dateFin: '2025-12-31' }] },
+      { compteImmobilisation: '22110000', compte29: '29210000' },
+    );
+    await expect(svc.plafondReprise('t1', 'i1', 'exN')).resolves.toMatchObject({ valeurSansDepreciation: 50_000_000, plafond: 8_000_000 });
   });
 });

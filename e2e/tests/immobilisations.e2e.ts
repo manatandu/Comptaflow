@@ -1114,3 +1114,68 @@ test('SYCEBNL · le plan se révise, rétroactivement au 798, et le dégressif s
 
   expect(pannes).toEqual([]);
 });
+
+test('SYCEBNL · une reprise de dépréciation est plafonnée à la valeur sans dépréciation, plan d’origine rejoué', async ({ page }) => {
+  // Lot 12 · AUDCIF Titre VIII ch. 12 § 2.4.2, à qui renvoie la fiche du compte 29 du SYCEBNL.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Plafond reprise e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const suivant = await appelApi<Exercice>(page, 'POST', '/exercices', { dateDebut: `${annee + 1}-01-01`, dateFin: `${annee + 1}-12-31` });
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  if (!banque) throw new Error('Aucun compte de banque semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const camion = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('24510000'),
+    designation: 'Camion plafond e2e',
+    dateAcquisition: `${annee}-01-01`,
+    dateMiseEnService: `${annee}-01-01`,
+    valeurOrigine: 10_000_000,
+    dureeAmortissementAns: 10,
+    compteContrepartieId: banque.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const doter = (exerciceId: string) =>
+    appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${camion.id}/dotation`, { exerciceId, journalId: od.id });
+  const deprecier = (exerciceId: string, sens: 'DOTATION' | 'REPRISE', montant: number) =>
+    appelApi(page, 'POST', `/immobilisations/${camion.id}/depreciation`, {
+      exerciceId,
+      journalId: od.id,
+      sens,
+      montant,
+      compteDepreciationId: compte('29450000'),
+      compteContrepartieId: compte(sens === 'DOTATION' ? '69130000' : '79130000'),
+      indice: sens === 'DOTATION' ? 'Baisse du prix du marché' : 'Remontée du prix du marché',
+    });
+
+  // N · 1 000 000 dotés, puis 4 000 000 de perte de valeur (valeur nette 5 000 000).
+  expect(Number((await doter(exercice.id)).montant)).toBeCloseTo(1_000_000, 2);
+  await deprecier(exercice.id, 'DOTATION', 4_000_000);
+  // N+1, dotation pas encore passée · elle vaudra 5 000 000 / 9 ; valeur nette en fin d'exercice
+  // 4 444 444,44, sans dépréciation 8 000 000 · reprise au plus 3 555 555,56, sous le cumul de 4 000 000.
+  const plafond = await appelApi<{ plafond: number; valeurNette: number; valeurSansDepreciation: number }>(
+    page,
+    'GET',
+    `/immobilisations/${camion.id}/plafond-reprise-depreciation?exerciceId=${suivant.id}`,
+  );
+  expect(Number(plafond.valeurSansDepreciation)).toBeCloseTo(8_000_000, 2);
+  expect(Number(plafond.valeurNette)).toBeCloseTo(4_444_444.44, 1);
+  expect(Number(plafond.plafond)).toBeCloseTo(3_555_555.56, 1);
+  await expect(deprecier(suivant.id, 'REPRISE', 4_000_000)).rejects.toThrow(/plafonnée/);
+  await deprecier(suivant.id, 'REPRISE', Number(plafond.plafond));
+  // La dotation de N+1 reste celle du plan ré-étalé · la reprise de clôture vient après elle.
+  expect(Number((await doter(suivant.id)).montant)).toBeCloseTo(555_555.56, 1);
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementCredit: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${suivant.id}`);
+  expect(Number(lignes.find((l) => l.numero === '79130000')?.mouvementCredit)).toBeCloseTo(3_555_555.56, 1);
+
+  expect(pannes).toEqual([]);
+});
