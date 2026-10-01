@@ -25,7 +25,7 @@ Partie 3 et guides) et de la table `docs/bareme-013-2025-comptes.md`.
 
 | # | Question | Décision | Fondement retenu | Date |
 |---|---|---|---|---|
-| D-1 | Biens d'un projet de développement (SYCEBNL) · amortis ? | **Non.** Aucune dotation pour un dossier « projets de développement » ; le contrôle « immobilisation sans dotation » ne les signale plus ; sortie de fin de projet par le 162 à 164 | Guide SYCEBNL App. 8, P3 ch. 3 § 2.5 · l'écart avec le cadre conceptuel § 5.4.2.3 est écrit dans le code | 2026-10-01 |
+| D-1 | Biens d'un projet de développement (SYCEBNL) · amortis ? | **Non.** Aucune dotation pour un dossier « projets de développement » ; le contrôle « immobilisation sans dotation » ne les signale plus ; sortie de fin de projet par le 162 à 164 | **Acte uniforme SYCEBNL, art. 7 et 9** (« les charges sans amortissement, ni dépréciation »), suivi par le Guide App. 8 et la Partie 4 ch. 3 (aucun amortissement aux états des projets) ; sortie par P3 ch. 3 § 2.5. La phrase contraire du cadre conceptuel § 5.4.2.3, texte général, cède devant les articles qui visent le cas ; l'écart est écrit dans le code | 2026-10-01 |
 | D-2 | Usufruit temporaire (2011) · dépréciation ? | **Permise**, reprise au 7951 ; la simplification du guide est citée dans l'aide, rien n'est bloqué | P3 ch. 2 § 2.3.2 ; Guide App. 7 en aide | 2026-10-01 |
 | D-3 | Mise au rebut d'un bien non entièrement amorti | **Valeur nette au 81** (comportement actuel) ; l'écart avec l'introduction de la classe 2 du SYCEBNL est écrit dans le code | Fiches 21, 23, 24 des deux textes | 2026-10-01 |
 | D-4 | Table du barème contre les comptes | **Proposer dans les deux sens** · la nature propose son compte, le compte ne propose que ses natures, « toutes les catégories » à un clic, jamais de refus. Une nature à plusieurs comptes propose la liste, le premier en tête | Aucun texte ne relie nature et compte | 2026-10-01 |
@@ -62,7 +62,7 @@ Partie 3 et guides) et de la table `docs/bareme-013-2025-comptes.md`.
 | 1.1 | Pas d'écart de change sur les comptes 21 à 26 à la clôture ; le 27 reste réévalué ; vérifier les classes 3, 6, 7 au même paragraphe | AUDCIF Titre VIII ch. 22 § 1.1 à 1.4 |
 | 1.2 | Reprise de dépréciation d'un 2011 au 7951 (et non 7952) ; rétrocession d'un usufruit sans passer par le 818 | SYCEBNL P3 ch. 2 § 2.3.2, App. 7 (D-2) |
 | 1.3 | Refus de la pièce de sécurité · citer le texte du référentiel du dossier | AUDCIF ch. 14 § 1.2.3 ; SYCEBNL classe 2 |
-| 1.4 | Dossier « projets de développement » · aucune dotation, contrôle « immobilisation sans dotation » muet sur eux | Guide SYCEBNL App. 8 (D-1) |
+| 1.4 | Dossier « projets de développement » · aucune dotation, contrôle « immobilisation sans dotation » muet sur eux | Acte uniforme SYCEBNL art. 7 et 9 ; Guide App. 8 (D-1) |
 
 Preuve · un test par défaut qui tombe sur l'ancien comportement.
 
@@ -165,3 +165,4 @@ titres · trop rares pour un cabinet en RDC ; repris seulement sur demande.
 | Date | Lot | Événement |
 |---|---|---|
 | 2026-10-01 | · | Plan arrêté ; décisions D-1 à D-7 ; chantiers a, b1 à b3, c et d déjà livrés |
+| 2026-10-01 | D-1 | Fondement porté à l'Acte lui-même (art. 7 et 9), à la question de Manasse · décision inchangée |
