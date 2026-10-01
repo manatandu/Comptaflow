@@ -55,9 +55,9 @@ import { Referentiel, TypeComposant } from '@prisma/client';
  *     entrant à sa VALEUR ACTUELLE (AUDCIF art. 36 et 42). Sauf un droit
  *     d'exclusivité public (2128) · « Par prudence, le Système comptable
  *     OHADA considère que les droits publics acquis à titre gratuit ont une
- *     valeur nulle » (Titre VIII ch. 1 § 1.3.2) · refusé, voir
+ *     valeur nulle » (Titre VIII ch. 2 § 1.3.2) · refusé, voir
  *     `motifRefusContrepartie`.
- *   · LA CONSTRUCTION REÇUE EN FIN DE BAIL · AUDCIF Titre VIII ch. 9 § 1.4,
+ *   · LA CONSTRUCTION REÇUE EN FIN DE BAIL · AUDCIF Titre VIII ch. 11 § 1.4,
  *     chez le propriétaire du terrain · « Si elle est reçue à titre gratuit,
  *     la construction est comptabilisée pour sa valeur actuelle, la
  *     contrepartie constituant un produit HAO à inscrire au crédit du compte
@@ -195,7 +195,7 @@ export function motifRefusContrepartie(
     return (
       "Un droit d'exclusivité public reçu à titre gratuit n'entre pas à l'actif · « Par prudence, le Système " +
       "comptable OHADA considère que les droits publics acquis à titre gratuit ont une valeur nulle » (AUDCIF, " +
-      'Titre VIII ch. 1 § 1.3.2).'
+      'Titre VIII ch. 2 § 1.3.2).'
     );
   }
   const division = compteImmobilisation.slice(0, 2);

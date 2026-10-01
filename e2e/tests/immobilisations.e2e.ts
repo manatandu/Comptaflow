@@ -452,3 +452,82 @@ test('SYSCOHADA · un bien reçu en subvention se reprend au 799 au rythme de sa
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * L'ÉCHANGE, SUR LA BASE RÉELLE (Guide d'application SYSCOHADA, Partie 1
+ * ch. 5 § 4.5) · l'ancien bien sort au prix de reprise (485 / 82), le
+ * nouveau entre à prix de reprise + soulte (2 / 481), aux deux référentiels.
+ */
+for (const [referentiel, fournisseur] of [
+  ['SYSCOHADA', '48120000'],
+  ['SYCEBNL', '48120000'],
+] as const) {
+  test(`${referentiel} · l’échange sort l’ancien bien au prix de reprise et fait entrer le nouveau avec la soulte`, async ({ page }) => {
+    const pannes = surveiller(page);
+    const dossier = await creerDossier(page, { referentiel, nom: `Échange ${referentiel} e2e`, montant: 10_000 });
+    await seConnecter(page, dossier.email);
+    const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+    const comptes = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+    const vehicule = comptes.find((c) => c.numero.startsWith('2451'));
+    const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+    const banque = plan.find((c) => c.numero.startsWith('52'));
+    const creance = plan.find((c) => c.numero.startsWith('485'));
+    const dette = plan.find((c) => c.numero === fournisseur);
+    if (!vehicule || !banque || !creance || !dette) throw new Error('Comptes du semis introuvables');
+    const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+    const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+    const debut = exercice.dateDebut.slice(0, 10);
+    const ancien = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+      compteImmobilisationId: vehicule.id,
+      designation: 'Vieux camion e2e',
+      dateAcquisition: debut,
+      dateMiseEnService: debut,
+      valeurOrigine: 5_000_000,
+      dureeAmortissementAns: 5,
+      compteContrepartieId: banque.id,
+      exerciceId: exercice.id,
+      journalId: od.id,
+    });
+    const milieu = new Date((Date.parse(exercice.dateDebut) + Date.parse(exercice.dateFin)) / 2).toISOString().slice(0, 10);
+    const r = await appelApi<{ valeurOrigine: number }>(page, 'POST', `/immobilisations/${ancien.id}/echange`, {
+      dateEchange: milieu,
+      exerciceId: exercice.id,
+      journalId: od.id,
+      prixDeReprise: 3_000_000,
+      soulte: 4_000_000,
+      compteCreanceId: creance.id,
+      compteFournisseurId: dette.id,
+      compteImmobilisationId: vehicule.id,
+      designation: 'Camion neuf e2e',
+      dureeAmortissementAns: 5,
+    });
+    expect(r.valeurOrigine).toBe(7_000_000);
+    const biens = await appelApi<Array<{ designation: string; statut: string; valeurOrigine: unknown }>>(page, 'GET', '/immobilisations');
+    expect(biens.find((b) => b.designation === 'Vieux camion e2e')?.statut).toBe('CEDEE');
+    expect(Number(biens.find((b) => b.designation === 'Camion neuf e2e')?.valeurOrigine)).toBe(7_000_000);
+    const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+      page,
+      'GET',
+      `/ecritures/balance?exerciceId=${exercice.id}`,
+    );
+    expect(Number(lignes.find((l) => l.numero === creance.numero)?.mouvementDebit)).toBe(3_000_000);
+    expect(Number(lignes.find((l) => l.numero === fournisseur)?.mouvementCredit)).toBe(7_000_000);
+    expect(Number(lignes.find((l) => l.numero.startsWith('822'))?.mouvementCredit)).toBe(3_000_000);
+    // Un bien sorti ne s'échange plus.
+    await expect(
+      appelApi(page, 'POST', `/immobilisations/${ancien.id}/echange`, {
+        dateEchange: milieu,
+        exerciceId: exercice.id,
+        journalId: od.id,
+        prixDeReprise: 1,
+        soulte: 0,
+        compteCreanceId: creance.id,
+        compteFournisseurId: dette.id,
+        compteImmobilisationId: vehicule.id,
+        designation: 'Doublon',
+      }),
+    ).rejects.toThrow(/déjà sorti/);
+
+    expect(pannes).toEqual([]);
+  });
+}

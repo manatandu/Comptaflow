@@ -19,6 +19,7 @@ import {
   CreerFamilleDto,
   CreerImmobilisationDto,
   CreerLocationAcquisitionDto,
+  EchangerImmobilisationDto,
   SimulerLocationAcquisitionDto,
   LieuBienDto,
   DepreciationDto,
@@ -34,6 +35,15 @@ import {
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
+
+/**
+ * LES COMPTES D'IMMEUBLES DE PLACEMENT · mêmes numéros et intitulés aux deux
+ * semis (2281 terrains, 2315 et 2325 bâtiments) · AUDCIF Titre VIII ch. 10
+ * leur donne sa propre règle d'échange. Le 2445 (matériel et mobilier des
+ * immeubles de placement) n'en est pas · le ch. 10 vise un « bien
+ * immobilier », terrain ou bâtiment.
+ */
+const IMMEUBLES_DE_PLACEMENT = ['2281', '2315', '2325'];
 import { construireEcheancier, ContratSaisi, motifRefusContrat } from './location-acquisition/echeancier-location-acquisition';
 import {
   COMPTES_LOCATION_ACQUISITION,
@@ -3060,6 +3070,108 @@ export class ImmobilisationService {
    * SÉPARÉMENT au crédit du compte 82 (skill sycebnl ne mélange jamais VCN
    * et produit de cession dans la même ligne).
    */
+  /**
+   * L'ÉCHANGE (chantier d, 2026-10-01).
+   *
+   * Évaluation · le bien acquis par échange entre à « la valeur actuelle du
+   * bien reçu, sauf si celle-ci ne peut être estimée de façon fiable ; dans ce
+   * cas, valeur actuelle du bien donné » (AUDCIF Titre VII, introduction de la
+   * classe 2, et art. 36 ; SYCEBNL Partie 2 ch. 3, classe 2, et cadre
+   * conceptuel, mêmes termes). Le bien donné SORT · « Par cession, il faut
+   * entendre : vente, échange, mise au rebut ou destruction » (fiche du compte
+   * 81, aux deux textes).
+   *
+   * Écritures · Guide d'application SYSCOHADA, Partie 1 ch. 5 § 4.5 ·
+   * « Enregistrer séparément la vente de l'ancien (au prix de reprise) et
+   * l'acquisition du nouveau (valeur actuelle = prix de reprise + soulte) » ·
+   * dotation complémentaire, sortie par le 81, D 485 / C 82 au prix de
+   * reprise, D 2 / C 481 pour le nouveau. Une soulte REÇUE se retranche. Le
+   * module enchaîne les deux opérations existantes, `creer` puis `sortir`,
+   * et défait la première si la seconde est refusée. Le règlement (481 contre
+   * 485, et la soulte par la trésorerie) reste au cabinet · le guide ne le
+   * passe pas.
+   *
+   * Refusé vers un IMMEUBLE DE PLACEMENT · son évaluation est autre, « la
+   * valeur comptable de l'actif remis » (AUDCIF Titre VIII ch. 10 § 2.1.2.2),
+   * et elle n'est pas servie.
+   */
+  async echanger(tenantId: string, userId: string, id: string, dto: EchangerImmobilisationDto) {
+    const ancien = await this.trouver(tenantId, id);
+    if (ancien.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException('Le bien donné en échange est déjà sorti.');
+    }
+    const valeur = Math.round((dto.prixDeReprise + dto.soulte) * 100) / 100;
+    if (!(valeur > 0)) {
+      throw new BadRequestException("La soulte reçue dépasse le prix de reprise · le bien reçu n'aurait aucune valeur.");
+    }
+    const [{ referentiel }, compteRecu, fournisseur, creance] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findFirst({ where: { id: dto.compteImmobilisationId, tenantId }, select: { numero: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteFournisseurId, tenantId }, select: { numero: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteCreanceId, tenantId }, select: { numero: true } }),
+    ]);
+    if (!compteRecu || !fournisseur || !creance) throw new BadRequestException('Compte introuvable pour ce dossier');
+    if (IMMEUBLES_DE_PLACEMENT.some((r) => compteRecu.numero.startsWith(r))) {
+      throw new BadRequestException(
+        "Un immeuble de placement reçu en échange s'évalue à « la valeur comptable de l'actif remis » (AUDCIF " +
+          'Titre VIII ch. 10 § 2.1.2.2), règle que ce module ne sert pas · passez la sortie et l’acquisition séparément.',
+      );
+    }
+    // Les comptes du schéma du guide · 481 (ou 404) pour le nouveau bien,
+    // 485 pour la reprise, 414 pour une cession courante.
+    const racines = racinesContrepartieAcquisition(referentiel, compteRecu.numero);
+    if (modeDuCompteDeContrepartie(referentiel, fournisseur.numero, racines) !== 'ACHAT_A_CREDIT') {
+      throw new BadRequestException(
+        `Le compte ${fournisseur.numero} n'est pas un fournisseur d'investissement · le nouveau bien se porte au crédit du 481 ` +
+          '(Guide d’application SYSCOHADA, Partie 1 ch. 5 § 4.5).',
+      );
+    }
+    const creanceAttendue = dto.cessionCourante ? '414' : '485';
+    if (!creance.numero.startsWith(creanceAttendue)) {
+      throw new BadRequestException(
+        `La reprise de l'ancien bien naît au ${creanceAttendue} (Créances sur cessions d'immobilisations` +
+          `${dto.cessionCourante ? ', cession courante' : ''}), pas au ${creance.numero}.`,
+      );
+    }
+
+    const libelle = `Échange contre ${ancien.designation}`.slice(0, 180);
+    const nouveau = await this.creer(tenantId, userId, {
+      compteImmobilisationId: dto.compteImmobilisationId,
+      designation: dto.designation,
+      numeroInventaire: dto.numeroInventaire,
+      lieuId: dto.lieuId,
+      natureFiscaleCle: dto.natureFiscaleCle ?? null,
+      dateAcquisition: dto.dateEchange,
+      dateMiseEnService: dto.dateMiseEnService ?? null,
+      valeurOrigine: valeur,
+      dureeAmortissementAns: dto.dureeAmortissementAns,
+      compteContrepartieId: dto.compteFournisseurId,
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+    });
+    try {
+      const sortie = await this.sortir(tenantId, userId, id, {
+        dateSortie: dto.dateEchange,
+        type: TypeSortie.CESSION,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+        prixCession: dto.prixDeReprise,
+        compteContrepartieId: dto.compteCreanceId,
+        cessionCourante: !!dto.cessionCourante,
+      });
+      return { nouveau, sortie, libelle, valeurOrigine: valeur };
+    } catch (err) {
+      // Le bien reçu ne reste pas au bilan d'un échange qui n'a pas eu lieu.
+      const cree = await this.prisma.immobilisation.findFirst({
+        where: { id: nouveau.id, tenantId },
+        select: { ecritureAcquisitionId: true },
+      });
+      await this.prisma.immobilisation.delete({ where: { id: nouveau.id } });
+      if (cree?.ecritureAcquisitionId) await this.annulerEcritureOrpheline(cree.ecritureAcquisitionId);
+      throw err;
+    }
+  }
+
   async sortir(tenantId: string, userId: string, id: string, dto: SortirImmobilisationDto) {
     const immo = await this.trouver(tenantId, id);
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {

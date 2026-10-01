@@ -691,3 +691,69 @@ export class RepriseSubventionDto {
   @Max(100)
   dureeInalienabiliteAns?: number;
 }
+
+/**
+ * L'ÉCHANGE D'UN BIEN CONTRE UN AUTRE · Guide d'application SYSCOHADA,
+ * Partie 1 ch. 5 § 4.5 · vente de l'ancien au prix de reprise, acquisition du
+ * nouveau à « prix de reprise + soulte ».
+ */
+export class EchangerImmobilisationDto {
+  @IsDateString()
+  dateEchange!: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  /** Valeur actuelle reconnue au bien donné (prix de reprise). */
+  @IsNumber()
+  @Min(0)
+  prixDeReprise!: number;
+
+  /** Complément en argent · positif s'il est versé, négatif s'il est reçu. */
+  @IsNumber()
+  soulte!: number;
+
+  /** Créance née de la reprise · 485 (ou 414 pour une cession courante au SYSCOHADA). */
+  @IsUUID('4')
+  compteCreanceId!: string;
+
+  /** Dette envers le fournisseur du nouveau bien · 481 (ou 404). */
+  @IsUUID('4')
+  compteFournisseurId!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  cessionCourante?: boolean;
+
+  // --- Le bien reçu ---
+  @IsUUID('4')
+  compteImmobilisationId!: string;
+
+  @IsString()
+  @MaxLength(200)
+  designation!: string;
+
+  @IsOptional()
+  @IsString()
+  numeroInventaire?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  lieuId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  natureFiscaleCle?: string | null;
+
+  @IsOptional()
+  @IsPositive()
+  dureeAmortissementAns?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dateMiseEnService?: string | null;
+}

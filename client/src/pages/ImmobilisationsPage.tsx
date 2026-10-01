@@ -9,6 +9,7 @@ import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import { ChampsLocationAcquisition } from '../components/ChampsLocationAcquisition';
 import { ClotureLocationAcquisition } from '../components/ClotureLocationAcquisition';
 import { RepriseSubventionImmobilisations } from '../components/RepriseSubventionImmobilisations';
+import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
@@ -80,6 +81,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [afficherFormImmo, setAfficherFormImmo] = useState(false);
 
   const [sortieOuvertePour, setSortieOuvertePour] = useState<string | null>(null);
+  const [echangeOuvertPour, setEchangeOuvertPour] = useState<string | null>(null);
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [reconstitution, setReconstitution] = useState<{
@@ -1296,6 +1298,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       >
                         Sortir
                       </button>
+                      <button
+                        onClick={() => setEchangeOuvertPour(echangeOuvertPour === immo.id ? null : immo.id)}
+                        title="Céder le bien en échange d'un autre"
+                        className="text-[11px] text-sel hover:underline"
+                      >
+                        Échanger
+                      </button>
                     </>
                   )}
                 </span>
@@ -1523,6 +1532,22 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     <button type="button" onClick={() => setDepreciationOuvertePour(null)} className="text-[11.5px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
                   </div>
                 </form>
+              )}
+              {echangeOuvertPour === immo.id && (
+                <EchangeImmobilisation
+                  immobilisationId={immo.id}
+                  designationAncien={immo.designation}
+                  comptesBien={comptesBien ?? []}
+                  comptesDetail={comptesFinancement}
+                  exerciceId={exerciceCourant?.id}
+                  journal={journaux.find((j) => j.code === 'OD') ?? journaux[0]}
+                  syscohada={syscohada}
+                  onFait={() => {
+                    setEchangeOuvertPour(null);
+                    void charger();
+                  }}
+                  onAnnuler={() => setEchangeOuvertPour(null)}
+                />
               )}
               {sortieOuvertePour === immo.id && (
                 <form onSubmit={(e) => onSortir(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">

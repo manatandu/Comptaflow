@@ -8,6 +8,7 @@ import { ImmobilisationService } from './immobilisation.service';
 import {
   CreerImmobilisationDto,
   CreerLocationAcquisitionDto,
+  EchangerImmobilisationDto,
   SimulerLocationAcquisitionDto,
   AffecterLieuDto,
   LieuBienDto,
@@ -270,6 +271,13 @@ export class ImmobilisationController {
     @Body() dto: ReclasserImmobilisationDto,
   ) {
     return this.immobilisationService.reclasser(user.tenantId, user.userId, id, dto);
+  }
+
+  /** L'échange · sortie de l'ancien bien et entrée du nouveau, en un geste. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/echange')
+  async echanger(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: EchangerImmobilisationDto) {
+    return this.immobilisationService.echanger(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

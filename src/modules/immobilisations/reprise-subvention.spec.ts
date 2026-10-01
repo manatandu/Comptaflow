@@ -8,8 +8,8 @@ import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 
 /**
  * L'ACQUISITION GRATUITE (chantier c, décision de Manasse du 2026-10-01).
- * Fiche du compte 14 aux deux textes ; AUDCIF art. 36 et 42, Titre VIII ch. 1
- * § 1.3.2 et ch. 9 § 1.4.
+ * Fiche du compte 14 aux deux textes ; AUDCIF art. 36 et 42, Titre VIII
+ * ch. 2 § 1.3.2 et ch. 11 § 1.4.
  */
 describe('contrepartie d’un bien reçu gratuitement · SYSCOHADA', () => {
   const S = Referentiel.SYSCOHADA;
@@ -24,7 +24,9 @@ describe('contrepartie d’un bien reçu gratuitement · SYSCOHADA', () => {
     expect(motifRefusContrepartie(S, '23160000', '84100000')).not.toBeNull();
   });
   it('un droit public reçu gratuitement a une valeur nulle · refusé avec son texte', () => {
+    // Le texte est au ch. 2 (brevets, licences et droits), jamais au ch. 1 (R&D) · renvoi corrigé le 2026-10-01.
     expect(motifRefusContrepartie(S, '21280000', '14110000')).toContain('valeur nulle');
+    expect(motifRefusContrepartie(S, '21280000', '14110000')).toContain('Titre VIII ch. 2 § 1.3.2');
   });
   it('le 845 n’est pas ouvert, et aucun 841 au SYCEBNL', () => {
     expect(motifRefusContrepartie(S, '23130000', '84500000')).not.toBeNull();
