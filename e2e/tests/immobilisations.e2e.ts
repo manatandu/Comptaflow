@@ -326,3 +326,69 @@ test('SYSCOHADA · la clôture vire le 623 au 17 et au 672, une fois', async ({ 
 
   expect(pannes).toEqual([]);
 });
+
+/**
+ * L'OPTION NON LEVÉE, SUR LA BASE RÉELLE (§ 2.1.9 B) · le bien sort à la date
+ * de l'option, cédé au bailleur pour le capital restant dû · D 17 / C 82, le
+ * 81 recevant la valeur nette. Un second envoi est refusé.
+ */
+test('SYSCOHADA · l’option non levée sort le bien, la dette du 17 pour prix', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Option crédit-bail e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Array<{ id: string; numero: string; locationAcquisition: boolean }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const materiel = comptes.find((c) => c.locationAcquisition && c.numero.startsWith('2456'));
+  if (!materiel) throw new Error('Aucun compte 2456 au plan semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  // Treize mois · l'option échoit dans l'exercice suivant, que l'on ouvre.
+  await appelApi(page, 'POST', '/immobilisations/location-acquisition', {
+    compteImmobilisationId: materiel.id,
+    nature: 'CREDIT_BAIL_MOBILIER',
+    datePriseEffet: debut,
+    dureeMois: 13,
+    periodicite: 'MENSUELLE',
+    termeAEchoir: false,
+    loyer: 10_000,
+    prixOption: 5_000,
+    tauxAnnuel: 0.12,
+    optionRaisonnablementCertaine: true,
+    bienDeFaibleValeur: false,
+    designation: 'Option e2e',
+    dureeAmortissementAns: 5,
+    reference: 'CB-OPT',
+    dateConclusion: debut,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  const annee = Number(debut.slice(0, 4)) + 1;
+  const suivant = await appelApi<{ id: string }>(page, 'POST', '/exercices', { dateDebut: `${annee}-01-01`, dateFin: `${annee}-12-31` });
+  const [contrat] = await appelApi<Array<{ id: string; dateOption: string; optionLevee: boolean | null }>>(
+    page,
+    'GET',
+    `/immobilisations/location-acquisition/contrats?exerciceId=${suivant.id}`,
+  );
+  expect(contrat.optionLevee).toBeNull();
+  const corps = { levee: false, exerciceId: suivant.id, journalId: od.id };
+  await appelApi(page, 'POST', `/immobilisations/location-acquisition/contrats/${contrat.id}/option`, corps);
+  await expect(appelApi(page, 'POST', `/immobilisations/location-acquisition/contrats/${contrat.id}/option`, corps)).rejects.toThrow(/déjà déclarée/);
+
+  const biens = await appelApi<Array<{ designation: string; statut: string; prixCession: unknown }>>(page, 'GET', '/immobilisations');
+  const bien = biens.find((b) => b.designation === 'Option e2e');
+  expect(bien?.statut).toBe('CEDEE');
+  // Le prix est le capital restant dû de l'échéancier, arrondi ligne à
+  // ligne · il solde le 17 au centime, à un centime au plus du prix d'option.
+  const prix = Number(bien?.prixCession);
+  expect(Math.abs(prix - 5000)).toBeLessThanOrEqual(0.02);
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${suivant.id}`,
+  );
+  expect(Number(lignes.find((l) => l.numero === '17300000')?.mouvementDebit)).toBe(prix);
+  expect(Number(lignes.find((l) => l.numero.startsWith('82'))?.mouvementCredit)).toBe(prix);
+
+  expect(pannes).toEqual([]);
+});

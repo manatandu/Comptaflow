@@ -19,6 +19,10 @@ interface ContratListe {
   designation: string;
   dette: number;
   cloture: { loyers: number; interetsCourus: number } | null;
+  prixOption: number;
+  /** null tant que le cabinet n'a rien déclaré. */
+  optionLevee: boolean | null;
+  dateOption: string | null;
 }
 interface Proposition {
   comptes: { dette: string; interetsCourus: string; interets: string; redevances: string };
@@ -28,13 +32,24 @@ interface Proposition {
   refus: string[];
 }
 
-export function ClotureLocationAcquisition({ exerciceId, journaux }: { exerciceId: string | undefined; journaux: Journal[] }) {
+export function ClotureLocationAcquisition({
+  exerciceId,
+  journaux,
+  onSortie,
+}: {
+  exerciceId: string | undefined;
+  journaux: Journal[];
+  /** La non-levée sort le bien · la liste des biens se relit. */
+  onSortie?: () => void;
+}) {
   const { peutEcrire } = useAuth();
   const [contrats, setContrats] = useState<ContratListe[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<string | null>(null);
   const [proposition, setProposition] = useState<Proposition | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [nonLeveePour, setNonLeveePour] = useState<string | null>(null);
+  const [cessionCourante, setCessionCourante] = useState(false);
   const journalOd = journaux.find((j) => j.code === 'OD') ?? journaux[0];
 
   const charger = useCallback(async () => {
@@ -77,6 +92,26 @@ export function ClotureLocationAcquisition({ exerciceId, journaux }: { exerciceI
     }
   };
 
+  const declarerOption = async (id: string, levee: boolean) => {
+    if (!levee && (!exerciceId || !journalOd)) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      await api.post(
+        `/immobilisations/location-acquisition/contrats/${id}/option`,
+        levee ? { levee } : { levee, exerciceId, journalId: journalOd!.id, cessionCourante },
+      );
+      setNonLeveePour(null);
+      await charger();
+      if (!levee) onSortie?.();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Déclaration refusée');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+  const jourCourt = (d: string) => new Date(d).toISOString().slice(0, 10).split('-').reverse().join('/');
+
   // Un dossier sans contrat ne voit pas le cadre · la liste a été LUE.
   if (!erreur && (contrats === null || contrats.length === 0)) return null;
 
@@ -86,18 +121,37 @@ export function ClotureLocationAcquisition({ exerciceId, journaux }: { exerciceI
         Contrats de location-acquisition
         <Aide
           titre="Clôture des contrats"
-          texte="Les loyers s'enregistrent en redevances au fil de l'exercice. À la clôture, ils se virent à la dette pour leur part de remboursement et en intérêts pour le reste ; les intérêts courus depuis la dernière échéance sont constatés, puis extournés à l'ouverture de l'exercice suivant. Les intérêts courus se comptent au taux de l'échéancier, au prorata des jours de la période (convention d'OmegaX)."
-          source="AUDCIF Titre VIII ch. 8 § 2.1.8 · fiche du compte 17"
+          texte="Les loyers s'enregistrent en redevances au fil de l'exercice. À la clôture, ils se virent à la dette pour leur part de remboursement et en intérêts pour le reste ; les intérêts courus depuis la dernière échéance sont constatés, puis extournés à l'ouverture de l'exercice suivant. Les intérêts courus se comptent au taux de l'échéancier, au prorata des jours de la période (convention d'OmegaX). Option levée : son prix s'enregistre en redevances comme la dernière échéance, aucune autre écriture. Option non levée : le bien sort, cédé au bailleur pour le capital restant dû, qui annule la dette ; la perte est la valeur nette moins ce prix, hors activités ordinaires, ou en exploitation pour des cessions répétitives."
+          source="AUDCIF Titre VIII ch. 8 § 2.1.8 et § 2.1.9 · fiche du compte 17"
         />
       </div>
       {erreur && <div className="px-3.5 py-1.5 text-[11.5px] text-danger">{erreur}</div>}
       {(contrats ?? []).map((c) => (
         <div key={c.id} className="border-b border-border last:border-0">
-          <div className="grid grid-cols-[1.4fr_160px_120px_150px_auto] gap-2.5 px-3.5 py-1.5 items-center text-[11.5px]">
+          <div className="grid grid-cols-[1.4fr_150px_110px_120px_200px_auto] gap-2.5 px-3.5 py-1.5 items-center text-[11.5px]">
             <span>{c.designation}{c.reference ? ` · ${c.reference}` : ''}</span>
             <span className="text-text-dim">{LIBELLES_NATURE[c.nature]}</span>
             <span className="text-right">{montant(c.dette)}</span>
             <span>{c.cloture ? 'Clôture passée' : 'À clôturer'}</span>
+            <span>
+              {c.prixOption > 0 && c.optionLevee === null && (
+                <>
+                  Option {montant(c.prixOption)}{c.dateOption ? ` au ${jourCourt(c.dateOption)}` : ''}
+                  {peutEcrire && (
+                    <span className="flex gap-1 mt-0.5">
+                      <button type="button" disabled={envoi} onClick={() => void declarerOption(c.id, true)} className="border border-border-dark px-1.5 text-[10.5px] font-semibold">
+                        Levée
+                      </button>
+                      <button type="button" disabled={envoi} onClick={() => setNonLeveePour(c.id)} className="border border-border-dark px-1.5 text-[10.5px] font-semibold">
+                        Non levée
+                      </button>
+                    </span>
+                  )}
+                </>
+              )}
+              {c.optionLevee === true && 'Option levée'}
+              {c.optionLevee === false && 'Option non levée · bien sorti'}
+            </span>
             <span className="text-right">
               {!c.cloture && (
                 <button type="button" onClick={() => void proposer(c.id)} className="border border-border-dark px-2.5 py-0.5 text-[11px] font-semibold">
@@ -106,6 +160,26 @@ export function ClotureLocationAcquisition({ exerciceId, journaux }: { exerciceI
               )}
             </span>
           </div>
+          {nonLeveePour === c.id && (
+            <div className="px-3.5 pb-3 text-[11.5px] flex items-center gap-3">
+              <span>Sortie du bien à la date de l'option</span>
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={cessionCourante} onChange={(e) => setCessionCourante(e.target.checked)} />
+                Cession courante
+              </label>
+              <button
+                type="button"
+                disabled={envoi || !journalOd}
+                onClick={() => void declarerOption(c.id, false)}
+                className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1 disabled:opacity-50"
+              >
+                {envoi ? '…' : 'Confirmer la sortie'}
+              </button>
+              <button type="button" onClick={() => setNonLeveePour(null)} className="text-[11.5px] font-semibold text-text-dim px-2 py-1">
+                Annuler
+              </button>
+            </div>
+          )}
           {ouvert === c.id && proposition && (
             <div className="px-3.5 pb-3 text-[11.5px]">
               <table className="w-full max-w-[640px] mb-2">

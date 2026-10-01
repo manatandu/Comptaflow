@@ -1586,7 +1586,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
           {immobilisations.length === 0 && <div className="p-3 text-[11.5px] text-text-dim">Aucune immobilisation.</div>}
         </div>
       )}
-      <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} />
+      <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
     </div>
   );
 }

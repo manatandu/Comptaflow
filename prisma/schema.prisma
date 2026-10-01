@@ -8080,6 +8080,12 @@ model ContratLocationAcquisition {
   optionRaisonnablementCertaine Boolean
   bienDeFaibleValeur            Boolean
 
+  /// LA LEVÉE DE L'OPTION (§ 2.1.9) · null tant que le cabinet n'a rien
+  /// déclaré, jamais présumée. Levée, le prix entre à la clôture comme la
+  /// dernière échéance ; non levée, le bien sort en cession au bailleur.
+  optionLevee        Boolean?
+  dateDecisionOption DateTime?
+
   clotures ClotureLocationAcquisition[]
 
   createdAt DateTime @default(now())

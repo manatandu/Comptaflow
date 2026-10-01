@@ -70,4 +70,19 @@ describe('clôture · loyers échus et intérêts courus', () => {
     expect(v.rangs).toEqual([8]);
     expect(v.loyers).toBe(90000);
   });
+
+  it('option levée · le prix entre avec la dernière échéance ; non levée · jamais, et rien ne court vers lui', () => {
+    const c = { ...EXEMPLE, datePriseEffet: new Date('2018-12-31T00:00:00Z'), prixOption: 5000 };
+    const e = construireEcheancier(c);
+    const v = (levee: boolean | null, an: number) => ventilerExercice(e.lignes, c.datePriseEffet, e.dette, e.tauxPeriodique, ex(an), levee);
+    expect(v(true, 2026)).toMatchObject({ rangs: [8, 9], loyers: 95000, optionNonDeclaree: false });
+    expect(v(false, 2026)).toMatchObject({ rangs: [8], loyers: 90000, optionNonDeclaree: false });
+    expect(v(null, 2026).optionNonDeclaree).toBe(true);
+    // Option à échoir l'an suivant (terme à échoir) · non levée, aucun intérêt ne court vers elle.
+    const d = { ...c, termeAEchoir: true, datePriseEffet: new Date('2019-01-01T00:00:00Z') };
+    const f = construireEcheancier(d);
+    const w = (levee: boolean | null) => ventilerExercice(f.lignes, d.datePriseEffet, f.dette, f.tauxPeriodique, ex(2026), levee);
+    expect(w(null).interetsCourus).toBeGreaterThan(0);
+    expect(w(false).interetsCourus).toBe(0);
+  });
 });

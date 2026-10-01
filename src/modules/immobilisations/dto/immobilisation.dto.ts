@@ -655,3 +655,23 @@ export class ClotureLocationAcquisitionDto {
   @IsUUID('4')
   journalId!: string;
 }
+
+/** La levée ou la non-levée de l'option d'un contrat de location-acquisition. */
+export class DeclarerOptionLocationAcquisitionDto {
+  @IsBoolean()
+  levee!: boolean;
+
+  /** Non-levée seulement · la sortie du bien se passe dans cet exercice et ce journal. */
+  @IsOptional()
+  @IsUUID('4')
+  exerciceId?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  journalId?: string;
+
+  /** Cessions répétitives (loueurs, transporteurs) · résultat d'exploitation (§ 2.1.9 c). */
+  @IsOptional()
+  @IsBoolean()
+  cessionCourante?: boolean;
+}

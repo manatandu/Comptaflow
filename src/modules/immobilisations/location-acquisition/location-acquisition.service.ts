@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StatutExercice } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma.service';
+import { TypeSortie } from '../dto/immobilisation.dto';
+import { ImmobilisationService } from '../immobilisation.service';
 import { EcritureService } from '../../comptabilite/ecriture.service';
 import { construireEcheancier, ContratSaisi } from './echeancier-location-acquisition';
 import { COMPTES_LOCATION_ACQUISITION } from './nomenclature-location-acquisition';
@@ -28,6 +30,7 @@ export class LocationAcquisitionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
+    private readonly immobilisations: ImmobilisationService,
   ) {}
 
   private async contrat(tenantId: string, id: string) {
@@ -76,6 +79,9 @@ export class LocationAcquisitionService {
     });
     return contrats.map((c) => ({
       id: c.id,
+      prixOption: n(c.prixOption),
+      optionLevee: c.optionLevee,
+      dateOption: n(c.prixOption) > 0 ? (this.echeancierDe({ ...c, clotures: [] }).lignes.find((l) => l.option)?.date ?? null) : null,
       reference: c.reference,
       nature: c.nature,
       designation: c.immobilisation.designation,
@@ -97,11 +103,21 @@ export class LocationAcquisitionService {
     const comptes = COMPTES_LOCATION_ACQUISITION[referentiel][c.nature];
     if (!comptes) throw new BadRequestException("Ce référentiel n'ouvre aucun compte pour cette nature de contrat.");
     const echeancier = this.echeancierDe(c);
-    const ventilation = ventilerExercice(echeancier.lignes, c.datePriseEffet, echeancier.dette, echeancier.tauxPeriodique, exercice);
+    const ventilation = ventilerExercice(
+      echeancier.lignes,
+      c.datePriseEffet,
+      echeancier.dette,
+      echeancier.tauxPeriodique,
+      exercice,
+      c.optionLevee,
+    );
 
     const refus: string[] = [];
     if (c.clotures.some((cl) => cl.exerciceId === exerciceId)) refus.push('La clôture de ce contrat est déjà passée pour cet exercice.');
     if (exercice.statut !== StatutExercice.OUVERT) refus.push('Exercice clôturé · aucune écriture ne peut y entrer (AUDCIF art. 20).');
+    if (ventilation.optionNonDeclaree) {
+      refus.push("L'option d'achat échoit dans l'exercice · déclarez sa levée ou sa non-levée avant la clôture (AUDCIF Titre VIII ch. 8 § 2.1.9).");
+    }
     if (exercice.dateFin < c.datePriseEffet) refus.push("L'exercice s'achève avant la prise d'effet du contrat · rien à clôturer.");
 
     // LES EXERCICES SE CLÔTURENT DANS L'ORDRE · un exercice antérieur couvert
@@ -258,6 +274,89 @@ export class LocationAcquisitionService {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException('La clôture de ce contrat est déjà passée pour cet exercice.');
       }
+      throw err;
+    }
+  }
+
+  /**
+   * LA LEVÉE OU LA NON-LEVÉE DE L'OPTION (§ 2.1.9) · déclarée une fois, par le
+   * cabinet, jamais présumée.
+   *
+   * LEVÉE · « aucune écriture n'est à passer car, initialement, c'est
+   * l'hypothèse retenue dans le schéma de comptabilisation » ; le prix entre
+   * au 623 comme la dernière échéance, et la clôture de son exercice le vire
+   * au 17. L'amortissement se poursuit jusqu'à son terme.
+   *
+   * NON LEVÉE · « constatation de la "cession" du bien à la société de
+   * crédit-bail » à la date de l'option, « annulation de la "dette" » (le prix
+   * P « représente le capital restant dû »), et « constatation d'un résultat
+   * de cession » égal à X − P, hors activités ordinaires, « ou dans le
+   * résultat d'exploitation si ces cessions ont un caractère répétitif ». La
+   * sortie passe par `ImmobilisationService.sortir` en CESSION, au prix du
+   * capital restant dû de la ligne d'option, avec la dette du 17 pour
+   * contrepartie · D 17 / C 82 (ou 754 pour une cession courante), le 81
+   * recevant la valeur nette X. La perte se forme seule, sans compte deviné.
+   */
+  async declarerOption(
+    tenantId: string,
+    userId: string,
+    contratId: string,
+    dto: { levee: boolean; exerciceId?: string; journalId?: string; cessionCourante?: boolean },
+  ) {
+    const c = await this.contrat(tenantId, contratId);
+    if (!(n(c.prixOption) > 0)) {
+      throw new BadRequestException("Ce contrat ne porte pas d'option d'achat · rien à déclarer.");
+    }
+    if (c.optionLevee !== null) throw new ConflictException("La levée de l'option est déjà déclarée pour ce contrat.");
+    const option = this.echeancierDe(c).lignes.find((l) => l.option)!;
+    const reclamer = (valeur: boolean, date: Date) =>
+      this.prisma.contratLocationAcquisition.update({
+        where: { id: c.id, tenantId, optionLevee: null },
+        data: { optionLevee: valeur, dateDecisionOption: date },
+      });
+    if (dto.levee) {
+      try {
+        return await reclamer(true, new Date());
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException("La levée de l'option est déjà déclarée pour ce contrat.");
+        }
+        throw err;
+      }
+    }
+    if (!dto.exerciceId || !dto.journalId) {
+      throw new BadRequestException("Indiquez l'exercice et le journal de la sortie du bien.");
+    }
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    const comptes = COMPTES_LOCATION_ACQUISITION[referentiel][c.nature];
+    if (!comptes) throw new BadRequestException("Ce référentiel n'ouvre aucun compte pour cette nature de contrat.");
+    const id17 = await this.compte(tenantId, comptes.dette);
+    // La déclaration est posée AVANT la sortie, conditionnellement · un double
+    // envoi tombe sur elle, jamais sur une seconde cession. La sortie refusée,
+    // elle est retirée.
+    try {
+      await reclamer(false, option.date);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new ConflictException("La levée de l'option est déjà déclarée pour ce contrat.");
+      }
+      throw err;
+    }
+    try {
+      return await this.immobilisations.sortir(tenantId, userId, c.immobilisationId, {
+        dateSortie: option.date.toISOString().slice(0, 10),
+        type: TypeSortie.CESSION,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+        prixCession: option.capital,
+        compteContrepartieId: id17,
+        cessionCourante: !!dto.cessionCourante,
+      });
+    } catch (err) {
+      await this.prisma.contratLocationAcquisition.update({
+        where: { id: c.id, tenantId },
+        data: { optionLevee: null, dateDecisionOption: null },
+      });
       throw err;
     }
   }

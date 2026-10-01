@@ -6,7 +6,7 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { EXERCICE_REQUIS } from '../../../common/exercice-requis';
-import { ClotureLocationAcquisitionDto } from '../dto/immobilisation.dto';
+import { ClotureLocationAcquisitionDto, DeclarerOptionLocationAcquisitionDto } from '../dto/immobilisation.dto';
 import { LocationAcquisitionService } from './location-acquisition.service';
 
 /** Clôture des contrats de location-acquisition · mêmes droits que la dotation. */
@@ -37,5 +37,15 @@ export class LocationAcquisitionController {
     @Body() dto: ClotureLocationAcquisitionDto,
   ) {
     return this.service.passer(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/option')
+  declarerOption(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DeclarerOptionLocationAcquisitionDto,
+  ) {
+    return this.service.declarerOption(user.tenantId, user.userId, id, dto);
   }
 }

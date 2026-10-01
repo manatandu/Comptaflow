@@ -16,8 +16,13 @@ import { LigneEcheancier } from './echeancier-location-acquisition';
  * L'échéance tient lieu de paiement, et l'écart avec ce que le cabinet a
  * réellement porté au 623 se montre (voir le service), jamais ne se comble.
  *
- * Le prix de levée de l'option n'est pas un loyer · sa ligne est laissée à
- * la levée ou à la non-levée (§ 2.1.9).
+ * LE PRIX DE LEVÉE DE L'OPTION (§ 2.1.9) · « le prix de rachat P représente
+ * la dernière "annuité" de l'emprunt équivalent ». LEVÉE, « aucune écriture
+ * n'est à passer » au-delà du schéma · le cabinet paie P au 623 comme un
+ * loyer, et la clôture de son exercice le vire au 17 avec la dernière
+ * échéance. NON LEVÉE, sa ligne n'est jamais virée · le bien sort par une
+ * cession au bailleur (service). Non déclarée à l'échéance, la clôture est
+ * refusée · virer P ou ne pas le virer, c'est trancher à la place du cabinet.
  */
 
 export interface VentilationExercice {
@@ -31,6 +36,8 @@ export interface VentilationExercice {
   interetsCourus: number;
   /** Les échéances retenues, pour le dire à l'écran. */
   rangs: number[];
+  /** L'option échoit dans l'exercice et sa levée n'est pas déclarée. */
+  optionNonDeclaree: boolean;
 }
 
 const centimes = (x: number) => Math.round(x * 100) / 100;
@@ -51,10 +58,14 @@ export function ventilerExercice(
   dette: number,
   tauxPeriodique: number,
   exercice: { dateDebut: Date; dateFin: Date },
+  /** null tant que le cabinet n'a rien déclaré. */
+  optionLevee: boolean | null = null,
 ): VentilationExercice {
   const debut = jour(exercice.dateDebut);
   const fin = jour(exercice.dateFin);
-  const loyersEchus = lignes.filter((l) => !l.option && jour(l.date) >= debut && jour(l.date) <= fin);
+  const dansLExercice = (l: LigneEcheancier) => jour(l.date) >= debut && jour(l.date) <= fin;
+  const loyersEchus = lignes.filter((l) => dansLExercice(l) && (!l.option || optionLevee === true));
+  const optionNonDeclaree = lignes.some((l) => l.option && dansLExercice(l)) && optionLevee === null;
   const loyers = centimes(loyersEchus.reduce((s, l) => s + l.paiement, 0));
   const capital = centimes(loyersEchus.reduce((s, l) => s + l.capital, 0));
   // Les intérêts sont le reste du loyer, pour que 17 + 672 rende exactement le 623.
@@ -62,7 +73,8 @@ export function ventilerExercice(
 
   const passees = lignes.filter((l) => jour(l.date) <= fin);
   const derniere = passees[passees.length - 1];
-  const suivante = lignes.find((l) => jour(l.date) > fin);
+  // Une option NON LEVÉE ne sera jamais payée · rien ne court vers elle.
+  const suivante = lignes.find((l) => jour(l.date) > fin && !(l.option && optionLevee === false));
   let interetsCourus = 0;
   if (suivante) {
     const depuis = derniere ? jour(derniere.date) : jour(datePriseEffet);
@@ -75,5 +87,5 @@ export function ventilerExercice(
       interetsCourus = centimes(restant * (Math.pow(1 + tauxPeriodique, fraction) - 1));
     }
   }
-  return { loyers, capital, interets, interetsCourus, rangs: loyersEchus.map((l) => l.rang) };
+  return { loyers, capital, interets, interetsCourus, rangs: loyersEchus.map((l) => l.rang), optionNonDeclaree };
 }

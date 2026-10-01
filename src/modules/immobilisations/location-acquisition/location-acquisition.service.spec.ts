@@ -23,15 +23,19 @@ const CONTRAT = {
   valeurContrat: null,
   optionRaisonnablementCertaine: true,
   bienDeFaibleValeur: false,
+  optionLevee: null as boolean | null,
+  immobilisationId: 'b1',
   immobilisation: { designation: 'Presse' },
 };
 
-function monter(o: { clotures?: unknown[]; exercice?: typeof E2026; anterieurs?: unknown[]; porte623?: number; doublon?: boolean; referentiel?: Referentiel } = {}) {
+function monter(o: { contrat?: Partial<typeof CONTRAT>; sortieEchoue?: boolean; clotures?: unknown[]; exercice?: typeof E2026; anterieurs?: unknown[]; porte623?: number; doublon?: boolean; referentiel?: Referentiel } = {}) {
   const creer = jest.fn().mockImplementation((_t: string, _u: string, { libelle }: { libelle: string }) => Promise.resolve({ id: libelle.startsWith('Extourne') ? 'ext' : 'clo' }));
   const retirer = jest.fn();
   const numeros: Record<string, string> = {};
   const prisma = {
-    contratLocationAcquisition: { findFirst: jest.fn().mockResolvedValue({ ...CONTRAT, clotures: o.clotures ?? [] }) },
+    contratLocationAcquisition: { findFirst: jest.fn().mockResolvedValue({ ...CONTRAT, ...o.contrat, clotures: o.clotures ?? [] }),
+      update: jest.fn().mockResolvedValue({}),
+    },
     exercice: {
       findFirst: jest.fn().mockResolvedValue(o.exercice ?? E2026),
       findMany: jest.fn().mockResolvedValue(o.anterieurs ?? []),
@@ -52,8 +56,9 @@ function monter(o: { clotures?: unknown[]; exercice?: typeof E2026; anterieurs?:
     },
     ligneEcriture: { aggregate: jest.fn().mockResolvedValue({ _sum: { debit: o.porte623 ?? 90000, credit: 0 } }) },
   };
-  const svc = new LocationAcquisitionService(prisma as never, { creer, retirerCompensation: retirer } as never);
-  return { svc, prisma, creer, retirer };
+  const sortir = jest.fn().mockImplementation(() => (o.sortieEchoue ? Promise.reject(new Error('sortie refusée')) : Promise.resolve({ id: 'b1' })));
+  const svc = new LocationAcquisitionService(prisma as never, { creer, retirerCompensation: retirer } as never, { sortir } as never);
+  return { svc, prisma, creer, retirer, sortir };
 }
 
 describe('clôture d’un contrat de location-acquisition', () => {
@@ -110,5 +115,57 @@ describe('clôture d’un contrat de location-acquisition', () => {
     const { svc, retirer } = monter({ exercice: E2027, anterieurs: [E2026], clotures: [{ exerciceId: 'e26', interetsCourus: 10 }], doublon: true });
     await expect(svc.passer('t', 'u', 'k1', { exerciceId: 'e27', journalId: 'j' })).rejects.toThrow('déjà passée');
     expect(retirer.mock.calls.map((c) => c[1])).toEqual(['clo', 'ext']);
+  });
+
+  it('refuse la clôture de l’exercice où l’option échoit sans déclaration', async () => {
+    // 8 loyers annuels depuis le 31/12/2018 · le dernier et l'option échoient le 31/12/2026.
+    const contrat = { datePriseEffet: new Date('2018-12-31T00:00:00Z'), prixOption: 5000 };
+    const { svc } = monter({ contrat });
+    const p = await svc.proposer('t', 'k1', 'e26');
+    expect(p.refus.join(' ')).toContain('déclarez sa levée');
+    const levee = await monter({ contrat: { ...contrat, optionLevee: true } }).svc.proposer('t', 'k1', 'e26');
+    expect(levee.ventilation.loyers).toBe(95000);
+  });
+});
+
+describe('levée de l’option (§ 2.1.9)', () => {
+  const avecOption = { datePriseEffet: new Date('2018-12-31T00:00:00Z'), prixOption: 5000 };
+
+  it('levée · déclarée seule, conditionnellement, aucune sortie', async () => {
+    const { svc, prisma, sortir } = monter({ contrat: avecOption });
+    await svc.declarerOption('t', 'u', 'k1', { levee: true });
+    expect(prisma.contratLocationAcquisition.update.mock.calls[0][0]).toMatchObject({
+      where: { id: 'k1', tenantId: 't', optionLevee: null },
+      data: { optionLevee: true },
+    });
+    expect(sortir).not.toHaveBeenCalled();
+  });
+
+  it('non levée · cession au bailleur au capital restant dû, contrepartie la dette du 17', async () => {
+    const { svc, sortir, prisma } = monter({ contrat: avecOption });
+    await svc.declarerOption('t', 'u', 'k1', { levee: false, exerciceId: 'e26', journalId: 'j', cessionCourante: false });
+    expect(sortir.mock.calls[0][2]).toBe('b1');
+    expect(sortir.mock.calls[0][3]).toMatchObject({
+      type: 'CESSION',
+      dateSortie: '2026-12-31',
+      prixCession: 5000,
+      compteContrepartieId: 'id-17300000',
+      cessionCourante: false,
+    });
+    expect(prisma.contratLocationAcquisition.update.mock.calls[0][0].data.optionLevee).toBe(false);
+  });
+
+  it('une sortie refusée retire la déclaration', async () => {
+    const { svc, prisma } = monter({ contrat: avecOption, sortieEchoue: true });
+    await expect(svc.declarerOption('t', 'u', 'k1', { levee: false, exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('sortie refusée');
+    expect(prisma.contratLocationAcquisition.update.mock.calls[1][0].data).toEqual({ optionLevee: null, dateDecisionOption: null });
+  });
+
+  it('refus · contrat sans option, déclaration déjà faite, non-levée sans journal', async () => {
+    await expect(monter().svc.declarerOption('t', 'u', 'k1', { levee: true })).rejects.toThrow("pas d'option");
+    await expect(monter({ contrat: { ...avecOption, optionLevee: true } }).svc.declarerOption('t', 'u', 'k1', { levee: false })).rejects.toThrow(
+      'déjà déclarée',
+    );
+    await expect(monter({ contrat: avecOption }).svc.declarerOption('t', 'u', 'k1', { levee: false })).rejects.toThrow('journal');
   });
 });
