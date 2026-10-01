@@ -636,6 +636,11 @@ export function RegularisationPage() {
                     </span>
                   ) : peutEcrire ? (
                     <span className="flex items-center gap-1">
+                      {exercicesDeReprise(exercices, r.exerciceId).length === 0 ? (
+                        // Sans exercice ouvert postérieur, la liste n'avait que son
+                        // invite · le geste à faire d'abord se dit.
+                        <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>
+                      ) : (
                       <select
                         value=""
                         onChange={(e) => {
@@ -661,6 +666,7 @@ export function RegularisationPage() {
                             </option>
                           ))}
                       </select>
+                      )}
                       <Aide titre="Date de reprise" {...aideDateReprise(utilisateur?.tenant.referentiel, r.type)} />
                     </span>
                   ) : (

@@ -5,7 +5,7 @@ import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { MethodeDepreciationSubventionDto, RattacherSubventionDto, ReduireSubventionDto } from './dto/immobilisation.dto';
+import { MethodeDepreciationSubventionDto, OctroiSubventionDto, RattacherSubventionDto, ReduireSubventionDto } from './dto/immobilisation.dto';
 import { SubventionRattacheeService } from './subvention-rattachee.service';
 
 /**
@@ -24,6 +24,19 @@ export class SubventionRattacheeController {
     @Query('immobilisationId', new ParseUUIDPipe({ optional: true })) immobilisationId?: string,
   ) {
     return this.service.lister(user.tenantId, immobilisationId);
+  }
+
+  /** Les octrois inscrits au 14 choisi, le reste à rattacher et les contreparties proposées. */
+  @Get('subventions-rattachees/octrois')
+  octrois(@CurrentUser() user: AuthenticatedUser, @Query('compteSubventionId', ParseUUIDPipe) compteSubventionId: string) {
+    return this.service.octrois(user.tenantId, compteSubventionId);
+  }
+
+  /** L'octroi · D 4731 (ou 4494, 4582) / C 14, au brouillard. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('subventions-rattachees/octrois')
+  enregistrerOctroi(@CurrentUser() user: AuthenticatedUser, @Body() dto: OctroiSubventionDto) {
+    return this.service.enregistrerOctroi(user.tenantId, user.userId, dto);
   }
 
   @Get(':id/ventilation-subvention')

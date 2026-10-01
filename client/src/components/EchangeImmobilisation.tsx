@@ -62,7 +62,11 @@ export function EchangeImmobilisation({
     api
       .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${compteBienId}`)
       .then((c) => vivant && setFournisseurs(c.filter((x) => x.mode === 'ACHAT_A_CREDIT')))
-      .catch(() => vivant && setFournisseurs([]));
+      .catch((err) => {
+        if (!vivant) return;
+        setFournisseurs([]);
+        setErreur(err instanceof ApiError ? err.message : "Fournisseurs d'investissement illisibles");
+      });
     return () => {
       vivant = false;
     };

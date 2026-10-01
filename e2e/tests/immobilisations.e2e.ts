@@ -1179,3 +1179,33 @@ test('SYCEBNL · une reprise de dépréciation est plafonnée à la valeur sans 
 
   expect(pannes).toEqual([]);
 });
+
+test('SYCEBNL · une subvention d’investissement s’enregistre depuis son compte 14 · octroi, puis rattachement proposé', async ({ page }) => {
+  // Fiche du compte 14 (SYCEBNL Partie 2 ch. 3) · octroi D 4731 / C 14 ; le choix du 14 propose ce qui s'y trouve.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Octroi subvention e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  await page.goto('/#/immobilisations');
+  await page.getByRole('button', { name: 'Rattacher une subvention' }).click();
+  await page.getByLabel('Compte de subvention').selectOption({ label: "14170000 Subventions d'équipement · Organismes internationaux" });
+  // Rien d'inscrit, aucun bien · l'écran le dit au lieu de listes vides.
+  await expect(page.getByText('Aucun octroi inscrit à ce compte')).toBeVisible();
+  await expect(page.getByText('Aucun bien en service à financer')).toBeVisible();
+  await page.getByLabel('Montant octroyé').fill('3000000');
+  await page.locator('[data-nouvel-octroi] input[type=date]').fill(`${annee}-02-01`);
+  await page.locator('[data-nouvel-octroi] label', { hasText: "Acte d'octroi" }).locator('input').fill('Convention UE 12');
+  await page.getByRole('button', { name: "Enregistrer l'octroi" }).click();
+  await expect(page.getByText('Reste à rattacher')).toBeVisible();
+  // L'octroi est passé D 4731 / C 14, et le formulaire en reprend montant et acte.
+  await expect(page.getByLabel('Montant', { exact: true })).toHaveValue('3000000');
+  const octrois = await appelApi<{ octrois: Array<{ montant: number; reference: string }>; resteARattacher: number }>(
+    page,
+    'GET',
+    `/immobilisations/subventions-rattachees/octrois?compteSubventionId=${(await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL')).find((c) => c.numero === '14170000')!.id}`,
+  );
+  expect(octrois.octrois).toEqual([expect.objectContaining({ montant: 3_000_000, reference: 'Convention UE 12' })]);
+  expect(Number(octrois.resteARattacher)).toBeCloseTo(3_000_000, 2);
+  expect(pannes).toEqual([]);
+});

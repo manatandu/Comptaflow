@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { exercicesDeContrePassation } from '../lib/contre-passation';
 import { api, ApiError } from '../lib/api';
 import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
@@ -38,6 +39,7 @@ function cours(n: number | string): string {
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');
 }
+
 
 export function DevisesPage() {
   const { estAdmin, peutEcrire, utilisateur } = useAuth();
@@ -587,20 +589,29 @@ export function DevisesPage() {
                           Contre-passée le {jour(r.ecritureExtourne.date)}
                         </span>
                       ) : peutEcrire ? (
-                        <select
-                          defaultValue=""
-                          onChange={(e) => e.target.value && extourner(r.id, e.target.value)}
-                          className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
-                        >
-                          <option value="">Contre-passer sur…</option>
-                          {exercices
-                            .filter((ex) => ex.statut === 'OUVERT' && ex.id !== exerciceCourant?.id)
-                            .map((ex) => (
+                        exercicesDeContrePassation(exercices, r.dateReevaluation).length === 0 ? (
+                          <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>
+                        ) : (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CHOIX DANS UNE
+                              // LISTE (audit final F79, comme les régularisations).
+                              const cible = exercices.find((ex) => ex.id === e.target.value);
+                              if (cible && window.confirm(`Contre-passer les écarts du ${jour(r.dateReevaluation)} sur l'exercice ${libelleExercice(cible)} ?`)) {
+                                void extourner(r.id, cible.id);
+                              }
+                            }}
+                            className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
+                          >
+                            <option value="">Contre-passer sur…</option>
+                            {exercicesDeContrePassation(exercices, r.dateReevaluation).map((ex) => (
                               <option key={ex.id} value={ex.id}>
                                 Exercice {libelleExercice(ex)}
                               </option>
                             ))}
-                        </select>
+                          </select>
+                        )
                       ) : null}
                     </span>
                   </div>

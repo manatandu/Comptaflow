@@ -3223,7 +3223,11 @@ OmegaX, JAMAIS le vert de Sage.
   F181, F183, F184, F207, F248, F254, F255). Une liste part de `null`, un
   refus s'affiche avec son motif, et « aucun » ne se dit que sur une liste
   LUE · « Aucune caisse sans procès-verbal » ou « Aucun mandat » sur un échec
-  sont la réponse favorable à la question que l'écran pose. Le contexte
+  sont la réponse favorable à la question que l'écran pose. UNE LISTE QUI
+  DÉPEND D'UN CHOIX DIT POURQUOI ELLE EST VIDE ET CE QU'IL FAUT FAIRE D'ABORD,
+  et un choix unique se présélectionne (2026-10-01, relevé par Manasse sur
+  « Rattacher une subvention », dont le 14 ne proposait ni l'octroi ni le
+  bien). Le contexte
   d'exercice aussi · `lireLesExercices` ne lève jamais, le chargement se
   referme, et l'erreur s'affiche à la barre d'état et dans la fenêtre
   Exercices.

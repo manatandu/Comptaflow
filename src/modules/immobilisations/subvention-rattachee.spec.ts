@@ -3,7 +3,9 @@ import { proposerReprise, RESERVE_METHODE_DEPRECIATION_NON_DECLAREE } from './re
 import { RepriseSubventionService } from './reprise-subvention.service';
 import { SubventionRattacheeService } from './subvention-rattachee.service';
 import {
+  CONTREPARTIES_OCTROI_PROPOSEES,
   contrepartieRemboursementProposee,
+  motifRefusContrepartieOctroi,
   lignesReduction,
   motifRefusCompteSubvention,
   motifRefusContrepartieReduction,
@@ -408,5 +410,105 @@ describe('la reprise lit la subvention rattachée', () => {
     await svc.passer('t', 'u', 'b1', corps);
     // 320 000 × 250 000 / 800 000.
     expect(creer.mock.calls[0][2].lignes.at(-1)).toEqual({ compteId: 'c799', debit: 0, credit: 100_000 });
+  });
+});
+
+describe('l’octroi · le choix du 14 propose ce qui s’y trouve (fiche du compte 14)', () => {
+  it('contrepartie · 4731 au SYCEBNL, la classe 4 hors 473 au SYSCOHADA', () => {
+    expect(motifRefusContrepartieOctroi('SYCEBNL', '47310000')).toBeNull();
+    expect(motifRefusContrepartieOctroi('SYCEBNL', '44940000')).toMatch(/4731/);
+    expect(motifRefusContrepartieOctroi('SYCEBNL', '52110000')).toMatch(/4731/);
+    expect(motifRefusContrepartieOctroi('SYSCOHADA', '44940000')).toBeNull();
+    expect(motifRefusContrepartieOctroi('SYSCOHADA', '45820000')).toBeNull();
+    expect(motifRefusContrepartieOctroi('SYSCOHADA', '52110000')).toMatch(/classe 4/);
+    expect(motifRefusContrepartieOctroi('SYSCOHADA', '47310000')).toMatch(/intermédiaires/);
+  });
+
+  it('les comptes proposés sont ouverts au semis de leur référentiel, sous l’intitulé qui les justifie', () => {
+    const intitule = (plan: ReadonlyArray<unknown>, numero: string) => {
+      const ligne = (plan as ReadonlyArray<unknown[] | { numero: string; intitule: string }>).find((l) =>
+        Array.isArray(l) ? l[0] === numero : l.numero === numero,
+      );
+      return ligne === undefined ? undefined : Array.isArray(ligne) ? String(ligne[1]) : ligne.intitule;
+    };
+    expect(CONTREPARTIES_OCTROI_PROPOSEES.SYCEBNL).toEqual(['47310000']);
+    expect(intitule(PLAN_COMPTES_SYCEBNL, '47310000')).toMatch(/subventions à recevoir.*investissement/i);
+    expect(intitule(PLAN_COMPTES_SYSCOHADA, '44940000')).toMatch(/subventions investissement à recevoir/i);
+    expect(intitule(PLAN_COMPTES_SYSCOHADA, '45820000')).toMatch(/subventions à recevoir/i);
+  });
+
+  function monter(o: { referentiel?: Referentiel; numero14?: string; contrepartie?: string; jeu?: JeuEtatsFinanciersSycebnl } = {}) {
+    const creer = jest.fn().mockResolvedValue({ id: 'ec' });
+    const comptes: Record<string, { id: string; numero: string; typeCompte: string }> = {
+      c14: { id: 'c14', numero: o.numero14 ?? '14170000', typeCompte: 'DETAIL' },
+      cp: { id: 'cp', numero: o.contrepartie ?? '47310000', typeCompte: 'DETAIL' },
+    };
+    const prisma = {
+      tenant: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          referentiel: o.referentiel ?? Referentiel.SYCEBNL,
+          jeuEtatsFinanciersSycebnl: o.jeu ?? JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+        }),
+      },
+      compte: {
+        findFirst: jest.fn(({ where }: { where: { id: string } }) => Promise.resolve(comptes[where.id] ?? null)),
+        findMany: jest.fn(({ where }: { where: { numero: { in: string[] } } }) =>
+          Promise.resolve(where.numero.in.map((numero) => ({ id: `n${numero}`, numero, intitule: numero }))),
+        ),
+      },
+      ligneEcriture: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'l1', credit: 120_000_000, libelle: '', ecriture: { id: 'e1', date: new Date('2026-02-01'), libelle: 'Notification UE', reference: 'Convention UE', numeroPiece: 'OD-1' } },
+        ]),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 120_000_000 } }),
+      },
+      subventionImmobilisation: { aggregate: jest.fn().mockResolvedValue({ _sum: { montant: 20_000_000 } }) },
+    };
+    return { svc: new SubventionRattacheeService(prisma as never, { creer } as never), creer, prisma };
+  }
+
+  it('lire les octrois · la ligne créditée, le reste à rattacher, la contrepartie du référentiel', async () => {
+    const { svc, prisma } = monter();
+    const r = await svc.octrois('t', 'c14');
+    expect(r.octrois).toEqual([expect.objectContaining({ ligneId: 'l1', montant: 120_000_000, reference: 'Convention UE', libelle: 'Notification UE' })]);
+    expect(r.resteARattacher).toBe(100_000_000);
+    expect(r.contrepartiesProposees.map((c) => c.numero)).toEqual(['47310000']);
+    expect(r.autresTiersAdmis).toBe(false);
+    // Les crédits lus excluent les écritures de clôture, comme le contrôle du rattachement.
+    expect(prisma.ligneEcriture.findMany.mock.calls[0][0].where).toMatchObject({ compteId: 'c14', credit: { gt: 0 }, ecriture: { tenantId: 't', estGenereeParCloture: false } });
+    const s = await monter({ referentiel: Referentiel.SYSCOHADA }).svc.octrois('t', 'c14');
+    expect(s.contrepartiesProposees.map((c) => c.numero)).toEqual(['44940000', '45820000']);
+    expect(s.autresTiersAdmis).toBe(true);
+  });
+
+  it('lire les octrois d’un compte hors 14 · refusé', async () => {
+    await expect(monter({ numero14: '16200000' }).svc.octrois('t', 'c14')).rejects.toThrow(/compte 14/);
+  });
+
+  const corps = { compteSubventionId: 'c14', compteContrepartieId: 'cp', exerciceId: 'e', journalId: 'j', date: '2026-02-01', montant: 120_000_000, reference: 'Convention UE' };
+
+  it('enregistrer l’octroi · D 4731 / C 14, au brouillard, référence portée', async () => {
+    const { svc, creer } = monter();
+    await svc.enregistrerOctroi('t', 'u', corps);
+    expect(creer.mock.calls[0][2]).toMatchObject({
+      date: '2026-02-01',
+      reference: 'Convention UE',
+      lignes: [
+        { compteId: 'cp', debit: 120_000_000, credit: 0 },
+        { compteId: 'c14', debit: 0, credit: 120_000_000 },
+      ],
+    });
+  });
+
+  it('refus avant toute écriture · contrepartie hors texte, compte hors 14, projet de développement', async () => {
+    for (const m of [
+      monter({ contrepartie: '52110000' }),
+      monter({ numero14: '16200000' }),
+      monter({ referentiel: Referentiel.SYSCOHADA, contrepartie: '47310000' }),
+      monter({ jeu: JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT }),
+    ]) {
+      await expect(m.svc.enregistrerOctroi('t', 'u', corps)).rejects.toThrow();
+      expect(m.creer).not.toHaveBeenCalled();
+    }
   });
 });

@@ -29,6 +29,45 @@ export function motifRefusCompteSubvention(numero: string, estDetail: boolean): 
 }
 
 /**
+ * L'OCTROI · la première écriture de la subvention, sans laquelle rien ne se
+ * rattache. Fiche du compte 14, « lors de l'octroi de la subvention » ·
+ *
+ * SYCEBNL (Partie 2 ch. 3) · « est crédité le compte 14 [...] par le débit du
+ * compte 4731 – Subventions d'équipement à recevoir » ; l'Application 3 du
+ * Guide passe la notification au 4731 contre le 1417.
+ *
+ * AUDCIF (Titre VII) · « crédité du montant de la subvention, par le débit du
+ * compte approprié de la classe 4, TEL QUE 4494 (État, subventions
+ * d'équipement à recevoir) ou 4582 (Organismes internationaux, subventions à
+ * recevoir) » · « tel que » ouvre la classe 4 et donne deux exemples, proposés
+ * en tête. Un numéro, deux sens · le 473 SYSCOHADA est celui des
+ * intermédiaires (4731 « Mandants », 4739 « fonds global d'allocation »),
+ * refusé là où le SYCEBNL l'impose.
+ *
+ * La subvention EN NATURE (débit d'un compte de classe 2) n'entre pas ici ·
+ * elle naît avec le bien, par « Nouvelle immobilisation », mode subvention.
+ */
+export const CONTREPARTIES_OCTROI_PROPOSEES: Record<Ref, readonly string[]> = {
+  SYCEBNL: ['47310000'],
+  SYSCOHADA: ['44940000', '45820000'],
+};
+
+export function motifRefusContrepartieOctroi(referentiel: Ref, numero: string): string | null {
+  if (referentiel === 'SYCEBNL') {
+    return numero.startsWith('4731')
+      ? null
+      : "L'octroi d'une subvention d'investissement se passe au débit du 4731 « Subventions d'équipement à recevoir » (SYCEBNL, fiche du compte 14).";
+  }
+  if (!numero.startsWith('4')) {
+    return "L'octroi d'une subvention d'investissement se passe au débit d'un compte de tiers de la classe 4, tel que 4494 ou 4582 (AUDCIF Titre VII, fiche du compte 14).";
+  }
+  if (numero.startsWith('473')) {
+    return 'Au SYSCOHADA, le 473 est celui des intermédiaires (mandants, fonds global d\'allocation) · une subvention à recevoir se porte au 4494 (État) ou au 4582 (organismes internationaux).';
+  }
+  return null;
+}
+
+/**
  * § 4.4 · « les subventions sont ventilées proportionnellement entre les
  * différents composants, sauf si elles ne sont pas significatives. Si leur
  * montant n'est pas significatif ou si la ventilation n'est pas possible, les

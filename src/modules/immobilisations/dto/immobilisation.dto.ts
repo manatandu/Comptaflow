@@ -843,6 +843,34 @@ export class LigneSubventionDto {
   montant!: number;
 }
 
+/** L'octroi d'une subvention d'investissement · D 4731 (ou 4494, 4582) / C 14. */
+export class OctroiSubventionDto {
+  @IsUUID('4')
+  compteSubventionId!: string;
+
+  @IsUUID('4')
+  compteContrepartieId!: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsNumber()
+  @IsPositive()
+  montant!: number;
+
+  /** L'acte d'octroi · convention, notification. */
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: "La référence de l'acte d'octroi est obligatoire." })
+  reference!: string;
+}
+
 export class RattacherSubventionDto {
   @IsUUID('4')
   compteSubventionId!: string;

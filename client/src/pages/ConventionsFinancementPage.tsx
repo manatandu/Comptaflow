@@ -49,6 +49,8 @@ export function ConventionsFinancementPage() {
 
   const [conventions, setConventions] = useState<ConventionFinancement[] | null>(null);
   const [bailleurs, setBailleurs] = useState<Bailleur[]>([]);
+  // « Aucun bailleur » ne se dit que sur une liste LUE.
+  const [bailleursLus, setBailleursLus] = useState(false);
   const [mentions, setMentions] = useState<string[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -85,8 +87,10 @@ export function ConventionsFinancementPage() {
     (async () => {
       try {
         setBailleurs(await api.get<Bailleur[]>('/bailleurs?actifsSeuls=true'));
-      } catch {
+        setBailleursLus(true);
+      } catch (err) {
         setBailleurs([]);
+        setErreur(err instanceof ApiError ? err.message : 'Bailleurs illisibles');
       }
     })();
   }, [charger]);
@@ -297,6 +301,9 @@ export function ConventionsFinancementPage() {
                 <option key={b.id} value={b.id}>{b.code} · {b.nom}</option>
               ))}
             </select>
+            {bailleursLus && bailleurs.length === 0 && (
+              <span className="text-[11px] text-warning">Aucun bailleur actif · créez-le d'abord (Bailleurs de fonds).</span>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Référence</span>

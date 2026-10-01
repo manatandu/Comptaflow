@@ -48,7 +48,10 @@ export function EngagementsPage() {
   const modifiable = peutEcrire && !exerciceClos;
 
   const [engagements, setEngagements] = useState<EngagementDepense[] | null>(null);
-  const [sections, setSections] = useState<SectionAnalytique[]>([]);
+  // null tant que rien n'est lu · « aucune ligne budgétaire » ne se dit que sur
+  // une liste lue, et un échec de lecture se dit lui aussi.
+  const [sections, setSections] = useState<SectionAnalytique[] | null>(null);
+  const [erreurSections, setErreurSections] = useState<string | null>(null);
   const [ecritures, setEcritures] = useState<EcritureRattachable[]>([]);
   // LA TRANCHE SE DIT (audit final F139) · deux cents écritures au plus, et la
   // recherche va au serveur pour trouver celle qui n'y est pas.
@@ -110,8 +113,9 @@ export function EngagementsPage() {
           budgetaires.map((p) => api.get<SectionAnalytique[]>(`/analytique/plans/${p.id}/sections`)),
         );
         setSections(listes.flat().filter((s) => s.estActive && s.type === 'DETAIL'));
-      } catch {
+      } catch (err) {
         setSections([]);
+        setErreurSections(err instanceof ApiError ? err.message : 'Lignes budgétaires illisibles');
       }
     })();
   }, []);
@@ -263,12 +267,18 @@ export function EngagementsPage() {
               className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[240px]"
             >
               <option value="">Choisir une section…</option>
-              {sections.map((s) => (
+              {(sections ?? []).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} · {s.intitule}
                 </option>
               ))}
             </select>
+            {erreurSections && <span className="text-[11px] text-danger">{erreurSections}</span>}
+            {!erreurSections && sections?.length === 0 && (
+              <span className="text-[11px] text-warning">
+                Aucune ligne budgétaire · déclarez un plan analytique qui gère les budgets, avec ses sections de détail (Structure › Plans analytiques).
+              </span>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Référence</span>

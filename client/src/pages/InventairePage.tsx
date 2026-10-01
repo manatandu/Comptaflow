@@ -1091,7 +1091,11 @@ function FormulairePvCaisse({
   agir: Agir;
   fermer: () => void;
 }) {
-  const [sousCommissionId, setSousCommissionId] = useState('');
+  const [sousCommissionId, setSousCommissionId] = useState(() =>
+    // Une seule sous-commission · c'est elle, proposée (le PV reste à signer
+    // par ceux qui ont compté, refus du serveur sinon).
+    (campagne.sousCommissions ?? []).length === 1 ? campagne.sousCommissions![0].id : '',
+  );
   const [dateComptage, setDateComptage] = useState(campagne.dateInventaire.slice(0, 10));
   const [heure, setHeure] = useState('');
   // Le solde proposé est celui de la balance à l'instant · il se corrige s'il
@@ -1149,6 +1153,9 @@ function FormulairePvCaisse({
               </option>
             ))}
           </select>
+          {(campagne.sousCommissions ?? []).length === 0 && (
+            <span className="block text-warning">Aucune sous-commission · composez-en une dans la campagne avant d'établir le procès-verbal.</span>
+          )}
         </label>
         <label className="text-[11px] text-text-dim">
           Date du comptage

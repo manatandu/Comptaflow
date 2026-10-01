@@ -56,6 +56,21 @@ import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
  * que le serveur sait reprendre, était inatteignable depuis l'écran (passe
  * R1, A5). Le SYCEBNL garde les 69 et 79, sa fiche n'étant pas transposée.
  */
+/**
+ * LES 29 DU BIEN · « les comptes 28 et 29 ont été développés selon la
+ * structure des comptes de la classe 2 » (AUDCIF Titre VII ch. 2 ; même
+ * découpage au SYCEBNL, 290 à 297 sous les divisions 20 à 27). La liste
+ * servait les quarante comptes 29 du plan, et le serveur refusait au
+ * SYSCOHADA tout autre que celui de la division du bien
+ * (`motifRefusCompteDepreciation`). Sans compte de la division, tout le 29.
+ */
+function comptes29DuBien<C extends { numero: string }>(comptes: C[], numeroBien: string | undefined): C[] {
+  const tous = comptes.filter((c) => c.numero.startsWith('29'));
+  if (!numeroBien) return tous;
+  const division = tous.filter((c) => c.numero.startsWith(`29${numeroBien.charAt(1)}`));
+  return division.length > 0 ? division : tous;
+}
+
 function racinesContrepartieDepreciation(syscohada: boolean, sens: string): string[] {
   if (syscohada) return sens === 'DOTATION' ? ['691', '697', '853'] : ['791', '797', '863'];
   return sens === 'DOTATION' ? ['69'] : ['79'];
@@ -263,7 +278,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     api
       .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`)
       .then((c) => vivant && setContrepartiesAdmises(c))
-      .catch(() => vivant && setContrepartiesAdmises([]));
+      .catch((err) => {
+        if (!vivant) return;
+        // Un échec de lecture se dit · la liste vide laissait « Mode
+        // d'acquisition » sans option et sans motif.
+        setContrepartiesAdmises([]);
+        setErreur(err instanceof ApiError ? err.message : 'Contreparties admises illisibles');
+      });
     return () => {
       vivant = false;
     };
@@ -272,6 +293,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // Les modes d'acquisition présents dans la liste fermée, dans l'ordre servi.
   const modesAcquisition = modesPresents(contrepartiesAdmises ?? []);
   const contrepartiesDuMode = (contrepartiesAdmises ?? []).filter((c) => !iModeAcquisition || c.mode === iModeAcquisition);
+  // UN SEUL CHOIX POSSIBLE EST PROPOSÉ · un mode unique, ou une contrepartie
+  // unique pour le mode retenu, se présélectionne (modifiable) au lieu d'un
+  // champ vide à rouvrir.
+  useEffect(() => {
+    if (modesAcquisition.length === 1 && !iModeAcquisition) setIModeAcquisition(modesAcquisition[0].mode);
+  }, [modesAcquisition, iModeAcquisition]);
+  useEffect(() => {
+    if (iModeAcquisition && contrepartiesDuMode.length === 1 && !iCompteContrepartie) setICompteContrepartie(contrepartiesDuMode[0].id);
+  }, [iModeAcquisition, contrepartiesDuMode, iCompteContrepartie]);
 
   // SEUIL DU PETIT MATÉRIEL (arrêté n° 014/2025, art. 2) · règle FISCALE de
   // l'IS et de l'IRPP, donc des seuls dossiers SYSCOHADA (une EBNL est
@@ -1129,6 +1159,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       <option key={m.mode} value={m.mode}>{m.libelle}</option>
                     ))}
                   </select>
+                  {iCompteBienId && contrepartiesAdmises !== null && modesAcquisition.length === 0 && (
+                    <span className="block text-warning font-normal">Ce compte n'admet aucune contrepartie d'acquisition · vérifiez le compte du bien.</span>
+                  )}
                 </label>
                 <label className="text-[11.5px] font-semibold text-text-dim">
                   Contrepartie
@@ -1410,9 +1443,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                         Reclasser
                       </button>
                       <button
-                        onClick={() =>
-                          setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id)
-                        }
+                        onClick={() => {
+                          setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id);
+                          // Un seul 29 pour la division du bien · proposé.
+                          const c29 = comptes29DuBien(comptesFinancement, immo.compteImmobilisation?.numero);
+                          setDCompte29(c29.length === 1 ? c29[0].id : '');
+                        }}
                         title="Constater une perte de valeur, ou en reprendre une"
                         className="text-[11px] text-sel hover:underline"
                       >
@@ -1663,7 +1699,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       Compte de dépréciation (29)
                       <select required value={dCompte29} onChange={(e) => setDCompte29(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                         <option value="" />
-                        {comptesFinancement.filter((c) => c.numero.startsWith('29')).map((c) => (
+                        {comptes29DuBien(comptesFinancement, immo.compteImmobilisation?.numero).map((c) => (
                           <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                         ))}
                       </select>

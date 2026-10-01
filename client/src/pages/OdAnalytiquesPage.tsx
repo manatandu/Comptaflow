@@ -42,7 +42,9 @@ export function OdAnalytiquesPage() {
   const { exerciceCourant } = useExercice();
   const [plans, setPlans] = useState<PlanAnalytique[]>([]);
   const [planId, setPlanId] = useState('');
-  const [sections, setSections] = useState<SectionAnalytique[]>([]);
+  // null tant que les sections du plan ne sont pas lues · « aucune section »
+  // ne se dit que sur une liste lue.
+  const [sections, setSections] = useState<SectionAnalytique[] | null>(null);
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [ods, setOds] = useState<OdServie[] | null>(null);
 
@@ -67,10 +69,14 @@ export function OdAnalytiquesPage() {
 
   useEffect(() => {
     if (!planId) return;
+    setSections(null);
     api
       .get<SectionAnalytique[]>(`/analytique/plans/${planId}/sections`)
       .then(setSections)
-      .catch(() => setSections([]));
+      .catch((err) => {
+        setSections([]);
+        setErreur(err instanceof ApiError ? err.message : 'Sections du plan illisibles');
+      });
   }, [planId]);
 
   const charger = useCallback(async () => {
@@ -93,7 +99,7 @@ export function OdAnalytiquesPage() {
     const classes = (plan?.classesVentilees ?? '').split(',').map((c) => `CLASSE_${c.trim()}`);
     return comptes.filter((c) => c.typeCompte === 'DETAIL' && classes.includes(c.classe));
   }, [comptes, plan]);
-  const feuilles = sections.filter((s) => s.type === 'DETAIL');
+  const feuilles = (sections ?? []).filter((s) => s.type === 'DETAIL');
 
   const totalDebit = lignes.reduce((t, l) => t + nombre(l.debit), 0);
   const totalCredit = lignes.reduce((t, l) => t + nombre(l.credit), 0);
@@ -174,6 +180,9 @@ export function OdAnalytiquesPage() {
                   </option>
                 ))}
               </select>
+              {plan && comptesDuPlan.length === 0 && (
+                <span className="text-warning">Ce plan ne ventile aucune classe de comptes · déclarez ses classes ventilées (Structure › Plans analytiques).</span>
+              )}
             </label>
             <label className="flex flex-col gap-0.5">
               <span className="text-text-dim">Date</span>
@@ -269,6 +278,9 @@ export function OdAnalytiquesPage() {
               </tbody>
             </table>
           </div>
+          {sections !== null && feuilles.length === 0 && (
+            <div className="text-warning">Ce plan n'a aucune section de détail · créez-en dans Structure › Plans analytiques.</div>
+          )}
           <div className="flex items-center gap-3">
             <span className={equilibree ? 'text-positive' : 'text-warning'}>
               {equilibree ? 'OD équilibrée' : `Écart ${fmt(totalDebit - totalCredit)}`}

@@ -702,6 +702,15 @@ export class DevisesService {
     const suivant = await this.prisma.exercice.findFirst({ where: { id: exerciceSuivantId, tenantId } });
     if (!suivant) throw new BadRequestException('Exercice suivant introuvable pour ce dossier');
     if (suivant.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice suivant est clôturé.");
+    // L'extourne se passe « à l'ouverture de l'exercice SUIVANT » · un exercice
+    // ouvert antérieur, ou celui de la réévaluation, l'aurait annulée dans la
+    // période même où elle a été constatée (même règle que les régularisations,
+    // audit final F79).
+    if (suivant.dateDebut.getTime() <= reeval.dateReevaluation.getTime()) {
+      throw new BadRequestException(
+        "La contre-passation se passe à l'ouverture d'un exercice qui commence après la réévaluation · choisissez l'exercice suivant.",
+      );
+    }
 
     const journal = await this.journalGeneral(tenantId);
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {

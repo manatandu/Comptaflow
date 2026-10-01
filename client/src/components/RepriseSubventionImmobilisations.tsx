@@ -39,6 +39,16 @@ interface ListeRattachees {
   methodeDepreciation: 'VNC_MINOREE_DES_SUBVENTIONS' | 'VNC_ENTIERE' | null;
   contrepartieRemboursementProposee: string | null;
 }
+/** Les octrois inscrits au 14 choisi (`GET /immobilisations/subventions-rattachees/octrois`). */
+interface OctroisDuCompte {
+  octrois: { ligneId: string; date: string; numeroPiece: string | null; reference: string | null; libelle: string; montant: number }[];
+  tronque: boolean;
+  credite: number;
+  dejaRattache: number;
+  resteARattacher: number;
+  contrepartiesProposees: { id: string; numero: string; intitule: string }[];
+  autresTiersAdmis: boolean;
+}
 const LIBELLES_METHODE = {
   VNC_MINOREE_DES_SUBVENTIONS: 'Valeur nette minorée des subventions non reprises',
   VNC_ENTIERE: 'Valeur nette entière, subvention reprise à hauteur de la dépréciation',
@@ -229,6 +239,67 @@ function SubventionsRattachees(p: {
   const [lignes, setLignes] = useState<{ id: string; designation: string; montant: string }[] | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [red, setRed] = useState({ nature: 'REMBOURSEMENT', montant: '', date: '', contrepartie: '', motif: '' });
+  // LE CHOIX DU 14 PROPOSE CE QUI S'Y TROUVE · les octrois inscrits, le reste à
+  // rattacher et, s'il n'y a rien, l'écriture d'octroi elle-même (fiche du
+  // compte 14). null tant que rien n'est lu · « aucun octroi » ne se dit que
+  // sur une liste lue.
+  const [octrois, setOctrois] = useState<OctroisDuCompte | null>(null);
+  const [erreurOctrois, setErreurOctrois] = useState<string | null>(null);
+  const [octroiChoisi, setOctroiChoisi] = useState('');
+  const [nouvelOctroi, setNouvelOctroi] = useState(false);
+  const [oct, setOct] = useState({ contrepartie: '', montant: '', date: '', reference: '' });
+
+  const lireOctrois = useCallback(async (compteId: string) => {
+    setOctrois(null);
+    setErreurOctrois(null);
+    setOctroiChoisi('');
+    if (!compteId) return;
+    try {
+      const o = await api.get<OctroisDuCompte>(`/immobilisations/subventions-rattachees/octrois?compteSubventionId=${compteId}`);
+      setOctrois(o);
+      setNouvelOctroi(o.octrois.length === 0);
+      setOct((v) => ({ ...v, contrepartie: v.contrepartie || o.contrepartiesProposees[0]?.id || '' }));
+    } catch (err) {
+      setErreurOctrois(err instanceof ApiError ? err.message : 'Octrois illisibles');
+    }
+  }, []);
+
+  const choisirOctroi = (ligneId: string) => {
+    setOctroiChoisi(ligneId);
+    const o = octrois?.octrois.find((x) => x.ligneId === ligneId);
+    if (!o || !octrois) return;
+    // Le montant proposé ne dépasse pas ce qui reste à rattacher sur le compte.
+    setTotal(String(Math.min(o.montant, octrois.resteARattacher)));
+    setDate(o.date.slice(0, 10));
+    setReference(o.reference || o.libelle);
+    setLignes(null);
+  };
+
+  const enregistrerOctroi = async () => {
+    if (!p.exerciceId || !p.journalOd) return;
+    setEnvoi(true);
+    p.onErreur(null);
+    try {
+      await api.post('/immobilisations/subventions-rattachees/octrois', {
+        compteSubventionId: compte,
+        compteContrepartieId: oct.contrepartie,
+        exerciceId: p.exerciceId,
+        journalId: p.journalOd.id,
+        date: oct.date,
+        montant: Number(oct.montant),
+        reference: oct.reference,
+      });
+      setTotal(oct.montant);
+      setDate(oct.date);
+      setReference(oct.reference);
+      setNouvelOctroi(false);
+      await lireOctrois(compte);
+    } catch (err) {
+      p.onErreur(err instanceof ApiError ? err.message : 'Octroi refusé');
+    } finally {
+      setEnvoi(false);
+    }
+  };
 
   const proposer = async () => {
     p.onErreur(null);
@@ -317,13 +388,97 @@ function SubventionsRattachees(p: {
         <form onSubmit={(e) => void rattacher(e)} className="px-3.5 py-2 flex flex-wrap items-end gap-2 text-[11.5px] bg-chrome">
           <label className="flex flex-col">
             Compte de subvention
-            <select required value={compte} onChange={(e) => setCompte(e.target.value)} className={champ}>
+            <select
+              required
+              value={compte}
+              onChange={(e) => {
+                setCompte(e.target.value);
+                void lireOctrois(e.target.value);
+              }}
+              className={champ}
+            >
               <option value="">·</option>
               {comptes14.map((c) => (
                 <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
               ))}
             </select>
           </label>
+          {compte && (
+            <div className="basis-full flex flex-col gap-1" data-octrois-du-compte>
+              {erreurOctrois && <span className="text-danger">{erreurOctrois}</span>}
+              {!erreurOctrois && octrois === null && <span className="text-text-dim">…</span>}
+              {octrois && octrois.octrois.length > 0 && (
+                <label className="flex items-center gap-2">
+                  <span>Octroi inscrit</span>
+                  <select value={octroiChoisi} onChange={(e) => choisirOctroi(e.target.value)} className={`${champ} w-[28rem]`}>
+                    <option value="">·</option>
+                    {octrois.octrois.map((o) => (
+                      <option key={o.ligneId} value={o.ligneId}>
+                        {new Date(o.date).toLocaleDateString('fr-FR')} · {o.numeroPiece ?? 's.n.'} · {o.libelle} · {montant(o.montant)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className={octrois.resteARattacher > 0 ? 'text-text-dim' : 'text-warning'}>
+                    Reste à rattacher · {montant(octrois.resteARattacher)}
+                  </span>
+                  {!nouvelOctroi && (
+                    <button type="button" onClick={() => setNouvelOctroi(true)} className="text-[11px] font-semibold text-sel">
+                      Enregistrer un autre octroi
+                    </button>
+                  )}
+                </label>
+              )}
+              {octrois && octrois.octrois.length === 0 && (
+                <span className="text-warning">Aucun octroi inscrit à ce compte · enregistrez d'abord l'octroi de la subvention.</span>
+              )}
+              {octrois && nouvelOctroi && (
+                <div className="flex flex-wrap items-end gap-2" data-nouvel-octroi>
+                  <label className="flex flex-col">
+                    <span className="flex items-center gap-1">
+                      Subvention à recevoir
+                      <Aide
+                        titre="Octroi de la subvention"
+                        texte="L'octroi crédite le compte 14 du montant obtenu, par le débit de la subvention à recevoir · 4731 au SYCEBNL ; au SYSCOHADA, un compte de tiers tel que 4494 (État) ou 4582 (organismes internationaux). L'encaissement solde ensuite ce compte par la banque. Une subvention en nature s'enregistre avec le bien, par « Nouvelle immobilisation »."
+                        source="Fiche du compte 14 (SYCEBNL Partie 2 ch. 3 · AUDCIF Titre VII) · Guide d'application, Application 3"
+                      />
+                    </span>
+                    <select required value={oct.contrepartie} onChange={(e) => setOct({ ...oct, contrepartie: e.target.value })} className={champ}>
+                      <option value="">·</option>
+                      {octrois.contrepartiesProposees.map((c) => (
+                        <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
+                      ))}
+                      {(octrois.autresTiersAdmis ? comptesTiers : [])
+                        .filter((c) => !c.numero.startsWith('473') && !octrois.contrepartiesProposees.some((x) => x.id === c.id))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col">
+                    Montant octroyé
+                    <input type="number" min="0.01" step="0.01" value={oct.montant} onChange={(e) => setOct({ ...oct, montant: e.target.value })} className={`${champ} w-32`} />
+                  </label>
+                  <label className="flex flex-col">
+                    Date d'octroi
+                    <input type="date" value={oct.date} onChange={(e) => setOct({ ...oct, date: e.target.value })} className={champ} />
+                  </label>
+                  <label className="flex flex-col">
+                    Acte d'octroi
+                    <input value={oct.reference} onChange={(e) => setOct({ ...oct, reference: e.target.value })} className={`${champ} w-44`} />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={envoi || !p.exerciceId || !p.journalOd || !oct.contrepartie || !(Number(oct.montant) > 0) || !oct.date || !oct.reference.trim()}
+                    onClick={() => void enregistrerOctroi()}
+                    className="bg-sel text-white text-[11px] font-semibold px-2.5 py-1 disabled:opacity-50"
+                  >
+                    {envoi ? '…' : "Enregistrer l'octroi"}
+                  </button>
+                  {!p.journalOd && <span className="text-warning">Aucun journal d'opérations diverses · l'octroi ne peut pas être passé.</span>}
+                </div>
+              )}
+            </div>
+          )}
           <label className="flex flex-col">
             Bien financé
             <select required value={bien} onChange={(e) => { setBien(e.target.value); setLignes(null); }} className={champ}>
@@ -332,6 +487,9 @@ function SubventionsRattachees(p: {
                 <option key={b.id} value={b.id}>{b.designation}</option>
               ))}
             </select>
+            {principaux.length === 0 && (
+              <span className="text-warning">Aucun bien en service à financer · créez d'abord le bien (Nouvelle immobilisation).</span>
+            )}
           </label>
           <label className="flex flex-col">
             Montant
@@ -380,7 +538,7 @@ function SubventionsRattachees(p: {
                 <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-2.5 py-1 disabled:opacity-50">
                   {envoi ? '…' : 'Rattacher'}
                 </button>
-                <button type="button" onClick={() => { p.setFormOuvert(false); setLignes(null); }} className="text-[11px] font-semibold text-text-dim px-2.5 py-1">
+                <button type="button" onClick={() => { p.setFormOuvert(false); setLignes(null); setCompte(''); setOctrois(null); setNouvelOctroi(false); }} className="text-[11px] font-semibold text-text-dim px-2.5 py-1">
                   Annuler
                 </button>
               </div>

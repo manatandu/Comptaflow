@@ -10,10 +10,12 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { fondsDuCompte } from './reprise-subvention';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
-import { MethodeDepreciationSubventionDto, RattacherSubventionDto, ReduireSubventionDto } from './dto/immobilisation.dto';
+import { MethodeDepreciationSubventionDto, OctroiSubventionDto, RattacherSubventionDto, ReduireSubventionDto } from './dto/immobilisation.dto';
 import {
   COMPTE_PERTES_AUTRES_DEBITEURS,
   COMPTE_REPRISE_SUBVENTION,
+  CONTREPARTIES_OCTROI_PROPOSEES,
+  motifRefusContrepartieOctroi,
   contrepartieRemboursementProposee,
   lignesReduction,
   motifRefusCompteSubvention,
@@ -108,6 +110,110 @@ export class SubventionRattacheeService {
       lignes: biens.map((b, i) => ({ ...b, montant: parts[i].montant })),
       aDesComposants: bien.composants.length > 0,
     };
+  }
+
+  /**
+   * LES OCTROIS DU COMPTE 14 CHOISI · ce que le rattachement doit pouvoir
+   * reprendre sans le ressaisir. Le rattachement ne lie pas une ligne précise
+   * (le contrôle porte sur le compte, crédits contre rattachements) · l'écran
+   * propose la ligne choisie pour ses montant, date et référence, plafonnée au
+   * reste à rattacher. Crédits hors écritures de clôture, comme `rattacher`.
+   */
+  async octrois(tenantId: string, compteSubventionId: string) {
+    const [compte, tenant] = await Promise.all([
+      this.prisma.compte.findFirst({
+        where: { id: compteSubventionId, tenantId },
+        select: { id: true, numero: true, typeCompte: true },
+      }),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+    ]);
+    if (!compte) throw new BadRequestException('Compte de subvention introuvable pour ce dossier');
+    const motifCompte = motifRefusCompteSubvention(compte.numero, compte.typeCompte === TypeCompteDetailTotal.DETAIL);
+    if (motifCompte) throw new BadRequestException(motifCompte);
+    const filtre = { compteId: compte.id, credit: { gt: 0 }, ecriture: { tenantId, estGenereeParCloture: false } };
+    const [lignes, credits, rattache, contreparties] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: filtre,
+        select: {
+          id: true,
+          credit: true,
+          libelle: true,
+          ecriture: { select: { id: true, date: true, libelle: true, reference: true, numeroPiece: true } },
+        },
+        orderBy: [{ ecriture: { date: 'desc' } }, { id: 'asc' }],
+        take: PLAFOND_LISTE + 1,
+      }),
+      this.prisma.ligneEcriture.aggregate({ where: filtre, _sum: { credit: true } }),
+      this.prisma.subventionImmobilisation.aggregate({ where: { tenantId, compteSubventionId: compte.id }, _sum: { montant: true } }),
+      this.prisma.compte.findMany({
+        where: { tenantId, numero: { in: [...CONTREPARTIES_OCTROI_PROPOSEES[tenant.referentiel as Ref]] } },
+        select: { id: true, numero: true, intitule: true },
+        orderBy: { numero: 'asc' },
+      }),
+    ]);
+    const credite = centimes(n(credits._sum.credit));
+    const dejaRattache = centimes(n(rattache._sum.montant));
+    return {
+      octrois: lignes.slice(0, PLAFOND_LISTE).map((l) => ({
+        ligneId: l.id,
+        ecritureId: l.ecriture.id,
+        date: l.ecriture.date,
+        numeroPiece: l.ecriture.numeroPiece,
+        reference: l.ecriture.reference,
+        libelle: l.libelle || l.ecriture.libelle,
+        montant: n(l.credit),
+      })),
+      tronque: lignes.length > PLAFOND_LISTE,
+      credite,
+      dejaRattache,
+      resteARattacher: centimes(Math.max(0, credite - dejaRattache)),
+      contrepartiesProposees: contreparties,
+      // AUDCIF · « tel que 4494 [...] ou 4582 » ouvre la classe 4 (hors 473) ;
+      // SYCEBNL · le 4731 seul.
+      autresTiersAdmis: tenant.referentiel === 'SYSCOHADA',
+    };
+  }
+
+  /**
+   * L'OCTROI · D 4731 (SYCEBNL) ou un compte de tiers, 4494 ou 4582 proposés
+   * (SYSCOHADA) / C 14 (fiche du compte 14 des deux textes,
+   * `motifRefusContrepartieOctroi`). Une écriture ordinaire, au brouillard,
+   * que nul module ne retient · le rattachement qui suit la LIT, il ne la tient
+   * pas.
+   */
+  async enregistrerOctroi(tenantId: string, userId: string, dto: OctroiSubventionDto) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, jeuEtatsFinanciersSycebnl: true },
+    });
+    if (tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT) {
+      throw new BadRequestException(
+        'Les biens d’un projet de développement sont financés par les fonds du bailleur (162 à 164, SYCEBNL Partie 3 ch. 3) · aucune subvention d’investissement ne s’y inscrit.',
+      );
+    }
+    const [compte, contrepartie] = await Promise.all([
+      this.prisma.compte.findFirst({ where: { id: dto.compteSubventionId, tenantId }, select: { id: true, numero: true, typeCompte: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId }, select: { id: true, numero: true, typeCompte: true } }),
+    ]);
+    if (!compte) throw new BadRequestException('Compte de subvention introuvable pour ce dossier');
+    if (!contrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce dossier');
+    const motif =
+      motifRefusCompteSubvention(compte.numero, compte.typeCompte === TypeCompteDetailTotal.DETAIL) ??
+      motifRefusContrepartieOctroi(tenant.referentiel as Ref, contrepartie.numero) ??
+      (contrepartie.typeCompte === TypeCompteDetailTotal.DETAIL ? null : 'Choisissez un compte de détail, pas un compte de regroupement.');
+    if (motif) throw new BadRequestException(motif);
+    const montant = centimes(dto.montant);
+    return this.ecritures.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.date,
+      libelle: `Octroi de subvention d'investissement · ${dto.reference.trim()}`,
+      reference: dto.reference.trim(),
+      lignes: [
+        { compteId: contrepartie.id, debit: montant, credit: 0 },
+        { compteId: compte.id, debit: 0, credit: montant },
+      ],
+    });
   }
 
   async rattacher(tenantId: string, userId: string, dto: RattacherSubventionDto) {
