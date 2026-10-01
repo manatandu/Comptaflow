@@ -212,3 +212,4 @@ titres · trop rares pour un cabinet en RDC ; repris seulement sur demande.
 | 2026-10-01 | 8 | Vérifié en production · Cloud Run 464, Hosting 588, tests navigateur 233 sur 8097109 ; le run 232 était rouge sur la limite de débit des tests (connexions de trois tests sous une même adresse), corrigée par une adresse par dossier dans `e2e/tests/outils.ts` |
 | 2026-10-01 | 9 | Vérifié en production · Cloud Run 465, Hosting 589, tests navigateur 234, tous verts sur 2799a1d |
 | 2026-10-01 | 10 | Vérifié en production · Cloud Run 466, Hosting 590, tests navigateur 235, tous verts sur 5f998d7 |
+| 2026-10-01 | 11 | Vérifié en production · Cloud Run 467, Hosting 591, tests navigateur 236, tous verts sur 80ebd58 (qui porte 874598f) |
