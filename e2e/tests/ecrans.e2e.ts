@@ -47,7 +47,16 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
       if ((await page.getByText(FENETRE_EN_ERREUR).count()) > 0) {
         enErreur.push(`${chemin} · ${await page.locator('pre').first().innerText().catch(() => '')}`);
       }
-      for (let i = 0; i < 10 && (await croix.count()) > 0; i++) await croix.first().click();
+      // LA FERMETURE S'ANIME (140 ms, `lib/fermeture-fenetre.ts`) · la croix
+      // reste à l'écran pendant la sortie. Recliquée, elle se détachait sous
+      // le clic et Playwright attendait une autre croix jusqu'au délai du test
+      // (300 s, runs 205 à 212). On clique une fois, puis on attend le départ.
+      for (let i = 0; i < 10; i++) {
+        const ouvertes = await croix.count();
+        if (ouvertes === 0) break;
+        await croix.first().click({ timeout: 5_000 }).catch(() => undefined);
+        await expect(croix).toHaveCount(ouvertes - 1, { timeout: 5_000 }).catch(() => undefined);
+      }
     }
     // La limitation de débit du serveur compte par adresse · un 429 n'est
     // pas une panne, mais il masquerait une fenêtre non chargée. Dit, pas
