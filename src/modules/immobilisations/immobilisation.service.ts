@@ -34,7 +34,9 @@ import {
   SortirImmobilisationDto,
   TypeSortie,
   MiseEnServiceDto,
+  RecevoirLegsDto,
 } from './dto/immobilisation.dto';
+import { motifRefusLegs, repartirDettesLegs } from './legs-immobilisations';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
@@ -1397,6 +1399,8 @@ export class ImmobilisationService {
        * comptes ont été vérifiés par `creerEnLocationAcquisition`.
        */
       lignesCredit?: { compteId: string; montant: number }[];
+      /** Libellé de l'écriture d'acquisition, à défaut « Acquisition · … ». */
+      libelle?: string;
     } = {},
   ) {
     // LE COMPTE DU BIEN OU LA FAMILLE (compte-du-bien.ts) · l'un des deux,
@@ -1656,7 +1660,7 @@ export class ImmobilisationService {
           exerciceId: dto.exerciceId,
           journalId: dto.journalId!,
           date: dto.dateAcquisition,
-          libelle: `Acquisition · ${dto.designation}`,
+          libelle: (interne.libelle ?? `Acquisition · ${dto.designation}`).slice(0, 190),
           lignes: [
             { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
             ...(interne.lignesCredit
@@ -3575,5 +3579,86 @@ export class ImmobilisationService {
   async baremeFiscal(tenantId: string) {
     const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
     return baremeFiscal().map((n) => ({ ...n, ...comptesDeLaNature(referentiel as 'SYSCOHADA' | 'SYCEBNL', n.cle) }));
+  }
+
+  /**
+   * LE LEGS D'IMMOBILISATIONS GREVÉ DE DETTES (lot 7, SYCEBNL Partie 3 ch. 2
+   * § 1.2.2, Application 5) · une fiche et une pièce par bien (décision
+   * D-16), D 2 / C 4861 (sa part des dettes) / C 167 (le reste), les dettes
+   * réparties au prorata des valeurs (`repartirDettesLegs`).
+   *
+   * TOUT OU RIEN · les refus communs passent AVANT la première fiche ; si un
+   * bien échoue ensuite (refus propre à sa saisie), les fiches déjà créées et
+   * leurs écritures sont retirées dans l'ordre inverse · un legs à moitié
+   * passé laisserait au 4861 et au 167 des totaux qui ne sont pas ceux de
+   * l'acte, sur des écritures équilibrées.
+   */
+  async recevoirLegs(tenantId: string, userId: string, dto: RecevoirLegsDto) {
+    const [{ referentiel }, fonds, dettes] = await Promise.all([
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteFondsId, tenantId }, select: { id: true, numero: true } }),
+      dto.compteDettesId
+        ? this.prisma.compte.findFirst({ where: { id: dto.compteDettesId, tenantId }, select: { id: true, numero: true } })
+        : Promise.resolve(null),
+    ]);
+    if (!fonds) throw new BadRequestException('Compte du fonds introuvable pour ce dossier');
+    if (dto.compteDettesId && !dettes) throw new BadRequestException('Compte des dettes introuvable pour ce dossier');
+    const motif = motifRefusLegs({
+      referentiel: referentiel as 'SYSCOHADA' | 'SYCEBNL',
+      numeroFonds: fonds.numero,
+      numeroDettes: dettes?.numero ?? null,
+      dettes: dto.dettes,
+      valeurs: dto.biens.map((b) => b.valeurOrigine),
+    });
+    if (motif) throw new BadRequestException(motif);
+    // Le 167 doit être une contrepartie admise pour chaque compte de bien
+    // (contrepartie-acquisition.ts) · vérifié pour tous avant la première fiche.
+    for (const b of dto.biens) {
+      const compte = await this.prisma.compte.findFirst({ where: { id: b.compteImmobilisationId, tenantId }, select: { numero: true } });
+      if (!compte) throw new BadRequestException(`Compte du bien « ${b.designation} » introuvable pour ce dossier`);
+      const refus = motifRefusContrepartie(referentiel, compte.numero, fonds.numero);
+      if (refus) throw new BadRequestException(`« ${b.designation} » · ${refus}`);
+    }
+
+    const parts = repartirDettesLegs(
+      dto.biens.map((b) => b.valeurOrigine),
+      dto.dettes,
+    );
+    const crees: { id: string; ecritureAcquisitionId: string | null }[] = [];
+    try {
+      for (const [i, b] of dto.biens.entries()) {
+        const part = parts[i];
+        const lignesCredit = [
+          ...(part > 0 && dettes ? [{ compteId: dettes.id, montant: part }] : []),
+          { compteId: fonds.id, montant: Math.round((b.valeurOrigine - part) * 100) / 100 },
+        ];
+        const immo = await this.creer(
+          tenantId,
+          userId,
+          {
+            compteImmobilisationId: b.compteImmobilisationId,
+            designation: b.designation,
+            dateAcquisition: dto.dateActe,
+            dateMiseEnService: b.dateMiseEnService,
+            natureFiscaleCle: b.natureFiscaleCle,
+            valeurOrigine: b.valeurOrigine,
+            dureeAmortissementAns: b.dureeAmortissementAns,
+            exerciceId: dto.exerciceId,
+            journalId: dto.journalId,
+          },
+          { lignesCredit, libelle: `Legs ${dto.referenceActe.trim()} · ${b.designation}` },
+        );
+        crees.push({ id: immo.id, ecritureAcquisitionId: immo.ecritureAcquisitionId ?? null });
+      }
+    } catch (err) {
+      for (const c of [...crees].reverse()) {
+        await this.prisma.immobilisation.delete({ where: { id: c.id } });
+        if (c.ecritureAcquisitionId) await this.annulerEcritureOrpheline(c.ecritureAcquisitionId);
+      }
+      throw err;
+    }
+    return {
+      biens: crees.map((c, i) => ({ id: c.id, dettes: parts[i], fonds: Math.round((dto.biens[i].valeurOrigine - parts[i]) * 100) / 100 })),
+    };
   }
 }

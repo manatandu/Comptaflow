@@ -879,3 +879,71 @@ export class MethodeDepreciationSubventionDto {
   @IsEnum(MethodeDepreciationBienSubventionne)
   methode!: MethodeDepreciationBienSubventionne;
 }
+
+/** Un bien du legs (lot 7) · ce que la saisie d'un bien demande, sans contrepartie. */
+export class BienDuLegsDto {
+  @IsUUID('4')
+  compteImmobilisationId!: string;
+
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: 'La désignation du bien est obligatoire.' })
+  designation!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  valeurOrigine!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeAmortissementAns?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dateMiseEnService?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  natureFiscaleCle?: string;
+}
+
+/**
+ * LE LEGS D'IMMOBILISATIONS GREVÉ DE DETTES (lot 7) · SYCEBNL Partie 3 ch. 2
+ * § 1.2.2 · D 2 / C 4861 + C 167, une pièce par bien (décision D-16).
+ */
+export class RecevoirLegsDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  /** Date de l'acte · « au vu de l'acte » (§ 1.2.2). */
+  @IsDateString()
+  dateActe!: string;
+
+  @IsString()
+  @MaxLength(120)
+  @Matches(/\S/, { message: "La référence de l'acte est obligatoire." })
+  referenceActe!: string;
+
+  @IsUUID('4')
+  compteFondsId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  dettes!: number;
+
+  @IsOptional()
+  @IsUUID('4')
+  compteDettesId?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => BienDuLegsDto)
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  biens!: BienDuLegsDto[];
+}

@@ -19,6 +19,7 @@ import {
   ReclasserImmobilisationDto,
   RenouvelerComposantDto,
   MiseEnServiceDto,
+  RecevoirLegsDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -169,6 +170,13 @@ export class ImmobilisationController {
   @Post('location-acquisition')
   async creerEnLocationAcquisition(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerLocationAcquisitionDto) {
     return this.immobilisationService.creerEnLocationAcquisition(user.tenantId, user.userId, dto);
+  }
+
+  /** Lot 7 · un legs d'immobilisations grevé de dettes (SYCEBNL Partie 3 ch. 2 § 1.2.2). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('legs')
+  async recevoirLegs(@CurrentUser() user: AuthenticatedUser, @Body() dto: RecevoirLegsDto) {
+    return this.immobilisationService.recevoirLegs(user.tenantId, user.userId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

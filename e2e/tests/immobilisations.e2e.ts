@@ -814,3 +814,55 @@ for (const [referentiel, mobilier] of [
     expect(pannes).toEqual([]);
   });
 }
+
+test('SYCEBNL · un legs grevé de dettes · une pièce par bien, 4861 et 167 aux totaux de l’acte, reprise à la quote-part', async ({ page }) => {
+  // SYCEBNL Partie 3 ch. 2 § 1.2.2, Application 5 réduite à deux biens ;
+  // décisions D-15 et D-16.
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Legs grevé e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c;
+  };
+  const comptesBien = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/immobilisations/comptes-du-bien');
+  const batiment = comptesBien.find((c) => c.numero === '23130000');
+  const informatique = comptesBien.find((c) => c.numero === '24420000');
+  if (!batiment || !informatique) throw new Error('Comptes 2313 ou 2442 absents');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const debut = exercice.dateDebut.slice(0, 10);
+  const corps = {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    dateActe: debut,
+    referenceActe: 'Acte e2e',
+    compteFondsId: compte('16710000').id,
+    compteDettesId: compte('48610000').id,
+    dettes: 10_000_000,
+    biens: [
+      { compteImmobilisationId: batiment.id, designation: 'Bâtiment légué e2e', valeurOrigine: 400_000_000, dureeAmortissementAns: 30, dateMiseEnService: debut },
+      { compteImmobilisationId: informatique.id, designation: 'Informatique léguée e2e', valeurOrigine: 100_000_000, dureeAmortissementAns: 2, dateMiseEnService: debut },
+    ],
+  };
+  // Le 1679 n'est pas un fonds reçu · refusé, et rien n'est créé.
+  await expect(appelApi(page, 'POST', '/immobilisations/legs', { ...corps, compteFondsId: compte('16790000').id })).rejects.toThrow();
+  const { biens } = await appelApi<{ biens: Array<{ id: string; dettes: number; fonds: number }> }>(page, 'POST', '/immobilisations/legs', corps);
+  expect(biens.map((b) => b.dettes)).toEqual([8_000_000, 2_000_000]);
+  const balance = async () =>
+    (await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${exercice.id}`)).lignes;
+  let lignes = await balance();
+  expect(Number(lignes.find((l) => l.numero === '48610000')?.mouvementCredit)).toBeCloseTo(10_000_000, 2);
+  expect(Number(lignes.find((l) => l.numero === '16710000')?.mouvementCredit)).toBeCloseTo(490_000_000, 2);
+
+  // Reprise du bâtiment · dotation × 392 000 000 / 400 000 000.
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${biens[0].id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  await appelApi(page, 'POST', `/immobilisations/${biens[0].id}/reprise-subvention`, { exerciceId: exercice.id, journalId: od.id });
+  lignes = await balance();
+  expect(Number(lignes.find((l) => l.numero === '79230000')?.mouvementCredit)).toBeCloseTo((Number(dotation.montant) * 392) / 400, 1);
+
+  expect(pannes).toEqual([]);
+});

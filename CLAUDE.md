@@ -1461,8 +1461,8 @@ SYCEBNL Partie 3 ch. 3 § 2.5) · cession, remise gratuite, restitution, vol,
 destruction ou rebut · D 162, 163 ou 164 (choisi) / C 2, jamais de 28 ni de
 81 ; seule la cession ajoute son prix au 82 ; `motifRefusSortieProjet`. REPRISES
 DES FONDS (lot 4) · `FONDS_REPRIS`, par référentiel · 14 au 799 aux deux ; au
-SYCEBNL seul 167 au 7923 (dotation ET dépréciation de l'exercice, 1679
-écarté), 171 au 7961 (quotité de l'amortissement, linéaire imposé au 2011),
+SYCEBNL seul 167 au 7923 (quote-part de la dotation ET de la dépréciation,
+1679 écarté), 171 au 7961 (quotité de l'amortissement, linéaire imposé au 2011),
 172 pour solde au 7962 à la cession ; le 172 SYSCOHADA est une dette. SUBVENTION EN NUMÉRAIRE (lot 5, D-11 à
 D-14) · le 14 de la notification n'est lié à aucun bien, le cabinet le
 RATTACHE (`SubventionImmobilisation`, montant et acte), jamais au-delà des
@@ -1474,7 +1474,10 @@ sans défaut ; au SYSCOHADA, le 4739 est le fonds global d'allocation. BARÈME E
 `bareme-comptes-013-2025.ts` ENGENDRÉ depuis `docs/bareme-013-2025-comptes.md`,
 une colonne par référentiel (2444 « mobilier de bureau » contre « sportifs »),
 relu dans les deux semis ; la nature propose son compte, le compte ses
-natures, jamais un refus.
+natures, jamais un refus. LEGS GREVÉ DE DETTES (lot 7, D-15, D-16) ·
+SYCEBNL seul, une fiche et une pièce par bien (D 2 / C 4861 / C 167), dettes
+au prorata, tout ou rien ; le 167 se reprend à la quote-part 167 ÷ valeur, et
+non à la dotation entière de l'Application 5 (écart écrit dans le code).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

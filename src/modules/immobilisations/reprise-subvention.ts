@@ -166,12 +166,20 @@ export function proposerReprise(e: EntreeReprise): PropositionReprise {
     if (e.amortissable && e.dotationExercice == null) {
       return { montant: 0, nature: 'EXERCICE', motif: "Passez d'abord la dotation de l'exercice · la reprise en suit le montant." };
     }
-    // Quote-part « relative à la dotation aux amortissements et aux
-    // dépréciations » · la dotation ENTIÈRE, comme l'Application 5 du Guide
-    // (18 625 000 repris pour 18 625 000 dotés), sans prorata du fonds.
+    // « Quote-part relative à la dotation aux amortissements et aux
+    // dépréciations » · la dotation multipliée par le rapport du 167 du bien
+    // à sa valeur d'entrée (décision D-15 de Manasse, 2026-10-01). Sans
+    // dettes, le rapport vaut un et la dotation entière est reprise.
+    // ÉCART ASSUMÉ AVEC L'APPLICATION 5 DU GUIDE · biens 447 000 000, dettes
+    // 25 000 000, 167 de 422 000 000, et le Guide reprend en N la dotation
+    // ENTIÈRE (18 625 000) · suivie au terme du plan, cette lecture épuise le
+    // 167 avant la dernière dotation (25 000 000 de dotations sans reprise
+    // en face). La quote-part reprend le 167 au terme exact du plan, comme
+    // la subvention (AUDCIF Titre VIII ch. 17 § 3.2).
     const base = centimes((e.dotationExercice ?? 0) + (e.depreciationExercice ?? 0));
     if (base <= 0) return { montant: 0, nature: 'EXERCICE', motif: "Aucune dotation aux amortissements ni aux dépréciations sur l'exercice." };
-    return { montant: Math.min(reste, base), nature: 'EXERCICE', motif: null };
+    const quotePart = e.valeurOrigine > 0 ? Math.min(1, e.subvention / e.valeurOrigine) : 1;
+    return { montant: Math.min(reste, centimes(base * quotePart)), nature: 'EXERCICE', motif: null };
   }
   // § 4.5 · « la fraction de subvention non encore rapportée aux résultats
   // est [...] reprise par le compte 799 de l'exercice de cession », réductions

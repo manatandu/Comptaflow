@@ -117,7 +117,7 @@ export function RepriseSubventionImmobilisations({
         Reprises des fonds liés aux biens
         <Aide
           titre="Reprise des fonds"
-          texte="Subvention d'investissement (14), reçue en nature ou en numéraire rattachée au bien · reprise au 799 au rythme de la dotation aux amortissements ; pour un bien non amortissable, sur la durée d'inaliénabilité ou, à défaut, par dixièmes ; à la cession, pour le solde. Au SYCEBNL seulement · dons et legs à conserver (167) repris au 7923 pour la dotation aux amortissements et aux dépréciations de l'exercice ; donation temporaire d'usufruit (171) reprise au 7961 dans la même quotité que l'amortissement ; dons et legs destinés à la vente (172) repris pour solde au 7962 à la cession. Seules les reprises passées ici sont comptées."
+          texte="Subvention d'investissement (14), reçue en nature ou en numéraire rattachée au bien · reprise au 799 au rythme de la dotation aux amortissements ; pour un bien non amortissable, sur la durée d'inaliénabilité ou, à défaut, par dixièmes ; à la cession, pour le solde. Au SYCEBNL seulement · dons et legs à conserver (167) repris au 7923 pour la quote-part (167 du bien ÷ sa valeur) de la dotation aux amortissements et aux dépréciations de l'exercice ; donation temporaire d'usufruit (171) reprise au 7961 dans la même quotité que l'amortissement ; dons et legs destinés à la vente (172) repris pour solde au 7962 à la cession. Seules les reprises passées ici sont comptées."
           source="Fiche du compte 14 (AUDCIF Titre VII · SYCEBNL Partie 2 ch. 3) · AUDCIF Titre VIII ch. 17 § 3.2 · SYCEBNL Partie 3 ch. 2 § 1.2.2, § 2.2.3 et § 2.3 · Guide d'application, Applications 5 à 7"
         />
       </div>
