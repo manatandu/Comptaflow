@@ -21,9 +21,15 @@ export const FENETRE_EN_ERREUR = 'Cette fenêtre n’a pas pu s’afficher';
  * CSRF que le client range en localStorage · le même chemin que l'écran,
  * donc la même CORS et les mêmes cookies.
  */
-export async function appelApi<T>(page: Page, methode: string, chemin: string, corps?: unknown): Promise<T> {
+export async function appelApi<T>(
+  page: Page,
+  methode: string,
+  chemin: string,
+  corps?: unknown,
+  entetes: Record<string, string> = {},
+): Promise<T> {
   return page.evaluate(
-    async ({ api, methode, chemin, corps }) => {
+    async ({ api, methode, chemin, corps, entetes }) => {
       const csrf = localStorage.getItem('omegax:csrf');
       const res = await fetch(api + chemin, {
         method: methode,
@@ -31,6 +37,7 @@ export async function appelApi<T>(page: Page, methode: string, chemin: string, c
         headers: {
           ...(corps === undefined ? {} : { 'Content-Type': 'application/json' }),
           ...(csrf && methode !== 'GET' ? { 'X-CSRF-Token': csrf } : {}),
+          ...entetes,
         },
         body: corps === undefined ? undefined : JSON.stringify(corps),
       });
@@ -40,7 +47,7 @@ export async function appelApi<T>(page: Page, methode: string, chemin: string, c
       if (json && typeof json.csrfToken === 'string') localStorage.setItem('omegax:csrf', json.csrfToken);
       return json;
     },
-    { api: API, methode, chemin, corps },
+    { api: API, methode, chemin, corps, entetes },
   ) as Promise<T>;
 }
 
@@ -66,6 +73,15 @@ export async function creerDossier(
 ): Promise<Dossier> {
   await page.goto('/');
   const email = `e2e-${options.referentiel.toLowerCase()}-${Date.now()}@exemple.cd`;
+  // UNE ADRESSE CLIENTE PAR DOSSIER · l'inscription est limitée à trente par
+  // heure et par adresse (auth.controller.ts), et tout le job arrive par
+  // 127.0.0.1 · la suite, qui crée une quarantaine de dossiers sous deux
+  // moteurs, tombait en 429 (run 214). En production, Firebase Hosting écrit
+  // l'adresse du client dans `X-Forwarded-For` et le serveur fait confiance à
+  // deux relais (common/sauts-de-confiance.ts) · le test joue ce rôle, la
+  // limite elle-même ne bouge pas.
+  const n = (Date.now() + Math.floor(Math.random() * 1_000)) % 16_777_216;
+  const adresse = `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}`;
   await appelApi(page, 'POST', '/auth/register', {
     nomEntite: options.nom,
     referentiel: options.referentiel,
@@ -74,7 +90,7 @@ export async function creerDossier(
     ...(options.referentiel === 'SYCEBNL'
       ? { jeuEtatsFinanciersSycebnl: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' }
       : { systemeComptableSyscohada: 'NORMAL' }),
-  });
+  }, { 'X-Forwarded-For': adresse });
   // L'inscription ouvre déjà l'exercice en cours · on le prend, on n'en crée
   // un que s'il manque.
   const exercices = await appelApi<{ id: string; dateDebut: string; dateFin: string }[]>(page, 'GET', '/exercices');
