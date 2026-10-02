@@ -41,6 +41,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | F15 | Listes de choix · provisions, fonds 162 à 164 de la sortie de projet, « Réglé par » (ex-E1) | Cloud Run 471, Hosting 598, tests 243 |
 | F16 | Immobilisation en cours (219, 229, 239, 249 aux deux référentiels, case décochée par défaut, mise en service D définitif / C en cours) et compte posé au choix de la nature du barème (ex-E2, E3, D5) | Cloud Run 472, Hosting 599, tests 244 |
 | F17 | Notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) · la mise en service d'un bien en cours n'est ni une acquisition ni une cession · reconnue par `ecritureMiseEnServiceId`, elle va aux colonnes « Virements de poste à poste » (en plus sur le définitif, en moins sur l'en-cours, D inchangé) ; TFT SYCEBNL, crédit lié du 219 et du 229 retranché de FI (ex-E5, D6) | Cloud Run 473, Hosting 601, tests 246 |
+| F18 | Coûts d'emprunt incorporés montrés aux Notes annexes en lecture seule (ex-A2, D1), « Réglé par » devenu « Contrepartie » (D2), fonds de projet en sommeil refusé au serveur (D3) | Cloud Run 474, Hosting 603, tests 248 |
 
 ## En cours
 
@@ -54,7 +55,6 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | # | Objet | Préalable |
 |---|---|---|
 | A1 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements (subventions, fonds, legs), Opérations (prix global, échange), Lieux | E2 à E4 vérifiés (même écran) |
-| A2 | Coûts d'emprunt aux Notes annexes · montants de l'exercice montrés à côté des rubriques libres de la note « Informations obligatoires », sans rien écrire à la place du cabinet | décision D1 ci-dessous |
 | A3 | Lot 14 · réévaluation légale ou libre | A1 vérifié |
 | A4 | Lot 15 · petits manques de faible valeur | A3 vérifié |
 
@@ -62,7 +62,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Question | Proposition |
 |---|---|---|
-| D1 | Où imprimer les coûts d'emprunt incorporés et la justification d'une préparation courte, aucune rubrique officielle ne les portant (AUDCIF Titre VIII ch. 7 § 1.2 et section 3 ; Titre IX ch. 6) | RÉGLÉE le 2026-10-02 (Manasse · « exécuter tout ») · encadré en lecture seule sous la note « Informations obligatoires » (NOTE 2 SYSCOHADA et associations, NOTE 1 projets), rien écrit dans la saisie |
+| D1 | Où imprimer les coûts d'emprunt incorporés et la justification d'une préparation courte, aucune rubrique officielle ne les portant (AUDCIF Titre VIII ch. 7 § 1.2 et section 3 ; Titre IX ch. 6) | RÉGLÉE le 2026-10-02, faite (F18) · encadré en lecture seule sous la note « Informations obligatoires » (NOTE 2 SYSCOHADA et associations, NOTE 1 projets), rien écrit dans la saisie |
 | D2 | Libellé « Réglé par » · la liste admet aussi un fournisseur, un apport ou un fonds | RÉGLÉE le 2026-10-02 · libellé « Contrepartie », noms de code gardés |
 | D3 | Refuser au serveur la sortie d'un bien de projet sur un compte de fonds en sommeil (aujourd'hui seulement retiré de la liste) | RÉGLÉE le 2026-10-02 · refus nommé au serveur (`motifRefusSortieProjet`, `compteFondsEnSommeil`) |
 | D4 | Brancher Resend pour que la file de courrier parte réellement | le transport SMTP existe déjà · Manasse pose les six secrets API_SMTP_* et API_COURRIER_EXPEDITEUR dans GitHub, aucun code |
