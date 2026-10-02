@@ -72,6 +72,8 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | A18 | Décompte final · déduction des avances et prêts, gratification au prorata proposée, indemnité de fin de contrat stipulée (Code du travail art. 64, 112) · relevé CPCC C15 | A9 intégré (même fichier) |
 | A19 | Inventaire · éditions (fiches de comptage vierges, PV d'inventaire, PV de caisse) et lieu du bien recopié sur sa fiche (AUDCIF art. 16) · relevé CPCC C16 | A10 intégré (même module) |
 | A20 | Comptabilité de gestion · clés de répartition, coût de production avec imputation rationnelle, seuil de rentabilité, définitions d'OmegaX dites (AUDCIF Titre VI ; Titre VIII ch. 13 § 2.3) · relevé CPCC C17 | décision de Manasse du 2026-10-02 |
+| A21 | Facture d'achat datée à sa RÉCEPTION · l'écriture prend la date de réception de la pièce d'origine externe (AUDCIF art. 16 al. 2), la date de facture restant portée ; effets sur la TVA lus au texte | décision de Manasse du 2026-10-02 |
+| A22 | Trois relevés anciens des immobilisations · dépréciation d'un bien en cours (2919 à 2949) et son sort à la mise en service ; prix global avec fonds de commerce (l'écran visait toujours le 21500000) ; 787 du Guide contre 72 de l'AUDCIF pour les intérêts immobilisés | décision de Manasse du 2026-10-02 ; intégré après le lot 15 (mêmes fichiers) |
 
 ## Décisions en attente de Manasse
 
@@ -86,7 +88,6 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 ## Relevés en attente (hors liste tant que Manasse ne les y met pas)
 
-- Immobilisation en cours · dépréciation au 29x9 (2919 à 2949) permise par les
   textes, ni proposée ni virée au 29x définitif à la mise en service, faute de
   texte.
 
