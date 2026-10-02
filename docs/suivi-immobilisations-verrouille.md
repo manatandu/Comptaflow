@@ -105,3 +105,4 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
   A2 ; D2, « Réglé par » devenu « Contrepartie » ; D3, fonds de projet en
   sommeil refusé au serveur. À vérifier en production avant de passer en
   « Fait ».
+- 2026-10-02 · séminaires du CPCC confrontés à OmegaX · dix-sept manques et un écart à trancher, au relevé `docs/releve-seminaires-cpcc-2026-10-02.md` (hors liste tant que Manasse ne les y met pas) ; les deux défauts du lot 14 (réévaluations successives) sont corrigés dans le lot.
