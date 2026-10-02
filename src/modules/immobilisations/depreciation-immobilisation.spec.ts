@@ -166,9 +166,13 @@ function harnais(
             intitule: where.tenantId_numero.numero,
           }),
         ),
-      findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+      findFirst: jest.fn().mockImplementation(({ where, select }: { where: { id: string }; select?: { estActif?: boolean } }) =>
         Promise.resolve(
-          where.id === 'c29'
+          // Fonds en sommeil · l'état n'est rendu que s'il est DEMANDÉ, comme
+          // Prisma, pour que le test tombe si `sortir` cesse de le lire.
+          where.id === 'c164dort'
+            ? { id: 'c164dort', numero: '16400000', intitule: 'Fonds affectés · autres organismes', ...(select?.estActif ? { estActif: false } : {}) }
+            : where.id === 'c29'
             ? { id: 'c29', numero: options.compte29 ?? '29410000', intitule: 'Dépréciations du matériel' }
             : where.id === 'c69'
               ? { id: 'c69', numero: '69130000', intitule: 'Dotations pour dépréciation' }
@@ -689,6 +693,20 @@ describe('fin de projet de développement · le fonds reprend le bien', () => {
       await expect(svc.sortir('t1', 'u1', 'i1', sortie('MISE_HORS_SERVICE', { compteFondsProjetId: fonds }) as never)).rejects.toThrow(/162, 163/);
       expect(ecrituresPostees).toEqual([]);
     }
+  });
+
+  it('un fonds en sommeil est refusé au serveur comme il est écarté de la liste (décision D3), sans écriture', async () => {
+    const { svc, ecrituresPostees } = harnais(BIEN, OPTIONS);
+    await expect(
+      svc.sortir('t1', 'u1', 'i1', sortie('MISE_HORS_SERVICE', { compteFondsProjetId: 'c164dort' }) as never),
+    ).rejects.toThrow(/16400000 est en sommeil/);
+    expect(ecrituresPostees).toEqual([]);
+    expect(
+      motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16400000', cumulAmorti: 0, cumulDepreciation: 0, compteFondsEnSommeil: true }),
+    ).toContain('Plan comptable');
+    expect(
+      motifRefusSortieProjet({ projet: true, numeroCompteFonds: '16400000', cumulAmorti: 0, cumulDepreciation: 0, compteFondsEnSommeil: false }),
+    ).toBeNull();
   });
 
   it('une association ne reçoit pas de compte de fonds, et sort toujours par le 81', async () => {

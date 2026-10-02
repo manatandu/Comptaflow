@@ -2,6 +2,8 @@ import { RattachementsSansRubrique } from '../components/RattachementsSansRubriq
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { CoutsEmpruntEnNote } from '../components/CoutsEmpruntEnNote';
+import { NOTE_INFORMATIONS_OBLIGATOIRES } from '../lib/couts-emprunt-en-note';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, JeuNotesAnnexes, ResultatNotesJeu } from '../lib/types';
@@ -314,6 +316,13 @@ function NotesAnnexesSycebnlPage() {
             {tableaux.map((n) => (
               <BlocTableauNote key={n.sousTableau ?? n.code} note={n} rattachement={rattachement} saisie={saisie} />
             ))}
+            {/* Décision D1 · coûts d'emprunt incorporés montrés à côté des
+                rubriques libres C et D de la note « Informations
+                obligatoires » (NOTE 2 des associations, NOTE 1 des projets),
+                en lecture seule. */}
+            {codeSelectionne === (jeuProjet ? NOTE_INFORMATIONS_OBLIGATOIRES.PROJETS : NOTE_INFORMATIONS_OBLIGATOIRES.ASSOCIATIONS) && (
+              <CoutsEmpruntEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYCEBNL" />
+            )}
           </div>
         </div>
       )}

@@ -1800,7 +1800,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       <input required type="date" value={rDate} onChange={(e) => setRDate(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-mono" />
                     </label>
                     <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                      Réglé par
+                      Contrepartie
                       {/* Le remplaçant naît par `creer`, sur la famille et le type
                           du composant remplacé · la liste fermée de la fiche du
                           compte du bien, jamais tout le plan (`lib/regle-par.ts`). */}

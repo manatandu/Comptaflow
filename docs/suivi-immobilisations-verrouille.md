@@ -62,9 +62,9 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Question | Proposition |
 |---|---|---|
-| D1 | Où imprimer les coûts d'emprunt incorporés et la justification d'une préparation courte, aucune rubrique officielle ne les portant (AUDCIF Titre VIII ch. 7 § 1.2 et section 3 ; Titre IX ch. 6) | les montrer à côté des rubriques libres B ou C (méthodes) et D (informations complémentaires), le cabinet rédigeant |
-| D2 | Libellé « Réglé par » · la liste admet aussi un fournisseur, un apport ou un fonds | renommer « Contrepartie » |
-| D3 | Refuser au serveur la sortie d'un bien de projet sur un compte de fonds en sommeil (aujourd'hui seulement retiré de la liste) | refuser, comme la liste |
+| D1 | Où imprimer les coûts d'emprunt incorporés et la justification d'une préparation courte, aucune rubrique officielle ne les portant (AUDCIF Titre VIII ch. 7 § 1.2 et section 3 ; Titre IX ch. 6) | RÉGLÉE le 2026-10-02 (Manasse · « exécuter tout ») · encadré en lecture seule sous la note « Informations obligatoires » (NOTE 2 SYSCOHADA et associations, NOTE 1 projets), rien écrit dans la saisie |
+| D2 | Libellé « Réglé par » · la liste admet aussi un fournisseur, un apport ou un fonds | RÉGLÉE le 2026-10-02 · libellé « Contrepartie », noms de code gardés |
+| D3 | Refuser au serveur la sortie d'un bien de projet sur un compte de fonds en sommeil (aujourd'hui seulement retiré de la liste) | RÉGLÉE le 2026-10-02 · refus nommé au serveur (`motifRefusSortieProjet`, `compteFondsEnSommeil`) |
 | D4 | Brancher Resend pour que la file de courrier parte réellement | le transport SMTP existe déjà · Manasse pose les six secrets API_SMTP_* et API_COURRIER_EXPEDITEUR dans GitHub, aucun code |
 | D5 | Au SYCEBNL, offrir le 219 et le 229 pour un bien en cours | TRANCHÉ OUI par Manasse le 2026-10-01 · fait |
 | D6 | Notes 3A (SYSCOHADA), 5A et 3A (SYCEBNL) · la mise en service comptée en augmentation ET en diminution | TRANCHÉ OUI (corriger) par Manasse le 2026-10-01 · ligne E5 |
@@ -82,3 +82,11 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 - Hors plan · bailleur, sous-location, cession-bail, concessions et PPP,
   première application du SYSCOHADA révisé, groupe d'actifs, cession
   partielle de titres.
+
+- 2026-10-02 · D1, D2 et D3 réglées selon la proposition écrite (Manasse ·
+  « exécuter tout ») · D1, encadré « Coûts d'emprunt incorporés de
+  l'exercice » aux Notes annexes des deux référentiels, en lecture seule
+  (`CoutsEmpruntEnNote`, `lib/couts-emprunt-en-note.ts`), ce qui fait aussi
+  A2 ; D2, « Réglé par » devenu « Contrepartie » ; D3, fonds de projet en
+  sommeil refusé au serveur. À vérifier en production avant de passer en
+  « Fait ».

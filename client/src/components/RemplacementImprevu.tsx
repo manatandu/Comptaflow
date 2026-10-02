@@ -131,7 +131,7 @@ export function RemplacementImprevu({
           <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${champ} font-mono`} />
         </label>
         <label className={`${libelle} col-span-2`}>
-          Réglé par
+          Contrepartie
           {/* La partie détachée est un COMPOSANT de la structure, de sa famille ·
               le serveur la renouvelle par `renouveler`, donc par `creer` et la
               liste fermée de la fiche du compte du bien (`lib/regle-par.ts`). */}

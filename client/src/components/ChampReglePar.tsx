@@ -5,7 +5,8 @@ import { modesPresents } from '../lib/compte-du-bien';
 import { adresseContrepartiesAdmises, etatReglePar, type CibleReglePar } from '../lib/regle-par';
 
 /**
- * LA LISTE « RÉGLÉ PAR » DES OPÉRATIONS SUR UN BIEN · la liste fermée que le
+ * LA LISTE « CONTREPARTIE » DES OPÉRATIONS SUR UN BIEN (ex-« Réglé par »,
+ * décision D2) · la liste fermée que le
  * serveur admet pour chaque bien visé, leur intersection s'il y en a
  * plusieurs (`lib/regle-par.ts`). Le champ ne propose jamais ce que le
  * serveur refuserait, dit pourquoi il est vide, et présélectionne le seul

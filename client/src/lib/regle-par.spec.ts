@@ -98,7 +98,7 @@ describe('etatReglePar · une liste qui dépend d’un choix dit pourquoi elle e
   });
 });
 
-describe('les écrans · aucune liste « Réglé par » ne sert le plan entier', () => {
+describe('les écrans · aucune liste « Contrepartie » ne sert le plan entier', () => {
   const racine = join(__dirname, '..');
   const fichiers = (dossier: string): string[] =>
     readdirSync(dossier).flatMap((nom) => {
@@ -107,21 +107,33 @@ describe('les écrans · aucune liste « Réglé par » ne sert le plan entier',
       return /\.tsx$/.test(nom) && !/\.spec\./.test(nom) ? [chemin] : [];
     });
 
-  it('chaque champ « Réglé par » est le ChampReglePar, dans son propre élément label', () => {
+  /*
+    DÉCISION D2 (2026-10-02) · le libellé est « Contrepartie », plus
+    « Réglé par » · la liste admet aussi un fournisseur, un apport ou un fonds.
+    Le recensement part du COMPOSANT, pas du libellé · « Contrepartie » nomme
+    aussi d'autres champs (journal, magasin, acquisition) qui ne sont pas lui.
+  */
+  it('chaque ChampReglePar est dans son propre élément label, intitulé « Contrepartie »', () => {
     const occurrences: string[] = [];
     for (const f of fichiers(racine)) {
+      if (f.endsWith('ChampReglePar.tsx')) continue;
       const src = readFileSync(f, 'utf8');
-      let i = src.indexOf('Réglé par\n');
+      let i = src.indexOf('<ChampReglePar');
       while (i !== -1) {
-        // Le champ est l'élément label qui porte le libellé · on lit son
-        // contenu jusqu'à sa fermeture, jamais une distance en caractères.
+        // L'élément label qui enveloppe le champ · son texte de tête est le
+        // libellé, lu jusqu'au premier élément ou commentaire, jamais une
+        // distance en caractères.
         const ouverture = src.lastIndexOf('<label', i);
-        const fermeture = src.indexOf('</label>', i);
-        const element = src.slice(ouverture, fermeture);
+        const fermeture = src.indexOf('</label>', ouverture);
+        expect({ fichier: f, dansSonLabel: ouverture !== -1 && fermeture > i }).toEqual({ fichier: f, dansSonLabel: true });
+        const tete = src.slice(src.indexOf('>', ouverture) + 1, i);
+        const libelle = tete.split(/[<{]/)[0].trim();
         occurrences.push(f);
-        expect({ fichier: f, champ: /<ChampReglePar\b/.test(element) }).toEqual({ fichier: f, champ: true });
-        i = src.indexOf('Réglé par\n', i + 1);
+        expect({ fichier: f, libelle }).toEqual({ fichier: f, libelle: 'Contrepartie' });
+        i = src.indexOf('<ChampReglePar', i + 1);
       }
+      // L'ancien libellé ne revient nulle part dans un écran.
+      expect({ fichier: f, ancien: /Réglé par/.test(src) }).toEqual({ fichier: f, ancien: false });
     }
     // Le recensement trouve encore quelque chose · trois opérations sur un bien.
     expect(occurrences.length).toBeGreaterThanOrEqual(3);

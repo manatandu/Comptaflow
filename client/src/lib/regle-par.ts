@@ -1,7 +1,10 @@
 import type { ContrepartieAdmise } from './compte-du-bien';
 
 /**
- * LES LISTES « RÉGLÉ PAR » DU MODULE IMMOBILISATIONS · renouvellement d'un
+ * LES LISTES « CONTREPARTIE » DU MODULE IMMOBILISATIONS (libellé « Réglé par »
+ * jusqu'au 2026-10-02 · la liste admet aussi un fournisseur, un apport ou un
+ * fonds, que « réglé » ne dit pas ; décision D2 du suivi, le nom du code
+ * gardé) · renouvellement d'un
  * composant, remplacement imprévu d'une partie non identifiée, acquisition à
  * prix global. Elles proposaient TOUT le plan de détail (`/comptes?typeCompte=
  * DETAIL`) · une charge, un client ou une TVA s'y choisissait, et le serveur

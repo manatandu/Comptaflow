@@ -184,7 +184,7 @@ export function PrixGlobalImmobilisations({
               <input required type="number" min="0.01" step="0.01" value={prix} onChange={(e) => setPrix(e.target.value)} className={`${champ} w-32`} />
             </label>
             <label className="flex flex-col">
-              Réglé par
+              Contrepartie
               <ChampReglePar cibles={ciblesReglement} value={contrepartie} onChange={setContrepartie} className={champ} vide="·" />
             </label>
           </div>

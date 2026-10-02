@@ -146,11 +146,22 @@ export function motifListeFondsProjetVide(o: { projet: boolean; nombre: number; 
   );
 }
 
+/**
+ * LE REFUS DE LA SORTIE DE FIN DE PROJET · même règle que la liste servie.
+ *
+ * UN FONDS EN SOMMEIL EST REFUSÉ (décision D3 du suivi, 2026-10-02) · la
+ * liste de `comptesFondsProjet` l'écartait déjà, mais un identifiant envoyé
+ * hors de l'écran passait au serveur, et la sortie se postait sur un compte
+ * que le cabinet avait mis en sommeil pour qu'il ne serve plus. Le compte se
+ * réactive dans Plan comptable, comme le dit le motif de la liste vide.
+ * `compteFondsEnSommeil` absent vaut actif · seul un sommeil LU refuse.
+ */
 export function motifRefusSortieProjet(o: {
   projet: boolean;
   numeroCompteFonds: string | null;
   cumulAmorti: number;
   cumulDepreciation: number;
+  compteFondsEnSommeil?: boolean;
 }): string | null {
   if (!o.projet) {
     return o.numeroCompteFonds
@@ -162,6 +173,12 @@ export function motifRefusSortieProjet(o: {
   }
   if (!estCompteFondsProjet(o.numeroCompteFonds)) {
     return `Le compte ${o.numeroCompteFonds} n'est pas un fonds affecté aux investissements · seuls les comptes 162, 163 et 164 reprennent le bien (SYCEBNL Partie 3 ch. 3 § 2.5).`;
+  }
+  if (o.compteFondsEnSommeil) {
+    return (
+      `Le compte de fonds ${o.numeroCompteFonds} est en sommeil · réactivez-le dans Plan comptable, ou choisissez ` +
+      'le fonds actif qui a financé le bien (SYCEBNL Partie 3 ch. 3 § 2.5).'
+    );
   }
   if (o.cumulAmorti > 0.005 || o.cumulDepreciation > 0.005) {
     return (

@@ -3955,7 +3955,10 @@ export class ImmobilisationService {
     // tombent ici, avant le verrou, comme tous les autres.
     const projet = regime.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT;
     const compteFonds = dto.compteFondsProjetId
-      ? await this.prisma.compte.findFirst({ where: { id: dto.compteFondsProjetId, tenantId }, select: { id: true, numero: true } })
+      ? await this.prisma.compte.findFirst({
+          where: { id: dto.compteFondsProjetId, tenantId },
+          select: { id: true, numero: true, estActif: true },
+        })
       : null;
     if (dto.compteFondsProjetId && !compteFonds) throw new BadRequestException('Compte de fonds introuvable pour ce dossier');
     const refusProjet = motifRefusSortieProjet({
@@ -3963,6 +3966,8 @@ export class ImmobilisationService {
       numeroCompteFonds: compteFonds?.numero ?? null,
       cumulAmorti,
       cumulDepreciation,
+      // Décision D3 · un fonds en sommeil, écarté de la liste, est refusé ici aussi.
+      compteFondsEnSommeil: compteFonds ? compteFonds.estActif === false : false,
     });
     if (refusProjet) throw new BadRequestException(refusProjet);
 

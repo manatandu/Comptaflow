@@ -2,6 +2,8 @@ import { RattachementsSansRubrique } from '../components/RattachementsSansRubriq
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { CoutsEmpruntEnNote } from '../components/CoutsEmpruntEnNote';
+import { NOTE_INFORMATIONS_OBLIGATOIRES } from '../lib/couts-emprunt-en-note';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, JeuNotesAnnexes, ResultatNotesJeu } from '../lib/types';
@@ -336,6 +338,11 @@ function NotesSyscohadaSystemeNormal() {
                 afficherHorsBalance
               />
             ))}
+            {/* Décision D1 · coûts d'emprunt incorporés montrés à côté des
+                rubriques libres B et D de la NOTE 2, en lecture seule. */}
+            {codeSelectionne === NOTE_INFORMATIONS_OBLIGATOIRES.SYSCOHADA && (
+              <CoutsEmpruntEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYSCOHADA" />
+            )}
           </div>
         </div>
       )}
