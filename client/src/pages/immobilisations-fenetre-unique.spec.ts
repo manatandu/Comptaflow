@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * LA FENÊTRE IMMOBILISATIONS EST UNIQUE · une seule fenêtre à trois onglets
- * (Biens, tableau des immobilisations, tableau des amortissements), et un
+ * LA FENÊTRE IMMOBILISATIONS EST UNIQUE · une seule fenêtre à cinq onglets
+ * (Biens, Tableaux, Financements, Opérations, Lieux), et un
  * bouton de création qui s'efface tant que son formulaire est ouvert.
  * Chaque test découpe le bloc qui porte la propriété, jamais une distance.
  */
@@ -33,11 +33,76 @@ describe('le bouton de création s’efface formulaire ouvert', () => {
   });
 });
 
-describe('une seule fenêtre, trois onglets', () => {
-  it('la page porte les trois vues et rend les tableaux sans redessiner leurs onglets', () => {
-    for (const cle of ["'biens'", "'immobilisations'", "'amortissements'"]) expect(page).toContain(cle);
-    expect(page).toContain('<TableauxImmobilisationsPage ongletPilote={vue} />');
+/**
+ * Le PANNEAU d'un onglet · de son ouverture `role="tabpanel"` jusqu'au panneau
+ * suivant (ou à la fin du rendu). Découpe par structure, jamais par distance.
+ */
+function panneau(cle: string): string {
+  const ouvertures = [...page.matchAll(/<div role="tabpanel"[^>]*>/g)].map((m) => m.index ?? 0);
+  const i = page.search(new RegExp(`<div role="tabpanel"[^>]*onglet !== '${cle}'`));
+  expect(i).toBeGreaterThan(0);
+  const suivant = ouvertures.find((o) => o > i) ?? page.length;
+  return page.slice(i, suivant);
+}
+
+describe('une seule fenêtre, rangée en onglets (ligne A1)', () => {
+  it('cinq onglets, dans l’ordre · Biens, Tableaux, Financements, Opérations, Lieux', () => {
+    const debut = page.indexOf('const ONGLETS_IMMOBILISATIONS');
+    const table = page.slice(debut, page.indexOf('];', debut));
+    const libelles = [...table.matchAll(/libelle: '([^']+)'/g)].map((m) => m[1]);
+    expect(libelles).toEqual(['Biens', 'Tableaux', 'Financements', 'Opérations', 'Lieux']);
+  });
+
+  it('les tableaux gardent leurs deux vues, sans redessiner leurs onglets', () => {
+    for (const cle of ["'immobilisations'", "'amortissements'"]) expect(page).toContain(cle);
+    expect(page).toContain('<TableauxImmobilisationsPage ongletPilote={tableau} />');
     expect(tableaux).toContain('{!ongletPilote && (');
+  });
+
+  it('ce qui porte sur UN bien reste sur sa ligne, dans Biens', () => {
+    const biens = panneau('biens');
+    for (const c of [
+      '<PlanFiscalDegressif',
+      '<RevisionPlanAmortissement',
+      '<CoutsEmpruntIncorpores',
+      '<BasculeDureeLimitee',
+      '<RemplacementImprevu',
+      '<PlafondRepriseDepreciation',
+      '<EchangeImmobilisation',
+      'onMettreEnService',
+      'Confirmer la sortie',
+      'Nouvelle immobilisation',
+    ]) {
+      expect(biens).toContain(c);
+    }
+  });
+
+  it('Financements tient subventions, fonds et legs ; Opérations le prix global et la clôture des contrats', () => {
+    const financements = panneau('financements');
+    expect(financements).toContain('<RepriseSubventionImmobilisations');
+    expect(financements).toContain('<LegsImmobilisations');
+    const operations = panneau('operations');
+    expect(operations).toContain('<PrixGlobalImmobilisations');
+    expect(operations).toContain('<ClotureLocationAcquisition');
+  });
+
+  it('Lieux reste réservé à l’administrateur, comme le bouton qu’il remplace', () => {
+    expect(page).toContain("{estAdmin && visites.has('lieux') && (");
+    expect(page).toContain(".filter((o) => o.cle !== 'lieux' || estAdmin)");
+    expect(panneau('lieux')).toContain('creerLieu');
+  });
+
+  it('un panneau visité reste monté, caché · une saisie ouverte ne se perd pas en changeant d’onglet', () => {
+    expect(page).toContain("{visites.has('financements') && (");
+    expect(page).toContain("{visites.has('operations') && (");
+    expect(page).toContain(`<div role="tabpanel" hidden={onglet !== 'biens'}>`);
+  });
+
+  it('l’onglet se mémorise par poste, sous try/catch (lib/onglets-immobilisations.ts)', () => {
+    const debut = page.indexOf('const choisirOnglet =');
+    const corps = page.slice(debut, page.indexOf('};', debut));
+    expect(corps).toContain('memoriserOnglet(o)');
+    expect(page).toContain('ongletAOuvrir(lireOngletMemorise(), vueInitiale, true)');
   });
 
   it('l’ancienne adresse reste ouverte, sur l’onglet des tableaux', () => {

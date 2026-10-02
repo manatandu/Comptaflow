@@ -48,13 +48,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-
+| A1 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements (subventions, fonds, legs), Opérations (prix global, clôture des contrats de location-acquisition), Lieux (administrateur seul, comme le bouton qu'il remplace). L'échange reste sur la ligne de son bien, dans Biens, comme tout ce qui porte sur un seul bien. Onglet mémorisé par poste (`lib/onglets-immobilisations.ts`), panneau visité gardé monté (saisie conservée), tableaux relus à chaque visite comme avant | livré, à intégrer |
 
 ## À faire, dans l'ordre
 
 | # | Objet | Préalable |
 |---|---|---|
-| A1 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements (subventions, fonds, legs), Opérations (prix global, échange), Lieux | E2 à E4 vérifiés (même écran) |
 | A3 | Lot 14 · réévaluation légale ou libre | A1 vérifié |
 | A4 | Lot 15 · petits manques de faible valeur | A3 vérifié |
 
@@ -82,6 +81,22 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 - Hors plan · bailleur, sous-location, cession-bail, concessions et PPP,
   première application du SYSCOHADA révisé, groupe d'actifs, cession
   partielle de titres.
+- Pour A3 (lot 14), lu le 2026-10-02 · séminaire CPCC « Arrêté des comptes
+  2024 », Jour 2, réévaluation des immobilisations (compétence
+  `audcif-acte-uniforme`, `pratique-redressements-comptes-patrimoine-cpcc.md`,
+  § II). Un TÉMOIN, pas une source · il propose la méthode indiciaire (VBR =
+  VO × coefficient, ER = CV moins CA), la contrepartie au 106 dans son
+  schéma général puis au 154 dans son cas chiffré, et la reprise du 154 au
+  861 à hauteur du supplément d'amortissement. Deux points à ne pas
+  reprendre tels quels · (1) les « innovations de la loi de finances 2023 »
+  qu'il cite (déclaration avant le 30 avril, astreinte de 100 000 CDF par
+  jour) sont celles de l'O.-L. n° 89/017, abrogée au 1er janvier 2026 (loi
+  n° 23/053, art. 136 et 138 · au plus tard le 30 avril, 300 000 FC par
+  jour) ; (2) le cumul « amorti avant réévaluation » de
+  l'imprimante (308 969,10) ne rejoint pas celui du fichier n° 3
+  (299 970,00). Les sommes des deux écritures (15 697 000,00 et
+  7 855 950,86) se vérifient. Numéros de compte à sept chiffres de cabinet,
+  à relire au plan. AUDCIF Titre VIII ch. 28 à lire avant tout code.
 
 - 2026-10-02 · D1, D2 et D3 réglées selon la proposition écrite (Manasse ·
   « exécuter tout ») · D1, encadré « Coûts d'emprunt incorporés de

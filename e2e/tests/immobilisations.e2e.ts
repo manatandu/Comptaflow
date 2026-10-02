@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appelApi, creerDossier, seConnecter, surveiller } from './outils';
+import { appelApi, creerDossier, FENETRE_EN_ERREUR, seConnecter, surveiller } from './outils';
 
 /**
  * LE BIEN REPRIS, SUR LA BASE RÉELLE (audit final F32).
@@ -1194,6 +1194,8 @@ test('SYCEBNL · une subvention d’investissement s’enregistre depuis son com
   if (!compte14) throw new Error('Compte 14170000 absent du plan semé');
   await appelApi(page, 'PATCH', `/comptes/${compte14.id}`, { estRetenu: true });
   await page.goto('/#/immobilisations');
+  // Les subventions vivent dans l'onglet Financements (ligne A1).
+  await page.getByRole('tab', { name: 'Financements' }).click();
   await page.getByRole('button', { name: 'Rattacher une subvention' }).click();
   await page.getByLabel('Compte de subvention').selectOption({ label: "14170000 Subventions d'équipement · Organismes internationaux" });
   // Rien d'inscrit, aucun bien · l'écran le dit au lieu de listes vides.
@@ -1357,5 +1359,49 @@ test('SYSCOHADA · un bâtiment non achevé entre au 239 et passe au 231 à sa m
   });
   expect(await solde('23910000')).toBeCloseTo(0, 2);
   expect(await solde('23110000')).toBeCloseTo(50_000_000, 2);
+  expect(pannes).toEqual([]);
+});
+
+test('la fenêtre Immobilisations s’ouvre sur chacun de ses onglets sans erreur, et retient le dernier choisi', async ({ page }) => {
+  // Ligne A1 · Biens, Tableaux, Financements, Opérations, Lieux. Chaque
+  // onglet se rend sans limite d'erreur, sans exception ni réponse 5xx ; une
+  // saisie ouverte survit à un changement d'onglet ; l'onglet choisi se
+  // retrouve à la réouverture (préférence du poste).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Onglets immobilisations e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  await page.goto('/#/immobilisations');
+  const onglet = (nom: string) => page.getByRole('tab', { name: nom, exact: true });
+  await expect(onglet('Biens')).toHaveAttribute('aria-selected', 'true');
+
+  // Une saisie ouverte dans Biens ne se perd pas en changeant d'onglet.
+  await page.getByRole('button', { name: 'Nouvelle immobilisation' }).click();
+  await page.getByRole('tabpanel').getByLabel('Désignation').fill('Saisie conservée e2e');
+
+  await onglet('Tableaux').click();
+  await expect(onglet('Tableau des immobilisations')).toHaveAttribute('aria-selected', 'true');
+  await onglet('Tableau des amortissements').click();
+  await expect(onglet('Tableau des amortissements')).toHaveAttribute('aria-selected', 'true');
+
+  await onglet('Financements').click();
+  await expect(page.getByRole('button', { name: 'Rattacher une subvention' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Recevoir un legs' })).toBeVisible();
+
+  await onglet('Opérations').click();
+  await expect(page.getByRole('button', { name: 'Saisir une acquisition' })).toBeVisible();
+
+  // Le créateur du dossier en est l'administrateur · l'onglet Lieux lui est servi.
+  await onglet('Lieux').click();
+  await expect(page.getByRole('tabpanel').getByRole('button', { name: 'Ajouter' })).toBeVisible();
+
+  await onglet('Biens').click();
+  await expect(page.getByRole('tabpanel').getByLabel('Désignation')).toHaveValue('Saisie conservée e2e');
+
+  // Le dernier onglet choisi est retenu par le poste.
+  await onglet('Opérations').click();
+  await page.reload();
+  await expect(onglet('Opérations')).toHaveAttribute('aria-selected', 'true');
+
+  await expect(page.getByText(FENETRE_EN_ERREUR)).toHaveCount(0);
   expect(pannes).toEqual([]);
 });
