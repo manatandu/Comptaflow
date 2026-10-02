@@ -45,12 +45,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | F19 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, un compte prescrit seul jamais retiré (octroi, affectation, 12, 167 et 4861, 29 de la division, 4739 du remboursement), gardé des deux côtés par une table unique (ex-E4) | Cloud Run 475, Hosting 605, tests 250 |
 | F20 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements, Opérations, Lieux, sans changement de comportement ; ce qui porte sur un bien reste sur sa ligne (échange compris) (ex-A1) | Hosting 607, tests 252 (client seul, Cloud Run non déclenché) |
 | F21 | Lot 14 · réévaluation légale ou libre (globale, décision exigée, plafond k′, 106 par défaut, 154 sous neutralité pour les amortissables avec reprise au 861 chaînée, base du coefficient déclarée et convertie, dotation de l'exercice avant (D-38), coefficient converti sous 1 refusé (D-45), tableau des flux et notes par liaison, onglet Opérations) (ex-A3) | Cloud Run 476, Hosting 614, tests 261 |
+| F22 | Lot 15 · petits manques de faible valeur · rente viagère et redevances (1681, extinction au 841 bornée au solde de la dette), réserve de propriété (refusée sur un bien sorti ou un exercice clos), matériel récupéré (388 / 378) au compte inscrit, six critères de la R&D, démantèlement et désactualisation, compléments du crédit-bail (ex-A4) | Cloud Run 477, Hosting 620, tests 265 (relancé, première exécution coupée par le délai à l'installation de Playwright) |
 
 ## En cours
 
 | # | Objet | État |
 |---|---|---|
-| A4 | Lot 15 · petits manques de faible valeur (rente viagère et redevances, réserve de propriété, matériel récupéré, six critères de la R&D, démantèlement, compléments du crédit-bail) | livré, à intégrer |
 
 ## À faire, dans l'ordre
 
