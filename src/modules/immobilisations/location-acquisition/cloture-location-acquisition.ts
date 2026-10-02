@@ -23,6 +23,13 @@ import { LigneEcheancier } from './echeancier-location-acquisition';
  * échéance. NON LEVÉE, sa ligne n'est jamais virée · le bien sort par une
  * cession au bailleur (service). Non déclarée à l'échéance, la clôture est
  * refusée · virer P ou ne pas le virer, c'est trancher à la place du cabinet.
+ *
+ * LA GARANTIE DE VALEUR RÉSIDUELLE (lot 15, § 2.1.2) · même traitement que
+ * l'option. APPELÉE, le cabinet la paie au 623 et la clôture la vire avec la
+ * dernière échéance ; NON APPELÉE, sa ligne n'est jamais virée et rien ne
+ * court vers elle ; non déclarée à l'échéance, la clôture est refusée. Ce que
+ * devient alors la part de dette qu'elle portait n'est écrit nulle part au
+ * ch. 8 · le service le dit, il n'invente pas d'écriture.
  */
 
 export interface VentilationExercice {
@@ -38,6 +45,10 @@ export interface VentilationExercice {
   rangs: number[];
   /** L'option échoit dans l'exercice et sa levée n'est pas déclarée. */
   optionNonDeclaree: boolean;
+  /** Lot 15 · la garantie échoit dans l'exercice et son appel n'est pas déclaré. */
+  garantieNonDeclaree: boolean;
+  /** Lot 15 · la garantie échoit dans l'exercice et n'est pas appelée · sa part de dette reste au 17. */
+  garantieNonAppelee: number;
 }
 
 const centimes = (x: number) => Math.round(x * 100) / 100;
@@ -60,12 +71,19 @@ export function ventilerExercice(
   exercice: { dateDebut: Date; dateFin: Date },
   /** null tant que le cabinet n'a rien déclaré. */
   optionLevee: boolean | null = null,
+  /** Lot 15 · null tant que le cabinet n'a rien déclaré. */
+  garantieAppelee: boolean | null = null,
 ): VentilationExercice {
   const debut = jour(exercice.dateDebut);
   const fin = jour(exercice.dateFin);
   const dansLExercice = (l: LigneEcheancier) => jour(l.date) >= debut && jour(l.date) <= fin;
-  const loyersEchus = lignes.filter((l) => dansLExercice(l) && (!l.option || optionLevee === true));
+  const loyersEchus = lignes.filter(
+    (l) => dansLExercice(l) && (!l.option || optionLevee === true) && (!l.garantie || garantieAppelee === true),
+  );
   const optionNonDeclaree = lignes.some((l) => l.option && dansLExercice(l)) && optionLevee === null;
+  const garantieNonDeclaree = lignes.some((l) => l.garantie && dansLExercice(l)) && garantieAppelee === null;
+  const garantieNonAppelee =
+    garantieAppelee === false ? centimes(lignes.filter((l) => l.garantie && dansLExercice(l)).reduce((s, l) => s + l.capital, 0)) : 0;
   const loyers = centimes(loyersEchus.reduce((s, l) => s + l.paiement, 0));
   const capital = centimes(loyersEchus.reduce((s, l) => s + l.capital, 0));
   // Les intérêts sont le reste du loyer, pour que 17 + 672 rende exactement le 623.
@@ -74,7 +92,9 @@ export function ventilerExercice(
   const passees = lignes.filter((l) => jour(l.date) <= fin);
   const derniere = passees[passees.length - 1];
   // Une option NON LEVÉE ne sera jamais payée · rien ne court vers elle.
-  const suivante = lignes.find((l) => jour(l.date) > fin && !(l.option && optionLevee === false));
+  const suivante = lignes.find(
+    (l) => jour(l.date) > fin && !(l.option && optionLevee === false) && !(l.garantie && garantieAppelee === false),
+  );
   let interetsCourus = 0;
   if (suivante) {
     const depuis = derniere ? jour(derniere.date) : jour(datePriseEffet);
@@ -87,5 +107,14 @@ export function ventilerExercice(
       interetsCourus = centimes(restant * (Math.pow(1 + tauxPeriodique, fraction) - 1));
     }
   }
-  return { loyers, capital, interets, interetsCourus, rangs: loyersEchus.map((l) => l.rang), optionNonDeclaree };
+  return {
+    loyers,
+    capital,
+    interets,
+    interetsCourus,
+    rangs: loyersEchus.map((l) => l.rang),
+    optionNonDeclaree,
+    garantieNonDeclaree,
+    garantieNonAppelee,
+  };
 }

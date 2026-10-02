@@ -50,12 +50,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
+| A4 | Lot 15 · petits manques de faible valeur (rente viagère et redevances, réserve de propriété, matériel récupéré, six critères de la R&D, démantèlement, compléments du crédit-bail) | livré, à intégrer |
 
 ## À faire, dans l'ordre
 
 | # | Objet | Préalable |
 |---|---|---|
-| A4 | Lot 15 · petits manques de faible valeur | lot 14 vérifié (F21) |
 | A5 | Pertes de change · la provision (194, 4991, 4997) reprise et ajustée à chaque réévaluation des devises, jamais empilée (AUDCIF art. 54, Titre VIII ch. 22 § 2.3) · relevé CPCC C1 | décision de Manasse du 2026-10-02 |
 | A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | décision de Manasse du 2026-10-02 |
 | A7 | Dépréciation des créances dossier par dossier · 411 vers 416, D 659 / C 491, motif et pièces (AUDCIF Titre VII, comptes 41 et 49) · relevé CPCC C3 | décision de Manasse du 2026-10-02 |

@@ -16,6 +16,12 @@ import { ChampReglePar } from '../components/ChampReglePar';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
 import { CoutsEmpruntIncorpores } from '../components/CoutsEmpruntIncorpores';
+import { AcquisitionPrixAleatoire, SoldeDetteAleatoire } from '../components/AcquisitionPrixAleatoire';
+import { ReserveProprieteBien, BiensSousReserveDePropriete } from '../components/ReserveProprieteImmobilisations';
+import { ChampsMaterielRecupere } from '../components/MaterielRecupere';
+import { CriteresFraisDeveloppement } from '../components/CriteresFraisDeveloppement';
+import { corpsCriteres, criteresVides } from '../lib/criteres-frais-developpement';
+import { ParametresDemantelement, ProvisionDemantelement } from '../components/Demantelement';
 import { ReevaluationImmobilisations } from '../components/ReevaluationImmobilisations';
 import { PlafondRepriseDepreciation } from '../components/PlafondRepriseDepreciation';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
@@ -246,6 +252,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [basculeOuvertePour, setBasculeOuvertePour] = useState<string | null>(null);
   const [revisionPlanOuvertePour, setRevisionPlanOuvertePour] = useState<string | null>(null);
   const [coutsEmpruntOuvertsPour, setCoutsEmpruntOuvertsPour] = useState<string | null>(null);
+  // Lot 15 · solde d'une dette aléatoire, réserve de propriété, matériel récupéré.
+  const [soldeDetteOuvertPour, setSoldeDetteOuvertPour] = useState<string | null>(null);
+  const [reserveOuvertePour, setReserveOuvertePour] = useState<string | null>(null);
+  const [iReserve, setIReserve] = useState(false);
+  const [sValeurRecuperee, setSValeurRecuperee] = useState('');
+  const [sCompteStock, setSCompteStock] = useState('');
+  const [sSourceRecuperee, setSSourceRecuperee] = useState('');
+  // Lot 15 · six critères des frais de développement (211, SYSCOHADA) et
+  // provision pour démantèlement d'un composant (AUDCIF Titre VIII ch. 1 et 6).
+  const [iCriteresRd, setICriteresRd] = useState(criteresVides);
+  const [iDateCriteresRd, setIDateCriteresRd] = useState('');
+  const [iCoutFuturDem, setICoutFuturDem] = useState('');
+  const [iTauxDem, setITauxDem] = useState('');
+  const [provisionDemOuvertePour, setProvisionDemOuvertePour] = useState<string | null>(null);
   // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
   // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
   // choix n'y est pas proposé, et le serveur le refuse aussi.
@@ -302,6 +322,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [rcDate, setRcDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rcMotif, setRcMotif] = useState('');
   const [rcCompte29, setRcCompte29] = useState('');
+  // Lot 15 · un virement vers le 211 (SYSCOHADA) exige les six critères,
+  // comme la création · le serveur le refuse sinon.
+  const [rcCriteresRd, setRcCriteresRd] = useState(criteresVides);
+  const [rcDateCriteresRd, setRcDateCriteresRd] = useState('');
 
   const [renouvellementOuvertPour, setRenouvellementOuvertPour] = useState<string | null>(null);
   const [remplacementOuvertPour, setRemplacementOuvertPour] = useState<string | null>(null);
@@ -397,6 +421,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
   const incorporelSyscohada = syscohada && !!compteBien?.numero.startsWith('21');
   const fondsCommercial = incorporelSyscohada && !!compteBien?.numero.startsWith('215');
+  // Le 211 du SYSCOHADA, seul soumis aux six critères · le SYCEBNL n'en ouvre pas.
+  const fraisDeveloppement = syscohada && !!compteBien?.numero.startsWith('211');
   // UN SOUS-COMPTE « LOCATION-ACQUISITION » NE S'OUVRE QUE PAR UN CONTRAT
   // (AUDCIF Titre VIII ch. 8 § 2.1.7) · ni achat, ni reprise, ni composant ;
   // la valeur du bien est la dette que le serveur calcule.
@@ -506,11 +532,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         amortissementAnterieur: iRepris ? Number(iAmortissementAnterieur || 0) : 0,
         repris: iRepris || undefined,
         compteContrepartieId: iRepris ? undefined : iCompteContrepartie,
+        // Cochée, la clause est déclarée ; décochée, le serveur la déduit d'une dette au 4816.
+        ...(iReserve ? { reserveDePropriete: true } : {}),
         exerciceId: exerciceCourant?.id,
         journalId: iRepris ? undefined : iJournalId,
         immobilisationPrincipaleId: estComposant && iPrincipal ? iPrincipal : undefined,
         typeComposant: estComposant && iPrincipal ? iTypeComposant : undefined,
         justificationDecomposition: estComposant && iPrincipal ? iJustification : undefined,
+        ...(fraisDeveloppement && !iRepris ? corpsCriteres(iCriteresRd, iDateCriteresRd) : {}),
+        ...(estComposant && iPrincipal && iTypeComposant === 'DEMANTELEMENT'
+          ? {
+              ...(iCoutFuturDem ? { coutFuturDemantelement: Number(iCoutFuturDem) } : {}),
+              ...(iTauxDem ? { tauxActualisationDemantelementPourcent: Number(iTauxDem) } : {}),
+            }
+          : {}),
       });
       setIDesignation('');
       setIPrincipal('');
@@ -520,6 +555,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       setIValeurOrigine('');
       setIValeurResiduelle('0');
       setIRepris(false);
+      setIReserve(false);
       setIAmortissementAnterieur('0');
       setIDuree('');
       setIMode('LINEAIRE');
@@ -530,6 +566,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       setEstComposant(false);
       setIUnites('');
       setIUniteLibelle('');
+      setICriteresRd(criteresVides());
+      setIDateCriteresRd('');
+      setICoutFuturDem('');
+      setITauxDem('');
       setAfficherFormImmo(false);
       await charger();
     } catch (err) {
@@ -598,9 +638,14 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         compteContrepartieId: sType === 'CESSION' ? sCompteContrepartie : undefined,
         ...(sType === 'CESSION' && syscohada ? { cessionCourante: sCessionCourante } : {}),
         ...(projetDeveloppement ? { compteFondsProjetId: sCompteFonds } : {}),
+        ...(sType === 'MISE_HORS_SERVICE' && Number(sValeurRecuperee) > 0
+          ? { valeurMaterielRecupere: Number(sValeurRecuperee), compteStockRecupereId: sCompteStock, sourceMaterielRecupere: sSourceRecuperee }
+          : {}),
       });
       setSortieOuvertePour(null);
       setSPrixCession('');
+      setSValeurRecuperee('');
+      setSSourceRecuperee('');
       setInfo('Sortie enregistrée.');
       await charger();
     } catch (err) {
@@ -642,6 +687,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     }
   };
 
+  /** Le virement fait entrer le bien au 211 du SYSCOHADA · il n'y était pas. */
+  const versFraisDeveloppement = (immoId: string) => {
+    const destination = (familles ?? []).find((f) => f.id === rcFamille)?.compteImmobilisation?.numero ?? '';
+    const avant = (immobilisations ?? []).find((i) => i.id === immoId)?.compteImmobilisation?.numero ?? '';
+    return syscohada && destination.startsWith('211') && !avant.startsWith('211');
+  };
+
   const onReclasser = async (e: FormEvent, immoId: string) => {
     e.preventDefault();
     if (!exerciceCourant) return;
@@ -656,10 +708,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         journalId: od?.id ?? journaux[0]?.id,
         motif: rcMotif,
         ...(rcCompte29 ? { nouveauCompteDepreciationId: rcCompte29 } : {}),
+        ...(versFraisDeveloppement(immoId) ? corpsCriteres(rcCriteresRd, rcDateCriteresRd) : {}),
       });
       setReclassementOuvertPour(null);
       setRcMotif('');
       setRcCompte29('');
+      setRcCriteresRd(criteresVides());
+      setRcDateCriteresRd('');
       setInfo(
         'Bien reclassé · la valeur d’origine, l’amortissement cumulé et la dépréciation ont été virés tels ' +
           'quels. Aucun montant n’a été recalculé, la valeur comptable nette est inchangée.',
@@ -1223,6 +1278,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   )}
                 </div>
               )}
+              {fraisDeveloppement && !enLA && !iRepris && (
+                <CriteresFraisDeveloppement
+                  saisie={iCriteresRd}
+                  dateReunion={iDateCriteresRd}
+                  onChange={(saisie, date) => {
+                    setICriteresRd(saisie);
+                    setIDateCriteresRd(date);
+                  }}
+                />
+              )}
               {!enLA && (
               <>
               {unitesServies && (
@@ -1254,6 +1319,15 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   </label>
                 </>
               )}
+              <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5 self-end pb-1.5">
+                <input type="checkbox" checked={iReserve} onChange={(e) => setIReserve(e.target.checked)} />
+                Réserve de propriété
+                <Aide
+                  titre="Réserve de propriété"
+                  texte="Le bien acheté sous clause de réserve de propriété entre à l'actif comme si l'entité en était propriétaire, et s'amortit comme tel. La clause est une information · son montant est indiqué aux Notes annexes jusqu'au règlement final. Une dette au compte Réserve de propriété (4816) la pose d'office."
+                  source={syscohada ? 'AUDCIF, Titre VIII ch. 9' : 'SYCEBNL, cadre conceptuel § 3.3.1.1.6'}
+                />
+              </label>
               </>
               )}
               {!enLA && (
@@ -1403,6 +1477,18 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
                     />
                   </label>
+                  {iTypeComposant === 'DEMANTELEMENT' && (
+                    <ParametresDemantelement
+                      coutFutur={iCoutFuturDem}
+                      tauxPourcent={iTauxDem}
+                      annees={iDuree}
+                      onChange={(cout, taux) => {
+                        setICoutFuturDem(cout);
+                        setITauxDem(taux);
+                      }}
+                      onValeurProposee={(v) => setIValeurOrigine(String(v))}
+                    />
+                  )}
                 </>
               )}
               </>
@@ -1589,6 +1675,33 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                             Coûts d'emprunt
                           </button>
                         )}
+                        {peutEcrire && immo.typeComposant === 'DEMANTELEMENT' && (
+                          <button
+                            onClick={() => setProvisionDemOuvertePour(provisionDemOuvertePour === immo.id ? null : immo.id)}
+                            title="Désactualiser ou reprendre la provision pour démantèlement"
+                            className="text-[11px] text-sel hover:underline"
+                          >
+                            Provision
+                          </button>
+                        )}
+                        {peutEcrire && syscohada && immo.natureAcquisitionAleatoire && !immo.ecritureSoldeDetteAleatoireId && (
+                          <button
+                            onClick={() => setSoldeDetteOuvertPour(soldeDetteOuvertPour === immo.id ? null : immo.id)}
+                            title={immo.natureAcquisitionAleatoire === 'RENTE_VIAGERE' ? 'Éteindre la rente au décès du crédirentier' : "Constater l'écart entre les redevances versées et le montant estimé"}
+                            className="text-[11px] text-sel hover:underline"
+                          >
+                            Solder la dette
+                          </button>
+                        )}
+                        {peutEcrire && immo.statut === 'EN_SERVICE' && (
+                          <button
+                            onClick={() => setReserveOuvertePour(reserveOuvertePour === immo.id ? null : immo.id)}
+                            title="Déclarer la clause de réserve de propriété, ou la date du règlement final"
+                            className="text-[11px] text-sel hover:underline"
+                          >
+                            Réserve de propriété
+                          </button>
+                        )}
                         {peutEcrire && !immo.immobilisationPrincipaleId && immo.statut === 'EN_SERVICE' && (
                           <button
                             onClick={() => setRemplacementOuvertPour(remplacementOuvertPour === immo.id ? null : immo.id)}
@@ -1735,6 +1848,18 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           </span>
                         </label>
                       )}
+                      {versFraisDeveloppement(immo.id) && (
+                        <div className="sm:col-span-2 grid grid-cols-3 gap-3">
+                          <CriteresFraisDeveloppement
+                            saisie={rcCriteresRd}
+                            dateReunion={rcDateCriteresRd}
+                            onChange={(saisie, date) => {
+                              setRcCriteresRd(saisie);
+                              setRcDateCriteresRd(date);
+                            }}
+                          />
+                        </div>
+                      )}
                       {/* Le libellé reste un intitulé métier · la raison de
                           l'obligation, avec ses paragraphes, est une aide posée
                           sous le champ, hors du libellé (titres formels). */}
@@ -1786,6 +1911,31 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     }}
                   />
                 )}
+                {soldeDetteOuvertPour === immo.id && (
+                  <SoldeDetteAleatoire
+                    bien={immo}
+                    exerciceId={exerciceCourant?.id ?? null}
+                    journaux={journaux}
+                    onFermer={() => setSoldeDetteOuvertPour(null)}
+                    onFait={(message) => {
+                      setSoldeDetteOuvertPour(null);
+                      setInfo(message);
+                      void charger();
+                    }}
+                  />
+                )}
+                {reserveOuvertePour === immo.id && (
+                  <ReserveProprieteBien
+                    bien={immo}
+                    syscohada={syscohada}
+                    onFermer={() => setReserveOuvertePour(null)}
+                    onFait={(message) => {
+                      setReserveOuvertePour(null);
+                      setInfo(message);
+                      void charger();
+                    }}
+                  />
+                )}
                 {coutsEmpruntOuvertsPour === immo.id && (
                   <CoutsEmpruntIncorpores
                     bien={immo}
@@ -1795,6 +1945,19 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     onFermer={() => setCoutsEmpruntOuvertsPour(null)}
                     onFait={(message) => {
                       setCoutsEmpruntOuvertsPour(null);
+                      setInfo(message);
+                      void charger();
+                    }}
+                  />
+                )}
+                {provisionDemOuvertePour === immo.id && (
+                  <ProvisionDemantelement
+                    bien={immo}
+                    exerciceId={exerciceCourant?.id ?? null}
+                    journaux={journaux}
+                    onFermer={() => setProvisionDemOuvertePour(null)}
+                    onFait={(message) => {
+                      setProvisionDemOuvertePour(null);
                       setInfo(message);
                       void charger();
                     }}
@@ -2042,6 +2205,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           )}
                         </label>
                       )}
+                      {/* La division (22 à 24) est celle du compte INSCRIT comme du
+                          définitif · le 2x9 d'un bien en cours est rangé dans la
+                          division de son compte définitif ; le serveur relit le
+                          compte inscrit à la date de sortie. */}
+                      {sType === 'MISE_HORS_SERVICE' && !projetDeveloppement && /^2[2-4]/.test(immo.compteImmobilisation?.numero ?? '') && (
+                        <ChampsMaterielRecupere
+                          valeur={sValeurRecuperee}
+                          setValeur={setSValeurRecuperee}
+                          compte={sCompteStock}
+                          setCompte={setSCompteStock}
+                          source={sSourceRecuperee}
+                          setSource={setSSourceRecuperee}
+                        />
+                      )}
                       {sType === 'CESSION' && (
                         <>
                           <label className="text-[11.5px] font-semibold text-text-dim">
@@ -2158,6 +2335,19 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
               onCree={() => void charger()}
             />
             <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
+            {/* Lot 15 · l'acquisition à prix aléatoire CRÉE un bien (comme le prix
+                global), et la liste des biens sous réserve de propriété porte sur
+                tout le parc · ni l'une ni l'autre ne vise un bien de la liste. */}
+            {syscohada && (
+              <AcquisitionPrixAleatoire
+                exerciceId={exerciceCourant?.id}
+                journaux={journaux}
+                comptesBien={comptesBien}
+                comptes={comptesFinancement}
+                onCree={() => void charger()}
+              />
+            )}
+            <BiensSousReserveDePropriete exerciceId={exerciceCourant?.id} syscohada={syscohada} />
             {/* Lot 14 · la réévaluation porte sur TOUT le parc (art. 62), jamais sur un bien · rangée parmi les opérations. */}
             <ReevaluationImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} onFait={() => void charger()} />
           </div>

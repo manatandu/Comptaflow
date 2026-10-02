@@ -788,6 +788,7 @@ model Tenant {
   reevaluationsBilan          ReevaluationBilan[]
   lignesReevaluationBilan     LigneReevaluationBilan[]
   reprisesProvisionReeval     RepriseProvisionReevaluation[]
+  mouvementsDemantelement     MouvementDemantelement[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1423,6 +1424,7 @@ model Exercice {
   coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
   reevaluationsBilan          ReevaluationBilan[]
   reprisesProvisionReeval     RepriseProvisionReevaluation[]
+  mouvementsDemantelement     MouvementDemantelement[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1504,6 +1506,7 @@ model Ecriture {
   coutEmpruntIncorpore        CoutEmpruntIncorpore?
   reevaluationBilan           ReevaluationBilan?
   repriseProvisionReeval      RepriseProvisionReevaluation?
+  mouvementDemantelement      MouvementDemantelement?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -1661,6 +1664,7 @@ model Ecriture {
   immobilisationSortie         Immobilisation?             @relation("ImmoEcritureSortie")
   immobilisationProduitCession Immobilisation?             @relation("ImmoEcritureProduitCession")
   immobilisationMiseEnService  Immobilisation?             @relation("ImmoEcritureMiseEnService")
+  immobilisationSoldeDette     Immobilisation?             @relation("ImmoEcritureSoldeDette")
   dotationAmortissement        DotationAmortissement?
   depreciationImmobilisation   DepreciationImmobilisation? @relation("DepreciationEcriture")
 
@@ -3747,7 +3751,7 @@ model Immobilisation {
   /// sans unité ne se vérifie pas.
   uniteOeuvreLibelle String?
 
-  consommationsUniteOeuvre     ConsommationUniteOeuvre[]
+  consommationsUniteOeuvre               ConsommationUniteOeuvre[]
   /// Amortissement déjà pratiqué AVANT l'entrée du bien dans le logiciel.
   ///
   /// Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
@@ -3758,49 +3762,60 @@ model Immobilisation {
   /// repris par le bilan d'ouverture.
   ///
   /// Zéro par défaut, ce qui est juste pour un bien acquis dans le logiciel.
-  amortissementAnterieur       Decimal                     @default(0) @db.Decimal(18, 2)
+  amortissementAnterieur                 Decimal                     @default(0) @db.Decimal(18, 2)
   // Lot 8 · ce qui est parti avec une partie détachée de la structure
   // (composant non identifié à l'origine, AUDCIF Titre VIII ch. 4 § 4.2).
   // Retranché de tout cumul par `amortissementsHorsDotations`.
-  amortissementsDetaches       Decimal                     @default(0) @db.Decimal(18, 2)
+  amortissementsDetaches                 Decimal                     @default(0) @db.Decimal(18, 2)
   // Lot 8 · la modalité de ventilation d'un prix global, pour les Notes
   // annexes (AUDCIF art. 38, dernier alinéa). Nulle pour un bien à son coût.
-  modaliteVentilation          String?
+  modaliteVentilation                    String?
   // Lot 8 · une partie détachée porte la voie d'estimation du § 3.1.2 et sa
   // source · nulles pour tout autre bien.
-  methodeEstimationPartie      MethodeEstimationPartie?
-  sourceEstimationPartie       String?
+  methodeEstimationPartie                MethodeEstimationPartie?
+  sourceEstimationPartie                 String?
   // Lot 10 · incorporel à durée d'utilité non limitée, non amorti (AUDCIF
   // Titre VIII ch. 2 § 4.2.2, § 7.2.2.1 ; SYSCOHADA seul, décisions D-22,
   // D-23). La bascule vers une durée limitée est prospective · le plan part
   // de `dateDebutAmortissement`, jamais de la mise en service.
-  dureeNonLimitee              Boolean                     @default(false)
-  justificationDureeNonLimitee String?
-  dateDebutAmortissement       DateTime?
-  motifDureeLimitee            String?
-  testDepreciationBascule      String?
+  dureeNonLimitee                        Boolean                     @default(false)
+  justificationDureeNonLimitee           String?
+  dateDebutAmortissement                 DateTime?
+  motifDureeLimitee                      String?
+  testDepreciationBascule                String?
   // Lot 10 · fonds commercial amorti dix ans, seulement dans les deux cas du
   // § 7.2.2.1 · null pour tout autre bien.
-  fondementDureeDixAns         FondementDureeDixAns?
+  fondementDureeDixAns                   FondementDureeDixAns?
   // Lot 11 · révision PROSPECTIVE du plan (changement d'estimation, cadre
   // conceptuel § 3.3.1.2 du SYCEBNL et Titre V de l'AUDCIF) · à compter de
   // l'ouverture de l'exercice de la décision, le reliquat se répartit sur la
   // durée résiduelle révisée. Nuls tant qu'aucune révision n'a pris effet.
-  dateEffetRevisionPlan        DateTime?
-  dureeResiduelleRevisee       Int?
+  dateEffetRevisionPlan                  DateTime?
+  dureeResiduelleRevisee                 Int?
   // Lot 11 · ce que la révision RÉTROACTIVE a repris au 798 (fiche du compte
   // 79 de l'AUDCIF, « cas exceptionnel ») · retranché de tout cumul par
   // `amortissementsHorsDotations`.
-  reprisesAmortissement        Decimal                     @default(0) @db.Decimal(18, 2)
-  revisionsPlan                RevisionPlanAmortissement[]
-  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
+  reprisesAmortissement                  Decimal                     @default(0) @db.Decimal(18, 2)
+  revisionsPlan                          RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores                 CoutEmpruntIncorpore[]
   // Lot 14 · ce que la réévaluation a changé au cumul des amortissements
   // (AUDCIF Titre VIII ch. 28) · positif, la hausse portée au 28 (légale et
   // méthode 1 · « il en sera de même du cumul des amortissements ») ; négatif,
   // le cumul éliminé (méthode 2). Ajouté par `amortissementsHorsDotations`,
   // seul calcul du cumul hors dotations.
-  amortissementsReevaluation   Decimal                     @default(0) @db.Decimal(18, 2)
-  lignesReevaluation           LigneReevaluationBilan[]
+  amortissementsReevaluation             Decimal                     @default(0) @db.Decimal(18, 2)
+  lignesReevaluation                     LigneReevaluationBilan[]
+  // Lot 15 · les six critères des frais de développement (211, SYSCOHADA),
+  // une justification écrite par critère, et la date de leur réunion (AUDCIF
+  // Titre VIII ch. 1 § 2.1.1 et § 3.1). Nuls pour tout autre bien.
+  criteresFraisDeveloppement             Json?
+  dateReunionCriteresDeveloppement       DateTime?
+  // Lot 15 · composant démantèlement (AUDCIF Titre VIII ch. 6 § 2.3) · coût
+  // attendu au terme et taux d'actualisation déclarés, lus par la
+  // désactualisation annuelle. Nuls si la provision n'est pas actualisée.
+  coutFuturDemantelement                 Decimal?                    @db.Decimal(18, 2)
+  tauxActualisationDemantelementPourcent Decimal?                    @db.Decimal(9, 4)
+  mouvementsDemantelement                MouvementDemantelement[]
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -3814,18 +3829,58 @@ model Immobilisation {
   // porté par le bilan d'ouverture, et une écriture le doublerait (audit
   // final F32). RESTRICT déclaré · sur une relation facultative Prisma
   // poserait SET NULL, et l'écriture partirait sans que la fiche le dise.
-  ecritureAcquisitionId    String?                      @unique
-  ecritureAcquisition      Ecriture?                    @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id], onDelete: Restrict)
+  ecritureAcquisitionId    String?   @unique
+  ecritureAcquisition      Ecriture? @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id], onDelete: Restrict)
   // Écriture de sortie (solde des comptes 2/28, VCN sur 81) · null tant que
   // le bien est EN_SERVICE.
-  ecritureSortieId         String?                      @unique
-  ecritureSortie           Ecriture?                    @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id], onDelete: SetNull)
+  ecritureSortieId         String?   @unique
+  ecritureSortie           Ecriture? @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id], onDelete: SetNull)
   /// L'écriture du produit de cession (audit final F130) · RETENUE, comme
   /// celle d'acquisition · supprimée depuis le journal, elle laissait la fiche
   /// porter un prix de cession qu'aucune écriture ne justifiait plus.
-  ecritureProduitCessionId String?                      @unique
-  ecritureProduitCession   Ecriture?                    @relation("ImmoEcritureProduitCession", fields: [ecritureProduitCessionId], references: [id], onDelete: Restrict)
-  reclassements            ReclassementImmobilisation[]
+  ecritureProduitCessionId String?   @unique
+  ecritureProduitCession   Ecriture? @relation("ImmoEcritureProduitCession", fields: [ecritureProduitCessionId], references: [id], onDelete: Restrict)
+
+  // LOT 15 · ACQUISITION À PRIX ALÉATOIRE (SYSCOHADA seul) · rente viagère
+  // (AUDCIF Titre VIII ch. 11 § 2, dette au 1681) ou redevances sur chiffre
+  // d'affaires (ch. 2 § 11, dette au 4811). La valeur d'entrée et son
+  // fondement se déclarent (« stipulation de prix ou, à défaut, estimation » ;
+  // « valeur actualisée des redevances probables » ou « valeur retenue pour
+  // les droits d'enregistrement »), la dette capitalisée est gardée pour que
+  // son solde (décès du crédirentier, écart des redevances) se calcule sur
+  // elle et non sur un compte que d'autres dettes partagent. Nuls pour tout
+  // autre bien.
+  natureAcquisitionAleatoire    NatureAcquisitionAleatoire?
+  fondementValeurAleatoire      FondementValeurAleatoire?
+  sourceValeurAleatoire         String?
+  detteAleatoireInitiale        Decimal?                    @db.Decimal(18, 2)
+  // Le solde de la dette · versements cumulés DÉCLARÉS avec leur source, et
+  // l'écriture au 841 ou au 831, RETENUE comme celle d'acquisition · retirée
+  // seule, la fiche se dirait soldée sans l'écriture qui l'a fait, et un
+  // second solde passerait la même extinction deux fois.
+  versementsDetteAleatoire      Decimal?                    @db.Decimal(18, 2)
+  sourceVersementsDette         String?
+  dateSoldeDetteAleatoire       DateTime?
+  ecritureSoldeDetteAleatoireId String?                     @unique
+  ecritureSoldeDetteAleatoire   Ecriture?                   @relation("ImmoEcritureSoldeDette", fields: [ecritureSoldeDetteAleatoireId], references: [id], onDelete: Restrict)
+
+  // LOT 15 · RÉSERVE DE PROPRIÉTÉ, une INFORMATION de fiche. Le bien entre à
+  // l'actif comme si l'entité en était propriétaire (AUDCIF Titre VIII ch. 9,
+  // « l'achat-vente est enregistré comme une vente ordinaire et en produit
+  // tous les effets » ; SYCEBNL, cadre conceptuel § 3.3.1.1.6) · la clause ne
+  // change ni le compte, ni le plan, ni la sortie. Elle se garde pour les
+  // Notes annexes (ch. 9 § 3, montant des immobilisations frappées de R/P)
+  // jusqu'au règlement final, dont la date se déclare.
+  reserveDePropriete      Boolean   @default(false)
+  reserveProprieteLeveeLe DateTime?
+
+  // LOT 15 · MATÉRIEL RÉCUPÉRÉ à la mise hors service, repris en stock au
+  // 388 (SYSCOHADA) ou au 378 (SYCEBNL) par le crédit du compte du bien
+  // (fiche du compte 38 de l'AUDCIF, fiche du compte 37 du SYCEBNL ; AUDCIF
+  // Titre VIII ch. 14 § 2.8) · la valeur retenue et sa source, déclarées.
+  valeurMaterielRecupere Decimal?                     @db.Decimal(18, 2)
+  sourceMaterielRecupere String?
+  reclassements          ReclassementImmobilisation[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -4059,6 +4114,25 @@ model RevisionPlanAmortissement {
   @@index([immobilisationId])
   @@index([exerciceId])
   @@map("revisions_plans_amortissement")
+}
+
+/// LOT 15 · la nature d'une acquisition à prix aléatoire (AUDCIF Titre VIII
+/// ch. 11 § 2 pour la rente viagère, ch. 2 § 11 pour les redevances).
+enum NatureAcquisitionAleatoire {
+  RENTE_VIAGERE
+  REDEVANCES
+}
+
+/// LOT 15 · d'où vient la valeur d'entrée d'un bien à prix aléatoire. Rente
+/// viagère · « le montant qui résulte d'une stipulation de prix ou, à défaut,
+/// d'une estimation » (ch. 11 § 2.2). Redevances · « la valeur actualisée des
+/// redevances probables » ou « la valeur retenue par les parties pour le
+/// paiement des droits d'enregistrement » (ch. 2 § 11).
+enum FondementValeurAleatoire {
+  PRIX_STIPULE
+  ESTIMATION_VALEUR_ACTUELLE
+  REDEVANCES_ACTUALISEES
+  VALEUR_DROITS_ENREGISTREMENT
 }
 
 enum FondementDureeDixAns {
@@ -8247,6 +8321,19 @@ model ContratLocationAcquisition {
   tauxPeriodique Decimal  @db.Decimal(18, 14)
   dette          Decimal  @db.Decimal(18, 2)
 
+  /// Lot 15 · § 2.1.2, « les montants que le preneur s'attend à payer au
+  /// titre d'une garantie de valeur résiduelle » · un paiement de fin de
+  /// contrat dans la dette. Zéro sans garantie. `garantieAppelee` · null tant
+  /// que rien n'est déclaré à l'échéance, jamais présumé.
+  garantieValeurResiduelle Decimal  @default(0) @db.Decimal(18, 2)
+  garantieAppelee          Boolean?
+  /// Lot 15 · § 2.1.2, loyers « qui dépendent d'un indice ou d'un taux »,
+  /// évalués à l'entrée « en retenant l'indice ou le taux en vigueur au
+  /// commencement du contrat » · l'indice et sa valeur à cette date, déclarés.
+  loyerIndexe              Boolean  @default(false)
+  indiceLoyer              String?
+  valeurIndiceCommencement Decimal? @db.Decimal(18, 6)
+
   /// § 2.1.5 · ajoutés et retranchés à la dette pour faire la valeur du bien.
   coutsDirects   Decimal @default(0) @db.Decimal(18, 2)
   avantagesRecus Decimal @default(0) @db.Decimal(18, 2)
@@ -8611,4 +8698,59 @@ model RepriseProvisionReevaluation {
 
   @@unique([tenantId, exerciceId])
   @@map("reprises_provision_reevaluation")
+}
+
+/// LOT 15 · LA PROVISION POUR DÉMANTÈLEMENT APRÈS L'ENTRÉE DU COMPOSANT ·
+/// AUDCIF Titre VIII ch. 6. Deux mouvements, chacun avec son écriture ·
+/// la DÉSACTUALISATION de l'exercice (« chaque année, la "désactualisation"
+/// de la provision doit être enregistrée en charges financières », § 2.3 ;
+/// D 6971 / C 1984 dans l'exemple), et la REPRISE quand l'obligation
+/// s'éteint (§ 4.1 engagement des coûts, § 4.2 cession du sous-jacent ·
+/// D 1984 / C 7911 pour la quote-part intégrée au coût, C 7971 pour la
+/// désactualisation). Une désactualisation par composant et par exercice,
+/// une reprise par composant (index unique, et refus nommé avant).
+model MouvementDemantelement {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Le composant démantèlement. RESTRICT déclaré · sans lui, la provision
+  /// mouvementée ne se rattacherait plus à rien.
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  exerciceId       String
+  exercice         Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  nature              NatureMouvementDemantelement
+  date                DateTime                     @db.Date
+  /// Désactualisation · le montant passé au 6971. Reprise · le total repris du 1984.
+  montant             Decimal                      @db.Decimal(18, 2)
+  /// Reprise seule · la quote-part intégrée au coût (7911) et celle de la désactualisation (7971).
+  repriseExploitation Decimal?                     @db.Decimal(18, 2)
+  repriseFinanciere   Decimal?                     @db.Decimal(18, 2)
+  motifReprise        MotifRepriseDemantelement?
+
+  /// RESTRICT déclaré · retirée seule, la provision suivante serait calculée
+  /// sur un 1984 qui n'a pas bougé.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([immobilisationId, exerciceId, nature])
+  @@index([tenantId])
+  @@index([exerciceId])
+  @@map("mouvements_demantelement")
+}
+
+enum NatureMouvementDemantelement {
+  DESACTUALISATION
+  REPRISE
+}
+
+/// § 4.1 · engagement effectif des coûts ; § 4.2 · cession du sous-jacent.
+enum MotifRepriseDemantelement {
+  ENGAGEMENT_COUTS
+  CESSION_SOUS_JACENT
 }

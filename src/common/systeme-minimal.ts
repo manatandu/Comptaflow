@@ -60,3 +60,22 @@ export function motifRefusAmortissementNonLineaireSmt(t: RegimeDossier, objet: s
     "immobilisation doit faire l'objet d'un tableau d'amortissement basé sur le mode linéaire sans prorata temporis »."
   );
 }
+
+/**
+ * LA PROVISION POUR DÉMANTÈLEMENT (lot 15) · le composant entré par le crédit
+ * du 1984 et la désactualisation annuelle (D 6971 / C 1984) CRÉENT une
+ * provision pour risques et charges et sa dotation. Aucun des deux modèles du
+ * SMT n'a de poste pour le 19 (même lecture que le contrôle
+ * `SMT_COMPTE_SANS_POSTE`, qui demande de contre-passer ces écritures), et la
+ * dotation serait publiée sous la seule charge calculée du modèle,
+ * l'amortissement. Refusé aux DEUX SMT, comme la dépréciation · la REPRISE
+ * d'une provision née sous le Système normal reste ouverte (elle solde).
+ */
+export function motifRefusProvisionSmt(t: RegimeDossier): string | null {
+  if (!estSystemeMinimal(t)) return null;
+  return (
+    "Ce dossier tient le Système minimal de trésorerie : son modèle d'états n'ouvre aucun poste de provision pour " +
+    `risques et charges (19), et la seule charge calculée qu'il présente est l'amortissement (${sourceModele(t.referentiel)}). ` +
+    'Une provision pour démantèlement y serait publiée sous un poste qui n’est pas le sien.'
+  );
+}

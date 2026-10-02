@@ -23,6 +23,13 @@ interface ContratListe {
   /** null tant que le cabinet n'a rien déclaré. */
   optionLevee: boolean | null;
   dateOption: string | null;
+  /** Lot 15 · garantie de valeur résiduelle (§ 2.1.2), null tant que son appel n'est pas déclaré. */
+  garantieValeurResiduelle?: number;
+  garantieAppelee?: boolean | null;
+  dateGarantie?: string | null;
+  loyerIndexe?: boolean;
+  indiceLoyer?: string | null;
+  valeurIndiceCommencement?: number | null;
 }
 interface Proposition {
   comptes: { dette: string; interetsCourus: string; interets: string; redevances: string };
@@ -30,6 +37,8 @@ interface Proposition {
   extourne: number;
   disponible623: number;
   refus: string[];
+  /** Lot 15 · ce que le texte ne règle pas, dit sans refuser (garantie non appelée). */
+  avertissements?: string[];
 }
 
 export function ClotureLocationAcquisition({
@@ -110,6 +119,19 @@ export function ClotureLocationAcquisition({
       setEnvoi(false);
     }
   };
+  // Lot 15 · l'appel de la garantie de valeur résiduelle, déclaré une fois.
+  const declarerGarantie = async (id: string, appelee: boolean) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      await api.post(`/immobilisations/location-acquisition/contrats/${id}/garantie`, { appelee });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Déclaration refusée');
+    } finally {
+      setEnvoi(false);
+    }
+  };
   const jourCourt = (d: string) => new Date(d).toISOString().slice(0, 10).split('-').reverse().join('/');
 
   // Un dossier sans contrat ne voit pas le cadre · la liste a été LUE.
@@ -151,6 +173,30 @@ export function ClotureLocationAcquisition({
               )}
               {c.optionLevee === true && 'Option levée'}
               {c.optionLevee === false && 'Option non levée · bien sorti'}
+              {(c.garantieValeurResiduelle ?? 0) > 0 && (
+                <span className="block">
+                  Garantie {montant(c.garantieValeurResiduelle ?? 0)}
+                  {c.dateGarantie ? ` au ${jourCourt(c.dateGarantie)}` : ''}
+                  {c.garantieAppelee === true && ' · appelée'}
+                  {c.garantieAppelee === false && ' · non appelée'}
+                  {c.garantieAppelee == null && peutEcrire && (
+                    <span className="flex gap-1 mt-0.5">
+                      <button type="button" disabled={envoi} onClick={() => void declarerGarantie(c.id, true)} className="border border-border-dark px-1.5 text-[10.5px] font-semibold">
+                        Appelée
+                      </button>
+                      <button type="button" disabled={envoi} onClick={() => void declarerGarantie(c.id, false)} className="border border-border-dark px-1.5 text-[10.5px] font-semibold">
+                        Non appelée
+                      </button>
+                    </span>
+                  )}
+                </span>
+              )}
+              {c.loyerIndexe && c.indiceLoyer && (
+                <span className="block text-text-dim">
+                  Loyer indexé · {c.indiceLoyer}
+                  {c.valeurIndiceCommencement != null ? ` (${c.valeurIndiceCommencement} à la prise d'effet)` : ''}
+                </span>
+              )}
             </span>
             <span className="text-right">
               {!c.cloture && (
@@ -217,6 +263,9 @@ export function ClotureLocationAcquisition({
               </table>
               {proposition.refus.map((r) => (
                 <div key={r} className="text-danger mb-1">{r}</div>
+              ))}
+              {(proposition.avertissements ?? []).map((a) => (
+                <div key={a} className="text-warning mb-1">{a}</div>
               ))}
               <div className="flex gap-2">
                 {peutEcrire && proposition.refus.length === 0 && (

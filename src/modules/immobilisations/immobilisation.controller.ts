@@ -25,14 +25,21 @@ import {
   DureeLimiteeDto,
   ReviserPlanDto,
   IncorporerCoutsEmpruntDto,
+  AcquerirAPrixAleatoireDto,
+  SolderDetteAleatoireDto,
+  ReserveProprieteDto,
 } from './dto/immobilisation.dto';
-import { RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
+import { Referentiel, RoleUtilisateur, StatutImmobilisation, TypeComposant } from '@prisma/client';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // Consultation ouverte aux trois rôles ; gestion (familles, création,
 // dotation, sortie) réservée à ADMIN_CABINET/COMPTABLE · même règle que la
 // saisie d'écritures, dont ce module n'est jamais qu'une façade guidée.
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// ReferentielGuard · seules les routes du lot 15 propres au SYSCOHADA portent
+// `@ReferentielsAutorises` ; les autres restent communes aux deux référentiels.
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('immobilisations')
 export class ImmobilisationController {
   constructor(private readonly immobilisationService: ImmobilisationService) {}
@@ -70,6 +77,24 @@ export class ImmobilisationController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.immobilisationService.coutsEmpruntIncorpores(user.tenantId, exerciceId);
+  }
+
+  /**
+   * LOT 15 · les immobilisations frappées de réserve de propriété à la
+   * clôture, pour les Notes annexes (AUDCIF Titre VIII ch. 9 § 3).
+   */
+  @Get('reserve-de-propriete')
+  async biensSousReserveDePropriete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.immobilisationService.biensSousReserveDePropriete(user.tenantId, exerciceId);
+  }
+
+  /** LOT 15 · le compte du stock provenant d'immobilisations (388 ou 378) et ses comptes de détail. */
+  @Get('materiel-recupere/comptes')
+  async comptesMaterielRecupere(@CurrentUser() user: AuthenticatedUser) {
+    return this.immobilisationService.comptesMaterielRecupere(user.tenantId);
   }
 
   @Get('familles')
@@ -224,6 +249,17 @@ export class ImmobilisationController {
     return this.immobilisationService.acquerirAPrixGlobal(user.tenantId, user.userId, dto);
   }
 
+  /**
+   * LOT 15 · un bien acquis en viager (dette au 1681) ou contre redevances
+   * (dette au 4811) · AUDCIF Titre VIII ch. 11 § 2 et ch. 2 § 11, SYSCOHADA seul.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Post('prix-aleatoire')
+  async acquerirAPrixAleatoire(@CurrentUser() user: AuthenticatedUser, @Body() dto: AcquerirAPrixAleatoireDto) {
+    return this.immobilisationService.acquerirAPrixAleatoire(user.tenantId, user.userId, dto);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerImmobilisationDto) {
@@ -341,6 +377,27 @@ export class ImmobilisationController {
   @Post(':id/duree-limitee')
   async declarerDureeLimitee(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DureeLimiteeDto) {
     return this.immobilisationService.declarerDureeLimitee(user.tenantId, id, dto);
+  }
+
+  /**
+   * LOT 15 · solder la dette d'une acquisition à prix aléatoire · décès du
+   * crédirentier (D 1681 / C 841) ou écart des redevances (831 ou 841).
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Post(':id/solde-dette-aleatoire')
+  async solderDetteAleatoire(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SolderDetteAleatoireDto) {
+    return this.immobilisationService.solderDetteAleatoire(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * LOT 15 · déclarer ou lever la réserve de propriété d'un bien · une
+   * information de fiche (AUDCIF Titre VIII ch. 9), aucune écriture.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Patch(':id/reserve-de-propriete')
+  async declarerReservePropriete(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReserveProprieteDto) {
+    return this.immobilisationService.declarerReservePropriete(user.tenantId, id, dto);
   }
 
   /**

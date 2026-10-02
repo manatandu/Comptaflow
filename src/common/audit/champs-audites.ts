@@ -134,6 +134,7 @@ export const MODELES_AUDITES = new Set<string>([
   // engendrées en masse avec l'opération, n'y entrent pas.
   'ReevaluationBilan',
   'RepriseProvisionReevaluation',
+  'MouvementDemantelement',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

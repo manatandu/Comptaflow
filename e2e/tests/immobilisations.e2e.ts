@@ -1563,3 +1563,121 @@ test('SYSCOHADA · la réévaluation légale porte sur tout le parc, plafonnée 
   await appelApi(page, 'GET', `/immobilisations/reevaluation-bilan/reprise-provision?exerciceId=${suivant.id}`);
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · un immeuble acquis en viager (Application 43) · bouquet, 1681, puis extinction au 841 au décès', async ({ page }) => {
+  // Lot 15 · AUDCIF Titre VIII ch. 11 § 2 · 350 000 000 dont bouquet 110 000 000, 1681 240 000 000 ;
+  // décès après cinq rentes de 20 000 000 · 140 000 000 du 1681 au 841. Réserve de propriété portée par
+  // une dette au 4816 (ch. 9), et matériel récupéré au 388 à la mise hors service (ch. 14 § 2.8).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Viager e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const banque = plan.find((c) => c.numero.startsWith('52'));
+  if (!banque) throw new Error('Aucun compte de banque semé');
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+
+  const immeuble = await appelApi<{ id: string; detteAleatoireInitiale: number }>(page, 'POST', '/immobilisations/prix-aleatoire', {
+    nature: 'RENTE_VIAGERE',
+    compteImmobilisationId: compte('23130000'),
+    designation: 'Immeuble en viager e2e',
+    dateAcquisition: `${annee}-02-01`,
+    valeurOrigine: 350_000_000,
+    dureeAmortissementAns: 30,
+    fondement: 'PRIX_STIPULE',
+    sourceValeur: 'Acte notarié',
+    compteDetteId: compte('16810000'),
+    comptant: 110_000_000,
+    compteComptantId: banque.id,
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  expect(Number(immeuble.detteAleatoireInitiale)).toBe(240_000_000);
+
+  // L'acquisition en viager est une opération (onglet Opérations) ; le solde
+  // porte sur UN bien et reste sur sa ligne, dans l'onglet Biens.
+  await page.goto('/#/immobilisations');
+  await page.getByRole('tab', { name: 'Opérations', exact: true }).click();
+  await expect(page.locator('[data-prix-aleatoire]')).toBeVisible();
+  await page.getByRole('tab', { name: 'Biens', exact: true }).click();
+  // Seul l'immeuble acquis en viager porte le bouton « Solder la dette ».
+  await expect(page.getByRole('tabpanel').getByText('Immeuble en viager e2e')).toBeVisible();
+  await page.getByRole('button', { name: 'Solder la dette' }).click();
+  const formulaire = page.locator('[data-solde-dette]');
+  // Le libellé de la date porte la bulle d'aide · le champ se lit par son type.
+  await formulaire.locator('input[type="date"]').fill(`${annee}-11-15`);
+  await formulaire.getByLabel('Rentes versées depuis la signature').fill('100000000');
+  await formulaire.getByLabel('Source du cumul').fill('Relevés bancaires');
+  await formulaire.getByRole('button', { name: 'Solder la dette' }).click();
+  await expect(page.getByText(/porté au 841 · « Immeuble en viager e2e »/)).toBeVisible();
+  // Le solde ne se passe qu'une fois.
+  await expect(
+    appelApi(page, 'POST', `/immobilisations/${immeuble.id}/solde-dette-aleatoire`, {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      date: `${annee}-11-20`,
+      versementsCumules: 100_000_000,
+      sourceVersements: 'bis',
+    }),
+  ).rejects.toThrow(/400 · .*déjà soldée/);
+
+  // Réserve de propriété · une dette au 4816 la pose d'office.
+  const presse = await appelApi<{ id: string; reserveDePropriete: boolean }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('24110000'),
+    designation: 'Presse sous réserve e2e',
+    dateAcquisition: `${annee}-01-02`,
+    dateMiseEnService: `${annee}-01-02`,
+    valeurOrigine: 12_000_000,
+    dureeAmortissementAns: 5,
+    compteContrepartieId: compte('48160000'),
+    exerciceId: exercice.id,
+    journalId: od.id,
+  });
+  expect(presse.reserveDePropriete).toBe(true);
+  const reserve = await appelApi<{ total: number }>(page, 'GET', `/immobilisations/reserve-de-propriete?exerciceId=${exercice.id}`);
+  expect(Number(reserve.total)).toBeCloseTo(12_000_000, 2);
+
+  // Matériel récupéré · 1 000 000 au 388, le reste de la valeur nette au 812.
+  await appelApi(page, 'POST', `/immobilisations/${presse.id}/sortie`, {
+    dateSortie: `${annee}-06-30`,
+    type: 'MISE_HORS_SERVICE',
+    exerciceId: exercice.id,
+    journalId: od.id,
+    valeurMaterielRecupere: 1_000_000,
+    compteStockRecupereId: compte('38800000'),
+    sourceMaterielRecupere: 'Estimation du ferrailleur',
+  });
+
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  const ligne = (numero: string) => lignes.find((l) => l.numero === numero);
+  expect(Number(ligne('16810000')?.mouvementCredit)).toBeCloseTo(240_000_000, 2);
+  expect(Number(ligne('16810000')?.mouvementDebit)).toBeCloseTo(140_000_000, 2);
+  expect(Number(ligne('84100000')?.mouvementCredit)).toBeCloseTo(140_000_000, 2);
+  expect(Number(ligne('38800000')?.mouvementDebit)).toBeCloseTo(1_000_000, 2);
+  // Six mois de dotation complémentaire (1 200 000) · valeur nette 10 800 000, dont 9 800 000 au 812.
+  expect(Number(ligne('81200000')?.mouvementDebit)).toBeCloseTo(9_800_000, 2);
+  expect(pannes).toEqual([]);
+});
+
+test('SYCEBNL · la rente viagère n’est pas ouverte (aucun 1681), et le matériel récupéré va au 378', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYCEBNL', nom: 'Recupere e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  // Route cloisonnée au SYSCOHADA · refus du référentiel, pas une panne.
+  await expect(appelApi(page, 'POST', '/immobilisations/prix-aleatoire', {})).rejects.toThrow(/· 403 · /);
+  const recupere = await appelApi<{ racine: string; comptes: Array<{ numero: string }> }>(page, 'GET', '/immobilisations/materiel-recupere/comptes');
+  expect(recupere.racine).toBe('378');
+  expect(recupere.comptes.map((c) => c.numero)).toEqual(['37800000']);
+  expect(pannes).toEqual([]);
+});

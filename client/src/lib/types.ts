@@ -1037,6 +1037,15 @@ export interface Immobilisation {
   dateDebutAmortissement?: string | null;
   motifDureeLimitee?: string | null;
   fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT' | null;
+  /** Lot 15 · acquisition à prix aléatoire (rente viagère, redevances), SYSCOHADA seul. */
+  natureAcquisitionAleatoire?: 'RENTE_VIAGERE' | 'REDEVANCES' | null;
+  detteAleatoireInitiale?: number | null;
+  ecritureSoldeDetteAleatoireId?: string | null;
+  /** Lot 15 · réserve de propriété, information de fiche (AUDCIF Titre VIII ch. 9). */
+  reserveDePropriete?: boolean;
+  reserveProprieteLeveeLe?: string | null;
+  /** Lot 15 · matériel repris en stock à la mise hors service (388 ou 378). */
+  valeurMaterielRecupere?: number | null;
 }
 
 export type TypeComposant =

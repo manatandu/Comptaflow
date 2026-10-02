@@ -80,8 +80,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // d'amortissement, bornées de même (lot 11), 134 avec les coûts d'emprunt
     // incorporés (lot 13), 137 avec la réévaluation des immobilisations, ses
     // lignes par bien et les reprises de sa provision spéciale, chacune bornée
-    // par son propre tenantId (lot 14).
-    expect(modeles).toHaveLength(137);
+    // par son propre tenantId (lot 14), 138 avec les mouvements de la
+    // provision pour démantèlement, bornés de même (lot 15).
+    expect(modeles).toHaveLength(138);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
     for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
       expect(modeles).toContain(m);

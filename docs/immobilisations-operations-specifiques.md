@@ -17,6 +17,7 @@ Chaque règle, chaque compte cité vient du texte lu ; chaque état
 | Sujet | Commit |
 |---|---|
 | **Échange** (classe 2 et art. 36 aux deux textes ; Guide SYSCOHADA Partie 1 ch. 5 § 4.5) · vente au prix de reprise (485 / 82), achat à prix de reprise + soulte (2 / 481), refus vers un immeuble de placement (ch. 10 § 2.1.2.2) | chantier (d) |
+| **Lignes 15 à 18** · rente viagère (1681, extinction au 841) et écart sur redevances (831 ou 841), SYSCOHADA seul ; réserve de propriété sur la fiche et liste à la clôture, aux deux ; matériel récupéré au 388 (SYSCOHADA) ou au 378 (SYCEBNL, fiche du compte 37) | lot 15a |
 | **Deux renvois faux** dans `contrepartie-acquisition.ts` · droits publics gratuits au **ch. 2** § 1.3.2 (et non ch. 1), construction reçue en fin de bail au **ch. 11** § 1.4 (et non ch. 9) · le premier était imprimé dans un refus | chantier (d) |
 
 ## À corriger en premier · des défauts, pas des manques

@@ -18,9 +18,33 @@ import {
   NatureEmpruntIncorpore,
   TypeComposant,
   TypeCompteDetailTotal,
+  NatureAcquisitionAleatoire,
+  FondementValeurAleatoire,
 } from '@prisma/client';
+import {
+  COMPTES_PRIX_ALEATOIRE,
+  LIBELLE_FONDEMENT_ALEATOIRE,
+  lignesCreditAleatoire,
+  motifRefusAcquisitionAleatoire,
+  motifRefusExtinctionAuDelaDuSolde,
+  soldeDetteAleatoire,
+} from './acquisition-prix-aleatoire';
+import { compteStockRecupere, motifRefusMaterielRecupere } from './materiel-recupere';
+import {
+  contrepartieAReserveDePropriete,
+  frappeDeReserveALaDate,
+  motifRefusReserveDePropriete,
+  motifRefusReserveSurExerciceClos,
+  RACINE_DETTE_RESERVE_PROPRIETE,
+  sourceReserveDePropriete,
+} from './reserve-propriete';
 import { AMORTISSEMENT_SMT } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
-import { motifRefusAmortissementNonLineaireSmt, motifRefusDepreciationSmt } from '../../common/systeme-minimal';
+import {
+  estSystemeMinimal,
+  motifRefusAmortissementNonLineaireSmt,
+  motifRefusDepreciationSmt,
+  motifRefusProvisionSmt,
+} from '../../common/systeme-minimal';
 import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
@@ -42,6 +66,9 @@ import {
   MiseEnServiceDto,
   RecevoirLegsDto,
   AcquerirAPrixGlobalDto,
+  AcquerirAPrixAleatoireDto,
+  SolderDetteAleatoireDto,
+  ReserveProprieteDto,
   RemplacerPartieDto,
   DureeLimiteeDto,
 } from './dto/immobilisation.dto';
@@ -69,6 +96,8 @@ import {
 import { imputationSurEcart, natureReevaluable } from './reevaluation-bilan';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
+import { CriteresDeclares, criteresRetenus, estFraisDeveloppement, motifRefusFraisDeveloppement } from './frais-developpement';
+import { motifRefusParametresDemantelement } from './demantelement';
 
 /**
  * LES COMPTES D'IMMEUBLES DE PLACEMENT · mêmes numéros et intitulés aux deux
@@ -185,6 +214,14 @@ export interface LigneTableauAmortissement {
 function versDotation<T extends { montant: unknown }>(d: T) {
   return { ...d, montant: Number(d.montant) };
 }
+function nombresLot15(immo: Record<string, unknown>): Record<string, number | null> {
+  const r: Record<string, number | null> = {};
+  for (const cle of ['detteAleatoireInitiale', 'versementsDetteAleatoire', 'valeurMaterielRecupere']) {
+    if (cle in immo) r[cle] = immo[cle] === null || immo[cle] === undefined ? null : Number(immo[cle]);
+  }
+  return r;
+}
+
 function versImmobilisation<
   T extends {
     valeurOrigine: unknown;
@@ -199,6 +236,8 @@ function versImmobilisation<
     valeurOrigine: Number(immo.valeurOrigine),
     valeurResiduelle: Number(immo.valeurResiduelle),
     prixCession: immo.prixCession === null || immo.prixCession === undefined ? null : Number(immo.prixCession),
+    // Lot 15 · servis en nombres, jamais en chaînes de Decimal · nuls restent nuls.
+    ...nombresLot15(immo as Record<string, unknown>),
     dotations: (immo.dotations ?? []).map((d) => versDotation(d as { montant: unknown })),
     // Servies à l'écran pour que la valeur nette affichée soit celle du bilan.
     // Une VCN calculée sans elles se lirait comme un désaccord entre la fiche
@@ -965,6 +1004,9 @@ export class ImmobilisationService {
       include: {
         famille: true,
         compteImmobilisation: true,
+        // Le compte en cours, pour que les lecteurs du compte INSCRIT à une
+        // date (`compteInscritChargeALaDate`) aient l'objet sous la main.
+        compteEnCours: true,
         dotations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } },
         // Chargées systématiquement · la dépréciation change la base
         // amortissable ET la valeur comptable nette de sortie. Les charger à
@@ -1222,7 +1264,10 @@ export class ImmobilisationService {
     /** Liste de choix · seuls les comptes retenus ou utilisés (`comptes-proposes.ts`). */
     retenus = false,
   ) {
-    const dossier = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    const dossier = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
+    });
     let numeroBien: string | null = null;
     if (cible.compteImmobilisationId) {
       const compte = await this.prisma.compte.findFirst({
@@ -1238,7 +1283,10 @@ export class ImmobilisationService {
       numeroBien = famille?.compteImmobilisation.numero ?? null;
     }
     if (!dossier || !numeroBien) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
-    const racines = racinesContrepartieAcquisition(dossier.referentiel, numeroBien, { typeComposant });
+    const racines = racinesContrepartieAcquisition(dossier.referentiel, numeroBien, {
+      typeComposant,
+      systemeMinimal: estSystemeMinimal(dossier),
+    });
     const comptes = await this.prisma.compte.findMany({
       where: {
         tenantId,
@@ -1509,6 +1557,10 @@ export class ImmobilisationService {
       bienDeFaibleValeur: dto.bienDeFaibleValeur,
       tauxAnnuel: dto.tauxAnnuel ?? null,
       valeurContrat: dto.valeurContrat ?? null,
+      garantieValeurResiduelle: dto.garantieValeurResiduelle ?? 0,
+      loyerIndexe: !!dto.loyerIndexe,
+      indiceLoyer: dto.indiceLoyer?.trim() || null,
+      valeurIndiceCommencement: dto.valeurIndiceCommencement ?? null,
     };
     const refusContrat = motifRefusContrat(contrat);
     if (refusContrat) throw new BadRequestException(refusContrat);
@@ -1617,6 +1669,10 @@ export class ImmobilisationService {
           valeurContrat: dto.valeurContrat ?? null,
           tauxPeriodique: echeancier.tauxPeriodique,
           dette: echeancier.dette,
+          garantieValeurResiduelle: dto.garantieValeurResiduelle ?? 0,
+          loyerIndexe: !!dto.loyerIndexe,
+          indiceLoyer: dto.loyerIndexe ? dto.indiceLoyer?.trim() || null : null,
+          valeurIndiceCommencement: dto.loyerIndexe ? (dto.valeurIndiceCommencement ?? null) : null,
           coutsDirects,
           avantagesRecus,
           optionRaisonnablementCertaine: dto.optionRaisonnablementCertaine,
@@ -1708,6 +1764,13 @@ export class ImmobilisationService {
       libelle?: string;
       /** Lot 8 · la modalité de ventilation d'un prix global, gardée pour les Notes annexes (art. 38). */
       modaliteVentilation?: string;
+      /** Lot 15 · acquisition à prix aléatoire, vérifiée par `acquerirAPrixAleatoire`. */
+      acquisitionAleatoire?: {
+        nature: NatureAcquisitionAleatoire;
+        fondement: FondementValeurAleatoire;
+        source: string;
+        detteInitiale: number;
+      };
     } = {},
   ) {
     // LE COMPTE DU BIEN OU LA FAMILLE (compte-du-bien.ts) · l'un des deux,
@@ -1838,6 +1901,9 @@ export class ImmobilisationService {
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
     const ouverture = exercice.dateDebut.toISOString().slice(0, 10);
     const acquisAvantOuverture = dateAcquisition < exercice.dateDebut;
+    // Lot 15 · le compte crédité à l'acquisition, quand il est choisi · il dit
+    // si la dette porte une clause de réserve de propriété (4816).
+    let numeroContrepartie: string | null = null;
     if (dto.repris) {
       if (!acquisAvantOuverture) {
         throw new BadRequestException(
@@ -1874,6 +1940,7 @@ export class ImmobilisationService {
           where: { id: dto.compteContrepartieId, tenantId },
         });
         if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+        numeroContrepartie = compteContrepartie.numero;
         // LA CONTREPARTIE EST UNE LISTE FERMÉE (contrepartie-acquisition.ts).
         const [dossier, compteImmo] = await Promise.all([
           this.regimeComptable(tenantId),
@@ -1882,8 +1949,15 @@ export class ImmobilisationService {
         if (!compteImmo) throw new BadRequestException("Compte d'immobilisation de la famille introuvable pour ce tenant");
         // Le type ne compte que pour un composant · sans principal, il n'est
         // pas retenu (le bien est une structure ordinaire).
+        // LE 1984 AU SYSTÈME MINIMAL (lot 15) · refus nommé, avant la liste
+        // fermée qui ne dirait que « non admis ».
+        if (compteContrepartie.numero.startsWith('1984')) {
+          const refusSmt = motifRefusProvisionSmt(dossier);
+          if (refusSmt) throw new BadRequestException(refusSmt);
+        }
         const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero, {
           typeComposant: dto.immobilisationPrincipaleId ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
+          systemeMinimal: estSystemeMinimal(dossier),
         });
         if (motif) throw new BadRequestException(motif);
         // Un en-cours ne se finance pas par un en-cours · « Travaux en cours
@@ -2032,6 +2106,54 @@ export class ImmobilisationService {
 
     if (dto.lieuId) await this.lieuDuDossier(tenantId, dto.lieuId);
 
+    // LA RÉSERVE DE PROPRIÉTÉ (lot 15) · une information de fiche, déduite
+    // d'une dette au 4816 quand rien n'est dit, et jamais contredite par elle
+    // (reserve-propriete.ts). Vérifiée avant l'écriture, comme le reste.
+    const reserveDePropriete = dto.reserveDePropriete ?? contrepartieAReserveDePropriete(numeroContrepartie);
+    const refusReserve = motifRefusReserveDePropriete({
+      reserveDePropriete,
+      leveeLe: null,
+      dateAcquisition,
+      numeroContrepartie,
+    });
+    if (refusReserve) throw new BadRequestException(refusReserve);
+    // LES SIX CRITÈRES DES FRAIS DE DÉVELOPPEMENT (lot 15, frais-developpement.ts) ·
+    // AUDCIF Titre VIII ch. 1 § 2.1.1 · un 211 ne s'inscrit que s'ils sont
+    // tous déclarés avec leur justification, à défaut la dépense reste en
+    // charges ; jamais avant leur date de réunion (§ 3.1). Refusé AVANT
+    // l'écriture d'acquisition.
+    const [regimeRd, compteRd] = await Promise.all([
+      this.regimeComptable(tenantId),
+      this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
+    ]);
+    const dateReunionCriteres = dto.dateReunionCriteresDeveloppement ? new Date(dto.dateReunionCriteresDeveloppement) : null;
+    const refusRd = motifRefusFraisDeveloppement({
+      referentiel: regimeRd.referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL',
+      numeroCompte: compteRd?.numero ?? '',
+      repris: !!dto.repris,
+      criteres: dto.criteresFraisDeveloppement as CriteresDeclares | undefined,
+      dateReunion: dateReunionCriteres,
+      dateInscription: dateAcquisition,
+    });
+    if (refusRd) throw new BadRequestException(refusRd);
+    const criteresRd = criteresRetenus(dto.criteresFraisDeveloppement as CriteresDeclares | undefined);
+
+    // LE COMPOSANT DÉMANTÈLEMENT (lot 15, demantelement.ts) · coût attendu et
+    // taux d'actualisation ne se gardent que sur lui (AUDCIF Titre VIII ch. 6).
+    // Coût attendu et taux n'ont d'objet qu'avec une provision · refusés au
+    // SMT, qui n'en admet aucune (common/systeme-minimal.ts).
+    if (dto.coutFuturDemantelement != null || dto.tauxActualisationDemantelementPourcent != null) {
+      const refusSmt = motifRefusProvisionSmt(regimeRd);
+      if (refusSmt) throw new BadRequestException(refusSmt);
+    }
+    const parametresDemantelement = motifRefusParametresDemantelement({
+      estComposantDemantelement: !!principal && (dto.typeComposant ?? TypeComposant.COMPOSANT) === TypeComposant.DEMANTELEMENT,
+      coutFutur: dto.coutFuturDemantelement ?? null,
+      tauxPourcent: dto.tauxActualisationDemantelementPourcent ?? null,
+      valeurOrigine: dto.valeurOrigine,
+    });
+    if (parametresDemantelement) throw new BadRequestException(parametresDemantelement);
+
     // L'ÉCRITURE VIENT APRÈS TOUS LES CONTRÔLES (audit final F29) · le mode,
     // le SMT et le lieu refusaient APRÈS l'écriture d'acquisition, qui
     // restait au journal sans bien pour la porter. Un bien repris n'en a
@@ -2096,6 +2218,19 @@ export class ImmobilisationService {
           dureeNonLimitee: dureeIncorporel.dureeNonLimitee,
           justificationDureeNonLimitee: dureeIncorporel.justification,
           fondementDureeDixAns: dureeIncorporel.fondementDureeDixAns,
+          reserveDePropriete,
+          ...(interne.acquisitionAleatoire
+            ? {
+                natureAcquisitionAleatoire: interne.acquisitionAleatoire.nature,
+                fondementValeurAleatoire: interne.acquisitionAleatoire.fondement,
+                sourceValeurAleatoire: interne.acquisitionAleatoire.source.slice(0, 1000),
+                detteAleatoireInitiale: interne.acquisitionAleatoire.detteInitiale,
+              }
+            : {}),
+          criteresFraisDeveloppement: criteresRd ?? undefined,
+          dateReunionCriteresDeveloppement: criteresRd ? dateReunionCriteres : null,
+          coutFuturDemantelement: dto.coutFuturDemantelement ?? null,
+          tauxActualisationDemantelementPourcent: dto.tauxActualisationDemantelementPourcent ?? null,
         },
         include: { dotations: true },
       });
@@ -3648,6 +3783,35 @@ export class ImmobilisationService {
       );
     }
 
+    // LE RECLASSEMENT N'EST PAS LA PORTE DE CÔTÉ DES SIX CRITÈRES (lot 15) ·
+    // un incorporel viré VERS le 211 du SYSCOHADA devient un frais de
+    // développement, et l'AUDCIF (Titre VIII ch. 1 § 2.1.1) ne l'admet que si
+    // les six critères sont démontrés « simultanément ». Ils sont exigés ici
+    // comme à la création, jamais présumés d'un bien repris · le virement est
+    // un acte de l'exercice. La date d'inscription opposée au § 3.1 est celle
+    // de la DÉPENSE (l'acquisition du bien) · une dépense antérieure à la
+    // réunion des critères « ne peut plus être activée ». Un bien qui était
+    // déjà au 211 n'y entre pas · il a passé la règle à sa création.
+    const criteresReclassement =
+      estFraisDeveloppement(regime.referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL', nouvelleFamille.compteImmobilisation.numero) &&
+      !immo.compteImmobilisation.numero.startsWith('211');
+    if (criteresReclassement) {
+      const refusRd = motifRefusFraisDeveloppement({
+        referentiel: 'SYSCOHADA',
+        numeroCompte: nouvelleFamille.compteImmobilisation.numero,
+        repris: false,
+        criteres: dto.criteresFraisDeveloppement as CriteresDeclares | undefined,
+        dateReunion: dto.dateReunionCriteresDeveloppement ? new Date(dto.dateReunionCriteresDeveloppement) : null,
+        dateInscription: immo.dateAcquisition,
+      });
+      if (refusRd) throw new BadRequestException(refusRd);
+    } else if (dto.criteresFraisDeveloppement || dto.dateReunionCriteresDeveloppement) {
+      // Une déclaration que personne ne lirait se refuse, comme à la création.
+      throw new BadRequestException(
+        "Les six critères des frais de développement ne se déclarent qu'au virement d'un bien vers le compte 211 du SYSCOHADA.",
+      );
+    }
+
     const cumulAmorti =
       immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + amortissementsHorsDotations(immo);
     const cumulDepreciation = this.cumulDepreciation(
@@ -3719,6 +3883,15 @@ export class ImmobilisationService {
           compteImmobilisationId: nouvelleFamille.compteImmobilisationId,
           compteAmortissementId: nouvelleFamille.compteAmortissementId,
           compteDotationId: nouvelleFamille.compteDotationId,
+          // Les justifications suivent le bien au 211 · le Dossier de
+          // révision les relit comme celles d'une création.
+          ...(criteresReclassement
+            ? {
+                criteresFraisDeveloppement:
+                  criteresRetenus(dto.criteresFraisDeveloppement as CriteresDeclares | undefined) ?? undefined,
+                dateReunionCriteresDeveloppement: new Date(dto.dateReunionCriteresDeveloppement!),
+              }
+            : {}),
         },
         include: { compteImmobilisation: true, compteAmortissement: true, compteDotation: true },
       });
@@ -4084,6 +4257,42 @@ export class ImmobilisationService {
     });
     if (refusProjet) throw new BadRequestException(refusProjet);
 
+    /*
+      LE MATÉRIEL RÉCUPÉRÉ (lot 15, materiel-recupere.ts) · repris en stock au
+      388 (SYSCOHADA) ou au 378 (SYCEBNL) « par le crédit du compte
+      d'immobilisation concerné » (fiches des comptes 38 et 37). Il prend sa
+      part de la valeur nette, le reste va au 81 comme avant (D-3). Vérifié
+      avant le verrou, comme tout refus.
+    */
+    const valeurRecuperee = dto.valeurMaterielRecupere ?? 0;
+    let compteStockRecupere: { id: string; numero: string } | null = null;
+    if (valeurRecuperee > 0 || dto.compteStockRecupereId) {
+      compteStockRecupere = dto.compteStockRecupereId
+        ? await this.prisma.compte.findFirst({
+            where: { id: dto.compteStockRecupereId, tenantId },
+            select: { id: true, numero: true },
+          })
+        : null;
+      if (dto.compteStockRecupereId && !compteStockRecupere) {
+        throw new BadRequestException('Compte de stock introuvable pour ce dossier');
+      }
+      const refusRecupere = motifRefusMaterielRecupere({
+        referentiel,
+        cession: dto.type === TypeSortie.CESSION,
+        projetDeveloppement: projet,
+        // Le compte où le bien est INSCRIT à la date de sortie (2x9 tant
+        // qu'il n'est pas mis en service), celui que l'écriture crédite ·
+        // `compteInscritChargeALaDate`, jamais le compte définitif lu à part.
+        numeroCompteBien: compteInscritChargeALaDate(immo, dateSortie).numero,
+        numeroCompteStock: compteStockRecupere?.numero ?? null,
+        valeur: valeurRecuperee,
+        valeurNetteComptable: valeurComptableNette,
+        source: dto.sourceMaterielRecupere,
+      });
+      if (refusRecupere) throw new BadRequestException(refusRecupere);
+    }
+    const valeurAu81 = Math.round((valeurComptableNette - valeurRecuperee) * 100) / 100;
+
     // Le bien sort du compte où il est INSCRIT à la date de sortie · un bien
     // abandonné avant son achèvement sort du 2x9, jamais d'un compte
     // définitif qui ne l'a jamais porté (immobilisation-en-cours.ts).
@@ -4120,9 +4329,12 @@ export class ImmobilisationService {
           "d'abord (D 2901 / C 7951), et la dernière annuité amortit alors le reste.",
       );
     }
-    if (!projet && valeurComptableNette > EPSILON && comptes) {
+    if (compteStockRecupere && valeurRecuperee > 0) {
+      lignesSortie.push({ compteId: compteStockRecupere.id, debit: valeurRecuperee, credit: 0 });
+    }
+    if (!projet && valeurAu81 > EPSILON && comptes) {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);
-      lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
+      lignesSortie.push({ compteId: compteVNC.id, debit: valeurAu81, credit: 0 });
     }
     // Produit de cession · écriture séparée, jamais mélangée à la sortie de
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
@@ -4211,7 +4423,14 @@ export class ImmobilisationService {
         // L'écriture du produit de cession est RETENUE par la fiche (audit
         // final F130) · supprimée depuis le journal, elle laissait le bien
         // porter un prix que rien ne justifiait plus.
-        data: { ecritureSortieId: ecritureSortie.id, ecritureProduitCessionId: ecritureProduitId },
+        data: {
+          ecritureSortieId: ecritureSortie.id,
+          ecritureProduitCessionId: ecritureProduitId,
+          // Lot 15 · la reprise en stock se garde avec sa source, sur la fiche.
+          ...(compteStockRecupere && valeurRecuperee > 0
+            ? { valeurMaterielRecupere: valeurRecuperee, sourceMaterielRecupere: dto.sourceMaterielRecupere!.trim().slice(0, 1000) }
+            : {}),
+        },
         include: { dotations: true },
       });
       return versImmobilisation(immobilisation);
@@ -4944,5 +5163,320 @@ export class ImmobilisationService {
       total: Number(total._sum.montant ?? 0),
       tronque: lignes.length > 500,
     };
+  }
+
+  /**
+   * LOT 15 · ACQUISITION À PRIX ALÉATOIRE (acquisition-prix-aleatoire.ts) ·
+   * rente viagère (dette au 1681, bouquet en trésorerie) ou incorporel acquis
+   * au moyen de redevances (dette au 4811, versement immédiat en trésorerie).
+   * SYSCOHADA seul, refus nommé au SYCEBNL. La fiche naît par `creer`, avec
+   * ses lignes de crédit, et garde le fondement de la valeur, sa source et la
+   * dette capitalisée, sur lesquels le solde se calculera.
+   */
+  async acquerirAPrixAleatoire(tenantId: string, userId: string, dto: AcquerirAPrixAleatoireDto) {
+    const [{ referentiel }, compteBien, compteDette, compteComptant] = await Promise.all([
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteImmobilisationId, tenantId }, select: { id: true, numero: true } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteDetteId, tenantId }, select: { id: true, numero: true } }),
+      dto.compteComptantId
+        ? this.prisma.compte.findFirst({ where: { id: dto.compteComptantId, tenantId }, select: { id: true, numero: true } })
+        : Promise.resolve(null),
+    ]);
+    if (!compteBien) throw new BadRequestException('Compte du bien introuvable pour ce dossier');
+    if (!compteDette) throw new BadRequestException('Compte de la dette introuvable pour ce dossier');
+    if (dto.compteComptantId && !compteComptant) throw new BadRequestException('Compte de trésorerie introuvable pour ce dossier');
+    const comptant = dto.comptant ?? 0;
+    const motif = motifRefusAcquisitionAleatoire({
+      referentiel,
+      nature: dto.nature,
+      numeroCompteBien: compteBien.numero,
+      numeroCompteDette: compteDette.numero,
+      comptant,
+      numeroCompteComptant: compteComptant?.numero ?? null,
+      valeur: dto.valeurOrigine,
+      fondement: dto.fondement,
+      source: dto.sourceValeur,
+    });
+    if (motif) throw new BadRequestException(motif);
+    const lignesCredit = lignesCreditAleatoire({
+      valeur: dto.valeurOrigine,
+      comptant,
+      compteDetteId: compteDette.id,
+      compteComptantId: compteComptant?.id ?? null,
+    });
+    const detteInitiale = lignesCredit.at(-1)!.montant;
+    return this.creer(
+      tenantId,
+      userId,
+      {
+        compteImmobilisationId: compteBien.id,
+        designation: dto.designation,
+        dateAcquisition: dto.dateAcquisition,
+        dateMiseEnService: dto.dateMiseEnService,
+        valeurOrigine: dto.valeurOrigine,
+        dureeAmortissementAns: dto.dureeAmortissementAns,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+      } as CreerImmobilisationDto,
+      {
+        lignesCredit,
+        libelle: `${dto.nature === 'RENTE_VIAGERE' ? 'Acquisition en viager' : 'Acquisition contre redevances'} · ${dto.designation}`,
+        acquisitionAleatoire: {
+          nature: dto.nature,
+          fondement: dto.fondement,
+          source: `${LIBELLE_FONDEMENT_ALEATOIRE[dto.fondement]} · ${dto.sourceValeur.trim()}`,
+          detteInitiale,
+        },
+      },
+    );
+  }
+
+  /**
+   * LOT 15 · LE SOLDE DE LA DETTE QUAND L'ALÉA SE DÉNOUE · décès du
+   * crédirentier (D 1681 / C 841, AUDCIF Titre VIII ch. 11 § 2.3.3) ou fin des
+   * redevances (831 ou 841, ch. 2 § 11). Une fois par bien · l'écriture est
+   * RETENUE par la fiche (`ecritureSoldeDetteAleatoireId`, RESTRICT).
+   *
+   * Les versements cumulés se DÉCLARENT · le 1681 et le 4811 peuvent porter
+   * d'autres dettes, et leur solde ne dit pas ce qui revient à ce bien.
+   */
+  async solderDetteAleatoire(tenantId: string, userId: string, id: string, dto: SolderDetteAleatoireDto) {
+    const immo = await this.trouver(tenantId, id);
+    const nature = immo.natureAcquisitionAleatoire;
+    if (!nature || immo.detteAleatoireInitiale === null) {
+      throw new BadRequestException("Ce bien n'a pas été acquis en viager ni contre redevances · il n'a pas de dette aléatoire à solder.");
+    }
+    if (immo.ecritureSoldeDetteAleatoireId) {
+      throw new BadRequestException('La dette de ce bien est déjà soldée · le solde ne se passe qu’une fois.');
+    }
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    if (exercice.statut === StatutExercice.CLOTURE) throw new BadRequestException('Cet exercice est clôturé.');
+    const date = new Date(dto.date);
+    if (date < exercice.dateDebut || date > exercice.dateFin) {
+      throw new BadRequestException("La date du solde doit se situer dans l'exercice indiqué.");
+    }
+    if (date < immo.dateAcquisition) throw new BadRequestException("Le solde ne peut pas précéder l'acquisition du bien.");
+    const solde = soldeDetteAleatoire({
+      nature,
+      detteInitiale: Number(immo.detteAleatoireInitiale),
+      versementsCumules: dto.versementsCumules,
+    });
+    if ('motif' in solde) throw new BadRequestException(solde.motif);
+
+    // La dette est celle que l'écriture d'acquisition a créditée · jamais un
+    // autre compte de la même racine, qui porterait une autre dette.
+    const racine = COMPTES_PRIX_ALEATOIRE[nature].dette;
+    const ligneDette = immo.ecritureAcquisitionId
+      ? await this.prisma.ligneEcriture.findFirst({
+          where: {
+            ecritureId: immo.ecritureAcquisitionId,
+            ecriture: { tenantId },
+            credit: { gt: 0 },
+            compte: { tenantId, numero: { startsWith: racine } },
+          },
+          select: { compteId: true, compte: { select: { numero: true } } },
+        })
+      : null;
+    if (!ligneDette) {
+      throw new BadRequestException(`L'écriture d'acquisition de ce bien ne crédite plus aucun ${racine} · la dette à solder est introuvable.`);
+    }
+    // L'EXTINCTION SE BORNE AU SOLDE CRÉDITEUR DU COMPTE DE DETTE (relecture du
+    // lot 15a) · lu sur TOUS les mouvements du dossier jusqu'à la date du
+    // solde, brouillard compris, à-nouveaux EXCLUS (définitifs ou
+    // provisoires). Lu dans le seul exercice du solde, il valait zéro au
+    // décès survenu en N+1 quand N, qui porte l'acquisition, n'est pas encore
+    // clôturé (ouvrir N+1 avant de clôturer N est la règle, AUDCIF art. 23) ;
+    // sommer les exercices AVEC leurs à-nouveaux compterait deux fois la dette.
+    if (solde.debiteLaDette) {
+      const cumul = await this.prisma.ligneEcriture.aggregate({
+        where: {
+          compteId: ligneDette.compteId,
+          ecriture: { tenantId, date: { lte: date }, estGenereeParCloture: false, estANouveauProvisoire: false },
+        },
+        _sum: { debit: true, credit: true },
+      });
+      const refusSolde = motifRefusExtinctionAuDelaDuSolde({
+        montant: solde.montant,
+        soldeCrediteur: Number(cumul._sum.credit ?? 0) - Number(cumul._sum.debit ?? 0),
+        numeroCompteDette: ligneDette.compte.numero,
+      });
+      if (refusSolde) throw new BadRequestException(refusSolde);
+    }
+    const contrepartie = await this.compteDeSortie(tenantId, solde.compteContrepartie.padEnd(8, '0'));
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: exercice.id,
+      journalId: dto.journalId,
+      date: dto.date.slice(0, 10),
+      libelle: `${nature === 'RENTE_VIAGERE' ? 'Extinction de la rente viagère' : 'Écart sur redevances'} · ${immo.designation}`.slice(0, 190),
+      lignes: solde.debiteLaDette
+        ? [
+            { compteId: ligneDette.compteId, debit: solde.montant, credit: 0 },
+            { compteId: contrepartie.id, debit: 0, credit: solde.montant },
+          ]
+        : [
+            { compteId: contrepartie.id, debit: solde.montant, credit: 0 },
+            { compteId: ligneDette.compteId, debit: 0, credit: solde.montant },
+          ],
+    });
+    try {
+      // Le filtre sur la colonne vide fait du solde un geste UNIQUE · deux
+      // envois simultanés ne passent pas deux extinctions de la même dette.
+      const immobilisation = await this.prisma.immobilisation.update({
+        where: { id, AND: [{ ecritureSoldeDetteAleatoireId: null }] },
+        data: {
+          ecritureSoldeDetteAleatoireId: ecriture.id,
+          versementsDetteAleatoire: dto.versementsCumules,
+          sourceVersementsDette: dto.sourceVersements.trim().slice(0, 1000),
+          dateSoldeDetteAleatoire: date,
+        },
+        include: { dotations: true },
+      });
+      return { ...versImmobilisation(immobilisation), solde: { cas: solde.cas, montant: solde.montant } };
+    } catch (err) {
+      await this.annulerEcritureOrpheline(ecriture.id);
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new ConflictException('La dette de ce bien vient d’être soldée par une autre opération.');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * LOT 15 · déclarer ou lever la RÉSERVE DE PROPRIÉTÉ d'un bien
+   * (reserve-propriete.ts) · une information, aucune écriture. La date du
+   * règlement final efface la clause à compter de ce jour ; `null` l'efface.
+   */
+  async declarerReservePropriete(tenantId: string, id: string, dto: ReserveProprieteDto) {
+    const immo = await this.trouver(tenantId, id);
+    // Un bien SORTI ne porte plus de clause à déclarer (relecture du lot 15a) ·
+    // ce qu'il avait reste lisible sur les exercices qui l'ont vu, sans retouche.
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException('Ce bien est sorti · sa réserve de propriété ne se déclare plus.');
+    }
+    const leveeLe = dto.leveeLe ? new Date(dto.leveeLe) : null;
+    const ligne4816 = immo.ecritureAcquisitionId
+      ? await this.prisma.ligneEcriture.findFirst({
+          where: {
+            ecritureId: immo.ecritureAcquisitionId,
+            ecriture: { tenantId },
+            credit: { gt: 0 },
+            compte: { tenantId, numero: { startsWith: RACINE_DETTE_RESERVE_PROPRIETE } },
+          },
+          select: { compte: { select: { numero: true } } },
+        })
+      : null;
+    const refus = motifRefusReserveDePropriete({
+      reserveDePropriete: dto.reserveDePropriete,
+      leveeLe,
+      dateAcquisition: immo.dateAcquisition,
+      numeroContrepartie: ligne4816?.compte.numero ?? null,
+    });
+    if (refus) throw new BadRequestException(refus);
+    // Ni la clause ni sa levée ne réécrivent la liste d'un exercice CLÔTURÉ.
+    const exercicesClos = await this.prisma.exercice.findMany({
+      where: { tenantId, statut: StatutExercice.CLOTURE, dateFin: { gte: immo.dateAcquisition } },
+      orderBy: { dateFin: 'asc' },
+      take: 50,
+      select: { dateFin: true },
+    });
+    const refusClos = motifRefusReserveSurExerciceClos(
+      immo,
+      { reserveDePropriete: dto.reserveDePropriete, reserveProprieteLeveeLe: dto.reserveDePropriete ? leveeLe : null },
+      exercicesClos,
+    );
+    if (refusClos) throw new BadRequestException(refusClos);
+    const immobilisation = await this.prisma.immobilisation.update({
+      where: { id },
+      data: { reserveDePropriete: dto.reserveDePropriete, reserveProprieteLeveeLe: dto.reserveDePropriete ? leveeLe : null },
+      include: { dotations: true },
+    });
+    return versImmobilisation(immobilisation);
+  }
+
+  /**
+   * LOT 15 · les immobilisations frappées de réserve de propriété à la
+   * clôture de l'exercice, pour les Notes annexes (AUDCIF Titre VIII ch. 9
+   * § 3) · bornée à 500 biens, le total pris sur tous. La valeur rendue est
+   * la VALEUR D'ENTRÉE · le § 3 dit « montants des immobilisations frappées »
+   * sans préciser brut ou net (décision proposée D-63 du plan).
+   */
+  async biensSousReserveDePropriete(tenantId: string, exerciceId: string) {
+    const [exercice, { referentiel }] = await Promise.all([
+      this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } }),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+    ]);
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    const date = exercice.dateFin;
+    // La borne du dossier est écrite à chaque appel (`tenantId` en tête) ·
+    // le balayage du cloisonnement la lit dans l'appel lui-même.
+    const frappes = {
+      reserveDePropriete: true,
+      dateAcquisition: { lte: date },
+      AND: [
+        { OR: [{ dateSortie: null }, { dateSortie: { gt: date } }] },
+        { OR: [{ reserveProprieteLeveeLe: null }, { reserveProprieteLeveeLe: { gt: date } }] },
+      ],
+    };
+    const [lignes, total, nombre] = await Promise.all([
+      this.prisma.immobilisation.findMany({
+        where: { tenantId, ...frappes },
+        orderBy: { dateAcquisition: 'asc' },
+        take: 501,
+        select: {
+          id: true,
+          designation: true,
+          dateAcquisition: true,
+          dateSortie: true,
+          valeurOrigine: true,
+          reserveDePropriete: true,
+          reserveProprieteLeveeLe: true,
+          // Le compte où le bien est INSCRIT à la clôture · un bien encore en
+          // cours y figure à son 2x9 (`compteInscritChargeALaDate`).
+          compteImmobilisationId: true,
+          compteEnCoursId: true,
+          dateMiseEnService: true,
+          compteImmobilisation: { select: { id: true, numero: true } },
+          compteEnCours: { select: { id: true, numero: true } },
+        },
+      }),
+      this.prisma.immobilisation.aggregate({ where: { tenantId, ...frappes }, _sum: { valeurOrigine: true } }),
+      this.prisma.immobilisation.count({ where: { tenantId, ...frappes } }),
+    ]);
+    return {
+      source: sourceReserveDePropriete(referentiel),
+      date: date.toISOString().slice(0, 10),
+      biens: lignes
+        .slice(0, 500)
+        .filter((b) => frappeDeReserveALaDate(b, date))
+        .map((b) => ({
+          id: b.id,
+          designation: b.designation,
+          compte: compteInscritChargeALaDate(b, date).numero,
+          dateAcquisition: b.dateAcquisition,
+          valeurOrigine: Number(b.valeurOrigine),
+        })),
+      total: Number(total._sum.valeurOrigine ?? 0),
+      nombre,
+      tronque: lignes.length > 500,
+    };
+  }
+
+  /**
+   * LOT 15 · le compte qui reprend en stock le matériel récupéré · 388 au
+   * SYSCOHADA, 378 au SYCEBNL (nomenclature des stocks), et les comptes de
+   * détail que le plan du dossier ouvre dessous, pour que l'écran propose le
+   * seul ou dise qu'il manque.
+   */
+  async comptesMaterielRecupere(tenantId: string) {
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    const stock = compteStockRecupere(referentiel);
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, numero: { startsWith: stock.racine }, typeCompte: TypeCompteDetailTotal.DETAIL },
+      orderBy: { numero: 'asc' },
+      take: 50,
+      select: { id: true, numero: true, intitule: true },
+    });
+    return { ...stock, comptes };
   }
 }

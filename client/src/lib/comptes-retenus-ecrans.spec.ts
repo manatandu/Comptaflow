@@ -162,6 +162,8 @@ const EXCEPTIONS: Readonly<Record<string, string>> = {
     'les comptes DÉJÀ rattachés à un bailleur restent montrés pour être retirés (NOTE 9) · la liste proposée lit `retenus=true`',
   "components/LegsImmobilisations.tsx :: '/comptes?typeCompte=DETAIL'":
     'le 167 et le 4861 du legs sont PRESCRITS tous deux (SYCEBNL Partie 3 ch. 2 § 1.2.2, Guide Application 5), seuls admis par le serveur · le legs en est souvent le premier mouvement, la règle viderait les deux listes',
+  "components/AcquisitionPrixAleatoire.tsx :: '/comptes?typeCompte=DETAIL'":
+    'la dette de l’acquisition à prix aléatoire est PRESCRITE (1681, AUDCIF Titre VIII ch. 11 § 2.3.1 ; 4811, ch. 2 § 11), seule admise par le serveur · l’acquisition en est presque toujours le premier mouvement, la règle viderait la liste',
   "pages/ExercicePage.tsx :: '/comptes?classe=CLASSE_1&typeCompte=DETAIL'":
     'le 12 est la SEULE destination de l’imputation aux capitaux propres d’ouverture (refus du serveur), comme dans l’affectation du résultat au régime « texte » · au premier exercice, aucun 12 n’est retenu ni mouvementé',
   "pages/ImmobilisationsPage.tsx :: '/comptes?classe=CLASSE_2&typeCompte=DETAIL'":

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { STOCK_PROVENANT_D_IMMOBILISATIONS } from '../stocks/nomenclature-stocks';
 import { PrismaService } from '../../common/prisma.service';
 import { Collecte, LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
@@ -282,9 +283,12 @@ const STOCK_EN_COURS_DE_ROUTE: Record<Referentiel, string> = {
  * contrôle de solde ne vise donc que le SYSCOHADA ; l'exclusion du contrôle
  * des stocks en route vaut pour les deux.
  */
+// La table vit dans `stocks/nomenclature-stocks.ts` (lot 15 des
+// immobilisations, qui débite ce compte à la mise hors service) · un seul
+// endroit écrit les deux numéros.
 const STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL: Record<Referentiel, string> = {
-  [Referentiel.SYSCOHADA]: '388',
-  [Referentiel.SYCEBNL]: '378',
+  [Referentiel.SYSCOHADA]: STOCK_PROVENANT_D_IMMOBILISATIONS[Referentiel.SYSCOHADA].racine,
+  [Referentiel.SYCEBNL]: STOCK_PROVENANT_D_IMMOBILISATIONS[Referentiel.SYCEBNL].racine,
 };
 
 /**

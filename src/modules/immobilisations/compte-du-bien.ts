@@ -183,6 +183,9 @@ export function modeDeLaRacine(referentiel: Referentiel, racine: string): ModeAc
   // croire qu'un don passait au 14.
   if (racine === '14') return 'SUBVENTION_EN_NATURE';
   if (referentiel === Referentiel.SYSCOHADA && racine === '841') return 'CONSTRUCTION_FIN_DE_BAIL';
+  // Au SYCEBNL, la racine est « 8410 » · ses 8411, 8412 et 8415 sont des
+  // contributions volontaires en nature (contrepartie-acquisition.ts).
+  if (referentiel === Referentiel.SYCEBNL && racine === '8410') return 'CONSTRUCTION_FIN_DE_BAIL';
   if (referentiel === Referentiel.SYCEBNL) {
     if (['162', '163', '164', '165'].includes(racine)) return 'FONDS_AFFECTES';
     // Dons et legs d'immobilisations (167), biens reçus en don ou en legs

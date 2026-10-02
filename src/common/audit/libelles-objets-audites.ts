@@ -65,6 +65,7 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   CoutEmpruntIncorpore: 'Coûts d’emprunt incorporés à un bien',
   ReevaluationBilan: 'Réévaluation des immobilisations',
   RepriseProvisionReevaluation: 'Reprise de la provision spéciale de réévaluation',
+  MouvementDemantelement: 'Provision pour démantèlement d’un bien',
   ProcesVerbalComptageCaisse: 'Procès-verbal de comptage de caisse',
   Exoneration: 'Exonération',
   LiquidationTva: 'Liquidation de TVA',

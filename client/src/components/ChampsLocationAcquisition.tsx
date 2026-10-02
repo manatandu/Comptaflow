@@ -203,6 +203,55 @@ export function ChampsLocationAcquisition({
         <span />
         <label className={etiquette}>
           <span className="flex items-center gap-1">
+            Garantie de valeur résiduelle
+            <Aide
+              titre="Garantie de valeur résiduelle"
+              texte="Ce que le preneur s'attend à payer si la revente du bien par le bailleur, au terme, ne rapporte pas le montant garanti. Ce montant attendu fait partie des paiements locatifs · il entre dans la dette, actualisé au terme du contrat. À l'échéance, déclarez si le bailleur l'a appelée."
+              source="AUDCIF Titre VIII ch. 8 § 2.1.2 et § 2.1.3"
+            />
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={saisie.garantieValeurResiduelle}
+            onChange={(e) => maj({ garantieValeurResiduelle: e.target.value })}
+            className={`${champ} font-mono`}
+          />
+        </label>
+        <label className={`${etiquette} flex items-center gap-1.5`}>
+          <input type="checkbox" checked={saisie.loyerIndexe} onChange={(e) => maj({ loyerIndexe: e.target.checked })} />
+          Loyer indexé
+          <Aide
+            titre="Loyer indexé"
+            texte="Un loyer qui dépend d'un indice ou d'un taux est un paiement locatif · à l'entrée, il est évalué avec l'indice ou le taux en vigueur à la prise d'effet. Saisissez le loyer que donne cet indice, et nommez-le. Les loyers fondés sur l'utilisation ou la performance du bien n'en font pas partie · ils vont en charges au fur et à mesure. Quand l'indice bouge ensuite, la dette n'est pas recalculée · l'écart avec les redevances payées se montre à la clôture."
+            source="AUDCIF Titre VIII ch. 8 § 2.1.2"
+          />
+        </label>
+        {saisie.loyerIndexe ? (
+          <>
+            <label className={etiquette}>
+              Indice ou taux de référence
+              <input required value={saisie.indiceLoyer} onChange={(e) => maj({ indiceLoyer: e.target.value })} className={champ} />
+            </label>
+            <label className={etiquette}>
+              Valeur à la prise d'effet
+              <input
+                required
+                type="number"
+                step="0.000001"
+                min={0}
+                value={saisie.valeurIndiceCommencement}
+                onChange={(e) => maj({ valeurIndiceCommencement: e.target.value })}
+                className={`${champ} font-mono`}
+              />
+            </label>
+          </>
+        ) : (
+          <span className="col-span-2" />
+        )}
+        <label className={etiquette}>
+          <span className="flex items-center gap-1">
             Coûts directs initiaux
             <Aide
               titre="Valeur du bien"
@@ -270,7 +319,7 @@ export function ChampsLocationAcquisition({
               <tbody>
                 {echeancier.lignes.map((l) => (
                   <tr key={l.rang}>
-                    <td>{l.option ? 'Option' : l.rang}</td>
+                    <td>{l.option ? 'Option' : l.garantie ? 'Garantie' : l.rang}</td>
                     <td>{new Date(l.date).toISOString().slice(0, 10).split('-').reverse().join('/')}</td>
                     <td className="text-right">{montant(l.paiement)}</td>
                     <td className="text-right">{montant(l.interets)}</td>

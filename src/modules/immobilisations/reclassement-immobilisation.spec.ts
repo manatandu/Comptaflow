@@ -50,6 +50,10 @@ const COMPTES: Record<string, { numero: string; intitule: string }> = {
   cAmortIncorporel: { numero: '28131000', intitule: 'Amortissements des logiciels' },
   // Un compte qui n'est pas un 29, pour le refus correspondant.
   cPasUn29: { numero: '39100000', intitule: 'Dépréciations des stocks de marchandises' },
+  // Lot 15 · un incorporel viré vers les frais de développement (211, SYSCOHADA).
+  cFraisDev: { numero: '21100000', intitule: 'Frais de développement' },
+  cAmortFraisDev: { numero: '28110000', intitule: 'Amortissements des frais de développement' },
+  cDotIncorporel: { numero: '68120000', intitule: 'Dotations aux amortissements des incorporelles' },
 };
 
 function service(options: {
@@ -59,6 +63,7 @@ function service(options: {
   depreciations?: Array<{ sens: 'DOTATION' | 'REPRISE'; montant: number }>;
   familleDestination?: { compteImmobilisationId: string; compteAmortissementId: string; compteDotationId: string };
   referentiel?: Referentiel;
+  compteAvant?: string;
 } = {}) {
   const ecrituresPostees: Array<{ libelle: string; lignes: Ligne[] }> = [];
   const misesAJour: Faux[] = [];
@@ -76,10 +81,10 @@ function service(options: {
     dureeAmortissementAns: 20,
     amortissementAnterieur: options.amortissementAnterieur ?? 0,
     familleId: 'fAvant',
-    compteImmobilisationId: 'cImmoAvant',
+    compteImmobilisationId: options.compteAvant ?? 'cImmoAvant',
     compteAmortissementId: 'cAmortAvant',
     compteDotationId: 'cDotAvant',
-    compteImmobilisation: COMPTES.cImmoAvant,
+    compteImmobilisation: COMPTES[options.compteAvant ?? 'cImmoAvant'],
     dotations: (options.dotations ?? []).map((montant, i) => ({ id: `d${i}`, montant, exerciceId: `ex${i}` })),
     depreciations: (options.depreciations ?? []).map((d, i) => ({
       id: `dep${i}`,
@@ -325,5 +330,59 @@ describe('reclassement d’immobilisation · ch. 10 § 2.4', () => {
       compteAmortissementId: 'cAmortApres',
       compteDotationId: 'cDotApres',
     });
+  });
+});
+
+describe('reclassement VERS le 211 · les six critères ne se contournent pas (lot 15)', () => {
+  // AUDCIF Titre VIII ch. 1 § 2.1.1 · un frais de développement ne s'inscrit
+  // que sur six critères démontrés simultanément. La règle était câblée à la
+  // seule création · un logiciel (213) viré au 211 y entrait sans rien.
+  const VERS_211 = {
+    compteAvant: 'cIncorporel',
+    familleDestination: { compteImmobilisationId: 'cFraisDev', compteAmortissementId: 'cAmortFraisDev', compteDotationId: 'cDotIncorporel' },
+  };
+  const SIX = {
+    FAISABILITE_TECHNIQUE: 'Prototype validé',
+    INTENTION: 'Décision du conseil',
+    CAPACITE: 'Équipe en place',
+    AVANTAGES_ECONOMIQUES: 'Contrats signés',
+    RESSOURCES: 'Budget voté',
+    EVALUATION_FIABLE: 'Suivi analytique par projet',
+  };
+
+  it('REFUSE le virement sans les six critères, en nommant le premier qui manque', async () => {
+    const { svc, ecrituresPostees } = service(VERS_211);
+    await expect(svc.reclasser('t1', 'u1', 'i1', RECLASSEMENT as never)).rejects.toThrow(/Critère 1 non démontré/);
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+
+  it('refuse une réunion des critères postérieure à la dépense (§ 3.1, pas de rétroactivité)', async () => {
+    const { svc } = service(VERS_211);
+    await expect(
+      svc.reclasser('t1', 'u1', 'i1', { ...RECLASSEMENT, criteresFraisDeveloppement: SIX, dateReunionCriteresDeveloppement: '2021-01-01' } as never),
+    ).rejects.toThrow(/avant la réunion des six critères/);
+  });
+
+  it('admet le virement quand les six critères sont déclarés, et les garde sur la fiche', async () => {
+    const { svc, ecrituresPostees, misesAJour } = service(VERS_211);
+    await svc.reclasser('t1', 'u1', 'i1', {
+      ...RECLASSEMENT,
+      criteresFraisDeveloppement: SIX,
+      dateReunionCriteresDeveloppement: '2019-06-01',
+    } as never);
+    expect(ecrituresPostees).toHaveLength(1);
+    expect(misesAJour[0]).toMatchObject({
+      compteImmobilisationId: 'cFraisDev',
+      criteresFraisDeveloppement: SIX,
+      dateReunionCriteresDeveloppement: new Date('2019-06-01'),
+    });
+  });
+
+  it("ne s'applique pas au SYCEBNL · son plan n'ouvre aucun 211", async () => {
+    // Un dossier SYCEBNL n'a pas de 21100000 semé ; si un cabinet en ouvrait
+    // un, la règle de l'AUDCIF ne le viserait pas (frais-developpement.ts).
+    const { svc, ecrituresPostees } = service({ ...VERS_211, referentiel: Referentiel.SYCEBNL });
+    await svc.reclasser('t1', 'u1', 'i1', RECLASSEMENT as never);
+    expect(ecrituresPostees).toHaveLength(1);
   });
 });

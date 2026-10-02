@@ -545,10 +545,12 @@ année n'y a aucun mouvement). La fenêtre vit sous « Traitement », car elle P
 
 **Notes de cours sur les stocks · un témoin, jamais une source**
 (`docs/stocks-notes-de-cours.md`). Il **ne lève aucun refus**, pas même sur la
-période de stockage. Non codés faute de lecture · le sous-compte **388 « Stocks
-provenant d'immobilisations mises hors service ou au rebut »** ; les fiches des
-comptes 33, 40, 41, 60, 62 et 70 des deux textes, à lire avant toute ligne sur les
-emballages.
+période de stockage. Le sous-compte **388 « Stocks provenant d'immobilisations
+mises hors service ou au rebut »** est lu depuis le lot 15a · débité « par le
+crédit du compte d'immobilisation concerné » (fiche du compte 38), jamais par le
+603 comme l'écrit le livre ; 378 au SYCEBNL. Non codés faute de lecture · les
+fiches des comptes 33, 40, 41, 60, 62 et 70 des deux textes, à lire avant toute
+ligne sur les emballages.
 
 **Le magasin et le BONI / MALI D'INVENTAIRE · un écart de QUANTITÉ, qui SE
 COMPTABILISE.** `ArticleStock` et `MouvementStock` portent l'inventaire PERMANENT,
@@ -1533,6 +1535,21 @@ sa LIAISON, est écartée des contrôles « hors module » (`reevaluationBilan:
 null`), des acquisitions des tableaux des flux (FI et FJ, FG et FH,
 `mouvementsDeReevaluation`) et des notes 3A, 5A, 5B (colonne `REEVALUATION`) ;
 bien en cours réévalué à son compte inscrit, éléments monétaires du 27 gardés.
+PETITS MANQUES (lot 15a) · RENTE VIAGÈRE et
+REDEVANCES, SYSCOHADA seul (`acquisition-prix-aleatoire.ts`, route
+cloisonnée) · valeur déclarée avec son fondement et sa source, dette au 1681
+(bouquet en trésorerie) ou au 4811 ; le solde (décès, fin des redevances) se
+calcule sur la dette CAPITALISÉE de la fiche et les versements DÉCLARÉS, jamais
+sur le solde d'un compte que d'autres dettes partagent, qui la BORNE seulement
+(refus au-delà de son solde créditeur, à-nouveaux exclus) · D 1681 / C 841, ou
+831 / 841 pour l'écart, une fois, écriture retenue. Au SYCEBNL, un numéro, deux
+sens · son 168 est un FONDS (« Autres fonds affectés »), aucun 1681, refus
+nommé. RÉSERVE DE PROPRIÉTÉ · information de fiche, aux deux, déduite d'une
+dette au 4816 et jamais contredite par elle ; ni sur un bien sorti, ni de
+façon à changer la liste d'un exercice clos. MATÉRIEL RÉCUPÉRÉ · 388 au
+SYSCOHADA, 378 au SYCEBNL (`STOCK_PROVENANT_D_IMMOBILISATIONS`, nomenclature
+des stocks), « par le crédit du compte d'immobilisation », jamais au-delà de la
+valeur nette (aucun compte pour l'excédent).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

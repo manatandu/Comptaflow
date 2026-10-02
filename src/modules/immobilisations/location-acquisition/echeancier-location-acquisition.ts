@@ -39,6 +39,28 @@ export interface ContratSaisi {
    */
   tauxAnnuel?: number | null;
   valeurContrat?: number | null;
+  /**
+   * LOT 15 · GARANTIE DE VALEUR RÉSIDUELLE · § 2.1.2, les paiements locatifs
+   * comprennent « les montants que le preneur s'attend à payer au titre d'une
+   * garantie de valeur résiduelle ». Un paiement de fin de contrat, comme le
+   * prix d'option (« Dette = Valeur actualisée des paiements de loyers +
+   * Valeur actualisée des paiements estimés à la fin du contrat », § 2.1.3).
+   * Zéro ou absent sans garantie.
+   */
+  garantieValeurResiduelle?: number;
+  /**
+   * LOT 15 · LOYER INDEXÉ · § 2.1.2, les loyers « qui dépendent d'un indice ou
+   * d'un taux » sont des paiements locatifs, évalués à l'entrée « en
+   * retenant l'indice ou le taux en vigueur au commencement du contrat ». Le
+   * loyer saisi EST ce loyer-là ; l'indice et sa valeur à la prise d'effet se
+   * déclarent, pour que le réviseur sache sur quoi la dette est assise. Rien
+   * n'est recalculé quand l'indice bouge · le texte ne dit pas comment
+   * (décision proposée, journal du plan), et l'écart entre le 623 réellement
+   * porté et l'échéancier se montre à la clôture.
+   */
+  loyerIndexe?: boolean;
+  indiceLoyer?: string | null;
+  valeurIndiceCommencement?: number | null;
 }
 
 /**
@@ -70,11 +92,15 @@ export function tauxPeriodiqueEquivalent(tauxAnnuel: number, moisParPeriode: num
 }
 
 /** Les instants des paiements, en périodes depuis la prise d'effet. */
-function instants(c: ContratSaisi): { t: number; montant: number; option: boolean }[] {
+function instants(c: ContratSaisi): { t: number; montant: number; option: boolean; garantie: boolean }[] {
   const n = c.dureeMois / MOIS_PAR_PERIODE[c.periodicite];
-  const evts: { t: number; montant: number; option: boolean }[] = [];
-  for (let k = 1; k <= n; k++) evts.push({ t: c.termeAEchoir ? k - 1 : k, montant: c.loyer, option: false });
-  if (c.prixOption > 0) evts.push({ t: n, montant: c.prixOption, option: true });
+  const evts: { t: number; montant: number; option: boolean; garantie: boolean }[] = [];
+  for (let k = 1; k <= n; k++) evts.push({ t: c.termeAEchoir ? k - 1 : k, montant: c.loyer, option: false, garantie: false });
+  if (c.prixOption > 0) evts.push({ t: n, montant: c.prixOption, option: true, garantie: false });
+  // La garantie se paie au terme, après la cession du bien par le bailleur
+  // (§ 2.1.2, remarque 2) · sa ligne suit celle de l'option.
+  const garantie = c.garantieValeurResiduelle ?? 0;
+  if (garantie > 0) evts.push({ t: n, montant: garantie, option: false, garantie: true });
   return evts;
 }
 
@@ -111,6 +137,8 @@ export interface LigneEcheancier {
   capital: number;
   restant: number;
   option: boolean;
+  /** Lot 15 · la ligne de la garantie de valeur résiduelle (§ 2.1.2). */
+  garantie: boolean;
 }
 
 export interface Echeancier {
@@ -134,6 +162,8 @@ export function motifRefusContrat(c: ContratSaisi): string | null {
   const parValeur = c.valeurContrat != null;
   if (parTaux === parValeur) return 'Indiquez soit le taux implicite annuel, soit la valeur du bien figurant au contrat, l’un des deux.';
   if (parTaux && !(c.tauxAnnuel! >= 0)) return 'Le taux implicite ne peut pas être négatif.';
+  const refusComplements = motifRefusComplements(c);
+  if (refusComplements) return refusComplements;
   return motifLocationSimple(c);
 }
 
@@ -189,8 +219,30 @@ export function construireEcheancier(c: ContratSaisi): Echeancier {
       capital,
       restant,
       option: e.option,
+      garantie: e.garantie,
     });
     tPrecedent = e.t;
   });
   return { dette, tauxPeriodique: i, lignes };
+}
+
+/**
+ * LOT 15 · ce que le preneur déclare en sus des loyers (§ 2.1.2) · une
+ * garantie jamais négative ; un loyer indexé, son indice nommé et sa valeur
+ * à la prise d'effet, sans quoi « l'indice en vigueur au commencement du
+ * contrat » ne serait écrit nulle part.
+ */
+export function motifRefusComplements(c: Pick<ContratSaisi, 'garantieValeurResiduelle' | 'loyerIndexe' | 'indiceLoyer' | 'valeurIndiceCommencement'>): string | null {
+  if ((c.garantieValeurResiduelle ?? 0) < 0) return 'Le montant attendu au titre de la garantie de valeur résiduelle ne peut pas être négatif.';
+  if (c.loyerIndexe) {
+    if (!c.indiceLoyer?.trim()) {
+      return "Nommez l'indice ou le taux dont dépend le loyer · il est retenu « en vigueur au commencement du contrat » (AUDCIF Titre VIII ch. 8 § 2.1.2).";
+    }
+    if (!(c.valeurIndiceCommencement != null && c.valeurIndiceCommencement > 0)) {
+      return "Indiquez la valeur de l'indice à la prise d'effet · le loyer saisi est celui qu'elle donne (AUDCIF Titre VIII ch. 8 § 2.1.2).";
+    }
+  } else if (c.indiceLoyer?.trim() || c.valeurIndiceCommencement != null) {
+    return "Un indice ne se déclare que pour un loyer indexé.";
+  }
+  return null;
 }
