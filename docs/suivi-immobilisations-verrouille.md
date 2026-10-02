@@ -44,6 +44,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | F18 | Coûts d'emprunt incorporés montrés aux Notes annexes en lecture seule (ex-A2, D1), « Réglé par » devenu « Contrepartie » (D2), fonds de projet en sommeil refusé au serveur (D3) | Cloud Run 474, Hosting 603, tests 248 |
 | F19 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, un compte prescrit seul jamais retiré (octroi, affectation, 12, 167 et 4861, 29 de la division, 4739 du remboursement), gardé des deux côtés par une table unique (ex-E4) | Cloud Run 475, Hosting 605, tests 250 |
 | F20 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements, Opérations, Lieux, sans changement de comportement ; ce qui porte sur un bien reste sur sa ligne (échange compris) (ex-A1) | Hosting 607, tests 252 (client seul, Cloud Run non déclenché) |
+| F21 | Lot 14 · réévaluation légale ou libre (globale, décision exigée, plafond k′, 106 par défaut, 154 sous neutralité pour les amortissables avec reprise au 861 chaînée, base du coefficient déclarée et convertie, dotation de l'exercice avant (D-38), coefficient converti sous 1 refusé (D-45), tableau des flux et notes par liaison, onglet Opérations) (ex-A3) | Cloud Run 476, Hosting 614, tests 261 |
 
 ## En cours
 
@@ -54,8 +55,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | Préalable |
 |---|---|---|
-| A3 | Lot 14 · réévaluation légale ou libre | A1 vérifié |
-| A4 | Lot 15 · petits manques de faible valeur | A3 vérifié |
+| A4 | Lot 15 · petits manques de faible valeur | lot 14 vérifié (F21) |
 | A5 | Pertes de change · la provision (194, 4991, 4997) reprise et ajustée à chaque réévaluation des devises, jamais empilée (AUDCIF art. 54, Titre VIII ch. 22 § 2.3) · relevé CPCC C1 | décision de Manasse du 2026-10-02 |
 | A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | décision de Manasse du 2026-10-02 |
 | A7 | Dépréciation des créances dossier par dossier · 411 vers 416, D 659 / C 491, motif et pièces (AUDCIF Titre VII, comptes 41 et 49) · relevé CPCC C3 | décision de Manasse du 2026-10-02 |
