@@ -126,10 +126,18 @@ export function amortissementsHorsDotations(i: {
   amortissementsDetaches?: unknown;
   /** Lot 11 · la réduction du cumul reprise au 798 (révision rétroactive). */
   reprisesAmortissement?: unknown;
+  /**
+   * Lot 14 · ce que la réévaluation a changé au cumul (AUDCIF Titre VIII
+   * ch. 28) · la hausse portée au 28 (légale, méthode 1), ou le cumul éliminé
+   * (méthode 2, négatif). Oublié ici, un bien réévalué garderait au tableau
+   * l'ancien cumul face au nouveau brut, et son plan doterait au-delà.
+   */
+  amortissementsReevaluation?: unknown;
 }): number {
   return (
     Math.max(0, Number(i.amortissementAnterieur ?? 0)) -
     Number(i.amortissementsDetaches ?? 0) -
-    Number(i.reprisesAmortissement ?? 0)
+    Number(i.reprisesAmortissement ?? 0) +
+    Number(i.amortissementsReevaluation ?? 0)
   );
 }

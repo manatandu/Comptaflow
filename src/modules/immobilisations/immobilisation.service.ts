@@ -66,6 +66,7 @@ import {
   motifRefusMiseEnServiceAvantIncorporation,
   motifRefusPlafond,
 } from './couts-emprunt-incorpores';
+import { imputationSurEcart, natureReevaluable } from './reevaluation-bilan';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 
@@ -771,6 +772,24 @@ export class ImmobilisationService {
     });
     const refusIncorporation = motifRefusMiseEnServiceAvantIncorporation(date, incorporations._max.dateFin ?? null);
     if (refusIncorporation) throw new BadRequestException(refusIncorporation);
+    // Lot 14 · UNE MISE EN SERVICE NE REMONTE PAS AVANT UNE RÉÉVALUATION QUI
+    // A PORTÉ LE BIEN. L'opération l'a lu « en cours » à sa date (« la date
+    // d'effet de la réévaluation doit être la date de clôture », AUDCIF
+    // art. 63) et a débité le 2x9 par `compteInscritALaDate` ; une mise en
+    // service antidatée ferait dire au même lecteur que le bien était déjà au
+    // compte définitif ce jour-là, et le plan aurait couru sans la dotation
+    // que la réévaluation exige avant elle (ch. 28 § 3.2). Jumeau du refus des
+    // coûts d'emprunt ci-dessus.
+    const reevaluation = await this.prisma.ligneReevaluationBilan.findFirst({
+      where: { tenantId, immobilisationId: id, reevaluation: { dateReevaluation: { gte: date } } },
+      select: { reevaluation: { select: { dateReevaluation: true } } },
+    });
+    if (reevaluation) {
+      throw new BadRequestException(
+        `Ce bien a été réévalué le ${reevaluation.reevaluation.dateReevaluation.toISOString().slice(0, 10)} alors qu'il n'était ` +
+          'pas encore en service · sa mise en service se date après cette réévaluation (AUDCIF art. 63 ; Titre VIII ch. 28 § 3.2).',
+      );
+    }
 
     let ecritureId: string | null = null;
     if (immo.compteEnCoursId) {
@@ -2986,6 +3005,22 @@ export class ImmobilisationService {
     if (dejaPassee) {
       throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
     }
+    // LOT 14 · un bien réévalué à la clôture de cet exercice (ou d'un exercice
+    // postérieur) ne se dote plus pour cet exercice · la dotation se passe
+    // AVANT, sur les valeurs anciennes. Les valeurs réévaluées ne servent
+    // qu'« à partir de » la date d'effet, la clôture (AUDCIF art. 63 ; Titre
+    // VIII ch. 28 § 3.2) · passée après, la dotation de l'exercice serait
+    // calculée sur un brut qui n'existait pas encore.
+    const reevalueApres = await this.prisma.ligneReevaluationBilan.findFirst({
+      where: { tenantId, immobilisationId: id, reevaluation: { exercice: { dateFin: { gte: exercice.dateFin } } } },
+      select: { id: true },
+    });
+    if (reevalueApres) {
+      throw new BadRequestException(
+        "Ce bien a été réévalué à la clôture de cet exercice ou d'un exercice postérieur · la dotation de l'exercice " +
+          'se passe avant la réévaluation, sur les valeurs anciennes (AUDCIF art. 63 ; Titre VIII ch. 28 § 3.2).',
+      );
+    }
     // Refus NOMMÉ, et AVANT la lecture des unités d'œuvre · celle-ci réclame
     // un relevé, et le cabinet chercherait un compteur pour un bien qui ne
     // sert pas encore. Le « aucun montant à doter » générique ne dirait pas
@@ -3228,6 +3263,34 @@ export class ImmobilisationService {
     const cumul = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
     );
+    // LOT 14 · le bien porte-t-il un écart de réévaluation ? AUDCIF Titre VIII
+    // ch. 12 § 2.5 · « dans le cas où une immobilisation corporelle a fait
+    // l'objet ANTÉRIEUREMENT d'une réévaluation, la perte de valeur s'impute
+    // sur l'écart de réévaluation ; le solde éventuel est enregistré en
+    // charges ».
+    const reevaluations = await this.prisma.ligneReevaluationBilan.findMany({
+      where: { tenantId, immobilisationId: id, ecart: { gt: 0 } },
+      select: { id: true, ecart: true, ecartImpute: true, compteEcart: true, reevaluation: { select: { exercice: { select: { dateFin: true } } } } },
+      orderBy: { reevaluation: { dateReevaluation: 'asc' } },
+    });
+    if (reevaluations.length > 0 && dto.sens === SensDepreciation.REPRISE) {
+      // ABSTENTION ÉCRITE (décision proposée D-35) · le texte ne dit ni où
+      // reprendre la part d'une perte imputée sur l'écart, ni comment le
+      // plafond du § 2.4.2 (valeur sans dépréciation, plan rejoué) se lit sur
+      // un plan réévalué. Une reprise au 79 ferait entrer au résultat ce qui
+      // n'en est jamais sorti.
+      throw new BadRequestException(
+        "Ce bien a été réévalué · la reprise de sa dépréciation n'est pas réglée par le texte (AUDCIF Titre VIII ch. 12 " +
+          '§ 2.4.2 et § 2.5), et OmegaX ne la calcule pas. Passez-la hors module, avec sa justification.',
+      );
+    }
+    if (dto.sens === SensDepreciation.DOTATION && reevaluations.some((r) => r.reevaluation.exercice.dateFin >= exercice.dateFin)) {
+      throw new BadRequestException(
+        "Ce bien a été réévalué à la clôture de cet exercice, à sa valeur actuelle (AUDCIF art. 63) · une perte de " +
+          'valeur à la même date contredirait cette valeur. La dépréciation se constate AVANT la réévaluation, qui ' +
+          'garde alors le bien à sa valeur nette (ch. 28 § 4.2.3).',
+      );
+    }
     if (dto.sens === SensDepreciation.REPRISE) {
       // Deux plafonds, le plus bas l'emporte · le cumul inscrit (au-delà, le
       // 29 deviendrait DÉBITEUR, fiche du COMPTE 29, « corrections d'actif de
@@ -3252,6 +3315,26 @@ export class ImmobilisationService {
     // Fiche du COMPTE 29, « fonctionnement » · la dotation CRÉDITE le 29 par le
     // débit du 69 ; la reprise le DÉBITE par le crédit du 79.
     const dotation = dto.sens === SensDepreciation.DOTATION;
+    // LOT 14 · ch. 12 § 2.5 · la perte s'impute d'abord sur l'écart du bien
+    // (106), le solde seul en charges. Exemple du texte · perte 15 000 000,
+    // écart 6 000 000 · D 1062 6 000 000, D 6914 9 000 000 / C 2931
+    // 15 000 000. La provision spéciale (154) n'est pas un écart (D-34). Le
+    // paragraphe ne vise que l'immobilisation CORPORELLE · un titre réévalué
+    // puis déprécié garde la règle ordinaire, la perte en charges (D-34).
+    const imputation = dotation
+      ? imputationSurEcart(
+          dto.montant,
+          (natureReevaluable(immo.compteImmobilisation.numero, referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL') === 'CORPORELLE' ? reevaluations : []).map((r) => ({ id: r.id, compteEcart: r.compteEcart ?? '', reste: Number(r.ecart) - Number(r.ecartImpute) })),
+        )
+      : { parEcart: [], enCharge: dto.montant };
+    const comptesEcart = imputation.parEcart.length
+      ? await this.prisma.compte.findMany({
+          where: { tenantId, numero: { in: [...new Set(imputation.parEcart.map((e) => e.compteEcart))] } },
+          select: { id: true, numero: true },
+        })
+      : [];
+    const absent = imputation.parEcart.find((e) => !comptesEcart.some((c) => c.numero === e.compteEcart));
+    if (absent) throw new BadRequestException(`Compte ${absent.compteEcart} absent du plan du dossier · il porte l'écart de réévaluation du bien.`);
     const ecriture = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
@@ -3259,7 +3342,8 @@ export class ImmobilisationService {
       libelle: `${dotation ? 'Dotation' : 'Reprise'} de dépréciation · ${immo.designation}`,
       lignes: dotation
         ? [
-            { compteId: contrepartie.id, debit: dto.montant, credit: 0 },
+            ...imputation.parEcart.map((e) => ({ compteId: comptesEcart.find((c) => c.numero === e.compteEcart)!.id, debit: e.montant, credit: 0 })),
+            ...(imputation.enCharge > EPSILON ? [{ compteId: contrepartie.id, debit: imputation.enCharge, credit: 0 }] : []),
             { compteId: compte29.id, debit: 0, credit: dto.montant },
           ]
         : [
@@ -3269,18 +3353,26 @@ export class ImmobilisationService {
     });
 
     try {
-      return await this.prisma.depreciationImmobilisation.create({
-        data: {
-          immobilisationId: id,
-          exerciceId: dto.exerciceId,
-          sens: dto.sens,
-          montant: dto.montant,
-          compteDepreciationId: compte29.id,
-          compteContrepartieId: contrepartie.id,
-          indice: dto.indice,
-          ecritureId: ecriture.id,
-          createdBy: userId,
-        },
+      const imputeTotal = Math.round(imputation.parEcart.reduce((t, e) => t + e.montant, 0) * 100) / 100;
+      return await transactionJournalisee(this.prisma, async (tx) => {
+        const cree = await tx.depreciationImmobilisation.create({
+          data: {
+            immobilisationId: id,
+            exerciceId: dto.exerciceId,
+            sens: dto.sens,
+            montant: dto.montant,
+            montantImputeEcart: imputeTotal,
+            compteDepreciationId: compte29.id,
+            compteContrepartieId: contrepartie.id,
+            indice: dto.indice,
+            ecritureId: ecriture.id,
+            createdBy: userId,
+          },
+        });
+        for (const e of imputation.parEcart) {
+          await tx.ligneReevaluationBilan.update({ where: { id: e.id }, data: { ecartImpute: { increment: e.montant } } });
+        }
+        return cree;
       });
     } catch (err) {
       // Même compensation que passerDotation · l'écriture existe déjà quand la
@@ -4582,6 +4674,17 @@ export class ImmobilisationService {
           : null,
     });
     if (refus) throw new BadRequestException(refus);
+    // LOT 14 · la révision rétroactive rejoue le plan linéaire passé par le
+    // module sur la valeur d'origine · après une réévaluation, cette valeur
+    // n'est plus celle sur laquelle les dotations passées ont été calculées,
+    // et le rejeu reprendrait au 798 un montant faux. Voie prospective seule,
+    // comme pour un bien repris ou déprécié (lot 11).
+    if (dto.nature !== 'PROSPECTIVE' && Number(immo.amortissementsReevaluation ?? 0) !== 0) {
+      throw new BadRequestException(
+        'Ce bien a été réévalué · la révision rétroactive rejouerait le plan passé sur une valeur qui n’était pas la ' +
+          'sienne (AUDCIF Titre VIII ch. 28 § 4.2.2). Seule la révision prospective reste ouverte.',
+      );
+    }
     const arrondir = (x: number) => Math.round(x * 100) / 100;
     const motif = dto.motif.trim().slice(0, 1000);
     const dureeAvantAns = immo.dureeAmortissementAns;

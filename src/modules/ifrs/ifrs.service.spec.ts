@@ -163,6 +163,7 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       expect(brouillard).toBe(false);
       return {
         lignes: balances[ex].map(([numero, solde, reportDebit = 0, reportCredit = 0]) => ({
+          compteId: `id-${numero}`,
           numero,
           intitule: numero,
           classe: `CLASSE_${numero[0]}`,
@@ -177,6 +178,8 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
         })),
       };
     }),
+    // Lot 14 · aucune écriture de réévaluation dans ces dossiers.
+    mouvementsDeReevaluation: jest.fn().mockResolvedValue(new Map()),
   };
   // Le VRAI service des états SYSCOHADA · c'est sa correspondance du bilan qui
   // donne les capitaux propres publiés, et une doublure ferait passer un
@@ -485,6 +488,33 @@ describe('IfrsService · tableau des flux de trésorerie (IAS 7 modifiée par IF
     return d;
   }
   const M = (t: any, cle: string) => t.lignes.find((l: any) => l.cle === cle)?.montant;
+
+  it('lot 14 · la réévaluation légale du module n’est pas une acquisition IFRS non plus · le tableau de départ la neutralise', async () => {
+    // Même dossier, plus la réévaluation légale de l'exemple 2 du ch. 28 au
+    // prorata (D 241 100 / C 2841 40 / C 1061 60), sans trésorerie.
+    const avecReevaluation = {
+      ...B,
+      [EX]: B[EX].map((l) => (l[0] === '24110000' ? (['24110000', 400] as LigneDoublure) : l[0] === '28410000' ? (['28410000', -90] as LigneDoublure) : l)).concat([
+        ['10610000', -60] as LigneDoublure,
+      ]),
+    };
+    const d = doublure(true, false, avecReevaluation);
+    for (const r of [...REGLES_FLUX, { prefixe: '106', rubrique: 'SF_CAPITAL' }]) await d.service.ajouterRegle(T, r);
+    await d.service.declarerActivite(T, { activitePrincipale: 'AUCUNE' });
+    await d.service.declarerTresorerie(T, { decouvertsDansTresorerie: null, tresorerieEnDevises: false });
+    d.ecritures.mouvementsDeReevaluation.mockImplementation(async (_t: string, ex: string) =>
+      ex === EX
+        ? new Map([
+            ['id-24110000', { debit: 100, credit: 0 }],
+            ['id-28410000', { debit: 0, credit: 40 }],
+            ['id-10610000', { debit: 0, credit: 60 }],
+          ])
+        : new Map(),
+    );
+    const t = (await d.service.etat(T, EX)).fluxTresorerie.n!;
+    expect(M(t, 'I_ACQ_CORPORELLES')).toBe(-300);
+    expect(d.ecritures.mouvementsDeReevaluation).toHaveBeenCalledWith(T, EX);
+  });
 
   it('du résultat d’exploitation à la trésorerie, chaque flux à sa place (§ 18 b, § 20, § 16, § 17, § 33A, § 34A)', async () => {
     const { service } = await dossier();

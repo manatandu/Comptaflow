@@ -16,6 +16,7 @@ import { ChampReglePar } from '../components/ChampReglePar';
 import { BasculeDureeLimitee } from '../components/BasculeDureeLimitee';
 import { RevisionPlanAmortissement } from '../components/RevisionPlanAmortissement';
 import { CoutsEmpruntIncorpores } from '../components/CoutsEmpruntIncorpores';
+import { ReevaluationImmobilisations } from '../components/ReevaluationImmobilisations';
 import { PlafondRepriseDepreciation } from '../components/PlafondRepriseDepreciation';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
@@ -2157,6 +2158,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
               onCree={() => void charger()}
             />
             <ClotureLocationAcquisition exerciceId={exerciceCourant?.id} journaux={journaux} onSortie={() => void charger()} />
+            {/* Lot 14 · la réévaluation porte sur TOUT le parc (art. 62), jamais sur un bien · rangée parmi les opérations. */}
+            <ReevaluationImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} onFait={() => void charger()} />
           </div>
           {!peutEcrire && (
             <div className="hidden peer-empty:block text-[11.5px] text-text-dim px-1 py-2">

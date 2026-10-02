@@ -70,6 +70,8 @@ type LigneBalance = ReturnType<typeof ligne>;
 function serviceAvecExercices(
   lignesParExercice: Record<string, LigneBalance[]>,
   exercices: Array<{ id: string; dateDebut: Date }> = [],
+  // Lot 14 · l'écriture de réévaluation du module, par exercice · par DÉFAUT aucune.
+  reevaluationsParExercice: Record<string, Map<string, { debit: number; credit: number }>> = {},
 ) {
   const ecritureService = {
     balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
@@ -82,6 +84,9 @@ function serviceAvecExercices(
         },
       });
     }),
+    mouvementsDeReevaluation: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
+      Promise.resolve((exerciceId && reevaluationsParExercice[exerciceId]) || new Map()),
+    ),
   } as unknown as EcritureService;
   const exerciceService = {
     // ExerciceService.lister() trie par dateDebut décroissant · répliqué ici,
@@ -668,6 +673,76 @@ describe('EtatsFinanciersSyscohadaService', () => {
       // Le compte détaillé que le tableau lit n'est pas signalé.
       expect(parNumero.has('48120000')).toBe(false);
       expect(parNumero.has('52110000')).toBe(false);
+    });
+
+    // LOT 14 · « – Écart et provision spéciale de réévaluation de l'exercice
+    // de réévaluation uniquement » (Titre IX ch. 5 § 1.3). Exemple 2 du
+    // ch. 28 § 4.2.1.3 · brut 1 000 → 1 400, cumul 400 → 560, écart 240 au
+    // 1061 · D 241 400 / C 284 160 / C 1061 240. Aucune trésorerie · FG doit
+    // valoir zéro et le tableau boucler.
+    describe('lot 14 · l’écriture de réévaluation du module', () => {
+      const e1 = [
+        ligne('10130000', C1, 0, 5600),
+        ligne('24110000', C2, 1000, 0),
+        ligne('28410000', C2, 0, 400),
+        ligne('52110000', C5, 5000, 0),
+      ];
+      const reports = (e: LigneBalance[]) =>
+        e.map((l) => ligne(l.numero, l.classe, 0, 0, l.solde >= 0 ? { debit: l.solde } : { credit: -l.solde }));
+      const ecriture = (...l: Array<[string, number, number]>) =>
+        new Map(l.map(([numero, debit, credit]) => [`id-${numero}`, { debit, credit }]));
+
+      it('légale, exemple 2 du § 4.2.1.3 · FG à zéro, et −160 sans la liaison (anomalie n° 21)', async () => {
+        const e2 = [
+          ...reports(e1).filter((l) => !['24110000', '28410000'].includes(l.numero)),
+          ligne('24110000', C2, 400, 0, { debit: 1000 }),
+          ligne('28410000', C2, 0, 160, { credit: 400 }),
+          ligne('10610000', C1, 0, 240),
+        ];
+        const lie = ecriture(['24110000', 400, 0], ['28410000', 0, 160], ['10610000', 0, 240]);
+        const tft = await serviceAvecExercices({ e1, e2 }, EXERCICES, { e2: lie }).tableauFluxTresorerie('t1', 'e2');
+        expect(montant(tft, 'FG').montant).toBe(0);
+        expect(montant(tft, 'ZC').montant).toBe(0);
+        expect(tft.controle.coherent).toBe(true);
+        const sansLiaison = await serviceAvecExercices({ e1, e2 }, EXERCICES).tableauFluxTresorerie('t1', 'e2');
+        expect(montant(sansLiaison, 'FG').montant).toBe(-160);
+        expect(sansLiaison.controle.coherent).toBe(false);
+      });
+
+      it('libre, méthode 2 du § 4.3.1 (150 000 000, 30 000 000, 135 000 000) · FG à zéro', async () => {
+        const base = [
+          ligne('10130000', C1, 0, 130_000_000),
+          ligne('23110000', C2, 150_000_000, 0),
+          ligne('28310000', C2, 0, 30_000_000),
+          ligne('52110000', C5, 10_000_000, 0),
+        ];
+        const e2 = [
+          ligne('10130000', C1, 0, 0, { credit: 130_000_000 }),
+          ligne('23110000', C2, 15_000_000, 30_000_000, { debit: 150_000_000 }),
+          ligne('28310000', C2, 30_000_000, 0, { credit: 30_000_000 }),
+          ligne('10620000', C1, 0, 15_000_000),
+          ligne('52110000', C5, 0, 0, { debit: 10_000_000 }),
+        ];
+        const lie = ecriture(['23110000', 15_000_000, 30_000_000], ['28310000', 30_000_000, 0], ['10620000', 0, 15_000_000]);
+        const tft = await serviceAvecExercices({ e1: base, e2 }, EXERCICES, { e2: lie }).tableauFluxTresorerie('t1', 'e2');
+        expect(montant(tft, 'FG').montant).toBe(0);
+        expect(tft.controle.coherent).toBe(true);
+      });
+
+      it('un titre réévalué ne fausse plus la répartition FG/FH (anomalie n° 11)', async () => {
+        const base = [ligne('10130000', C1, 0, 6000), ligne('27410000', C2, 1000, 0), ligne('52110000', C5, 5000, 0)];
+        const e2 = [...reports(base).filter((l) => l.numero !== '27410000'), ligne('27410000', C2, 400, 0, { debit: 1000 }), ligne('10610000', C1, 0, 400)];
+        const lie = ecriture(['27410000', 400, 0], ['10610000', 0, 400]);
+        const tft = await serviceAvecExercices({ e1: base, e2 }, EXERCICES, { e2: lie }).tableauFluxTresorerie('t1', 'e2');
+        expect(montant(tft, 'FG').montant).toBe(0);
+        expect(montant(tft, 'FH').montant).toBe(0);
+        // La réserve de l'anomalie n° 11 ne naît plus de l'écriture du module.
+        expect(tft.postesNonCalculables.filter((p) => p.ref === 'FH')).toEqual([]);
+        const sansLiaison = await serviceAvecExercices({ e1: base, e2 }, EXERCICES).tableauFluxTresorerie('t1', 'e2');
+        expect(montant(sansLiaison, 'FG').montant).toBe(400);
+        expect(montant(sansLiaison, 'FH').montant).toBe(-400);
+        expect(sansLiaison.postesNonCalculables.some((p) => p.ref === 'FH' && /HORS du module/.test(p.raison))).toBe(true);
+      });
     });
 
     it('lit la subdivision après avoir retiré les zéros de complément', () => {

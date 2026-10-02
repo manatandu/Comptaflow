@@ -12,11 +12,13 @@ import { RepriseSubventionController } from './reprise-subvention.controller';
 import { RepriseSubventionService } from './reprise-subvention.service';
 import { SubventionRattacheeController } from './subvention-rattachee.controller';
 import { SubventionRattacheeService } from './subvention-rattachee.service';
+import { ReevaluationBilanController } from './reevaluation-bilan.controller';
+import { ReevaluationBilanService } from './reevaluation-bilan.service';
 
 @Module({
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule],
-  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController, RepriseSubventionController, SubventionRattacheeController],
-  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService, RepriseSubventionService, SubventionRattacheeService],
+  controllers: [ImmobilisationController, DegressifController, LocationAcquisitionController, RepriseSubventionController, SubventionRattacheeController, ReevaluationBilanController],
+  providers: [ImmobilisationService, DegressifService, LocationAcquisitionService, RepriseSubventionService, SubventionRattacheeService, ReevaluationBilanService],
   exports: [ImmobilisationService],
 })
 export class ImmobilisationsModule {}

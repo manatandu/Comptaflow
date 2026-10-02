@@ -785,6 +785,9 @@ model Tenant {
   reductionsSubvention        ReductionSubventionImmobilisation[]
   revisionsPlanAmortissement  RevisionPlanAmortissement[]
   coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
+  reevaluationsBilan          ReevaluationBilan[]
+  lignesReevaluationBilan     LigneReevaluationBilan[]
+  reprisesProvisionReeval     RepriseProvisionReevaluation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1418,6 +1421,8 @@ model Exercice {
   reductionsSubvention        ReductionSubventionImmobilisation[]
   revisionsPlanAmortissement  RevisionPlanAmortissement[]
   coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
+  reevaluationsBilan          ReevaluationBilan[]
+  reprisesProvisionReeval     RepriseProvisionReevaluation[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1497,6 +1502,8 @@ model Ecriture {
   reductionSubvention         ReductionSubventionImmobilisation?
   revisionPlanAmortissement   RevisionPlanAmortissement?
   coutEmpruntIncorpore        CoutEmpruntIncorpore?
+  reevaluationBilan           ReevaluationBilan?
+  repriseProvisionReeval      RepriseProvisionReevaluation?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -3787,6 +3794,13 @@ model Immobilisation {
   reprisesAmortissement        Decimal                     @default(0) @db.Decimal(18, 2)
   revisionsPlan                RevisionPlanAmortissement[]
   coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
+  // Lot 14 · ce que la réévaluation a changé au cumul des amortissements
+  // (AUDCIF Titre VIII ch. 28) · positif, la hausse portée au 28 (légale et
+  // méthode 1 · « il en sera de même du cumul des amortissements ») ; négatif,
+  // le cumul éliminé (méthode 2). Ajouté par `amortissementsHorsDotations`,
+  // seul calcul du cumul hors dotations.
+  amortissementsReevaluation   Decimal                     @default(0) @db.Decimal(18, 2)
+  lignesReevaluation           LigneReevaluationBilan[]
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -4176,6 +4190,12 @@ model DepreciationImmobilisation {
   // aucun test n'est requis, et donc aucune dotation n'est justifiable. La
   // consigner est ce qui rend la dépréciation opposable à un réviseur.
   indice String
+
+  /// Lot 14 · la part de la perte imputée sur l'écart de réévaluation du bien
+  /// (AUDCIF Titre VIII ch. 12 § 2.5, « la perte de valeur s'impute sur l'écart
+  /// de réévaluation ; le solde éventuel est enregistré en charges »). Zéro
+  /// pour un bien jamais réévalué · `montant` reste la perte entière, au 29.
+  montantImputeEcart Decimal @default(0) @db.Decimal(18, 2)
 
   ecritureId String   @unique
   ecriture   Ecriture @relation("DepreciationEcriture", fields: [ecritureId], references: [id], onDelete: Restrict)
@@ -8468,4 +8488,127 @@ model CoutEmpruntIncorpore {
   @@index([immobilisationId])
   @@index([exerciceId])
   @@map("couts_emprunt_incorpores")
+}
+
+/// Lot 14 · AUDCIF Titre VIII ch. 28 § 2 · légale (indices fixés par
+/// l'autorité, loi n° 23/053 art. 129) ou libre (valeur actuelle).
+enum TypeReevaluation {
+  LEGALE
+  LIBRE
+}
+
+/// Lot 14 · les deux méthodes de la réévaluation libre d'un bien amortissable
+/// (ch. 28 § 4.3.1) · ajustement du brut et du cumul au coefficient, ou
+/// élimination du cumul et nouvelle valeur brute.
+enum MethodeReevaluationLibre {
+  AJUSTEMENT
+  ELIMINATION
+}
+
+/// Lot 14 · UNE réévaluation, à la date de clôture de l'exercice (AUDCIF
+/// art. 63), sur L'ENSEMBLE des immobilisations corporelles et financières
+/// (art. 62, « toute réévaluation partielle est interdite »). Porte la
+/// décision des organes de gestion (art. 35 · méthode, postes, montants,
+/// traitement fiscal), les coefficients déclarés avec leur source, et
+/// l'écriture unique de l'opération. Une seule par exercice.
+model ReevaluationBilan {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  type              TypeReevaluation
+  methodeLibre      MethodeReevaluationLibre?
+  /// Légale seulement · le 154 au lieu du 1061 (ch. 28 § 4.2.4.1).
+  neutraliteFiscale Boolean                   @default(false)
+  dateReevaluation  DateTime                  @db.Date
+  /// La décision des organes de gestion (art. 35), sa référence.
+  decision          String
+  traitementFiscal  String
+  /// La méthode, « simple référence à la méthode légalement définie, ou
+  /// présentation de la méthode en cas de réévaluation libre » (§ 8).
+  methodeEvaluation String
+  /// Légale · [{ cle, libelle, coefficient, source }], aucun indice en dur.
+  categories        Json
+  totalEcart        Decimal                   @db.Decimal(18, 2)
+
+  /// RESTRICT déclaré · retirée seule, les fiches garderaient leurs valeurs
+  /// réévaluées sans l'écriture qui les porte aux comptes 2, 28 et 106.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  lignes LigneReevaluationBilan[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([tenantId, exerciceId])
+  @@map("reevaluations_bilan")
+}
+
+/// Lot 14 · un bien du périmètre, réévalué ou gardé à sa valeur nette avec
+/// son motif (bien déprécié, valeur nette nulle) · jamais écarté en silence.
+model LigneReevaluationBilan {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  reevaluationId   String
+  reevaluation     ReevaluationBilan @relation(fields: [reevaluationId], references: [id], onDelete: Restrict)
+  immobilisationId String
+  immobilisation   Immobilisation    @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+
+  categorie           String?
+  coefficient         Decimal? @db.Decimal(12, 6)
+  valeurActuelle      Decimal? @db.Decimal(18, 2)
+  coefficientRetenu   Decimal  @db.Decimal(18, 10)
+  brutAvant           Decimal  @db.Decimal(18, 2)
+  amortissementsAvant Decimal  @db.Decimal(18, 2)
+  valeurNetteAvant    Decimal  @db.Decimal(18, 2)
+  brutApres           Decimal  @db.Decimal(18, 2)
+  amortissementsApres Decimal  @db.Decimal(18, 2)
+  valeurReevaluee     Decimal  @db.Decimal(18, 2)
+  ecart               Decimal  @db.Decimal(18, 2)
+  /// Le numéro qui a reçu l'écart (1061, 1062 et leurs subdivisions, ou 154).
+  compteEcart         String?
+  /// SYCEBNL · bien grevé d'un droit de reprise (1062) ou non (1061).
+  droitDeReprise      Boolean?
+  motifNonReevalue    String?
+  /// Provision spéciale (154) · le cumul déjà repris au 861 (§ 4.2.4.2).
+  provisionReprise    Decimal  @default(0) @db.Decimal(18, 2)
+  /// Écart (106) · les pertes de valeur déjà imputées (ch. 12 § 2.5).
+  ecartImpute         Decimal  @default(0) @db.Decimal(18, 2)
+
+  @@unique([reevaluationId, immobilisationId])
+  @@index([tenantId, immobilisationId])
+  @@map("lignes_reevaluation_bilan")
+}
+
+/// Lot 14 · la reprise annuelle de la provision spéciale de réévaluation, D 154
+/// / C 861, « à concurrence du supplément de la dotation aux amortissements »
+/// (ch. 28 § 4.2.4.2). Proposée, jamais postée d'office ; une par exercice.
+model RepriseProvisionReevaluation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  montant Decimal @db.Decimal(18, 2)
+  /// [{ ligneId, immobilisationId, dotation, coefficientRetenu, montant }].
+  detail  Json
+
+  /// RESTRICT déclaré · retirée seule, les lignes garderaient leur reprise
+  /// comptée sans l'écriture qui solde le 154.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([tenantId, exerciceId])
+  @@map("reprises_provision_reevaluation")
 }

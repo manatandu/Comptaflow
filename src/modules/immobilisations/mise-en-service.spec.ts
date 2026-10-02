@@ -153,6 +153,8 @@ function harnaisMiseEnService(immo: Faux | null, echecCourse = false) {
     // Aucune incorporation de coûts d'emprunt sur ces biens · la doublure
     // honore le filtre du bien, que la mise en service relit.
     coutEmpruntIncorpore: { aggregate: jest.fn().mockResolvedValue({ _max: { dateFin: null } }) },
+    // Aucune réévaluation n'a porté ces biens (lot 14).
+    ligneReevaluationBilan: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   return { svc: new ImmobilisationService(prisma as unknown as PrismaService, {} as EcritureService), update, updateMany };
 }
@@ -275,6 +277,7 @@ describe('aucune dotation tant que le bien n’est pas mis en service', () => {
         }),
       },
       dotationAmortissement: { findUnique: jest.fn().mockResolvedValue(null) },
+      ligneReevaluationBilan: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const creer = jest.fn();
     const svc = new ImmobilisationService(prisma as unknown as PrismaService, { creer } as unknown as EcritureService);

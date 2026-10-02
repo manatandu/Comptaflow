@@ -525,6 +525,7 @@ export class EtatsFinanciersService {
     poste: PosteFluxTresorerie,
     lignes: LigneBalancePourBilan[],
     virements: VirementsParCompte = AUCUN_VIREMENT,
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
   ): CompteDuPoste[] {
     const comptes: CompteDuPoste[] = [];
     for (const l of lignes) {
@@ -559,6 +560,13 @@ export class EtatsFinanciersService {
       }
       if (retranche) montant -= l.mouvementCredit;
       montant -= viree;
+      // Lot 14 · la réévaluation passée par le module, reconnue par sa
+      // liaison, n'est pas une acquisition · son débit sur un compte que le
+      // poste lit au débit en sort (`reevaluationARetrancher`). Une
+      // réévaluation passée à la main, sans liaison, y reste.
+      if (enFlux && poste.reevaluationARetrancher && poste.lectureFlux === 'DEBIT_SEUL') {
+        montant -= reevaluations.get(l.compteId)?.debit ?? 0;
+      }
       if (Math.abs(montant) > 0.005) comptes.push({ numero: l.numero, intitule: l.intitule, montant });
     }
     return comptes;
@@ -592,8 +600,9 @@ export class EtatsFinanciersService {
     lignesN: LigneBalancePourBilan[],
     lignesN1: LigneBalancePourBilan[],
     virementsN: VirementsParCompte = AUCUN_VIREMENT,
+    reevaluationsN: VirementsParCompte = AUCUN_VIREMENT,
   ): PosteCalcule & { flux: number; variationContrepartie: number } {
-    const comptes = this.fluxDuPoste(poste, lignesN, virementsN);
+    const comptes = this.fluxDuPoste(poste, lignesN, virementsN, reevaluationsN);
     const flux = comptes.reduce((s, c) => s + c.montant, 0);
     const contrepartieN = this.contrepartieDuPoste(poste, lignesN);
     const contrepartieN1 = this.contrepartieDuPoste(poste, lignesN1);
@@ -643,6 +652,8 @@ export class EtatsFinanciersService {
     // Les mises en service de l'exercice COURANT (D6), lues sur les mêmes
     // écritures que ses mouvements.
     virementsCourant: VirementsParCompte = AUCUN_VIREMENT,
+    // Lot 14 · l'écriture de réévaluation du module, sur les mêmes écritures.
+    reevaluationsCourant: VirementsParCompte = AUCUN_VIREMENT,
   ): {
     parRef: Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>;
     tresorerieOuverture: number;
@@ -663,7 +674,7 @@ export class EtatsFinanciersService {
     });
 
     for (const poste of TOUS_LES_POSTES_FLUX) {
-      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesCourant, lignesAnterieur, virementsCourant));
+      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesCourant, lignesAnterieur, virementsCourant, reevaluationsCourant));
     }
     for (const total of TOTAUX_FLUX) {
       parRef.set(total.ref, {
@@ -696,20 +707,23 @@ export class EtatsFinanciersService {
   async tableauFluxTresorerie(tenantId: string, exerciceId: string) {
     const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
     const exerciceN2Id = exerciceN1Id ? await this.trouverExerciceN1(tenantId, exerciceN1Id) : null;
-    const [lignesN, lignesN1, lignesN2, virementsN, virementsN1] = await Promise.all([
+    const [lignesN, lignesN1, lignesN2, virementsN, virementsN1, reevaluationsN, reevaluationsN1] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceN1Id),
       this.chargerLignes(tenantId, exerciceN2Id),
       // Chaque colonne retranche SES mises en service (D6).
       this.ecritureService.virementsDeMiseEnService(tenantId, exerciceId),
       this.ecritureService.virementsDeMiseEnService(tenantId, exerciceN1Id),
+      // Et SA réévaluation (lot 14).
+      this.ecritureService.mouvementsDeReevaluation(tenantId, exerciceId),
+      this.ecritureService.mouvementsDeReevaluation(tenantId, exerciceN1Id),
     ]);
 
-    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1, virementsN);
+    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1, virementsN, reevaluationsN);
     // Colonne N-1 : seulement si un exercice N-1 existe · jamais un faux
     // zéro pour un dossier à son premier exercice (même discipline que
     // partout ailleurs dans ce service).
-    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2, virementsN1) : null;
+    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2, virementsN1, reevaluationsN1) : null;
 
     const REFS_TOTAUX = new Set(['ZA', 'ZB', 'ZC', 'ZD', 'ZE', 'ZF', 'ZG', '']);
     const lignesAffichees = ORDRE_AFFICHAGE_FLUX.map((entree) => {

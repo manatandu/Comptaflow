@@ -1524,7 +1524,15 @@ des notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) vers leurs colonnes
 « Virements de poste à poste », D inchangé ; 5C et 3B des locations n'en ont
 pas, elle y reste en B ; au TFT SYCEBNL, FI retranche le crédit lié du 219 et
 du 229 (le 239 et le 249 l'étaient déjà). La nature du barème POSE son compte
-unique (`compteSelonNature`).
+unique (`compteSelonNature`). RÉÉVALUATION (lot 14, D-29 à D-44 proposées) · une
+opération à la clôture sur L'ENSEMBLE des 22 à 24, 26 et 27 (rien écarté en
+silence), coefficient déclaré plafonné par la valeur actuelle (k'), écart au
+106 du sens de CHAQUE plan ou au 154 (amortissables, neutralité déclarée)
+repris au 861, plan reparti de la valeur réévaluée ; son écriture, reconnue par
+sa LIAISON, est écartée des contrôles « hors module » (`reevaluationBilan:
+null`), des acquisitions des tableaux des flux (FI et FJ, FG et FH,
+`mouvementsDeReevaluation`) et des notes 3A, 5A, 5B (colonne `REEVALUATION`) ;
+bien en cours réévalué à son compte inscrit, éléments monétaires du 27 gardés.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

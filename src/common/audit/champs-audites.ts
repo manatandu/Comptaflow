@@ -128,6 +128,12 @@ export const MODELES_AUDITES = new Set<string>([
   // coup change chaque dotation suivante, sur une écriture équilibrée.
   'RevisionPlanAmortissement',
   'CoutEmpruntIncorpore',
+  // La réévaluation (lot 14) et la reprise de sa provision spéciale · un
+  // coefficient ou une valeur actuelle changés après coup changent chaque
+  // dotation suivante, sur des écritures équilibrées. Les lignes par bien,
+  // engendrées en masse avec l'opération, n'y entrent pas.
+  'ReevaluationBilan',
+  'RepriseProvisionReevaluation',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
@@ -286,6 +292,8 @@ export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
   EcheanceReglement: LIGNES_DE_LA_TETE,
   LigneRetraitementIfrs: LIGNES_DE_LA_TETE,
   LigneLotVirement: LIGNES_DE_LA_TETE,
+  LigneReevaluationBilan:
+    'Lignes par bien de la réévaluation, journalisée à la tête · écrites avec elle ; seuls la reprise de la provision et l’imputation d’une perte les retouchent, actes eux-mêmes journalisés ou portés par une écriture.',
   CoupureComptee: 'Ventilation par coupure du PV de comptage, journalisé · le total compté est sur le PV.',
   LigneFacture: 'Lignes de la facture, journalisée, écrites avec elle et jamais retouchées seules.',
   LigneDevis: 'Lignes du devis, journalisé, écrites avec lui et jamais retouchées seules.',

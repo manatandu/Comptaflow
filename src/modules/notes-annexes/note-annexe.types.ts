@@ -65,6 +65,13 @@ export type TypeColonneNote =
   // qui ne distingue pas un virement passé à la main.
   | 'VIREMENTS_AUGMENTATION'
   | 'VIREMENTS_DIMINUTION'
+  // --- Sous-colonne « Suite à une réévaluation pratiquée au cours de
+  // l'exercice » des mêmes tableaux (lot 14) · l'effet NET sur le brut de
+  // l'écriture de réévaluation du module, reconnue par sa liaison
+  // (`ReevaluationBilan.ecritureId`), sorti des acquisitions et des cessions.
+  // Négative en méthode 2 (ch. 28 § 4.3.1). Absente quand rien n'a été
+  // réévalué par le module sur la ligne.
+  | 'REEVALUATION'
   // --- Note 30 : B et C sont elles-mêmes ventilées par nature ---
   // Le compte de provision ne dit PAS de quelle nature était la dotation :
   // seule la CONTREPARTIE de l'écriture le dit (691 exploitation, 697

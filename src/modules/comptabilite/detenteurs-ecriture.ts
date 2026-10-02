@@ -67,6 +67,12 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // la réduction resterait retranchée du cumul sans son écriture.
   'RevisionPlanAmortissement.ecritureId',
   'CoutEmpruntIncorpore.ecritureId',
+  // La réévaluation (lot 14) · retirée seule, les fiches garderaient leurs
+  // valeurs réévaluées sans l'écriture qui les porte aux comptes 2, 28 et 106.
+  'ReevaluationBilan.ecritureId',
+  // La reprise de la provision spéciale · retirée seule, les lignes
+  // garderaient leur reprise comptée sans l'écriture qui solde le 154.
+  'RepriseProvisionReevaluation.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

@@ -1197,6 +1197,8 @@ export class EcritureService {
       ["la réduction d'une subvention rattachée à un bien", this.prisma.reductionSubventionImmobilisation.count({ where: { tenantId, ecritureId } })],
       ["la révision rétroactive d'un plan d'amortissement", this.prisma.revisionPlanAmortissement.count({ where: { tenantId, ecritureId } })],
       ["l'incorporation de coûts d'emprunt", this.prisma.coutEmpruntIncorpore.count({ where: { tenantId, ecritureId } })],
+      ['la réévaluation des immobilisations', this.prisma.reevaluationBilan.count({ where: { tenantId, ecritureId } })],
+      ['la reprise de la provision spéciale de réévaluation', this.prisma.repriseProvisionReevaluation.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La
@@ -3228,11 +3230,46 @@ export class EcritureService {
    * jamais les lignes rapatriées (CLAUDE.md § 8 bis).
    */
   async virementsDeMiseEnService(tenantId: string, exerciceId: string | null): Promise<VirementsParCompte> {
+    return this.mouvementsLiesParCompte(tenantId, exerciceId, { immobilisationMiseEnService: { isNot: null } });
+  }
+
+  /**
+   * LES MOUVEMENTS DE L'ÉCRITURE DE RÉÉVALUATION D'UN EXERCICE, par compte
+   * (lot 14, `immobilisations/reevaluation-bilan.ts`). Reconnue par la
+   * LIAISON (`ReevaluationBilan.ecritureId`), jamais par le compte ni le
+   * libellé, comme la mise en service · un crédit du 106 peut aussi être une
+   * réévaluation passée à la main, que ni le texte ni la balance ne
+   * décomposent. Même filtre que la colonne « mouvements » des états
+   * (livre-journal seul), borné à la date d'arrêté d'une situation
+   * intermédiaire quand il y en a une, comme la balance qu'il corrige.
+   *
+   * Lue par les tableaux des flux (AUDCIF Titre IX ch. 5 § 1.3, « – Écart et
+   * provision spéciale de réévaluation de l'exercice de réévaluation
+   * uniquement » ; SYCEBNL, poste FI et FJ) et par les tableaux des valeurs
+   * brutes des Notes annexes (colonne « Suite à une réévaluation pratiquée au
+   * cours de l'exercice »).
+   */
+  async mouvementsDeReevaluation(tenantId: string, exerciceId: string | null, arreteAu?: Date): Promise<VirementsParCompte> {
+    return this.mouvementsLiesParCompte(tenantId, exerciceId, { reevaluationBilan: { isNot: null } }, arreteAu);
+  }
+
+  /** Une seule lecture des écritures LIÉES à un module, par compte · une somme demandée à la base. */
+  private async mouvementsLiesParCompte(
+    tenantId: string,
+    exerciceId: string | null,
+    liaison: Prisma.EcritureWhereInput,
+    arreteAu?: Date,
+  ): Promise<VirementsParCompte> {
     if (!exerciceId) return AUCUN_VIREMENT;
-    const { mouvements } = filtresDesTroisColonnes({ tenantId, exerciceId, statut: StatutEcriture.VALIDEE });
+    const { mouvements } = filtresDesTroisColonnes({
+      tenantId,
+      exerciceId,
+      statut: StatutEcriture.VALIDEE,
+      ...(arreteAu ? { date: { lte: arreteAu } } : {}),
+    });
     const groupes = await this.prisma.ligneEcriture.groupBy({
       by: ['compteId'],
-      where: { ecriture: { ...mouvements, immobilisationMiseEnService: { isNot: null } } },
+      where: { ecriture: { ...mouvements, ...liaison } },
       _sum: { debit: true, credit: true },
     });
     return new Map(

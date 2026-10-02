@@ -296,8 +296,17 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     libelle: "Supplément d'annuité d'amortissement des immobilisations réévaluées",
     aide: "Après réévaluation, l'amortissement se calcule sur la valeur RÉÉVALUÉE, mais l'augmentation de l'annuité qui en résulte ne doit diminuer ni le bénéfice comptable ni le bénéfice fiscal : la neutralité s'obtient chaque année par la réintégration d'une fraction égale à cette augmentation. Le montant est la différence entre l'annuité calculée sur la valeur réévaluée et celle qui aurait été calculée sur la valeur d'origine · un immeuble de 100 000 000 FC réévalué à 160 000 000 FC et amorti sur 20 ans porte 3 000 000 FC de supplément. À reprendre chaque exercice tant que le plan court, et à cesser à la cession du bien, où c'est le solde de la plus-value de réévaluation qui se réintègre (art. 133, al. 3).",
     source: 'Loi n° 23/053, art. 133, al. 2 (portée : art. 134 ; réévaluation : art. 129 à 132 et AUDCIF art. 62 à 65)',
+    // UNE GARANTIE NÉGATIVE VIEILLIT (lot 14) · la phrase disait que le
+    // second plan « n'existe plus » · depuis que le module réévalue, chaque
+    // bien garde ses valeurs d'avant et son coefficient retenu
+    // (`LigneReevaluationBilan`), et le supplément se lit. Elle taisait aussi
+    // la provision spéciale · si la neutralité a été obtenue par le 154 repris
+    // au 861 (ch. 28 § 4.2.4.1 et § 4.2.4.2), le résultat porte DÉJÀ le
+    // supplément en produit, et réintégrer en plus neutraliserait deux fois.
     assietteHorsPortee:
-      "Le supplément d'annuité ne se lit dans aucun compte : il est la DIFFÉRENCE entre deux plans d'amortissement, celui de la valeur réévaluée et celui de la valeur d'origine, dont le second n'existe plus en comptabilité après la réévaluation. Ce module ne propose donc aucun montant · le calculer suppose le tableau des amortissements d'avant la réévaluation.",
+      "Le supplément d'annuité ne se lit dans aucun solde : il est la DIFFÉRENCE entre l'annuité de la valeur réévaluée et celle de la valeur d'origine. " +
+      "RÉÉVALUATION PASSÉE PAR OMEGAX (fenêtre Immobilisations, « Réévaluation ») : chaque bien garde ses valeurs d'avant et son coefficient retenu k' ; les annuités nouvelles étant les anciennes multipliées par k' (AUDCIF Titre VIII ch. 28 § 4.2.2), le supplément d'une dotation D vaut D × (1 − 1/k'), montant que la reprise de la provision spéciale calcule bien par bien. RÉÉVALUATION PASSÉE HORS D'OMEGAX : le calcul suppose le tableau des amortissements d'avant la réévaluation. Ce module ne propose donc aucun montant ici. " +
+      "NEUTRALITÉ DÉJÀ OBTENUE PAR LA PROVISION SPÉCIALE : si l'écart d'un bien a été porté au 154 et que sa reprise de l'exercice est passée au 861 (ch. 28 § 4.2.4.1 et § 4.2.4.2), le résultat porte déjà ce supplément en produit · le réintégrer en plus le neutraliserait deux fois et surévaluerait le résultat fiscal. Ne le portez ici que pour les biens dont l'écart est au 106.",
   },
   {
     code: 'REMUNERATIONS_NON_DECLAREES',

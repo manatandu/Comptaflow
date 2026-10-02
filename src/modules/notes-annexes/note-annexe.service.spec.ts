@@ -184,12 +184,16 @@ function service(
   etats: EtatsFinanciersService = etatsVides(),
   // Mises en service liées à une fiche, par exercice (D6) · par DÉFAUT aucune.
   virementsParExercice: Record<string, VirementsParCompte> = {},
+  // Écriture de réévaluation du module, par exercice (lot 14) · par DÉFAUT aucune.
+  reevaluationsParExercice: Record<string, VirementsParCompte> = {},
 ) {
   const ecriture = {
     balance: jest.fn().mockImplementation((_t: string, e: string) =>
       Promise.resolve({ lignes: lignesParExercice[e] ?? [], totaux: { debit: 0, credit: 0 } })),
     virementsDeMiseEnService: jest.fn().mockImplementation((_t: string, e: string | null) =>
       Promise.resolve((e && virementsParExercice[e]) || new Map())),
+    mouvementsDeReevaluation: jest.fn().mockImplementation((_t: string, e: string | null) =>
+      Promise.resolve((e && reevaluationsParExercice[e]) || new Map())),
   } as unknown as EcritureService;
   // Le dossier TIENT toujours l'exercice que les tests demandent (« e1 ») ·
   // depuis l'audit final F222, un exercice absent du dossier est un 404 et
@@ -266,8 +270,8 @@ describe.each([
     const CALCULEES = [
       'EXERCICE_N', 'EXERCICE_N1', 'VARIATION_VALEUR', 'VARIATION_POURCENT', 'VARIATION_VALEUR_ABSOLUE',
       'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE',
-      // Virements de poste à poste des 5A, 5B et 3A · la mise en service liée à une fiche (D6).
-      'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION',
+      // Virements de poste à poste des 5A, 5B et 3A · la mise en service liée à une fiche (D6), et la réévaluation du module (lot 14).
+      'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION', 'REEVALUATION',
       'AUGMENTATION_EXPLOITATION', 'AUGMENTATION_FINANCIERE', 'AUGMENTATION_HAO',
       'DIMINUTION_EXPLOITATION', 'DIMINUTION_FINANCIERE', 'DIMINUTION_HAO',
       'ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS', 'LIBRE',
@@ -2344,6 +2348,7 @@ describe('passe R2 · B3, la NOTE 34 SYSCOHADA est calculée depuis les trois é
     const ecriture = {
       balance: jest.fn().mockResolvedValue({ lignes: balance, totaux: { debit: 0, credit: 0 } }),
       virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
+      mouvementsDeReevaluation: jest.fn().mockResolvedValue(new Map()),
     } as unknown as EcritureService;
     const exercice = {
       lister: jest.fn().mockResolvedValue([{ id: 'e1', dateDebut: new Date('2026-01-01') }]),
@@ -2480,5 +2485,77 @@ describe('notes des immobilisations brutes · mise en service d’un bien en cou
     });
     const n5c = note(await s.notesAssociations('t', 'e1'), '5C');
     expect(val(n5c, 'Bâtiments')).toEqual({ OUVERTURE: 0, AUGMENTATIONS: CINQUANTE, DIMINUTIONS: 0, CLOTURE: CINQUANTE });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LOT 14 · LA RÉÉVALUATION A SA COLONNE DANS LES TABLEAUX DES VALEURS BRUTES
+// ---------------------------------------------------------------------------
+// AUDCIF Titre IX ch. 6, NOTES 3A et 3B ; SYCEBNL Partie 4 ch. 2, NOTES 5A et
+// 5B, et ch. 3, NOTE 3A · « Suite à une réévaluation pratiquée au cours de
+// l'exercice ». L'écriture du module, reconnue par sa liaison, sort des
+// acquisitions et des cessions et va à cette colonne, D inchangé.
+describe('notes des immobilisations brutes · réévaluation du module (lot 14)', () => {
+  const val = (n: any, libelle: string) => ligneDe(n, libelle).valeurs;
+  const sansBudget = () => ({
+    executionBudgetaire: jest.fn().mockRejectedValue(new AucunPlanABudgetsException('aucun plan à budgets')),
+  });
+  // Exemple du ch. 28 § 4.3.1, méthode 1 · D 231 18 750 000 (le brut passe
+  // de 150 000 000 à 168 750 000), plus une vraie acquisition de 1 000 000.
+  const methode1 = [ligne('23110000', ClasseCompte.CLASSE_2, 19_750_000, 0, [150_000_000, 0])];
+  const lieMethode1: VirementsParCompte = new Map([['id-23110000', { debit: 18_750_000, credit: 0 }]]);
+  const attenduMethode1 = {
+    OUVERTURE: 150_000_000,
+    AUGMENTATIONS: 1_000_000,
+    DIMINUTIONS: 0,
+    REEVALUATION: 18_750_000,
+    CLOTURE: 169_750_000,
+  };
+
+  it('SYSCOHADA, NOTE 3A · la hausse de valeur d’entrée va à « Suite à une réévaluation », pas aux acquisitions', async () => {
+    const s = service({ e1: methode1 }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA), sansBudget(), etatsVides(), {}, {
+      e1: lieMethode1,
+    });
+    const n3a = note(await s.notesSyscohada('t', 'e1'), '3A');
+    expect(val(n3a, 'Bâtiments hors immeuble de placement')).toEqual(attenduMethode1);
+    expect(ligneDe(n3a, 'Bâtiments hors immeuble de placement').ecartCloture).toBeUndefined();
+    expect(val(n3a, 'TOTAL GÉNÉRAL')).toEqual(attenduMethode1);
+  });
+
+  it('SYCEBNL associations, NOTE 5B, et projets, NOTE 3A · même lecture', async () => {
+    const s = service({ e1: methode1 }, [], prismaAvec(), sansBudget(), etatsVides(), {}, { e1: lieMethode1 });
+    expect(val(note(await s.notesAssociations('t', 'e1'), '5B'), 'Bâtiments hors immeuble de placement')).toEqual(attenduMethode1);
+    expect(val(note(await s.notesProjet('t', 'e1'), '3A'), 'Bâtiments hors immeuble de placement')).toEqual(attenduMethode1);
+  });
+
+  it('méthode 2 du § 4.3.1 · l’effet NET sur le brut (− 15 000 000), ni acquisition ni cession', async () => {
+    // D 283 30 000 000 / C 231 30 000 000, puis D 231 15 000 000 / C 1062 ·
+    // le brut passe de 150 000 000 à 135 000 000.
+    const s = service(
+      { e1: [ligne('23110000', ClasseCompte.CLASSE_2, 15_000_000, 30_000_000, [150_000_000, 0])] },
+      [],
+      prismaAvec(),
+      sansBudget(),
+      etatsVides(),
+      {},
+      { e1: new Map([['id-23110000', { debit: 15_000_000, credit: 30_000_000 }]]) },
+    );
+    expect(val(note(await s.notesAssociations('t', 'e1'), '5B'), 'Bâtiments hors immeuble de placement')).toEqual({
+      OUVERTURE: 150_000_000,
+      AUGMENTATIONS: 0,
+      DIMINUTIONS: 0,
+      REEVALUATION: -15_000_000,
+      CLOTURE: 135_000_000,
+    });
+  });
+
+  it('une réévaluation passée à la main, sans liaison, reste en acquisition · la colonne reste vide', async () => {
+    const s = service({ e1: methode1 }, [], prismaAvec(), sansBudget(), etatsVides());
+    expect(val(note(await s.notesAssociations('t', 'e1'), '5B'), 'Bâtiments hors immeuble de placement')).toEqual({
+      OUVERTURE: 150_000_000,
+      AUGMENTATIONS: 19_750_000,
+      DIMINUTIONS: 0,
+      CLOTURE: 169_750_000,
+    });
   });
 });

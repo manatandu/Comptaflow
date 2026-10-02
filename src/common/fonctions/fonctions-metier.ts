@@ -77,6 +77,7 @@ export const FONCTION_PAR_CONTROLEUR: Record<string, FonctionMetier> = {
   LocationAcquisitionController: FonctionMetier.IMMOBILISATIONS,
   RepriseSubventionController: FonctionMetier.IMMOBILISATIONS,
   SubventionRattacheeController: FonctionMetier.IMMOBILISATIONS,
+  ReevaluationBilanController: FonctionMetier.IMMOBILISATIONS,
   StockController: FonctionMetier.STOCKS,
   MagasinController: FonctionMetier.STOCKS,
   EmballagesController: FonctionMetier.STOCKS,

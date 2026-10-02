@@ -51,6 +51,8 @@ function monter(options: { autreDetenteur?: boolean } = {}) {
     reductionSubventionImmobilisation: zero(),
     revisionPlanAmortissement: zero(),
     coutEmpruntIncorpore: zero(),
+    reevaluationBilan: zero(),
+    repriseProvisionReevaluation: zero(),
     consignation: zero(),
     bulletinPaie: zero(),
     ligneOrdreVirement: zero(),

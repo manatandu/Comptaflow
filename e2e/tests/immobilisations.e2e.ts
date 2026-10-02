@@ -1405,3 +1405,161 @@ test('la fenêtre Immobilisations s’ouvre sur chacun de ses onglets sans erreu
   await expect(page.getByText(FENETRE_EN_ERREUR)).toHaveCount(0);
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · la réévaluation légale porte sur tout le parc, plafonnée par la valeur actuelle (exemple 2 du ch. 28)', async ({ page }) => {
+  // Lot 14 · AUDCIF Titre VIII ch. 28 § 4.2.1.3, exemple du texte · brut 1 000, cumul 400, k = 1,5, valeur
+  // actuelle 840 · k' = 1,4, brut 1 400, cumul 560, écart 240 au 1061 (§ 4.2.4.1). Le terrain, non
+  // amortissable, reste à sa valeur · il est DANS l'opération (art. 62, toute réévaluation partielle est interdite).
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Reevaluation e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const annee = Number(exercice.dateDebut.slice(0, 4));
+  const plan = await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const compte = (numero: string) => {
+    const c = plan.find((x) => x.numero === numero);
+    if (!c) throw new Error(`Compte ${numero} absent du plan semé`);
+    return c.id;
+  };
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  // Bien repris · trois annuités passées ailleurs (300), la quatrième passée ici (100) · cumul 400.
+  const machine = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('24110000'),
+    designation: 'Machine réévaluée e2e',
+    dateAcquisition: `${annee - 3}-01-01`,
+    dateMiseEnService: `${annee - 3}-01-01`,
+    valeurOrigine: 1000,
+    dureeAmortissementAns: 10,
+    amortissementAnterieur: 300,
+    repris: true,
+    exerciceId: exercice.id,
+  });
+  const terrain = await appelApi<{ id: string }>(page, 'POST', '/immobilisations', {
+    compteImmobilisationId: compte('22310000'),
+    designation: 'Terrain bâti e2e',
+    dateAcquisition: `${annee - 3}-01-01`,
+    valeurOrigine: 500,
+    repris: true,
+    exerciceId: exercice.id,
+  });
+  const corps = {
+    exerciceId: exercice.id,
+    journalId: od.id,
+    type: 'LEGALE',
+    decision: 'Conseil e2e',
+    traitementFiscal: 'Selon la loi',
+    methodeEvaluation: 'Méthode indiciaire',
+    categories: [{ cle: 'A', libelle: 'Autres biens', coefficient: 1.5, source: 'Arrêté e2e' }],
+    lignes: [{ immobilisationId: machine.id, categorie: 'A', valeurActuelle: 840 }],
+  };
+  // La dotation de l'exercice se passe AVANT la réévaluation.
+  await expect(appelApi(page, 'POST', '/immobilisations/reevaluation-bilan', corps)).rejects.toThrow(/Dotation de l'exercice non passée/);
+  const dotation = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${machine.id}/dotation`, { exerciceId: exercice.id, journalId: od.id });
+  expect(Number(dotation.montant)).toBeCloseTo(100, 2);
+  // Le terrain manque · réévaluation partielle refusée.
+  await expect(appelApi(page, 'POST', '/immobilisations/reevaluation-bilan', corps)).rejects.toThrow(/partielle est interdite/);
+
+  await page.goto('/#/immobilisations');
+  // Ligne A1 · la réévaluation vit dans l'onglet Opérations.
+  await page.getByRole('tab', { name: 'Opérations', exact: true }).click();
+  const bloc = page.locator('[data-reevaluation]');
+  await bloc.getByRole('button', { name: 'Réévaluer' }).click();
+  await bloc.getByLabel('Nature').selectOption('LEGALE');
+  await bloc.getByLabel('Décision des organes de gestion').fill('Conseil d’administration e2e');
+  await bloc.getByLabel('Méthode d’évaluation').fill('Méthode indiciaire légale');
+  await bloc.getByLabel('Traitement fiscal de l’écart').fill('Écart en capitaux propres');
+  await bloc.getByLabel('Catégorie', { exact: true }).fill('Autres biens');
+  await bloc.getByLabel('Coefficient', { exact: true }).fill('1.5');
+  await bloc.getByLabel('Source du coefficient').fill('Arrêté e2e');
+  await bloc.getByLabel('Valeur actuelle · Machine réévaluée e2e').fill('840');
+  await bloc.getByLabel('Valeur actuelle · Terrain bâti e2e').fill('500');
+  await bloc.getByRole('button', { name: 'Enregistrer la réévaluation' }).click();
+  await expect(bloc.getByText(/Réévaluation enregistrée/)).toBeVisible();
+
+  const { lignes } = await appelApi<{ lignes: Array<{ numero: string; mouvementDebit: number; mouvementCredit: number }> }>(
+    page,
+    'GET',
+    `/ecritures/balance?exerciceId=${exercice.id}`,
+  );
+  const ligne = (numero: string) => lignes.find((l) => l.numero === numero);
+  expect(Number(ligne('24110000')?.mouvementDebit)).toBeCloseTo(400, 2);
+  expect(Number(ligne('28410000')?.mouvementCredit)).toBeCloseTo(260, 2);
+  expect(Number(ligne('10610000')?.mouvementCredit)).toBeCloseTo(240, 2);
+  expect(ligne('22310000')).toBeUndefined();
+  const liste = await appelApi<Array<{ id: string; valeurOrigine: number }>>(page, 'GET', '/immobilisations');
+  expect(Number(liste.find((i) => i.id === machine.id)?.valeurOrigine)).toBeCloseTo(1400, 2);
+  expect(Number(liste.find((i) => i.id === terrain.id)?.valeurOrigine)).toBeCloseTo(500, 2);
+  // Une seule réévaluation par exercice, et la dotation de l'exercice ne se repasse plus.
+  await expect(appelApi(page, 'POST', '/immobilisations/reevaluation-bilan', corps)).rejects.toThrow(/409|déjà enregistrée/);
+  // Les contrôles de fin d'exercice ne prennent pas l'opération du module pour une réévaluation ni un
+  // amortissement « que le module ne connaît pas » · sinon ils feraient contre-passer le C 28 de 160 et
+  // reprendre le plan à la main, amorti deux fois (CLAUDE.md § 10 bis).
+  const { anomalies } = await appelApi<{ anomalies: Array<{ code: string }> }>(page, 'GET', `/controles?exerciceId=${exercice.id}`);
+  const codes = anomalies.map((a) => a.code);
+  expect(codes).not.toContain('REEVALUATION_IMMO_HORS_MODULE');
+  expect(codes).not.toContain('AMORTISSEMENT_IMMO_HORS_MODULE');
+  // L'obligation déclarative, elle, reste dite (loi n° 23/053, art. 136).
+  expect(codes).toContain('DECLARATION_REEVALUATION_A_DEPOSER');
+
+  // LE TABLEAU DES FLUX · « – Écart et provision spéciale de réévaluation de
+  // l'exercice de réévaluation uniquement » (AUDCIF Titre IX ch. 5 § 1.3). FG
+  // se lit sur la variation du BRUT entre N-1 et N · un exercice N-1 (vide)
+  // le rend calculable, et le livre-journal seul alimente les états, d'où la
+  // validation. Sans la liaison, FG portait − 160 de décaissement inventé (la
+  // hausse du cumul au 28, anomalie n° 21) et le tableau ne bouclait plus.
+  await appelApi(page, 'POST', '/exercices', { dateDebut: `${annee - 1}-01-01`, dateFin: `${annee - 1}-12-31` });
+  await appelApi(page, 'POST', '/ecritures/valider-jusqua', { exerciceId: exercice.id, dateLimite: exercice.dateFin.slice(0, 10) });
+  const tft = await appelApi<{
+    lignes: Array<{ ref?: string; montant?: number }>;
+    controle: { coherent: boolean; ecart: number };
+    postesNonCalculables: Array<{ ref: string; raison: string }>;
+  }>(page, 'GET', `/etats-financiers-syscohada/tableau-flux-tresorerie?exerciceId=${exercice.id}`);
+  const flux = (r: string) => tft.lignes.find((l) => l.ref === r);
+  // FG est CALCULÉ (l'exercice N-1 existe) ; la réserve du titre réévalué
+  // (anomalie n° 11) ne naît pas de l'écriture du module.
+  expect(tft.postesNonCalculables.some((p) => p.ref === 'FG' && /exercice antérieur/.test(p.raison))).toBe(false);
+  expect(tft.postesNonCalculables.filter((p) => p.ref === 'FH')).toEqual([]);
+  expect(Number(flux('FG')?.montant)).toBeCloseTo(0, 2);
+  expect(Number(flux('FH')?.montant)).toBeCloseTo(0, 2);
+  expect(tft.controle.coherent).toBe(true);
+
+  // UNE SECONDE RÉÉVALUATION DU MÊME BIEN (ch. 28 § 4.2.1.1) · le coefficient
+  // multiplie la valeur nette INSCRITE (1 400 − 700 = 700), qui porte déjà le
+  // k' de 1,4. Un coefficient déclaré depuis l'acquisition (1,8) se divise par
+  // lui · 700 × 1,8 ÷ 1,4 = 900 = (1 000 − 500) × 1,8, écart 200 ; sans base
+  // déclarée, refus nommé. Éprouve aussi, sur base réelle, la lecture des
+  // réévaluations antérieures du bien (relation filtrée par exercice).
+  const suivant = await appelApi<{ id: string; dateFin: string }>(page, 'POST', '/exercices', {
+    dateDebut: `${annee + 1}-01-01`,
+    dateFin: `${annee + 1}-12-31`,
+  });
+  const dotationSuivante = await appelApi<{ montant: number }>(page, 'POST', `/immobilisations/${machine.id}/dotation`, {
+    exerciceId: suivant.id,
+    journalId: od.id,
+  });
+  expect(Number(dotationSuivante.montant)).toBeCloseTo(140, 2);
+  const perimetreSuivant = await appelApi<{ biens: Array<{ id: string; coefficientsAnterieurs: number[] }> }>(
+    page,
+    'GET',
+    `/immobilisations/reevaluation-bilan?exerciceId=${suivant.id}`,
+  );
+  expect(perimetreSuivant.biens.find((b) => b.id === machine.id)?.coefficientsAnterieurs.map(Number)).toEqual([1.4]);
+  const corpsSuivant = (base?: string) => ({
+    ...corps,
+    exerciceId: suivant.id,
+    categories: [{ cle: 'A', libelle: 'Autres biens', coefficient: 1.8, source: 'Arrêté e2e', ...(base ? { base } : {}) }],
+    lignes: [
+      { immobilisationId: machine.id, categorie: 'A', valeurActuelle: 5000 },
+      { immobilisationId: terrain.id, categorie: 'A', valeurActuelle: 500 },
+    ],
+  });
+  await expect(appelApi(page, 'POST', '/immobilisations/reevaluation-bilan', corpsSuivant())).rejects.toThrow(/déjà réévalué/);
+  const seconde = await appelApi<{ totalEcart: number }>(page, 'POST', '/immobilisations/reevaluation-bilan', corpsSuivant('ORIGINE'));
+  expect(Number(seconde.totalEcart)).toBeCloseTo(200, 2);
+  const apres = await appelApi<Array<{ id: string; valeurOrigine: number }>>(page, 'GET', '/immobilisations');
+  expect(Number(apres.find((i) => i.id === machine.id)?.valeurOrigine)).toBeCloseTo(1800, 2);
+  // La reprise chaînée se lit sans panne (aucune provision spéciale ici).
+  await appelApi(page, 'GET', `/immobilisations/reevaluation-bilan/reprise-provision?exerciceId=${suivant.id}`);
+  expect(pannes).toEqual([]);
+});

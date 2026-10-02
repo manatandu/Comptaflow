@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClasseCompte } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { AUCUN_VIREMENT, VirementsParCompte } from '../immobilisations/virements-mise-en-service';
 import { ExerciceService } from '../exercice/exercice.service';
 import {
   CompteDuPoste,
@@ -385,6 +386,13 @@ interface ContexteFlux {
    */
   soldesAnterieurs: Map<string, number>;
   exerciceAnterieurDisponible: boolean;
+  /**
+   * Lot 14 · les mouvements de l'écriture de réévaluation du module, par
+   * identifiant de compte (`EcritureService.mouvementsDeReevaluation`), lus
+   * par les termes `liaison: 'REEVALUATION'` · vide quand l'appelant n'en
+   * dispose pas (consolidation), et alors ces termes valent zéro.
+   */
+  reevaluations: VirementsParCompte;
 }
 
 /** Classes qui composent le bilan · la 6, la 7 et la 8 sont le résultat, la 9 est hors états. */
@@ -704,8 +712,14 @@ export class EtatsFinanciersSyscohadaService {
    * · les états IFRS (tranche 3) partent de ce tableau et doivent reprendre
    * ce qu'il dit ne pas savoir, pas seulement ses montants.
    */
-  resoudreFluxDetailleSurLignes(lignesN: LigneBalancePourEtat[], lignesN1: LigneBalancePourEtat[]): { montants: Map<string, number>; reserves: string[] } {
-    const { parRef, postesNonCalculables } = this.resoudreFluxPourExercice(lignesN, lignesN1, true);
+  resoudreFluxDetailleSurLignes(
+    lignesN: LigneBalancePourEtat[],
+    lignesN1: LigneBalancePourEtat[],
+    // Lot 14 · l'écriture de réévaluation de l'exercice, neutralisée par sa
+    // liaison comme au tableau légal (`MOTIF_REEVALUATION_LIEE`).
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
+  ): { montants: Map<string, number>; reserves: string[] } {
+    const { parRef, postesNonCalculables } = this.resoudreFluxPourExercice(lignesN, lignesN1, true, reevaluations);
     return {
       montants: new Map([...parRef.entries()].map(([ref, p]) => [ref, p.montant])),
       reserves: postesNonCalculables.map((x) => `${x.ref} · ${x.raison}`),
@@ -1094,6 +1108,19 @@ export class EtatsFinanciersSyscohadaService {
   /** Lecture d'un ensemble de comptes · les quatre natures de `LectureCompte`. */
   private lireComptes(terme: TermeComptes, ctx: ContexteFlux): CompteDuPoste[] {
     const retenues = ctx.lignesCourant.filter((l) => correspond(l.numero, terme.prefixes, terme.exclusions));
+    if (terme.liaison === 'REEVALUATION') {
+      // Lot 14 · la seule part des mouvements que porte l'écriture de
+      // réévaluation du module, reconnue par sa liaison · jamais par le
+      // compte, un crédit du 106 pouvant être une réévaluation passée à la
+      // main (anomalies n° 11 et 21).
+      return retenues
+        .map((l) => {
+          const m = ctx.reevaluations.get(l.compteId);
+          const montant = terme.lecture === 'MOUVEMENT_DEBIT' ? (m?.debit ?? 0) : terme.lecture === 'MOUVEMENT_CREDIT' ? (m?.credit ?? 0) : 0;
+          return { numero: l.numero, intitule: l.intitule, montant };
+        })
+        .filter((c) => Math.abs(c.montant) > EPSILON);
+    }
     if (terme.lecture !== 'VARIATION_SOLDE') {
       return retenues.map((l) => {
         let montant: number;
@@ -1295,6 +1322,7 @@ export class EtatsFinanciersSyscohadaService {
     lignesCourant: LigneBalancePourEtat[],
     lignesAnterieur: LigneBalancePourEtat[],
     exerciceAnterieurDisponible: boolean,
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
   ): {
     parRef: Map<string, { libelle: string; montant: number; comptes: CompteDuPoste[] }>;
     postesNonCalculables: PosteNonCalculable[];
@@ -1317,6 +1345,7 @@ export class EtatsFinanciersSyscohadaService {
       lignesCourant,
       soldesAnterieurs,
       exerciceAnterieurDisponible,
+      reevaluations,
     };
 
     const parRef = new Map<string, { libelle: string; montant: number; comptes: CompteDuPoste[] }>();
@@ -1350,12 +1379,19 @@ export class EtatsFinanciersSyscohadaService {
       // SEULEMENT quand les comptes visés sont effectivement mouvementés, sinon
       // le bloc se remplirait de réserves sans objet à chaque exercice et
       // cesserait d'être lu.
+      // Lot 14 · le mouvement que porte l'écriture de réévaluation du module,
+      // reconnue par sa liaison, est neutralisé par les termes liés · il ne
+      // fait plus naître les réserves qui ne valent que pour une réévaluation
+      // passée à la main (anomalies n° 11 et 21). Le reste du mouvement
+      // (une dotation au 28, un 106 passé à la main) les fait toujours naître.
       for (const nd of poste.nonDeterminables ?? []) {
-        const concerne = lignesCourant.some(
-          (l) =>
-            correspond(l.numero, nd.comptes) &&
-            (Math.abs(l.mouvementDebit) > EPSILON || Math.abs(l.mouvementCredit) > EPSILON),
-        );
+        const concerne = lignesCourant.some((l) => {
+          if (!correspond(l.numero, nd.comptes)) return false;
+          const lie = ctx.reevaluations.get(l.compteId);
+          return (
+            Math.abs(l.mouvementDebit - (lie?.debit ?? 0)) > EPSILON || Math.abs(l.mouvementCredit - (lie?.credit ?? 0)) > EPSILON
+          );
+        });
         if (concerne) postesNonCalculables.push({ ref: poste.ref, raison: nd.motif });
       }
     }
@@ -1393,16 +1429,20 @@ export class EtatsFinanciersSyscohadaService {
     // colonne N-1, elle, reste l'exercice précédent ENTIER, comme le tiret le
     // demande.
     const { borneN } = await this.bornesSituation(tenantId, exerciceId, exerciceN1Id, arreteAu);
-    const [lignesN, lignesN1, lignesN2] = await Promise.all([
+    const [lignesN, lignesN1, lignesN2, reevaluationsN, reevaluationsN1] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId, borneN),
       this.chargerLignes(tenantId, exerciceN1Id),
       this.chargerLignes(tenantId, exerciceN2Id),
+      // Lot 14 · l'écriture de réévaluation de CHAQUE colonne, bornée comme
+      // ses lignes (une situation arrêtée avant la clôture ne la contient pas).
+      this.ecritureService.mouvementsDeReevaluation(tenantId, exerciceId, borneN),
+      this.ecritureService.mouvementsDeReevaluation(tenantId, exerciceN1Id),
     ]);
 
-    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1, exerciceN1Id !== null);
+    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1, exerciceN1Id !== null, reevaluationsN);
     // Colonne N-1 seulement si l'exercice existe · jamais un faux zéro pour un
     // dossier à son premier exercice (même discipline que partout ailleurs).
-    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2, exerciceN2Id !== null) : null;
+    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2, exerciceN2Id !== null, reevaluationsN1) : null;
 
     const refsTotaux = new Map(TOTAUX_FLUX_SYSCOHADA.map((t) => [t.ref, t]));
     const lignes: Array<LigneFluxSyscohada | SectionFluxSyscohada> = ORDRE_AFFICHAGE_FLUX_SYSCOHADA.map((entree) => {

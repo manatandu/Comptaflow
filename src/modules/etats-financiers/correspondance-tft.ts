@@ -215,6 +215,13 @@ export interface PosteFluxTresorerie {
    * le fondement. Décision D6 de Manasse (2026-10-01).
    */
   misesEnServiceARetrancher?: string;
+  /**
+   * Débits de l'ÉCRITURE DE RÉÉVALUATION du module (lot 14), reconnue par sa
+   * liaison (`ReevaluationBilan.ecritureId`), à retrancher des comptes que le
+   * poste lit au débit · porte le fondement. La hausse de valeur d'un bien
+   * réévalué n'est ni une acquisition ni un décaissement.
+   */
+  reevaluationARetrancher?: string;
 }
 
 /**
@@ -423,6 +430,13 @@ export const POSTES_INVESTISSEMENT: PosteFluxTresorerie[] = [
     // fiche, jamais par le compte · un crédit du 219 non lié (rebut, virement
     // passé à la main) reste où la balance le met, comme avant. Le 239 et le
     // 249, déjà retranchés en entier, ne le sont pas deux fois.
+    reevaluationARetrancher:
+      "Réévaluation des immobilisations passée par le module (AUDCIF Titre VIII ch. 28 § 4.2.4.1 et § 4.3.1 · D 2 / " +
+      'C 28 / C 106 ou 154) · substitution d\'une valeur réévaluée à la valeur nette, sans trésorerie. Le SYCEBNL ' +
+      "(Partie 4 ch. 1, section 4) ne range ici que les « décaissements et encaissements liés aux opérations " +
+      "d'acquisitions et de cessions » et ne nomme pas la réévaluation ; le tableau de l'AUDCIF, lu par analogie, " +
+      "l'écrit · « les variations d'immobilisations qui n'ont pas généré un flux de trésorerie ne figurent pas » et « – Écart et " +
+      "provision spéciale de réévaluation de l'exercice de réévaluation uniquement » (Titre IX ch. 5 § 1.3).",
     misesEnServiceARetrancher:
       "Mise en service d'un bien inscrit en cours (fiches des COMPTES 21 à 24 ; 219 et 229 offerts par décision " +
       'de Manasse du 2026-10-01) · virement de poste à poste, sans trésorerie, dont le paiement a déjà été lu au ' +
@@ -451,6 +465,13 @@ export const POSTES_INVESTISSEMENT: PosteFluxTresorerie[] = [
     sens: 'DECAISSEMENT',
     lectureFlux: 'DEBIT_SEUL',
     comptesFlux: ['26', '27'],
+    reevaluationARetrancher:
+      "Réévaluation des immobilisations passée par le module (AUDCIF Titre VIII ch. 28 § 4.2.4.1 et § 4.3.1 · D 2 / " +
+      'C 28 / C 106 ou 154) · substitution d\'une valeur réévaluée à la valeur nette, sans trésorerie. Le SYCEBNL ' +
+      "(Partie 4 ch. 1, section 4) ne range ici que les « décaissements et encaissements liés aux opérations " +
+      "d'acquisitions et de cessions » et ne nomme pas la réévaluation ; le tableau de l'AUDCIF, lu par analogie, " +
+      "l'écrit · « les variations d'immobilisations qui n'ont pas généré un flux de trésorerie ne figurent pas » et « – Écart et " +
+      "provision spéciale de réévaluation de l'exercice de réévaluation uniquement » (Titre IX ch. 5 § 1.3).",
   },
   {
     ref: 'FK',

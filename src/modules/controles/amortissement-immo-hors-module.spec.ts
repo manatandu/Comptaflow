@@ -11,16 +11,23 @@ import { motifRefusDepreciationDivision20 } from '../immobilisations/comptes-du-
  * la main · seulement les crédits du 28, hors écritures que le module retient
  * et hors clôture.
  */
-interface Ligne28 { ecritureId: string; numero: string; intitule: string; credit: number }
+interface Ligne28 { ecritureId: string; numero: string; intitule: string; credit: number; reevaluationDuModule?: boolean }
 
 function service(lignes28: Ligne28[], o: { dotationsDuModule?: string[]; sortiesDuModule?: string[]; referentiel?: Referentiel } = {}) {
-  const ligneFindMany = jest.fn(({ where }: { where: { compte?: { numero?: { startsWith?: string } }; ecriture?: { id?: { notIn?: string[] } } } }) => {
-    if (where.compte?.numero?.startsWith !== '28') return Promise.resolve([]);
-    const exclues = new Set(where.ecriture?.id?.notIn ?? []);
-    return Promise.resolve(
-      lignes28.filter((l) => !exclues.has(l.ecritureId)).map((l) => ({ credit: l.credit, compte: { numero: l.numero, intitule: l.intitule } })),
-    );
-  });
+  const ligneFindMany = jest.fn(
+    ({ where }: { where: { compte?: { numero?: { startsWith?: string } }; ecriture?: { id?: { notIn?: string[] }; reevaluationBilan?: unknown } } }) => {
+      if (where.compte?.numero?.startsWith !== '28') return Promise.resolve([]);
+      const exclues = new Set(where.ecriture?.id?.notIn ?? []);
+      // La doublure honore la requête · l'écriture de réévaluation du module
+      // (lot 14) ne revient qu'à une requête qui ne l'écarte pas par sa relation.
+      const sansReevaluation = !!where.ecriture && 'reevaluationBilan' in where.ecriture && where.ecriture.reevaluationBilan === null;
+      return Promise.resolve(
+        lignes28
+          .filter((l) => !exclues.has(l.ecritureId) && !(sansReevaluation && l.reevaluationDuModule))
+          .map((l) => ({ credit: l.credit, compte: { numero: l.numero, intitule: l.intitule } })),
+      );
+    },
+  );
   const prisma = {
     exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }) },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel: o.referentiel ?? Referentiel.SYCEBNL }) },
@@ -76,13 +83,21 @@ describe('amortissement d’immobilisation hors module (D-21)', () => {
     expect(await signale(lignes, { dotationsDuModule: ['dot'] })).toBeDefined();
   });
 
+  it('la réévaluation du module (lot 14) ne compte pas · son crédit du 28 est porté par la fiche', async () => {
+    // Exemple 2 du ch. 28 § 4.2.1.3 · C 28 160. Le compter ferait contre-passer
+    // une réévaluation que la fiche porte déjà (`amortissementsReevaluation`).
+    const lignes = [{ ecritureId: 'reeval', numero: '28410000', intitule: 'Matériel', credit: 160, reevaluationDuModule: true }];
+    expect(await signale(lignes)).toBeUndefined();
+    expect(await signale([{ ...lignes[0], reevaluationDuModule: false }])).toBeDefined();
+  });
+
   it('la lecture ne prend que les crédits, hors clôture et hors à-nouveau provisoire', async () => {
     const { svc, ligneFindMany } = service([]);
     await svc.analyser('t', 'ex');
     const appel = ligneFindMany.mock.calls.map((c) => c[0]).find((w) => w.where.compte?.numero?.startsWith === '28');
     expect(appel?.where).toMatchObject({
       credit: { gt: 0 },
-      ecriture: { tenantId: 't', exerciceId: 'ex', estGenereeParCloture: false, estANouveauProvisoire: false },
+      ecriture: { tenantId: 't', exerciceId: 'ex', estGenereeParCloture: false, estANouveauProvisoire: false, reevaluationBilan: null },
     });
   });
 

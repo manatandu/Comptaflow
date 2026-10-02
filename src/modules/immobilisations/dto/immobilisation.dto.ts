@@ -1268,3 +1268,112 @@ export class ReviserPlanDto {
   @IsUUID('4')
   journalId?: string;
 }
+
+/** Lot 14 · une catégorie de biens et son coefficient légal, avec sa source (ch. 28 § 3.1.1). */
+export class CategorieReevaluationDto {
+  @IsString()
+  @MaxLength(40)
+  cle!: string;
+
+  @IsString()
+  @MaxLength(200)
+  libelle!: string;
+
+  @IsNumber()
+  @IsPositive()
+  @Max(1000)
+  coefficient!: number;
+
+  /** L'arrêté du Ministre des Finances qui fixe le coefficient (loi n° 23/053, art. 129). */
+  @IsString()
+  @MaxLength(500)
+  source!: string;
+
+  /**
+   * Ce que mesure le coefficient · depuis l'acquisition ou depuis la dernière
+   * réévaluation. Exigé (par le service) d'une catégorie dont un bien porte
+   * déjà une réévaluation, sans défaut (`coefficientApplique`).
+   */
+  @IsOptional()
+  @IsIn(['ORIGINE', 'DERNIERE_REEVALUATION'])
+  base?: 'ORIGINE' | 'DERNIERE_REEVALUATION' | null;
+}
+
+/** Lot 14 · un bien du périmètre · sa valeur actuelle, sa catégorie (légale), son droit de reprise (SYCEBNL). */
+export class LigneReevaluationDto {
+  @IsUUID('4')
+  immobilisationId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  categorie?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valeurActuelle?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  droitDeReprise?: boolean;
+}
+
+/**
+ * Lot 14 · la réévaluation des immobilisations corporelles et financières
+ * (AUDCIF art. 35, 62 à 65 ; Titre VIII ch. 28). Une ligne par bien du
+ * périmètre, ni plus ni moins (« toute réévaluation partielle est
+ * interdite »).
+ */
+export class ReevaluerImmobilisationsDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsIn(['LEGALE', 'LIBRE'])
+  type!: 'LEGALE' | 'LIBRE';
+
+  @IsOptional()
+  @IsIn(['AJUSTEMENT', 'ELIMINATION'])
+  methodeLibre?: 'AJUSTEMENT' | 'ELIMINATION';
+
+  @IsOptional()
+  @IsBoolean()
+  neutraliteFiscale?: boolean;
+
+  /** La décision des organes de gestion (art. 35). */
+  @IsString()
+  @MaxLength(500)
+  decision!: string;
+
+  @IsString()
+  @MaxLength(1000)
+  traitementFiscal!: string;
+
+  @IsString()
+  @MaxLength(2000)
+  methodeEvaluation!: string;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CategorieReevaluationDto)
+  @ArrayMaxSize(20)
+  categories?: CategorieReevaluationDto[];
+
+  @ValidateNested({ each: true })
+  @Type(() => LigneReevaluationDto)
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  lignes!: LigneReevaluationDto[];
+}
+
+/** Lot 14 · la reprise de la provision spéciale de l'exercice (ch. 28 § 4.2.4.2). */
+export class RepriseProvisionReevaluationDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+}

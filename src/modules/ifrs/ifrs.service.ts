@@ -287,7 +287,11 @@ export class IfrsService {
     if (!lignesN1) {
       return { tableau: null, motif: 'Sans l’exercice précédent, les variations et les flux du tableau SYSCOHADA de départ ne se lisent pas.' };
     }
-    const { montants, reserves } = this.etatsSyscohada.resoudreFluxDetailleSurLignes(lignesN, lignesN1);
+    const { montants, reserves } = this.etatsSyscohada.resoudreFluxDetailleSurLignes(
+      lignesN,
+      lignesN1,
+      await this.ecritures.mouvementsDeReevaluation(tenantId, exerciceId),
+    );
     const cafgParCategorie = this.cafgParCategorie(lignesN, lignesN1, regles);
     const decouverts = parametres?.decouvertsDansTresorerie ?? null;
     const effet = await this.prisma.effetChangeTresorerieIfrs.findUnique({
