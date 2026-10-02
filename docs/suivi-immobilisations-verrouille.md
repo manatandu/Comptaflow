@@ -60,6 +60,11 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | décision de Manasse du 2026-10-02 |
 | A7 | Dépréciation des créances dossier par dossier · 411 vers 416, D 659 / C 491, motif et pièces (AUDCIF Titre VII, comptes 41 et 49) · relevé CPCC C3 | décision de Manasse du 2026-10-02 |
 | A8 | Décompte final au journal (D 6614 / C 422) et émis figé avec retenues et net (AUDCIF Titre VIII ch. 21 § 5.2 ; Code du travail art. 103) · relevé CPCC C4 | décision de Manasse du 2026-10-02 ; IMPÔT TRANCHÉ le 2026-10-02 · barème du mois (art. 118 et 119, annualisation du mois comme le bulletin) avec réserve écrite sur le versement unique ; COEXISTENCE TRANCHÉE le 2026-10-02 · le décompte REMPLACE le bulletin du dernier mois (il porte le salaire du mois de cessation avec les indemnités ; un bulletin actif du même mois refuse l'émission du décompte, et inversement) |
+| A9 | Décompte final · art. 66 al. 1 (départ à mi-préavis, rémunération due jusqu'au terme) et art. 67 (nouvel emploi, perte du reste) modélisés (Code du travail art. 66, 67) · relevé CPCC C5 | A8 intégré (même fichier) |
+| A10 | Caisse comptée après le 31 décembre · solde lu au livre-journal à la date du comptage et reconstitution vers la clôture dans le PV de caisse (AUDCIF art. 16 ; fiche du compte 57) · relevé CPCC C6 | décision de Manasse du 2026-10-02 |
+| A11 | Écriture de l'impôt sur le résultat proposée (D 891 / C 441), SYSCOHADA (AUDCIF Titre VII, compte 89) · relevé CPCC C7 | décision de Manasse du 2026-10-02 |
+| A12 | Intérêts courus sur emprunts proposés à la clôture (D 671 / C 166), contre-passés à l'ouverture (AUDCIF Titre VII, compte 16) · relevé CPCC C8 | décision de Manasse du 2026-10-02 |
+| A13 | Contrôles · banque sans rapprochement clos à la clôture (fiche du compte 52) et période restée ouverte au-delà de la clôture informatique trimestrielle (AUDCIF art. 22, 3°) · relevé CPCC C9 et C10 | décision de Manasse du 2026-10-02 |
 
 ## Décisions en attente de Manasse
 
