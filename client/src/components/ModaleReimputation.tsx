@@ -5,6 +5,7 @@ import { Aide } from './chrome/Aide';
 import type { Compte, Ecriture } from '../lib/types';
 import { PortailModale } from './PortailModale';
 import { montantOuVide as fmt } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * RÉIMPUTATION · déplacer des lignes vers un autre compte, depuis le résultat
@@ -45,7 +46,9 @@ export function ModaleReimputation({
   // (@ReserveAuComptable) · la modale le lit elle-même, pas seulement le bouton
   // qui l'ouvre, et le bouton « Réimputer » ne sert rien à qui ne peut pas.
   const { peutValider } = useAuth();
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const comptes = comptesLus ?? [];
   const [cochees, setCochees] = useState<Set<string>>(new Set());
   const [cibleId, setCibleId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -55,9 +58,10 @@ export function ModaleReimputation({
 
   useEffect(() => {
     api
-      .get<Compte[]>('/comptes?retenus=true')
-      .then((c) => setComptes(c.filter((x) => x.typeCompte === 'DETAIL' && x.estActif)))
-      .catch(() => setComptes([]));
+      .get<Compte[]>(`/comptes?${RETENUS}`)
+      .then((c) => setComptesLus(c.filter((x) => x.typeCompte === 'DETAIL' && x.estActif)))
+      // Un échec de lecture se dit · lu comme une liste vide, il taisait la cause.
+      .catch((e) => setErreur(`Comptes illisibles · ${e instanceof ApiError ? e.message : 'serveur injoignable'}`));
   }, []);
 
   const lignes: LigneProposee[] = useMemo(
@@ -189,6 +193,9 @@ export function ModaleReimputation({
                     </option>
                   ))}
                 </select>
+                {comptesLus && comptesLus.length === 0 && (
+                  <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesLus, 'de détail')}</span>
+                )}
               </label>
               {nbValidees > 0 && (
                 <label className="flex flex-col gap-0.5">

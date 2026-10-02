@@ -1,6 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { motifAucunCompteRetenu } from '../lib/comptes-proposes';
 import { montant } from '../lib/montants';
 import { celluleLibreSaisissable, texteCelluleLibre } from '../lib/cellules-notes';
 import { sousTitreDuTableau } from '../lib/titre-note';
@@ -62,6 +63,8 @@ export interface RattachementNotes {
   /** Comptes DÉTAIL actifs · un compte TOTAL n'a jamais de mouvement propre
    *  et le serveur le refuse : le proposer ferait essuyer un 400. */
   comptesDetail: Compte[];
+  /** Vrai une fois la liste lue · « aucun compte » ne se dit que d'une liste lue. */
+  comptesLus: boolean;
   compteParNumero: Map<string, Compte>;
   /** Compte choisi dans le sélecteur, par clé « codeNote::cleRubrique ». */
   compteChoisi: Record<string, string>;
@@ -262,7 +265,7 @@ export function BlocTableauNote({
    */
   afficherHorsBalance?: boolean;
 }) {
-  const { estAdmin, comptesDetail, compteParNumero, compteChoisi, setCompteChoisi, enCours, rattacher, detacher } =
+  const { estAdmin, comptesDetail, comptesLus, compteParNumero, compteChoisi, setCompteChoisi, enCours, rattacher, detacher } =
     rattachement;
 
   // Rubriques déjà rattachées par le dossier : lues sur les LIGNES (pas la
@@ -400,6 +403,10 @@ export function BlocTableauNote({
                         </option>
                       ))}
                     </select>
+                    {/* Liste de choix · comptes retenus ou utilisés ; vide, elle dit quoi faire. */}
+                    {comptesLus && comptesDetail.length === 0 && (
+                      <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesDetail, 'de détail')}</span>
+                    )}
                     <button
                       onClick={() => rattacher(note.code, r.cle)}
                       disabled={!compteChoisi[cleForm] || enCours !== null}

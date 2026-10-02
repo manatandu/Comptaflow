@@ -22,14 +22,14 @@ const compte = (id: string, numero: string, mode: string | null = null): Contrep
 describe('adresseContrepartiesAdmises · la liste fermée que le serveur calcule', () => {
   it('vise le compte du bien en priorité, sinon la famille, avec le type du composant', () => {
     expect(adresseContrepartiesAdmises({ compteImmobilisationId: 'c1' })).toBe(
-      '/immobilisations/contreparties-acquisition?compteImmobilisationId=c1',
+      '/immobilisations/contreparties-acquisition?compteImmobilisationId=c1&retenus=true',
     );
     expect(adresseContrepartiesAdmises({ familleId: 'f1', typeComposant: 'DEMANTELEMENT' })).toBe(
-      '/immobilisations/contreparties-acquisition?familleId=f1&typeComposant=DEMANTELEMENT',
+      '/immobilisations/contreparties-acquisition?familleId=f1&typeComposant=DEMANTELEMENT&retenus=true',
     );
     // Le serveur refuse les deux identifiants ensemble · un seul part.
     expect(adresseContrepartiesAdmises({ compteImmobilisationId: 'c1', familleId: 'f1' })).toBe(
-      '/immobilisations/contreparties-acquisition?compteImmobilisationId=c1',
+      '/immobilisations/contreparties-acquisition?compteImmobilisationId=c1&retenus=true',
     );
   });
 
@@ -83,7 +83,7 @@ describe('etatReglePar · une liste qui dépend d’un choix dit pourquoi elle e
   });
 
   it("aucun compte admis · la raison et ce qu'il faut ouvrir d'abord", () => {
-    expect(etatReglePar([cible], [[]], null).motif).toMatch(/aucun compte que la fiche du compte du bien admet/);
+    expect(etatReglePar([cible], [[]], null).motif).toMatch(/Aucun compte que la fiche du compte du bien admet en contrepartie n'est retenu ni utilisé · retenez/);
     expect(etatReglePar([cible, { compteImmobilisationId: 'c2' }], [[compte('a', '48110000')], [compte('b', '48120000')]], null).motif).toMatch(
       /admis à la fois pour tous ces biens/,
     );

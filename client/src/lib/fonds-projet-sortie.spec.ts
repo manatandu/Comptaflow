@@ -24,7 +24,7 @@ describe('Sortie de fin de projet · fonds affecté repris (SYCEBNL Partie 3 ch.
 
   it('l’écran lit la liste servie et présélectionne', () => {
     const page = readFileSync(join(__dirname, '../pages/ImmobilisationsPage.tsx'), 'utf8');
-    expect(page).toContain("'/immobilisations/comptes-fonds-projet'");
+    expect(page).toContain('`/immobilisations/comptes-fonds-projet?${RETENUS}`');
     expect(page).toContain('fondsPreselectionne(r.comptes)');
     // Le motif est RENDU sous la liste · une liste vide muette était le défaut.
     expect(page).toContain('{messageFonds}');

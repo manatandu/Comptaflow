@@ -19,6 +19,8 @@ export interface ReponseFondsProjet {
   comptes: CompteFondsProjet[];
   /** Comptes de fonds du plan mis en sommeil, écartés de la liste · le dire, jamais les taire. */
   enSommeil: number;
+  /** Fonds actifs écartés par la règle des comptes retenus (`retenus=true`) · le motif dit de les retenir. */
+  nonRetenus?: number;
   /** Pourquoi la liste est vide et ce qu'il faut faire d'abord ; null quand elle ne l'est pas. */
   motifVide: string | null;
 }

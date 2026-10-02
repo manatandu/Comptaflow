@@ -1985,12 +1985,26 @@ DURÉE PROPOSÉE AU BARÈME DE L'ARRÊTÉ n° 013/2025
 (`scripts/extraire-bareme-amortissement.cjs`, 131 lignes, jamais retouché) ; écart
 averti (art. 4), jamais refusé (durée d'utilité, AUDCIF art. 45).
 
-**Comptes retenus (2026-09-28, décision de Manasse).** `Compte.estRetenu` · les
-listes de choix (saisie, lettrage, modèles, réimputation…) demandent
-`/comptes?retenus=true`, qui rend les retenus ET tout compte UTILISÉ
-(`identifiantsUtilises`, « tout lien retient »). Semé non retenu, créé retenu,
-existants gardés. Jamais un refus · états, imports et écritures automatiques
-lisent tout le plan (§ 7).
+**Comptes retenus (2026-09-28, décision de Manasse).** `Compte.estRetenu` · TOUTE
+liste de choix de comptes demande `retenus=true`, à `/comptes` comme aux routes
+des immobilisations (comptes du bien, contreparties d'acquisition, fonds de fin
+de projet), et le serveur rend les retenus ET tout compte UTILISÉ par une seule
+règle (`comptes/comptes-proposes.ts` sur `identifiantsUtilises`, « tout lien
+retient »). Semé non retenu, créé retenu, existants gardés. Jamais un refus ·
+états, imports et écritures automatiques lisent tout le plan (§ 7), un numéro
+TAPÉ se résout dans tout le plan (saisie, inventaire). Une liste vide dit
+« retenez-le dans Plan comptable » ou « ouvrez-le », un choix unique se
+présélectionne. NON FILTRÉE · la liste où le texte, et le serveur par un refus
+nommé, n'admet qu'UNE racine que l'opération mouvemente souvent la PREMIÈRE
+(contrepartie de l'octroi d'une subvention, destinations de l'affectation, 12
+de l'imputation d'ouverture, 167 ET 4861 du legs, 29 de la division du bien) ;
+FILTRÉE · le choix entre racines de natures distinctes (691, 697 ou 853 ; 162,
+163 ou 164). Les routes sont rangées dans UNE table
+(`comptes/listes-de-comptes.ts`, sans import), relue contre les contrôleurs
+par leur STRUCTURE (service qui lit `compte.findMany`, jamais par le nom) et
+contre chaque `api.get` du client, typé sans exception, quelle que soit la
+forme de l'adresse (`comptes-retenus-ecrans.spec.ts`, exceptions fermées et
+motivées).
 
 **Suppression des structures (2026-09-25).** DELETE, administrateur seul ; manuel
 i7, pas de suppression d'un compte « mouvementé […] ou encore utilisé dans une

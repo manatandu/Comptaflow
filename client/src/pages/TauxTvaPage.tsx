@@ -7,6 +7,7 @@ import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImp
 import { EditionStructure } from '../components/EditionStructure';
 import { editionTaux, perimetreEdition } from '../lib/editions-structures';
 import { PortailModale } from '../components/PortailModale';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * TAUX DE TAXES · la fenêtre Structure → Taux de taxes de Sage 100 i7 :
@@ -18,7 +19,10 @@ import { PortailModale } from '../components/PortailModale';
 export function TauxTvaPage() {
   const { estAdmin, utilisateur } = useAuth();
   const [liste, setListe] = useState<TauxTva[] | null>(null);
-  const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
+  // Liste de choix (comptes de classe 4 retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const comptesClasse4 = comptesLus ?? [];
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
 
@@ -50,7 +54,11 @@ export function TauxTvaPage() {
   useEffect(() => {
     if (!estAdmin) return;
     charger();
-    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
+    // LISTE DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // le compte d'un taux existant est utilisé, il y reste. Un échec se dit.
+    api.get<Compte[]>(`/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`).then(setComptesLus, (err) =>
+      setErreurComptes(`Comptes de taxe illisibles · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
 
@@ -165,6 +173,9 @@ export function TauxTvaPage() {
         </button>
       </div>
 
+      {erreurComptes && (
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2">{erreurComptes}</div>
+      )}
       {erreur && (
         <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2">{erreur}</div>
       )}
@@ -257,6 +268,12 @@ export function TauxTvaPage() {
                       </option>
                     ))}
                   </select>
+                  {comptesLus && comptesLus.length === 0 && (
+                    <>
+                      <span />
+                      <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesLus, 'de taxe (classe 4)')}</span>
+                    </>
+                  )}
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">

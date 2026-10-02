@@ -18,6 +18,7 @@ import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie 
 import { contrevaleur, coursPropose, devisesEtrangeres, motifLigneEnDevise, type DeviseDuDossier } from '../lib/ligne-en-devise';
 import { lireJournalDeSaisie, urlJournalDeSaisie, type ReponseJournal } from '../lib/journal-de-saisie';
 import { useGardeFermeture } from '../lib/fenetres';
+import { comptesPourLaFrappe, RETENUS } from '../lib/comptes-proposes';
 import { libelleRenvoiDiscordant, remplacementsProposes, type RenvoiDiscordant } from '../lib/regle-compte-saisie';
 
 /**
@@ -204,9 +205,18 @@ export function SaisiePage() {
   const [grilleLue, setGrilleLue] = useState<LigneGrilleSaisie[] | null>(null);
   const [erreurGrille, setErreurGrille] = useState<string | null>(null);
   const grilleSaisie = grilleLue ?? AUCUNE_LIGNE_DE_GRILLE;
+  // DEUX LECTURES DU PLAN, deux usages (décision du 2026-09-28, « Comptes
+  // retenus »). La LISTE proposée à la frappe ne montre que les comptes
+  // retenus ou utilisés ; tout le reste (numéro tapé en entier, contrepartie
+  // de trésorerie, compte de TVA routé, modèles) lit le PLAN ENTIER · une
+  // écriture automatique qui ne trouverait pas un compte non retenu dirait
+  // « aucun compte » à tort, et un numéro tapé serait refusé, ce que la règle
+  // interdit.
   const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const [comptesProposesLus, setComptesProposesLus] = useState<Compte[] | null>(null);
   const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const comptes = comptesLus ?? AUCUN_COMPTE;
+  const comptesProposes = comptesProposesLus ?? AUCUN_COMPTE;
 
   // Sélection du journal et de la période (étape 1)
   const [journalId, setJournalId] = useState('');
@@ -345,9 +355,14 @@ export function SaisiePage() {
       },
       (e) => setErreurJournaux(e instanceof Error ? e.message : "La liste des journaux n'a pas pu être lue."),
     );
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(
-      (cs) => {
-        setComptesLus(cs);
+    // Les deux lectures partent ensemble (temps de chargement, § 6).
+    Promise.all([
+      api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL'),
+      api.get<Compte[]>(`/comptes?actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`),
+    ]).then(
+      ([plan, proposes]) => {
+        setComptesLus(plan);
+        setComptesProposesLus(proposes);
         setErreurComptes(null);
       },
       (e) => setErreurComptes(e instanceof Error ? e.message : "Le plan de comptes n'a pas pu être lu."),
@@ -605,13 +620,10 @@ export function SaisiePage() {
 
   const numerosDuPlan = useMemo(() => new Set(comptes.map((c) => c.numero)), [comptes]);
 
-  const comptesFiltres = useMemo(() => {
-    const q = compteSaisie.trim().toLowerCase();
-    if (!q) return comptes.slice(0, 14);
-    return comptes
-      .filter((c) => c.numero.startsWith(q) || c.intitule.toLowerCase().includes(q))
-      .slice(0, 14);
-  }, [comptes, compteSaisie]);
+  // La liste montre les comptes proposés ; un numéro tapé en entier se prend
+  // dans tout le plan, même non retenu, et c'est dit (`lib/comptes-proposes.ts`).
+  const frappe = useMemo(() => comptesPourLaFrappe(compteSaisie, comptesProposes, comptes), [compteSaisie, comptesProposes, comptes]);
+  const comptesFiltres = useMemo(() => frappe.map((f) => f.compte), [frappe]);
 
   const choisirCompte = (c: Compte) => {
     setCompteChoisi(c);
@@ -1743,6 +1755,13 @@ export function SaisiePage() {
               Plan de comptes illisible · {erreurComptes}
             </div>
           )}
+          {/* Une liste de proposition vide dit pourquoi et quoi faire (§ 9 ter) ·
+              jamais un refus, le numéro tapé en entier se prend toujours. */}
+          {comptesProposesLus && comptesProposesLus.length === 0 && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-warning">
+              Aucun compte retenu ni utilisé · retenez dans Plan comptable les comptes à proposer, ou tapez le numéro du compte en entier.
+            </div>
+          )}
           {/* Des taux illisibles ne se taisent pas · la TVA posée d'office
               manquerait à la pièce sans que rien ne le dise. */}
           {erreurTauxTva && (
@@ -1818,6 +1837,11 @@ export function SaisiePage() {
                     >
                       <span className="font-mono font-semibold w-[86px] shrink-0">{c.numero}</span>
                       <span className="truncate">{c.intitule}</span>
+                      {frappe[i]?.horsListe && (
+                        <span className="shrink-0 text-[10.5px] opacity-80" title="Compte du plan ni retenu ni utilisé · il se saisit, et sera proposé dès qu'il sert.">
+                          non retenu
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -2244,7 +2268,7 @@ export function SaisiePage() {
       )}
 
       {peutEcrire && modaleModeles && (
-        <ModelesSaisieModale comptes={comptes} onInserer={insererModele} onFermer={() => setModaleModeles(false)} />
+        <ModelesSaisieModale comptes={comptes} comptesProposes={comptesProposesLus ?? undefined} onInserer={insererModele} onFermer={() => setModaleModeles(false)} />
       )}
     </div>
   );

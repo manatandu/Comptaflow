@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Bailleur, Compte } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * Bailleurs / sous-projets (comptabilité analytique par projet/bailleur,
@@ -15,12 +16,20 @@ import { Aide } from '../components/chrome/Aide';
  * de sous-comptes et de les rattacher, pour que la NOTE 9 (onglet dédié
  * des États financiers) se calcule automatiquement.
  */
+// Comptes éligibles au rattachement · 162-164 (Fonds d'investissement) et
+// 462-464 (Fonds d'administration), les deux seules familles que la NOTE 9
+// sait lire (voir EtatsFinanciersProjetService.noteBailleur).
+const PREFIXES = ['162', '163', '164', '462', '463', '464'];
+
 export function BailleursPage() {
   const { utilisateur, estAdmin } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
 
   const [bailleurs, setBailleurs] = useState<Bailleur[] | null>(null);
   const [comptes, setComptes] = useState<Compte[] | null>(null);
+  // Comptes éligibles du PLAN ENTIER · distingue « aucun retenu » (le retenir)
+  // de « aucun au plan » (l'ouvrir), deux gestes différents.
+  const [eligiblesAuPlan, setEligiblesAuPlan] = useState<number | null>(null);
   const [afficherFormulaire, setAfficherFormulaire] = useState(false);
 
   const [erreur, setErreur] = useState<string | null>(null);
@@ -29,10 +38,27 @@ export function BailleursPage() {
   const [code, setCode] = useState('');
   const [nom, setNom] = useState('');
 
+  /*
+    LISTE DE CHOIX · les comptes rattachables proposés sont les retenus ou
+    utilisés (`lib/comptes-proposes.ts`). Un compte DÉJÀ rattaché à un bailleur
+    reste montré même sans l'être · son rattachement doit rester visible pour
+    être retiré, et la NOTE 9 le lit. Le plan entier n'est lu que pour lui.
+    Un échec de lecture se dit (§ 9 ter).
+  */
   const charger = async () => {
-    const [b, c] = await Promise.all([api.get<Bailleur[]>('/bailleurs'), api.get<Compte[]>('/comptes')]);
-    setBailleurs(b);
-    setComptes(c);
+    try {
+      const [b, proposes, plan] = await Promise.all([
+        api.get<Bailleur[]>('/bailleurs'),
+        api.get<Compte[]>(`/comptes?${RETENUS}`),
+        api.get<Compte[]>('/comptes'),
+      ]);
+      setBailleurs(b);
+      const ids = new Set(proposes.map((c) => c.id));
+      setComptes(plan.filter((c) => ids.has(c.id) || !!c.bailleurId));
+      setEligiblesAuPlan(plan.filter((c) => PREFIXES.some((p) => c.numero.startsWith(p))).length);
+    } catch (err) {
+      setErreur(`Lecture impossible · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`);
+    }
   };
 
   useEffect(() => {
@@ -83,7 +109,6 @@ export function BailleursPage() {
   // NOTE 9 sait lire (voir EtatsFinanciersProjetService.noteBailleur). Un
   // tenant reste libre de rattacher un autre compte via l'API, mais cette
   // page ne propose que ce que la note sait effectivement exploiter.
-  const PREFIXES = ['162', '163', '164', '462', '463', '464'];
   const comptesEligibles = (comptes ?? []).filter((c) => PREFIXES.some((p) => c.numero.startsWith(p)));
 
   return (
@@ -201,9 +226,11 @@ export function BailleursPage() {
               <span>Libellé</span>
               <span>Bailleur</span>
             </div>
-            {comptesEligibles.length === 0 && (
-              <div className="px-4 py-3 text-[11.5px] text-text-dim">
-                Aucun sous-compte 162-164/462-464 dans ce dossier · créez-en depuis le Plan de comptes.
+            {comptes && comptesEligibles.length === 0 && (
+              <div className="px-4 py-3 text-[11.5px] text-warning">
+                {eligiblesAuPlan
+                  ? motifAucunCompteRetenu(comptesEligibles, 'de fonds 162-164 ou 462-464')
+                  : 'Aucun sous-compte 162-164 ou 462-464 au plan du dossier · ouvrez-le dans Plan comptable.'}
               </div>
             )}
             {comptesEligibles.map((c, i) => (

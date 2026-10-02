@@ -512,3 +512,35 @@ describe('l’octroi · le choix du 14 propose ce qui s’y trouve (fiche du com
     }
   });
 });
+
+describe('liste des rattachements · le compte de remboursement que le texte nomme', () => {
+  function monter(referentiel: 'SYCEBNL' | 'SYSCOHADA', ouvert: boolean) {
+    const findFirst = jest.fn().mockResolvedValue(ouvert ? { id: 'c4739', numero: '47390000', intitule: 'Subventions à reverser' } : null);
+    const prisma = {
+      subventionImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel, methodeDepreciationBienSubventionne: null }) },
+      compte: { findFirst },
+    };
+    return { svc: new SubventionRattacheeService(prisma as never, {} as never), findFirst };
+  }
+
+  it('SYCEBNL · le 4739 est lu dans TOUT le plan, retenu ou non, pour rester dans la liste de choix', async () => {
+    const { svc, findFirst } = monter('SYCEBNL', true);
+    const r = await svc.lister('t1');
+    expect(r.compteRemboursementPropose).toEqual({ id: 'c4739', numero: '47390000', intitule: 'Subventions à reverser' });
+    const where = findFirst.mock.calls[0][0].where;
+    expect(where).toEqual({ tenantId: 't1', numero: '47390000', typeCompte: 'DETAIL', estActif: true });
+    // Aucun filtre « retenu » · un compte prescrit ne se retire pas.
+    expect(where).not.toHaveProperty('estRetenu');
+  });
+
+  it('absent du plan, il est nul et le numéro reste dit ; au SYSCOHADA rien n’est proposé ni lu', async () => {
+    const absent = monter('SYCEBNL', false);
+    const r = await absent.svc.lister('t1');
+    expect(r.compteRemboursementPropose).toBeNull();
+    expect(r.contrepartieRemboursementProposee).toBe('47390000');
+    const sy = monter('SYSCOHADA', true);
+    expect((await sy.svc.lister('t1')).compteRemboursementPropose).toBeNull();
+    expect(sy.findFirst).not.toHaveBeenCalled();
+  });
+});

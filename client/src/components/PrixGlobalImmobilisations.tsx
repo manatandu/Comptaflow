@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
@@ -6,6 +6,7 @@ import type { Compte, Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
 import { ChampReglePar } from './ChampReglePar';
 import type { CibleReglePar } from '../lib/regle-par';
+import { compteUnique, motifAucunCompteRetenu } from '../lib/comptes-proposes';
 
 /**
  * LA VENTILATION D'UN PRIX GLOBAL (lot 8) · terrain et bâtiment, ou fonds
@@ -42,8 +43,10 @@ export function PrixGlobalImmobilisations({
 }: {
   exerciceId: string | undefined;
   journaux: Journal[];
-  comptesBien: { id: string; numero: string; intitule: string }[];
-  comptes: Compte[];
+  /** Comptes du bien retenus ou utilisés · null tant qu'ils ne sont pas lus. */
+  comptesBien: { id: string; numero: string; intitule: string }[] | null;
+  /** Comptes de détail retenus ou utilisés · null tant qu'ils ne sont pas lus. */
+  comptes: Compte[] | null;
   syscohada: boolean;
   onCree: () => void;
 }) {
@@ -64,7 +67,7 @@ export function PrixGlobalImmobilisations({
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<{ modalite: string; biens: { designation: string; montant: number }[] } | null>(null);
   const journalOd = journaux.find((j) => j.code === 'OD') ?? journaux[0];
-  const comptesStock = comptes.filter((c) => /^3[0-8]/.test(c.numero));
+  const comptesStock = comptes ? comptes.filter((c) => /^3[0-8]/.test(c.numero)) : null;
   /*
     LE MÊME COMPTE CRÉDITÉ POUR CHAQUE FICHE · le serveur vérifie la
     contrepartie bien par bien avant la première (`acquerirAPrixGlobal`,
@@ -77,11 +80,46 @@ export function PrixGlobalImmobilisations({
     proposer un compte refusé. Absent du plan, il n'est pas visé · le serveur
     le refuse alors avec son propre motif.
   */
-  const fondsCommercial = nature === 'FONDS_DE_COMMERCE' ? comptesBien.find((c) => c.numero === '21500000') : undefined;
+  /*
+    LE FONDS COMMERCIAL N'EST PAS UN CHOIX · le serveur l'ouvre d'office au
+    21500000 pour le reliquat. Il se cherche donc dans TOUT le plan, jamais
+    dans la liste de choix des comptes retenus (`lib/comptes-proposes.ts`) ·
+    écarté faute de rétention, il sortirait de l'intersection des
+    contreparties, et l'écran proposerait un compte que le serveur refuse pour
+    lui. Lu seulement quand la nature le demande.
+  */
+  const [planDesBiens, setPlanDesBiens] = useState<{ id: string; numero: string }[] | null>(null);
+  useEffect(() => {
+    if (nature !== 'FONDS_DE_COMMERCE' || planDesBiens) return;
+    let vivant = true;
+    api
+      .get<{ id: string; numero: string }[]>('/immobilisations/comptes-du-bien')
+      .then((p) => vivant && setPlanDesBiens(p))
+      .catch((err) => vivant && setErreur(`Plan des immobilisations illisible · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`));
+    return () => {
+      vivant = false;
+    };
+  }, [nature, planDesBiens]);
+  const fondsCommercial = nature === 'FONDS_DE_COMMERCE' ? planDesBiens?.find((c) => c.numero === '21500000') : undefined;
   const ciblesReglement: CibleReglePar[] = [
     ...biens.map((b) => ({ compteImmobilisationId: b.compteImmobilisationId || null })),
     ...(fondsCommercial ? [{ compteImmobilisationId: fondsCommercial.id }] : []),
   ];
+
+  /*
+    UN SEUL COMPTE DU BIEN RETENU OU UTILISÉ · il se présélectionne sur chaque
+    ligne encore vide (§ 9 ter), modifiable ; un choix fait n'est jamais
+    remplacé.
+  */
+  const compteBienUnique = compteUnique(comptesBien);
+  useEffect(() => {
+    if (!compteBienUnique) return;
+    setBiens((bs) =>
+      bs.some((b) => !b.compteImmobilisationId)
+        ? bs.map((b) => (b.compteImmobilisationId ? b : { ...b, compteImmobilisationId: compteBienUnique }))
+        : bs,
+    );
+  }, [compteBienUnique, biens.length]);
 
   if (!peutEcrire) return null;
 
@@ -208,10 +246,13 @@ export function PrixGlobalImmobilisations({
                 Compte du bien
                 <select required value={b.compteImmobilisationId} onChange={(e) => majBien(i, { compteImmobilisationId: e.target.value })} className={champ}>
                   <option value="">·</option>
-                  {comptesBien.map((c) => (
+                  {(comptesBien ?? []).map((c) => (
                     <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                   ))}
                 </select>
+                {comptesBien && comptesBien.length === 0 && (
+                  <span className="block text-[11px] text-warning">{motifAucunCompteRetenu(comptesBien, "d'immobilisation")}</span>
+                )}
               </label>
               <label className="flex flex-col">
                 Désignation
@@ -248,10 +289,13 @@ export function PrixGlobalImmobilisations({
                     Stock repris
                     <select required value={s.compteId} onChange={(e) => setStocks(stocks.map((x, j) => (j === i ? { ...x, compteId: e.target.value } : x)))} className={champ}>
                       <option value="">·</option>
-                      {comptesStock.map((c) => (
+                      {(comptesStock ?? []).map((c) => (
                         <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
                       ))}
                     </select>
+                    {comptesStock && comptesStock.length === 0 && (
+                      <span className="block text-[11px] text-warning">{motifAucunCompteRetenu(comptesStock, 'de stock (30 à 38)')}</span>
+                    )}
                   </label>
                   <label className="flex flex-col">
                     Valeur
@@ -273,7 +317,7 @@ export function PrixGlobalImmobilisations({
               Ajouter un bien
             </button>
             {nature === 'FONDS_DE_COMMERCE' && (
-              <button type="button" onClick={() => setStocks([...stocks, { compteId: '', montant: '' }])} className="text-[11px] font-semibold text-sel px-1.5 py-0.5">
+              <button type="button" onClick={() => setStocks([...stocks, { compteId: compteUnique(comptesStock), montant: '' }])} className="text-[11px] font-semibold text-sel px-1.5 py-0.5">
                 Ajouter un stock
               </button>
             )}

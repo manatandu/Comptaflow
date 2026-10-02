@@ -7,7 +7,7 @@ import { join } from 'node:path';
 describe('immobilisation · contrepartie d’acquisition', () => {
   const page = readFileSync(join(__dirname, 'ImmobilisationsPage.tsx'), 'utf8');
   it('la liste vient du serveur, pour le compte du bien, rangée par mode d’acquisition', () => {
-    expect(page).toContain('`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`');
+    expect(page).toContain('`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}&${RETENUS}`');
     // La liste servie, moins « Travaux en cours achevés » pour un bien inscrit
     // en cours (lib/compte-du-bien.ts, contrepartiesSelonEnCours), rangée par mode.
     expect(page).toContain('const contrepartiesOffertes = contrepartiesSelonEnCours(contrepartiesAdmises ?? [], iPasEncoreEnService);');
@@ -29,6 +29,9 @@ describe('immobilisation · contrepartie d’une dépréciation', () => {
   it('SYSCOHADA · 691, 697, 853 à la dotation, 791, 797, 863 à la reprise', () => {
     expect(page).toContain("if (syscohada) return sens === 'DOTATION' ? ['691', '697', '853'] : ['791', '797', '863'];");
     const debut = page.indexOf('value={dContrepartie}');
-    expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('racinesContrepartieDepreciation(syscohada, dSens)');
+    // La liste passe par `contrepartiesDepreciation`, qui lit les racines de la
+    // fiche · une seule lecture pour la liste, son message et la présélection.
+    expect(page.slice(debut, page.indexOf('</select>', debut))).toContain('contrepartiesDepreciation(comptesFinancement ?? [], syscohada, dSens)');
+    expect(page).toContain('const racines = racinesContrepartieDepreciation(syscohada, sens);');
   });
 });

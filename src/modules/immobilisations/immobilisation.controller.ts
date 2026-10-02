@@ -134,8 +134,12 @@ export class ImmobilisationController {
    * plan leur donne et les sections du barème proposées (compte-du-bien.ts).
    */
   @Get('comptes-du-bien')
-  async comptesDuBien(@CurrentUser() user: AuthenticatedUser) {
-    return this.immobilisationService.comptesDuBien(user.tenantId);
+  async comptesDuBien(
+    @CurrentUser() user: AuthenticatedUser,
+    // Liste de choix · seuls les comptes retenus ou utilisés (comptes-proposes.ts).
+    @Query('retenus') retenus?: string,
+  ) {
+    return this.immobilisationService.comptesDuBien(user.tenantId, retenus === 'true');
   }
 
   /**
@@ -144,8 +148,12 @@ export class ImmobilisationController {
    * Partie 3 ch. 3 § 2.5). Hors projet, la liste est vide et dit pourquoi.
    */
   @Get('comptes-fonds-projet')
-  async comptesFondsProjet(@CurrentUser() user: AuthenticatedUser) {
-    return this.immobilisationService.comptesFondsProjet(user.tenantId);
+  async comptesFondsProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    // Liste de choix · seuls les fonds retenus ou utilisés (comptes-proposes.ts).
+    @Query('retenus') retenus?: string,
+  ) {
+    return this.immobilisationService.comptesFondsProjet(user.tenantId, retenus === 'true');
   }
 
   /** Seuil du petit matériel (arrêté n° 014/2025, art. 2), en francs, à une date. */
@@ -164,6 +172,8 @@ export class ImmobilisationController {
     // Le type d'un composant ouvre sa propre contrepartie (1984 pour un
     // démantèlement, AUDCIF Titre VII, classe 2) · un type inconnu est refusé.
     @Query('typeComposant') typeComposant?: string,
+    // Liste de choix · seuls les comptes retenus ou utilisés (comptes-proposes.ts).
+    @Query('retenus') retenus?: string,
   ) {
     if (typeComposant !== undefined && !(Object.values(TypeComposant) as string[]).includes(typeComposant)) {
       throw new BadRequestException(`Type de composant inconnu : ${typeComposant}`);
@@ -175,6 +185,7 @@ export class ImmobilisationController {
       user.tenantId,
       { familleId, compteImmobilisationId },
       (typeComposant as TypeComposant | undefined) ?? null,
+      retenus === 'true',
     );
   }
 

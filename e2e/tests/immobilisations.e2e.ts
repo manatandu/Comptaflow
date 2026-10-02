@@ -1187,6 +1187,12 @@ test('SYCEBNL · une subvention d’investissement s’enregistre depuis son com
   await seConnecter(page, dossier.email);
   const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
   const annee = Number(exercice.dateDebut.slice(0, 4));
+  // Le plan semé part NON RETENU (décision du 2026-09-28) · la liste de choix
+  // du 14 ne propose que les comptes retenus ou utilisés. Le cabinet retient
+  // le compte de subvention qu'il emploie, comme dans Plan comptable.
+  const compte14 = (await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?typeCompte=DETAIL')).find((c) => c.numero === '14170000');
+  if (!compte14) throw new Error('Compte 14170000 absent du plan semé');
+  await appelApi(page, 'PATCH', `/comptes/${compte14.id}`, { estRetenu: true });
   await page.goto('/#/immobilisations');
   await page.getByRole('button', { name: 'Rattacher une subvention' }).click();
   await page.getByLabel('Compte de subvention').selectOption({ label: "14170000 Subventions d'équipement · Organismes internationaux" });

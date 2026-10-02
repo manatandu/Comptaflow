@@ -5,6 +5,8 @@ import { montant } from '../lib/montants';
 import type { Compte, Journal } from '../lib/types';
 import { comptesParDivision, type CompteDuBien, type ContrepartieAdmise } from '../lib/compte-du-bien';
 import { Aide } from './chrome/Aide';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * L'ÉCHANGE D'UN BIEN · le serveur enchaîne la vente de l'ancien au prix de
@@ -29,8 +31,10 @@ export function EchangeImmobilisation({
 }: {
   immobilisationId: string;
   designationAncien: string;
-  comptesBien: CompteDuBien[];
-  comptesDetail: Compte[];
+  /** Comptes du bien retenus ou utilisés · null tant qu'ils ne sont pas lus. */
+  comptesBien: CompteDuBien[] | null;
+  /** Comptes de détail retenus ou utilisés · null tant qu'ils ne sont pas lus. */
+  comptesDetail: Compte[] | null;
   exerciceId: string | undefined;
   journal: Journal | undefined;
   onFait: () => void;
@@ -48,23 +52,23 @@ export function EchangeImmobilisation({
   const [fournisseurId, setFournisseurId] = useState('');
   const [creanceId, setCreanceId] = useState('');
   const [courante, setCourante] = useState(false);
-  const [fournisseurs, setFournisseurs] = useState<ContrepartieAdmise[]>([]);
+  // null tant que la liste n'est pas lue · « aucun » ne se dit que d'une liste lue.
+  const [fournisseurs, setFournisseurs] = useState<ContrepartieAdmise[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
   // Les fournisseurs d'investissement admis pour le compte du bien reçu · la
   // liste fermée du serveur, mode « achat à crédit » seul (481, 404).
   useEffect(() => {
-    setFournisseurs([]);
+    setFournisseurs(null);
     setFournisseurId('');
     if (!compteBienId) return;
     let vivant = true;
     api
-      .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${compteBienId}`)
+      .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${compteBienId}&${RETENUS}`)
       .then((c) => vivant && setFournisseurs(c.filter((x) => x.mode === 'ACHAT_A_CREDIT')))
       .catch((err) => {
         if (!vivant) return;
-        setFournisseurs([]);
         setErreur(err instanceof ApiError ? err.message : "Fournisseurs d'investissement illisibles");
       });
     return () => {
@@ -73,7 +77,12 @@ export function EchangeImmobilisation({
   }, [compteBienId]);
 
   const racineCreance = courante ? '414' : '485';
-  const creances = comptesDetail.filter((c) => c.numero.startsWith(racineCreance));
+  const creances = comptesDetail ? comptesDetail.filter((c) => c.numero.startsWith(racineCreance)) : null;
+  // Un seul compte proposé se présélectionne (§ 9 ter).
+  const biensRecus = comptesBien ? comptesBien.filter((c) => !c.locationAcquisition) : null;
+  usePreselectionUnique(biensRecus, compteBienId, setCompteBienId);
+  usePreselectionUnique(fournisseurs, fournisseurId, setFournisseurId);
+  usePreselectionUnique(creances, creanceId, setCreanceId);
   const valeur = Math.round(((Number(reprise) || 0) + (Number(soulte) || 0)) * 100) / 100;
 
   const envoyer = async (e: FormEvent) => {
@@ -132,7 +141,7 @@ export function EchangeImmobilisation({
           Compte du bien reçu
           <select required value={compteBienId} onChange={(e) => setCompteBienId(e.target.value)} className={champ}>
             <option value="" />
-            {comptesParDivision(comptesBien.filter((c) => !c.locationAcquisition)).map((g) => (
+            {comptesParDivision(biensRecus ?? []).map((g) => (
               <optgroup key={g.numero} label={`${g.numero} · ${g.intitule}`}>
                 {g.comptes.map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
@@ -140,6 +149,9 @@ export function EchangeImmobilisation({
               </optgroup>
             ))}
           </select>
+          {biensRecus && biensRecus.length === 0 && (
+            <span className="block text-[11px] font-normal text-warning">{motifAucunCompteRetenu(biensRecus, "d'immobilisation")}</span>
+          )}
         </label>
         <label className={etiquette}>
           Désignation du bien reçu
@@ -153,19 +165,29 @@ export function EchangeImmobilisation({
           Fournisseur d'investissement
           <select required disabled={!compteBienId} value={fournisseurId} onChange={(e) => setFournisseurId(e.target.value)} className={champ}>
             <option value="" />
-            {fournisseurs.map((c) => (
+            {(fournisseurs ?? []).map((c) => (
               <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
             ))}
           </select>
+          {compteBienId && fournisseurs && fournisseurs.length === 0 && (
+            <span className="block text-[11px] font-normal text-warning">
+              {motifAucunCompteRetenu(fournisseurs, "de fournisseur d'investissements admis pour ce bien")}
+            </span>
+          )}
         </label>
         <label className={etiquette}>
           Créance de reprise
           <select required value={creanceId} onChange={(e) => setCreanceId(e.target.value)} className={champ}>
             <option value="" />
-            {creances.map((c) => (
+            {(creances ?? []).map((c) => (
               <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
             ))}
           </select>
+          {creances && creances.length === 0 && (
+            <span className="block text-[11px] font-normal text-warning">
+              {motifAucunCompteRetenu(creances, `de créance sur cession (${racineCreance})`)}
+            </span>
+          )}
         </label>
         {syscohada && (
         <label className={`${etiquette} flex items-center gap-1.5 pb-2`}>

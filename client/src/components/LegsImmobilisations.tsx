@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
 import type { Compte, Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { compteUnique, motifAucunCompteRetenu } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * LE LEGS D'IMMOBILISATIONS GREVÉ DE DETTES (lot 7, SYCEBNL seul) · une
@@ -24,13 +26,12 @@ export function LegsImmobilisations({
   exerciceId,
   journaux,
   comptesBien,
-  comptes,
   onCree,
 }: {
   exerciceId: string | undefined;
   journaux: Journal[];
-  comptesBien: { id: string; numero: string; intitule: string }[];
-  comptes: Compte[];
+  /** Comptes du bien retenus ou utilisés · null tant qu'ils ne sont pas lus. */
+  comptesBien: { id: string; numero: string; intitule: string }[] | null;
   onCree: () => void;
 }) {
   const { peutEcrire } = useAuth();
@@ -45,8 +46,48 @@ export function LegsImmobilisations({
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<{ dettes: number; fonds: number }[] | null>(null);
   const journalOd = journaux.find((j) => j.code === 'OD') ?? journaux[0];
-  const comptesFonds = comptes.filter((c) => c.numero.startsWith('167') && !c.numero.startsWith('1679'));
-  const comptes4861 = comptes.filter((c) => c.numero.startsWith('4861'));
+  /*
+    LE 167 ET LE 4861 SONT PRESCRITS, TOUS LES DEUX · « les dettes reprises
+    avec le legs vont au 4861, le reste au 167 » (SYCEBNL Partie 3 ch. 2
+    § 1.2.2, Guide Application 5), et le serveur refuse tout autre compte
+    (`legs-immobilisations.ts`). Le legs est souvent le PREMIER mouvement de
+    l'un et de l'autre · la règle des comptes retenus viderait les deux listes
+    dans un dossier qui n'a jamais reçu de legs, et l'écran n'aurait plus le
+    compte que le texte impose. Les deux se lisent donc dans TOUT le plan,
+    par la même lecture (critère écrit dans `listes-de-comptes.ts`) ; un
+    compte unique se présélectionne.
+  */
+  const [planPrescrit, setPlanPrescrit] = useState<Compte[] | null>(null);
+  useEffect(() => {
+    if (!ouvert || planPrescrit) return;
+    let vivant = true;
+    api
+      .get<Compte[]>('/comptes?typeCompte=DETAIL')
+      .then((c) => vivant && setPlanPrescrit(c))
+      .catch((err) => vivant && setErreur(`Plan de comptes illisible · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`));
+    return () => {
+      vivant = false;
+    };
+  }, [ouvert, planPrescrit]);
+  const comptesFonds = planPrescrit ? planPrescrit.filter((c) => c.numero.startsWith('167') && !c.numero.startsWith('1679')) : null;
+  const comptes4861 = planPrescrit ? planPrescrit.filter((c) => c.numero.startsWith('4861')) : null;
+  usePreselectionUnique(ouvert ? comptesFonds : null, fonds, setFonds);
+  usePreselectionUnique(ouvert ? comptes4861 : null, compteDettes, setCompteDettes);
+
+  /*
+    UN SEUL COMPTE DU BIEN RETENU OU UTILISÉ · il se présélectionne sur chaque
+    ligne encore vide (§ 9 ter), modifiable ; un choix fait n'est jamais
+    remplacé.
+  */
+  const compteBienUnique = compteUnique(comptesBien);
+  useEffect(() => {
+    if (!compteBienUnique) return;
+    setBiens((bs) =>
+      bs.some((b) => !b.compteImmobilisationId)
+        ? bs.map((b) => (b.compteImmobilisationId ? b : { ...b, compteImmobilisationId: compteBienUnique }))
+        : bs,
+    );
+  }, [compteBienUnique, biens.length]);
 
   if (!peutEcrire) return null;
 
@@ -119,10 +160,13 @@ export function LegsImmobilisations({
               Fonds
               <select required value={fonds} onChange={(e) => setFonds(e.target.value)} className={champ}>
                 <option value="">·</option>
-                {comptesFonds.map((c) => (
+                {(comptesFonds ?? []).map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
                 ))}
               </select>
+              {comptesFonds && comptesFonds.length === 0 && (
+                <span className="text-[11px] text-warning">Aucun compte 167 au plan du dossier · ouvrez-le dans Plan comptable.</span>
+              )}
             </label>
             <label className="flex flex-col">
               Dettes reprises
@@ -133,10 +177,13 @@ export function LegsImmobilisations({
                 Compte des dettes
                 <select required value={compteDettes} onChange={(e) => setCompteDettes(e.target.value)} className={champ}>
                   <option value="">·</option>
-                  {comptes4861.map((c) => (
+                  {(comptes4861 ?? []).map((c) => (
                     <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
                   ))}
                 </select>
+                {comptes4861 && comptes4861.length === 0 && (
+                  <span className="text-[11px] text-warning">Aucun compte 4861 au plan du dossier · ouvrez-le dans Plan comptable.</span>
+                )}
               </label>
             )}
           </div>
@@ -151,10 +198,13 @@ export function LegsImmobilisations({
                   className={champ}
                 >
                   <option value="">·</option>
-                  {comptesBien.map((c) => (
+                  {(comptesBien ?? []).map((c) => (
                     <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                   ))}
                 </select>
+                {comptesBien && comptesBien.length === 0 && (
+                  <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesBien, "d'immobilisation")}</span>
+                )}
               </label>
               <label className="flex flex-col">
                 Désignation

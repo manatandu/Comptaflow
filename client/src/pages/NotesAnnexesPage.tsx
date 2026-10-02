@@ -25,6 +25,7 @@ import {
   type SaisieNotes,
 } from '../components/NotesAnnexesRendu';
 import { libelleExercice } from '../lib/libelle-exercice';
+import { RETENUS } from '../lib/comptes-proposes';
 
 /**
  * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
@@ -65,6 +66,7 @@ function NotesAnnexesSycebnlPage() {
 
   const [resultat, setResultat] = useState<ResultatNotesJeu | null>(null);
   const [comptes, setComptes] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [codeSelectionne, setCodeSelectionne] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -91,7 +93,14 @@ function NotesAnnexesSycebnlPage() {
 
   useEffect(() => {
     charger();
-    api.get<Compte[]>('/comptes').then(setComptes, () => {});
+    // LISTE DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un compte déjà rattaché est utilisé, il y reste et se détache. Un échec
+    // se DIT (audit final F221, comme l'écran SYSCOHADA) · avalé, il laissait
+    // la liste vide sans un mot.
+    setErreurComptes(null);
+    api.get<Compte[]>(`/comptes?${RETENUS}`).then(setComptes, (e) =>
+      setErreurComptes(e instanceof Error ? e.message : 'La liste des comptes n’a pas pu être lue.'),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id, chemin, utilisateur]);
 
@@ -212,6 +221,7 @@ function NotesAnnexesSycebnlPage() {
   const rattachement: RattachementNotes = {
     estAdmin,
     comptesDetail,
+    comptesLus: comptes !== null,
     compteParNumero,
     compteChoisi,
     setCompteChoisi,
@@ -287,6 +297,12 @@ function NotesAnnexesSycebnlPage() {
           <button onClick={() => setErreur(null)} className="text-[11.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
+        </div>
+      )}
+
+      {erreurComptes && (
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px]">
+          Liste des comptes illisible · rattachement des sous-comptes indisponible · {erreurComptes}
         </div>
       )}
 

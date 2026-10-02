@@ -5,6 +5,8 @@ import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, PlanAnalytique, SectionAnalytique } from '../lib/types';
 import { montant as fmt } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * SAISIE DES OD ANALYTIQUES · la commande de Sage i7 du même nom.
@@ -45,7 +47,9 @@ export function OdAnalytiquesPage() {
   // null tant que les sections du plan ne sont pas lues · « aucune section »
   // ne se dit que sur une liste lue.
   const [sections, setSections] = useState<SectionAnalytique[] | null>(null);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptes] = useState<Compte[] | null>(null);
+  const comptes = useMemo(() => comptesLus ?? [], [comptesLus]);
   const [ods, setOds] = useState<OdServie[] | null>(null);
 
   const [compteId, setCompteId] = useState('');
@@ -58,7 +62,7 @@ export function OdAnalytiquesPage() {
   const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.get<PlanAnalytique[]>('/analytique/plans'), api.get<Compte[]>('/comptes?retenus=true')])
+    Promise.all([api.get<PlanAnalytique[]>('/analytique/plans'), api.get<Compte[]>(`/comptes?${RETENUS}`)])
       .then(([p, c]) => {
         setPlans(p);
         setPlanId((id) => id || p[0]?.id || '');
@@ -99,6 +103,9 @@ export function OdAnalytiquesPage() {
     const classes = (plan?.classesVentilees ?? '').split(',').map((c) => `CLASSE_${c.trim()}`);
     return comptes.filter((c) => c.typeCompte === 'DETAIL' && classes.includes(c.classe));
   }, [comptes, plan]);
+  // Un seul compte proposé se présélectionne (§ 9 ter).
+  usePreselectionUnique(comptesLus && plan ? comptesDuPlan : null, compteId, setCompteId);
+  const classesDeclarees = (plan?.classesVentilees ?? '').split(',').some((c) => c.trim() !== '');
   const feuilles = (sections ?? []).filter((s) => s.type === 'DETAIL');
 
   const totalDebit = lignes.reduce((t, l) => t + nombre(l.debit), 0);
@@ -180,8 +187,12 @@ export function OdAnalytiquesPage() {
                   </option>
                 ))}
               </select>
-              {plan && comptesDuPlan.length === 0 && (
-                <span className="text-warning">Ce plan ne ventile aucune classe de comptes · déclarez ses classes ventilées (Structure › Plans analytiques).</span>
+              {plan && comptesLus && comptesDuPlan.length === 0 && (
+                <span className="text-warning">
+                  {classesDeclarees
+                    ? motifAucunCompteRetenu(comptesDuPlan, 'des classes que ce plan ventile')
+                    : 'Ce plan ne ventile aucune classe de comptes · déclarez ses classes ventilées (Structure › Plans analytiques).'}
+                </span>
               )}
             </label>
             <label className="flex flex-col gap-0.5">

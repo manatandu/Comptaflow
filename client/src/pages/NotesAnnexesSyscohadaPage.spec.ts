@@ -112,7 +112,8 @@ describe('écran des notes annexes SYSCOHADA', () => {
     // Avalé, l'échec laissait le formulaire de rattachement vide et muet,
     // lu comme « aucun compte à rattacher ». La lecture a son second
     // argument, qui pose l'erreur dans un état à elle, et l'écran l'affiche.
-    const debut = page.indexOf("api.get<Compte[]>('/comptes')");
+    // Liste de choix · comptes retenus ou utilisés (décision du 2026-09-28).
+    const debut = page.indexOf('api.get<Compte[]>(`/comptes?${RETENUS}`)');
     expect(debut).toBeGreaterThan(-1);
     const appel = page.slice(debut, page.indexOf(';', debut));
     expect(appel).toContain('.then(setComptes, (e) =>');

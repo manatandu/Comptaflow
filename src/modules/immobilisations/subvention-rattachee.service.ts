@@ -69,11 +69,24 @@ export class SubventionRattacheeService {
         select: { referentiel: true, methodeDepreciationBienSubventionne: true },
       }),
     ]);
+    // Le compte que le texte nomme pour un remboursement, lu dans TOUT le plan
+    // du dossier · la liste de choix des tiers ne rend que les comptes retenus
+    // ou utilisés, et le 4739 d'un dossier qui n'a jamais rien remboursé n'y
+    // serait pas. Un compte prescrit ne se retire pas d'une liste (critère de
+    // `comptes/listes-de-comptes.ts`).
+    const numeroPropose = contrepartieRemboursementProposee(tenant.referentiel as Ref);
+    const compteRemboursementPropose = numeroPropose
+      ? await this.prisma.compte.findFirst({
+          where: { tenantId, numero: numeroPropose, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+          select: { id: true, numero: true, intitule: true },
+        })
+      : null;
     return {
       subventions: lignes.slice(0, PLAFOND_LISTE),
       tronque: lignes.length > PLAFOND_LISTE,
       methodeDepreciation: tenant.methodeDepreciationBienSubventionne,
-      contrepartieRemboursementProposee: contrepartieRemboursementProposee(tenant.referentiel as Ref),
+      contrepartieRemboursementProposee: numeroPropose,
+      compteRemboursementPropose,
     };
   }
 

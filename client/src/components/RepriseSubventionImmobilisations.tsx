@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
 import type { Compte, Immobilisation, Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { motifAucunCompteRetenu } from '../lib/comptes-proposes';
 
 /**
  * LA REPRISE AU 799 DES SUBVENTIONS EN NATURE, dans la fenêtre
@@ -38,6 +39,8 @@ interface ListeRattachees {
   tronque: boolean;
   methodeDepreciation: 'VNC_MINOREE_DES_SUBVENTIONS' | 'VNC_ENTIERE' | null;
   contrepartieRemboursementProposee: string | null;
+  /** Ce compte, lu dans TOUT le plan · null s'il n'y est pas ouvert. */
+  compteRemboursementPropose: { id: string; numero: string; intitule: string } | null;
 }
 /** Les octrois inscrits au 14 choisi (`GET /immobilisations/subventions-rattachees/octrois`). */
 interface OctroisDuCompte {
@@ -58,12 +61,13 @@ export function RepriseSubventionImmobilisations({
   exerciceId,
   journaux,
   biens = [],
-  comptes = [],
+  comptes = null,
 }: {
   exerciceId: string | undefined;
   journaux: Journal[];
   biens?: Immobilisation[];
-  comptes?: Compte[];
+  /** Comptes de détail retenus ou utilisés (liste de choix) · null tant qu'ils ne sont pas lus. */
+  comptes?: Compte[] | null;
 }) {
   const { peutEcrire, estAdmin } = useAuth();
   const [rattachees, setRattachees] = useState<ListeRattachees | null>(null);
@@ -215,7 +219,7 @@ export function RepriseSubventionImmobilisations({
 function SubventionsRattachees(p: {
   liste: ListeRattachees | null;
   biens: Immobilisation[];
-  comptes: Compte[];
+  comptes: Compte[] | null;
   exerciceId: string | undefined;
   journalOd: Journal | undefined;
   peutEcrire: boolean;
@@ -226,8 +230,21 @@ function SubventionsRattachees(p: {
   onErreur: (m: string | null) => void;
   onChange: () => Promise<void>;
 }) {
-  const comptes14 = p.comptes.filter((c) => c.numero.startsWith('14'));
-  const comptesTiers = p.comptes.filter((c) => c.numero.startsWith('4'));
+  // LISTES DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`).
+  // La contrepartie PROPOSÉE de l'octroi, elle, vient du serveur
+  // (`contrepartiesProposees`), lue dans la fiche du compte 14 · une liste
+  // fermée par le texte, que la règle des comptes retenus ne filtre pas.
+  const comptes14 = p.comptes ? p.comptes.filter((c) => c.numero.startsWith('14')) : null;
+  const comptesTiers = p.comptes ? p.comptes.filter((c) => c.numero.startsWith('4')) : null;
+  // Le compte que le texte nomme pour un remboursement (4739 au SYCEBNL) reste
+  // dans la liste, retenu ou non · un compte prescrit ne se retire pas d'une
+  // liste de choix (critère de `comptes/listes-de-comptes.ts`), comme les
+  // contreparties proposées de l'octroi.
+  const proposeRemboursement = p.liste?.compteRemboursementPropose ?? null;
+  const tiersRemboursement =
+    comptesTiers && proposeRemboursement && !comptesTiers.some((c) => c.id === proposeRemboursement.id)
+      ? [proposeRemboursement, ...comptesTiers]
+      : comptesTiers;
   const principaux = p.biens.filter((b) => b.statut === 'EN_SERVICE' && !b.immobilisationPrincipaleId);
   const [compte, setCompte] = useState('');
   const [bien, setBien] = useState('');
@@ -263,6 +280,14 @@ function SubventionsRattachees(p: {
       setErreurOctrois(err instanceof ApiError ? err.message : 'Octrois illisibles');
     }
   }, []);
+
+  // Un seul compte de subvention proposé se présélectionne, et ses octrois se lisent aussitôt.
+  useEffect(() => {
+    if (p.formOuvert && !compte && comptes14 && comptes14.length === 1) {
+      setCompte(comptes14[0].id);
+      void lireOctrois(comptes14[0].id);
+    }
+  }, [p.formOuvert, compte, comptes14, lireOctrois]);
 
   const choisirOctroi = (ligneId: string) => {
     setOctroiChoisi(ligneId);
@@ -363,8 +388,7 @@ function SubventionsRattachees(p: {
   };
 
   const ouvrirReduction = (id: string) => {
-    const propose = p.liste?.contrepartieRemboursementProposee;
-    setRed({ nature: 'REMBOURSEMENT', montant: '', date: '', contrepartie: comptesTiers.find((c) => c.numero === propose)?.id ?? '', motif: '' });
+    setRed({ nature: 'REMBOURSEMENT', montant: '', date: '', contrepartie: proposeRemboursement?.id ?? '', motif: '' });
     p.setReductionPour(id);
   };
 
@@ -398,10 +422,13 @@ function SubventionsRattachees(p: {
               className={champ}
             >
               <option value="">·</option>
-              {comptes14.map((c) => (
+              {(comptes14 ?? []).map((c) => (
                 <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
               ))}
             </select>
+            {comptes14 && comptes14.length === 0 && (
+              <span className="text-warning">{motifAucunCompteRetenu(comptes14, "de subvention d'investissement (14)")}</span>
+            )}
           </label>
           {compte && (
             <div className="basis-full flex flex-col gap-1" data-octrois-du-compte>
@@ -447,7 +474,7 @@ function SubventionsRattachees(p: {
                       {octrois.contrepartiesProposees.map((c) => (
                         <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
                       ))}
-                      {(octrois.autresTiersAdmis ? comptesTiers : [])
+                      {(octrois.autresTiersAdmis ? (comptesTiers ?? []) : [])
                         .filter((c) => !c.numero.startsWith('473') && !octrois.contrepartiesProposees.some((x) => x.id === c.id))
                         .map((c) => (
                           <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
@@ -586,10 +613,20 @@ function SubventionsRattachees(p: {
                   {red.nature === 'REMBOURSEMENT' ? 'Tiers concédant' : 'Créance annulée'}
                   <select required value={red.contrepartie} onChange={(e) => setRed({ ...red, contrepartie: e.target.value })} className={champ}>
                     <option value="">·</option>
-                    {comptesTiers.map((c) => (
+                    {((red.nature === 'REMBOURSEMENT' ? tiersRemboursement : comptesTiers) ?? []).map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} {c.intitule}</option>
                     ))}
                   </select>
+                  {comptesTiers && comptesTiers.length === 0 && !(red.nature === 'REMBOURSEMENT' && proposeRemboursement) && (
+                    <span className="text-warning">{motifAucunCompteRetenu(comptesTiers, 'de tiers (classe 4)')}</span>
+                  )}
+                  {/* Le compte que le texte nomme, absent du plan du dossier · il se dit,
+                      avec le geste (jamais un compte qui disparaît sans un mot). */}
+                  {red.nature === 'REMBOURSEMENT' && p.liste?.contrepartieRemboursementProposee && !proposeRemboursement && (
+                    <span className="text-warning">
+                      Le compte {p.liste.contrepartieRemboursementProposee} que le texte nomme n'est pas ouvert au plan du dossier · ouvrez-le dans Plan comptable.
+                    </span>
+                  )}
                 </label>
                 <label className="flex flex-col">
                   Motif

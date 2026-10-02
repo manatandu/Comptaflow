@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import type { Compte, Journal } from '../lib/types';
 import { useAuth } from '../lib/auth';
+import { compteUnique, motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * PASSER L'ÉCRITURE D'UNE FACTURE · le comptable choisit le journal et le
@@ -35,15 +36,15 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
       setJournaux(ok);
       if (ok.length === 1) setJournalId(ok[0].id);
     }, echec);
-    api.get<Compte[]>('/comptes?retenus=true').then(
-      (cs) =>
-        setComptes(
-          cs.filter(
-            (c) => c.typeCompte === 'DETAIL' && c.estActif && (facture.sens === 'VENTE' ? c.numero.startsWith('7') : c.numero.startsWith('6') || c.numero.startsWith('2')),
-          ),
-        ),
-      echec,
-    );
+    // Liste de choix · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un seul compte proposé se présélectionne (§ 9 ter).
+    api.get<Compte[]>(`/comptes?${RETENUS}`).then((cs) => {
+      const proposes = cs.filter(
+        (c) => c.typeCompte === 'DETAIL' && c.estActif && (facture.sens === 'VENTE' ? c.numero.startsWith('7') : c.numero.startsWith('6') || c.numero.startsWith('2')),
+      );
+      setComptes(proposes);
+      setCompteId((v) => v || compteUnique(proposes));
+    }, echec);
   }, [ouvert, facture.sens]);
 
   const passer = async () => {
@@ -92,6 +93,11 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
       {erreurLecture && <p className="text-danger w-full">Lecture impossible · {erreurLecture}</p>}
       {!erreurLecture && journaux?.length === 0 && (
         <p className="text-warning w-full">Aucun journal {facture.sens === 'VENTE' ? 'de ventes' : "d'achats"} actif.</p>
+      )}
+      {!erreurLecture && comptes?.length === 0 && (
+        <p className="text-warning w-full">
+          {motifAucunCompteRetenu(comptes, facture.sens === 'VENTE' ? 'de produit (classe 7)' : "de charge ou d'immobilisation (classes 6 et 2)")}
+        </p>
       )}
       {erreur && <p className="text-danger w-full">{erreur}</p>}
     </div>

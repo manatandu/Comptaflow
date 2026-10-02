@@ -6,6 +6,8 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
 import { montant } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * LE MAGASIN · la fiche de stock, article par article, et la confrontation au
@@ -135,7 +137,9 @@ export function MagasinPage() {
   // mouvement et la régularisation lui sont retirées.
   const { peutEcrire } = useAuth();
   const [liste, setListe] = useState<ListeArticles | null>(null);
-  const [comptes, setComptes] = useState<CompteStock[]>([]);
+  // Liste de choix (comptes de stock retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptes, setComptes] = useState<CompteStock[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [selection, setSelection] = useState<string>('');
   const [fiche, setFiche] = useState<Fiche | null>(null);
@@ -179,14 +183,24 @@ export function MagasinPage() {
   useEffect(chargerListe, [chargerListe]);
 
   useEffect(() => {
+    // Liste de choix · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // l'échec de lecture se dit, il ne laisse plus une liste vide muette.
     api
-      .get<CompteStock[]>('/comptes')
+      .get<CompteStock[]>(`/comptes?classe=CLASSE_3&typeCompte=DETAIL&${RETENUS}`)
       .then(
-        (tous) => setComptes(tous.filter((c) => c.classe === 'CLASSE_3' && c.typeCompte === 'DETAIL')),
-        () => undefined,
+        (c) => {
+          setComptes(c);
+          setErreurComptes(null);
+        },
+        (e) => setErreurComptes(e instanceof ApiError ? e.message : 'serveur injoignable'),
       );
-    api.get<Journal[]>('/journaux').then(setJournaux, () => undefined);
+    // Un échec de lecture se dit (§ 9 ter) · avalé, la régularisation n'offrait aucun journal sans un mot.
+    api.get<Journal[]>('/journaux').then(setJournaux, (e) =>
+      setErreur(`Journaux illisibles · ${e instanceof ApiError ? e.message : 'serveur injoignable'}`),
+    );
   }, []);
+  // Un seul compte de stock proposé se présélectionne (§ 9 ter), modifiable.
+  usePreselectionUnique(comptes, nouveau.compteId, (id) => setNouveau((n) => ({ ...n, compteId: id })));
 
   useEffect(() => {
     if (exerciceCourant) {
@@ -424,7 +438,7 @@ export function MagasinPage() {
                   onChange={(e) => setNouveau({ ...nouveau, compteId: e.target.value })}
                 >
                   <option value="">Compte de stock…</option>
-                  {comptes.map((k) => (
+                  {(comptes ?? []).map((k) => (
                     <option key={k.id} value={k.id}>
                       {k.numero} {k.intitule}
                     </option>
@@ -465,6 +479,11 @@ export function MagasinPage() {
                   <option value="CMP_PERIODE_STOCKAGE">c.M.P. de période de stockage</option>
                 </select>
               </div>
+              {(erreurComptes || (comptes && comptes.length === 0)) && (
+                <div className={`mt-1 text-[11px] ${erreurComptes ? 'text-danger' : 'text-warning'}`}>
+                  {erreurComptes ? `Comptes de stock illisibles · ${erreurComptes}` : motifAucunCompteRetenu(comptes, 'de stock (classe 3)')}
+                </div>
+              )}
               <div className="mt-1.5 flex items-center gap-3">
                 <button
                   type="button"

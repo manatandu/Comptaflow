@@ -7,6 +7,7 @@ import type { Compte, EtatBrouillard, Journal, LigneBrouillard, ResultatValidati
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { PortailModale } from '../components/PortailModale';
 import { montantOuVide as montant } from '../lib/montants';
+import { compteDuNumeroTape } from '../lib/comptes-proposes';
 
 /**
  * BROUILLARD · État → Brouillard de Sage 100 i7 : « un document qui permet de
@@ -226,7 +227,14 @@ export function BrouillardPage() {
    */
   const ouvrirEdition = (l: LigneBrouillard) => {
     setErreurEdition(null);
-    if (!comptes) api.get<Compte[]>('/comptes?typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
+    // UN NUMÉRO TAPÉ SE RÉSOUT DANS TOUT LE PLAN (`lib/comptes-proposes.ts`) ·
+    // l'édition n'offre aucune liste de choix, et la règle des comptes retenus
+    // aurait dit « introuvable au plan » d'un compte qui y est. Un échec de
+    // lecture se dit au lieu d'une liste vide.
+    if (!comptes)
+      api.get<Compte[]>('/comptes?typeCompte=DETAIL').then(setComptes, (e) =>
+        setErreurEdition(`Plan de comptes illisible · ${e instanceof ApiError ? e.message : 'serveur injoignable'}`),
+      );
     setEdition({
       id: l.id,
       numeroPiece: l.numeroPiece,
@@ -251,7 +259,7 @@ export function BrouillardPage() {
       const lignes = e.lignes.map((l, k) => {
         if (k !== i) return l;
         if (champ !== 'numero') return { ...l, [champ]: valeur };
-        const trouve = (comptes ?? []).find((c) => c.numero === valeur.trim());
+        const trouve = compteDuNumeroTape(valeur, comptes ?? []);
         return { ...l, numero: valeur, compteId: trouve?.id ?? '' };
       });
       return { ...e, lignes };

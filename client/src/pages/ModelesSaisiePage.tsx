@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, Journal, TauxTva } from '../lib/types';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
@@ -79,7 +80,8 @@ export function ModelesSaisiePage() {
   const { peutEcrire } = useAuth();
   const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [taux, setTaux] = useState<TauxTva[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function ModelesSaisiePage() {
       const [m, j, c, t] = await Promise.all([
         api.get<ModeleSaisie[]>('/modeles-saisie?inclureInactifs=true'),
         api.get<Journal[]>('/journaux'),
-        api.get<Compte[]>('/comptes?retenus=true'),
+        api.get<Compte[]>(`/comptes?${RETENUS}`),
         api.get<TauxTva[]>('/taux-tva?actifsSeuls=true'),
       ]);
       setTaux(t);
@@ -226,6 +228,9 @@ export function ModelesSaisiePage() {
               </select>
             </div>
 
+            {comptes && comptes.length === 0 && (
+              <div className="text-[11px] text-warning">{motifAucunCompteRetenu(comptes, 'de détail')}</div>
+            )}
             {lignes.map((l, i) => (
               <div key={i} className="flex gap-2 items-center">
                 <select
@@ -234,7 +239,7 @@ export function ModelesSaisiePage() {
                   className={`${champ} flex-1 min-w-0`}
                 >
                   <option value="">Compte…</option>
-                  {comptes.map((c) => (
+                  {(comptes ?? []).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.numero} · {c.intitule}
                     </option>

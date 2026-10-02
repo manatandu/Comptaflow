@@ -5,6 +5,8 @@ import { Aide } from '../components/chrome/Aide';
 import type { Compte, Journal, NumerotationPiece, TypeJournal } from '../lib/types';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 import {
   LIBELLE_NUMEROTATION,
   LIBELLE_TYPE_JOURNAL as LIBELLE_TYPE,
@@ -24,7 +26,9 @@ import { PortailModale } from '../components/PortailModale';
 export function JournauxPage() {
   const { estAdmin } = useAuth();
   const [liste, setListe] = useState<Journal[] | null>(null);
-  const [comptesTresorerie, setComptesTresorerie] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesTresorerie, setComptesTresorerie] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
 
@@ -53,9 +57,19 @@ export function JournauxPage() {
   useEffect(() => {
     if (!estAdmin) return;
     charger();
-    api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL').then(setComptesTresorerie);
+    // Liste de choix · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un échec de lecture se dit au lieu d'une liste vide muette.
+    api.get<Compte[]>(`/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`).then(
+      (c) => {
+        setComptesTresorerie(c);
+        setErreurComptes(null);
+      },
+      (err) => setErreurComptes(err instanceof ApiError ? err.message : 'serveur injoignable'),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
+  // Un seul compte de trésorerie proposé se présélectionne (§ 9 ter).
+  usePreselectionUnique(comptesTresorerie, compteTresorerieId, setCompteTresorerieId);
 
   if (!estAdmin) {
     return (
@@ -279,12 +293,22 @@ export function JournauxPage() {
                         className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                       >
                         <option value="">Sélectionner</option>
-                        {comptesTresorerie.map((c) => (
+                        {(comptesTresorerie ?? []).map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.numero} · {c.intitule}
                           </option>
                         ))}
                       </select>
+                      {(erreurComptes || (comptesTresorerie && comptesTresorerie.length === 0)) && (
+                        <>
+                          <span />
+                          <span className={`text-[11px] ${erreurComptes ? 'text-danger' : 'text-warning'}`}>
+                            {erreurComptes
+                              ? `Comptes de trésorerie illisibles · ${erreurComptes}`
+                              : motifAucunCompteRetenu(comptesTresorerie, 'de trésorerie (classe 5)')}
+                          </span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

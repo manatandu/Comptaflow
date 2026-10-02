@@ -17,6 +17,7 @@ import {
   type SaisieNotes,
 } from '../components/NotesAnnexesRendu';
 import { libelleExercice } from '../lib/libelle-exercice';
+import { RETENUS } from '../lib/comptes-proposes';
 
 /**
  * NOTES ANNEXES DU SYSCOHADA RÉVISÉ · Système normal, les 36 notes de la
@@ -102,7 +103,9 @@ function NotesSyscohadaSystemeNormal() {
     // saisie ou sa fermeture ne doivent pas le faire disparaître tant que la
     // liste reste illisible.
     setErreurComptes(null);
-    api.get<Compte[]>('/comptes').then(setComptes, (e) =>
+    // LISTE DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un compte déjà rattaché est utilisé, il y reste et se détache.
+    api.get<Compte[]>(`/comptes?${RETENUS}`).then(setComptes, (e) =>
       setErreurComptes(e instanceof Error ? e.message : 'La liste des comptes n’a pas pu être lue.'),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,6 +232,7 @@ function NotesSyscohadaSystemeNormal() {
   const rattachement: RattachementNotes = {
     estAdmin,
     comptesDetail,
+    comptesLus: comptes !== null,
     compteParNumero,
     compteChoisi,
     setCompteChoisi,

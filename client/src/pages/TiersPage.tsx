@@ -24,6 +24,8 @@ import type {
 } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
 import { montant } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
@@ -152,7 +154,10 @@ export function TiersPage() {
   const navigate = useNavigate();
   const [liste, setListe] = useState<Tiers[] | null>(null);
   const [modeles, setModeles] = useState<ModeleReglement[]>([]);
-  const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
+  // Liste de choix (comptes de classe 4 retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
+  const comptesClasse4 = comptesLus ?? [];
   const [dossiersGroupe, setDossiersGroupe] = useState<DossierDuGroupe[]>([]);
   const [soldes, setSoldes] = useState<Record<string, number>>({});
   const [erreur, setErreur] = useState<string | null>(null);
@@ -215,8 +220,19 @@ export function TiersPage() {
   }, [recherche]);
 
   useEffect(() => {
-    api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles);
-    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
+    // Un échec de lecture se dit (§ 9 ter) · avalé, la liste des modèles restait vide sans un mot.
+    api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles, (err) =>
+      setErreur(`Modèles de règlement illisibles · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`),
+    );
+    // LISTE DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un compte déjà rattaché à un tiers est utilisé, il y reste. Un échec se dit.
+    api.get<Compte[]>(`/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`).then(
+      (c) => {
+        setComptesLus(c);
+        setErreurComptes(null);
+      },
+      (err) => setErreurComptes(err instanceof ApiError ? err.message : 'serveur injoignable'),
+    );
     // La liste des dossiers du groupe vient du SERVEUR, et c'est exactement
     // celle qu'il accepte sur `celluleGroupeId` · l'écran ne peut donc pas
     // proposer un rattachement qu'il refusera. Vide pour un dossier hors
@@ -254,6 +270,18 @@ export function TiersPage() {
   const comptesDisponibles = comptesClasse4.filter(
     (c) => !tiersSelectionne?.comptesRattaches.some((tc) => tc.compteId === c.id),
   );
+  // Un seul compte disponible se présélectionne (§ 9 ter), modifiable.
+  usePreselectionUnique(comptesLus && tiersSelectionne ? comptesDisponibles : null, compteARattacher, setCompteARattacher);
+  // POURQUOI LA LISTE EST VIDE · deux cas, deux gestes. Aucun compte retenu
+  // ni utilisé : le retenir. Tous déjà rattachés à ce tiers : en retenir un
+  // autre. Jamais « aucun » sur une liste non lue.
+  const motifAucunCompteARattacher = erreurComptes
+    ? `Comptes de classe 4 illisibles · ${erreurComptes}`
+    : !comptesLus || comptesDisponibles.length > 0
+      ? null
+      : comptesLus.length === 0
+        ? motifAucunCompteRetenu(comptesLus, 'de classe 4')
+        : 'Tous les comptes de classe 4 retenus ou utilisés sont déjà rattachés à ce tiers · retenez-en un autre dans Plan comptable (ou ouvrez-le s\'il manque au plan).';
 
   // Compte individuel sous le collectif du type, créé avec le tiers (point 13,
   // tiers/collectifs-tiers.ts côté serveur) · coché par défaut, comme Sage
@@ -1005,6 +1033,9 @@ export function TiersPage() {
                       </option>
                     ))}
                   </select>
+                  {motifAucunCompteARattacher && (
+                    <div className={`text-[11px] mb-1.5 ${erreurComptes ? 'text-danger' : 'text-warning'}`}>{motifAucunCompteARattacher}</div>
+                  )}
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-[11.5px]">
                       <input type="checkbox" checked={estPrincipal} onChange={(e) => setEstPrincipal(e.target.checked)} />

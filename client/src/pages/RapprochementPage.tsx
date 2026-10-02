@@ -5,6 +5,8 @@ import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 import { montant } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * Écran d'entrée du rapprochement bancaire (§3.4, manuel d'abord) : ouvrir
@@ -24,15 +26,23 @@ export function RapprochementPage() {
   const [dateReleve, setDateReleve] = useState(() => new Date().toISOString().slice(0, 10));
   const [soldeReleve, setSoldeReleve] = useState('');
 
+  // LISTE DE CHOIX · comptes de trésorerie retenus ou utilisés
+  // (`lib/comptes-proposes.ts`). Un seul se présélectionne ; parmi plusieurs,
+  // rien · prendre le premier serait deviner la banque. Un échec de lecture
+  // se dit, il ne laisse pas un formulaire vide et muet.
   const charger = async () => {
-    const [comptesTresorerie, liste] = await Promise.all([
-      api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL'),
-      api.get<RapprochementBancaire[]>('/rapprochements'),
-    ]);
-    setComptes(comptesTresorerie);
-    setRapprochements(liste);
-    if (!compteId && comptesTresorerie.length > 0) setCompteId(comptesTresorerie[0].id);
+    try {
+      const [comptesTresorerie, liste] = await Promise.all([
+        api.get<Compte[]>(`/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`),
+        api.get<RapprochementBancaire[]>('/rapprochements'),
+      ]);
+      setComptes(comptesTresorerie);
+      setRapprochements(liste);
+    } catch (err) {
+      setErreur(`Lecture impossible · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`);
+    }
   };
+  usePreselectionUnique(comptes, compteId, setCompteId);
 
   useEffect(() => {
     charger();
@@ -78,12 +88,16 @@ export function RapprochementPage() {
                 onChange={(e) => setCompteId(e.target.value)}
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
               >
+                <option value="" />
                 {(comptes ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.numero} · {c.intitule}
                   </option>
                 ))}
               </select>
+              {comptes && comptes.length === 0 && (
+                <span className="block mt-1 text-[11px] font-normal text-warning">{motifAucunCompteRetenu(comptes, 'de trésorerie (classe 5)')}</span>
+              )}
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Date du relevé
@@ -126,7 +140,10 @@ export function RapprochementPage() {
         </form>
       )}
 
-      {!rapprochements && <div className="text-[11.5px] text-text-dim">Chargement…</div>}
+      {erreur && !afficherFormulaire && (
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[900px]">{erreur}</div>
+      )}
+      {!rapprochements && !erreur && <div className="text-[11.5px] text-text-dim">Chargement…</div>}
 
       {rapprochements && (
         <div

@@ -128,11 +128,26 @@ export function estCompteFondsProjet(numero: string): boolean {
  * d'abord »). Hors projet de développement, la liste n'a pas d'objet et le
  * dit ; en projet, le compte manque au plan ou y dort.
  */
-export function motifListeFondsProjetVide(o: { projet: boolean; nombre: number; inactifs: number }): string | null {
+export function motifListeFondsProjetVide(o: {
+  projet: boolean;
+  nombre: number;
+  inactifs: number;
+  /** Fonds actifs que la règle des comptes retenus écarte (`comptes-proposes.ts`). */
+  nonRetenus?: number;
+}): string | null {
   if (!o.projet) {
     return "Le compte de fonds affectés ne sert qu'à la sortie d'un bien de projet de développement (SYCEBNL Partie 3 ch. 3 § 2.5).";
   }
   if (o.nombre > 0) return null;
+  // Des fonds existent au plan sans être ni retenus ni utilisés · la liste de
+  // choix les écarte (décision du 2026-09-28), et le geste est de les retenir,
+  // pas de les ouvrir. Rien n'est refusé : la sortie admet tout 162 à 164.
+  if (o.nonRetenus && o.nonRetenus > 0) {
+    return (
+      `Aucun compte de fonds affectés aux investissements (162, 163, 164) n'est retenu ni utilisé (${o.nonRetenus} au plan) · ` +
+      'retenez dans Plan comptable celui qui a financé le bien, puis rouvrez la sortie (SYCEBNL Partie 3 ch. 3 § 2.5).'
+    );
+  }
   if (o.inactifs > 0) {
     return (
       `Les comptes de fonds affectés aux investissements (162, 163, 164) du plan sont en sommeil (${o.inactifs}) · ` +

@@ -43,8 +43,11 @@ import {
   type NatureBaremeFiscal,
   naturesProposees,
   compteSelonNature,
+  numerosNonProposesPourNature,
 } from '../lib/bareme-fiscal';
 import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
+import { compteUnique, motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -82,6 +85,12 @@ function racinesContrepartieDepreciation(syscohada: boolean, sens: string): stri
   return sens === 'DOTATION' ? ['69'] : ['79'];
 }
 
+/** Les contreparties de dépréciation proposées · une seule lecture pour la liste, son message et la présélection. */
+function contrepartiesDepreciation<C extends { numero: string }>(comptes: C[], syscohada: boolean, sens: string): C[] {
+  const racines = racinesContrepartieDepreciation(syscohada, sens);
+  return comptes.filter((c) => racines.some((r) => c.numero.startsWith(r)));
+}
+
 type VueImmobilisations = 'biens' | 'immobilisations' | 'amortissements';
 
 /** Une seule fenêtre : les biens, puis les deux tableaux qui les récapitulent. */
@@ -102,8 +111,21 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const { exerciceCourant } = useExercice();
   const [familles, setFamilles] = useState<FamilleImmobilisation[] | null>(null);
   const [immobilisations, setImmobilisations] = useState<Immobilisation[] | null>(null);
-  const [comptesClasse2, setComptesClasse2] = useState<Compte[]>([]);
-  const [comptesFinancement, setComptesFinancement] = useState<Compte[]>([]);
+  // LISTES DE CHOIX · comptes retenus ou utilisés (`lib/comptes-proposes.ts`),
+  // null tant qu'elles ne sont pas lues · une liste vide ne se dit « aucun »
+  // qu'une fois lue.
+  const [comptesClasse2, setComptesClasse2] = useState<Compte[] | null>(null);
+  const [comptesFinancement, setComptesFinancement] = useState<Compte[] | null>(null);
+  /*
+    LES 29 SE LISENT DANS TOUT LE PLAN · le serveur n'admet que le 29 de la
+    division du bien (`motifRefusCompteDepreciation`, « les comptes 28 et 29
+    ont été développés selon la structure des comptes de la classe 2 »), et
+    la première dépréciation d'un dossier est le premier mouvement de ce 29 ·
+    la règle des comptes retenus viderait la liste au moment où le texte
+    impose le compte. Même lecture que le 28, que `comptesDuBien` sert déjà
+    dans tout le plan (critère écrit dans `listes-de-comptes.ts`).
+  */
+  const [comptes29, setComptes29] = useState<Compte[] | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
 
   // Lieux des biens · référentiel du dossier (Sage Immobilisations).
@@ -245,18 +267,29 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [rContrepartie, setRContrepartie] = useState('');
 
   const charger = async () => {
-    const [f, i, c2, ctrésorerie, jrn, lx, cb, bf] = await Promise.all([
-      api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
-      api.get<Immobilisation[]>('/immobilisations'),
-      api.get<Compte[]>('/comptes?classe=CLASSE_2&typeCompte=DETAIL'),
-      api.get<Compte[]>('/comptes?typeCompte=DETAIL'),
-      api.get<Journal[]>('/journaux'),
-      api.get<LieuBien[]>('/immobilisations/lieux'),
-      api.get<CompteDuBien[]>('/immobilisations/comptes-du-bien'),
-      // Le barème ne conditionne rien · illisible, le choix de nature
-      // disparaît et la saisie reste entière.
-      api.get<NatureBaremeFiscal[]>('/immobilisations/bareme-fiscal').catch(() => [] as NatureBaremeFiscal[]),
-    ]);
+    // Un échec de lecture se dit (§ 9 ter) · sans ce rattrapage, la fenêtre
+    // restait vide et les listes de comptes muettes.
+    let lus;
+    try {
+      lus = await Promise.all([
+        api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
+        api.get<Immobilisation[]>('/immobilisations'),
+        api.get<Compte[]>(`/comptes?classe=CLASSE_2&typeCompte=DETAIL&${RETENUS}`),
+        api.get<Compte[]>(`/comptes?typeCompte=DETAIL&${RETENUS}`),
+        api.get<Compte[]>('/comptes?classe=CLASSE_2&typeCompte=DETAIL'),
+        api.get<Journal[]>('/journaux'),
+        api.get<LieuBien[]>('/immobilisations/lieux'),
+        api.get<CompteDuBien[]>(`/immobilisations/comptes-du-bien?${RETENUS}`),
+        // Le barème ne conditionne rien · illisible, le choix de nature
+        // disparaît et la saisie reste entière.
+        api.get<NatureBaremeFiscal[]>('/immobilisations/bareme-fiscal').catch(() => [] as NatureBaremeFiscal[]),
+      ]);
+    } catch (err) {
+      setErreur(`Lecture des immobilisations impossible · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`);
+      return;
+    }
+    const [f, i, c2, ctrésorerie, planClasse2, jrn, lx, cb, bf] = lus;
+    setComptes29(planClasse2.filter((c) => c.numero.startsWith('29')));
     setBareme(bf);
     setLieux(lx);
     setComptesBien(cb);
@@ -285,7 +318,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     setErreurFondsProjet(null);
     setSCompteFonds('');
     api
-      .get<ReponseFondsProjet>('/immobilisations/comptes-fonds-projet')
+      .get<ReponseFondsProjet>(`/immobilisations/comptes-fonds-projet?${RETENUS}`)
       .then((r) => {
         if (annule) return;
         setFondsProjet(r);
@@ -301,6 +334,20 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   }, [projetDeveloppement, sortieOuvertePour]);
 
   const messageFonds = messageFondsProjet(fondsProjet, erreurFondsProjet);
+
+  // LE PRIX D'UNE CESSION · la liste admise (fiches 41 et 48), retenus ou
+  // utilisés ; un seul compte proposé se présélectionne (§ 9 ter).
+  const comptesEncaissement =
+    sortieOuvertePour && sType === 'CESSION' && comptesFinancement
+      ? comptesFinancement.filter((c) => contrepartieCessionProposee(utilisateur?.tenant.referentiel, sCessionCourante, c.numero))
+      : null;
+  usePreselectionUnique(comptesEncaissement, sCompteContrepartie, setSCompteContrepartie);
+
+  // UN SEUL COMPTE DE BIEN RETENU OU UTILISÉ · il se présélectionne à
+  // l'ouverture du formulaire, modifiable ; jamais par-dessus un choix fait.
+  useEffect(() => {
+    if (afficherFormImmo && !iCompteBienId && comptesBien && comptesBien.length === 1) setICompteBienId(comptesBien[0].id);
+  }, [afficherFormImmo, comptesBien, iCompteBienId]);
 
   const compteBien = (comptesBien ?? []).find((c) => c.id === iCompteBienId) ?? null;
   const incorporelSyscohada = syscohada && !!compteBien?.numero.startsWith('21');
@@ -323,7 +370,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     let vivant = true;
     const type = typeComposantServi ? `&typeComposant=${typeComposantServi}` : '';
     api
-      .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}`)
+      .get<ContrepartieAdmise[]>(`/immobilisations/contreparties-acquisition?compteImmobilisationId=${iCompteBienId}${type}&${RETENUS}`)
       .then((c) => vivant && setContrepartiesAdmises(c))
       .catch((err) => {
         if (!vivant) return;
@@ -932,6 +979,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                   </optgroup>
                 ))}
               </select>
+              {comptesBien && comptesBien.length === 0 && (
+                <span className="block mt-1 text-[11px] font-normal text-warning">
+                  {motifAucunCompteRetenu(comptesBien, `d'immobilisation (${syscohada ? '21 à 24' : '20 à 24'})`)}
+                </span>
+              )}
               {compteBien && (
                 <span className="block mt-1 text-[11px] font-normal">
                   {compteBien.motifComptes ? (
@@ -1076,7 +1128,17 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 {(() => {
                   const nature = bareme.find((n) => n.cle === iNatureFiscale);
                   const { proposes } = compteSelonNature(nature, comptesDefinitifs(comptesBien ?? [], iPasEncoreEnService), compteBien);
-                  if (proposes.length === 0) return null;
+                  // Le compte de la nature que la liste des comptes retenus ne
+                  // porte pas se dit · jamais une proposition qui disparaît.
+                  const absents = comptesBien ? numerosNonProposesPourNature(nature, comptesBien, compteBien) : [];
+                  if (proposes.length === 0) {
+                    return absents.length > 0 ? (
+                      <span className="block mt-1 text-[11px] font-normal text-warning">
+                        Le compte que cette catégorie propose ({absents.join(', ')}) n'est ni retenu ni utilisé · retenez-le dans
+                        Plan comptable (ou ouvrez-le s'il manque au plan).
+                      </span>
+                    ) : null;
+                  }
                   return (
                     <span className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-normal">
                       Compte proposé
@@ -1271,7 +1333,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     ))}
                   </select>
                   {iCompteBienId && contrepartiesAdmises !== null && modesAcquisition.length === 0 && (
-                    <span className="block text-warning font-normal">Ce compte n'admet aucune contrepartie d'acquisition · vérifiez le compte du bien.</span>
+                    <span className="block text-warning font-normal">
+                      Aucune contrepartie que la fiche de ce compte admet n'est retenue ni utilisée · retenez dans Plan comptable
+                      le compte de trésorerie, de fournisseur d'investissements ou d'apport qui règle le bien (ou ouvrez-le s'il
+                      manque au plan).
+                    </span>
                   )}
                 </label>
                 <label className="text-[11.5px] font-semibold text-text-dim">
@@ -1292,7 +1358,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 compteImmobilisationId={iCompteBienId}
                 saisie={contratLA}
                 onChange={setContratLA}
-                contreparties={contrepartiesAdmises ?? []}
+                contreparties={contrepartiesAdmises}
               />
             )}
           </div>
@@ -1562,9 +1628,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                         </button>
                       )}
                       <button
-                        onClick={() =>
-                          setReclassementOuvertPour(reclassementOuvertPour === immo.id ? null : immo.id)
-                        }
+                        onClick={() => {
+                          setReclassementOuvertPour(reclassementOuvertPour === immo.id ? null : immo.id);
+                          // Un seul 29 retenu ou utilisé · proposé, modifiable (§ 9 ter).
+                          setRcCompte29(compteUnique((comptesClasse2 ?? []).filter((c) => c.numero.startsWith('29'))));
+                        }}
                         title="Changer la catégorie du bien sans toucher à sa valeur comptable"
                         className="text-[11px] text-sel hover:underline"
                       >
@@ -1574,8 +1642,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                         onClick={() => {
                           setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id);
                           // Un seul 29 pour la division du bien · proposé.
-                          const c29 = comptes29DuBien(comptesFinancement, immo.compteImmobilisation?.numero);
-                          setDCompte29(c29.length === 1 ? c29[0].id : '');
+                          const c29 = comptes29DuBien(comptes29 ?? [], immo.compteImmobilisation?.numero);
+                          setDCompte29(compteUnique(c29));
+                          // La contrepartie unique se présélectionne aussi (§ 9 ter).
+                          setDContrepartie(compteUnique(contrepartiesDepreciation(comptesFinancement ?? [], syscohada, dSens)));
                         }}
                         title="Constater une perte de valeur, ou en reprendre une"
                         className="text-[11px] text-sel hover:underline"
@@ -1673,6 +1743,11 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                               </option>
                             ))}
                         </select>
+                        {comptesClasse2 && (
+                          <span className="text-[11px] text-warning">
+                            {motifAucunCompteRetenu(comptesClasse2.filter((c) => c.numero.startsWith('29')), 'de dépréciation (29)')}
+                          </span>
+                        )}
                         <span className="text-[11px] text-text-dim leading-[1.5]">
                           Ce bien porte une dépréciation. Le compte n’est pas déduit du nouveau compte
                           d’immobilisation : le logiciel ne connaît pas la subdivision que votre dossier a ouverte,
@@ -1830,7 +1905,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           source="AUDCIF art. 46 et Titre VIII ch. 12"
                         />
                       </span>
-                      <select value={dSens} onChange={(e) => setDSens(e.target.value as 'DOTATION' | 'REPRISE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                      <select
+                        value={dSens}
+                        onChange={(e) => {
+                          const sens = e.target.value as 'DOTATION' | 'REPRISE';
+                          setDSens(sens);
+                          // La contrepartie dépend du sens · celle de l'autre sens se retire, une seule se propose.
+                          setDContrepartie(compteUnique(contrepartiesDepreciation(comptesFinancement ?? [], syscohada, sens)));
+                        }}
+                        className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]"
+                      >
                         <option value="DOTATION">Dotation</option>
                         <option value="REPRISE">Reprise</option>
                       </select>
@@ -1843,21 +1927,32 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       Compte de dépréciation (29)
                       <select required value={dCompte29} onChange={(e) => setDCompte29(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                         <option value="" />
-                        {comptes29DuBien(comptesFinancement, immo.compteImmobilisation?.numero).map((c) => (
+                        {comptes29DuBien(comptes29 ?? [], immo.compteImmobilisation?.numero).map((c) => (
                           <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                         ))}
                       </select>
+                      {comptes29 && comptes29DuBien(comptes29, immo.compteImmobilisation?.numero).length === 0 && (
+                        <span className="block text-[11px] font-normal text-warning">
+                          Aucun compte 29 au plan du dossier · ouvrez celui de la division du bien dans Plan comptable.
+                        </span>
+                      )}
                     </label>
                     <label className="text-[11.5px] font-semibold text-text-dim">
                       Contrepartie ({racinesContrepartieDepreciation(syscohada, dSens).join(', ')})
                       <select required value={dContrepartie} onChange={(e) => setDContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                         <option value="" />
-                        {comptesFinancement
-                          .filter((c) => racinesContrepartieDepreciation(syscohada, dSens).some((r) => c.numero.startsWith(r)))
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                          ))}
+                        {contrepartiesDepreciation(comptesFinancement ?? [], syscohada, dSens).map((c) => (
+                          <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                        ))}
                       </select>
+                      {comptesFinancement && (
+                        <span className="block text-[11px] font-normal text-warning">
+                          {motifAucunCompteRetenu(
+                            contrepartiesDepreciation(comptesFinancement, syscohada, dSens),
+                            `de ${dSens === 'DOTATION' ? 'dotation' : 'reprise'} (${racinesContrepartieDepreciation(syscohada, dSens).join(', ')})`,
+                          )}
+                        </span>
+                      )}
                     </label>
                   </div>
                   {dSens === 'REPRISE' && exerciceCourant && (
@@ -1884,7 +1979,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                 <EchangeImmobilisation
                   immobilisationId={immo.id}
                   designationAncien={immo.designation}
-                  comptesBien={comptesBien ?? []}
+                  comptesBien={comptesBien}
                   comptesDetail={comptesFinancement}
                   exerciceId={exerciceCourant?.id}
                   journal={journaux.find((j) => j.code === 'OD') ?? journaux[0]}
@@ -1977,7 +2072,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           Encaissé sur
                           <select required value={sCompteContrepartie} onChange={(e) => setSCompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                             <option value="" />
-                            {comptesFinancement
+                            {(comptesFinancement ?? [])
                               .filter((c) =>
                                 contrepartieCessionProposee(utilisateur?.tenant.referentiel, sCessionCourante, c.numero),
                               )
@@ -1985,6 +2080,14 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                                 <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                               ))}
                           </select>
+                          {comptesFinancement && (
+                            <span className="block text-[11px] font-normal text-warning">
+                              {motifAucunCompteRetenu(
+                                comptesFinancement.filter((c) => contrepartieCessionProposee(utilisateur?.tenant.referentiel, sCessionCourante, c.numero)),
+                                'de trésorerie ou de créance',
+                              )}
+                            </span>
+                          )}
                         </label>
                         {syscohada && (
                           <label
@@ -2020,7 +2123,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       <PrixGlobalImmobilisations
         exerciceId={exerciceCourant?.id}
         journaux={journaux}
-        comptesBien={comptesBien ?? []}
+        comptesBien={comptesBien}
         comptes={comptesFinancement}
         syscohada={utilisateur?.tenant?.referentiel === 'SYSCOHADA'}
         onCree={() => void charger()}
@@ -2029,8 +2132,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         <LegsImmobilisations
           exerciceId={exerciceCourant?.id}
           journaux={journaux}
-          comptesBien={comptesBien ?? []}
-          comptes={comptesFinancement}
+          comptesBien={comptesBien}
           onCree={() => void charger()}
         />
       )}

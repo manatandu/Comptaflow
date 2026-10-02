@@ -28,6 +28,7 @@ import {
 } from '../lib/regularisation-types';
 import { montant } from '../lib/montants';
 import { libelleExercice } from '../lib/libelle-exercice';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * RÉGULARISATIONS ET ABONNEMENTS · Traitement → Écritures de régularisation
@@ -143,7 +144,10 @@ export function RegularisationPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
+  const comptes = comptesLus ?? [];
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [exercices, setExercices] = useState<Exercice[]>([]);
 
@@ -177,7 +181,11 @@ export function RegularisationPage() {
   const estSycebnl = utilisateur?.tenant.referentiel !== 'SYSCOHADA';
 
   useEffect(() => {
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
+    // Un échec de lecture se dit · lu comme une liste vide, il laissait les
+    // sélecteurs de comptes muets.
+    api.get<Compte[]>(`/comptes?actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`).then(setComptesLus, (e) =>
+      setErreurComptes(e instanceof ApiError ? e.message : 'serveur injoignable'),
+    );
     api.get<Journal[]>('/journaux').then(setJournaux, () => setJournaux([]));
     api.get<Exercice[]>('/exercices').then(setExercices, () => setExercices([]));
   }, []);
@@ -460,6 +468,15 @@ export function RegularisationPage() {
                         </option>
                       ))}
                   </select>
+                  {erreurComptes && <span className="block font-normal text-[11px] text-danger">Plan de comptes illisible · {erreurComptes}</span>}
+                  {comptesLus && (
+                    <span className="block font-normal text-[11px] text-warning">
+                      {motifAucunCompteRetenu(
+                        comptesLus.filter((c) => (porteUneCharge(type) ? c.numero.startsWith('6') : c.numero.startsWith('7'))),
+                        porteUneCharge(type) ? 'de charge (classe 6)' : 'de produit (classe 7)',
+                      )}
+                    </span>
+                  )}
                 </label>
 
                 {estRattachement(type) && (
@@ -747,6 +764,10 @@ export function RegularisationPage() {
                 </label>
                 <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Compte débité
+                  {erreurComptes && <span className="block font-normal text-[11px] text-danger">Plan de comptes illisible · {erreurComptes}</span>}
+                  {comptesLus && comptesLus.length === 0 && (
+                    <span className="block font-normal text-[11px] text-warning">{motifAucunCompteRetenu(comptesLus, 'de détail')}</span>
+                  )}
                   <select
                     required
                     value={compteDebitId}

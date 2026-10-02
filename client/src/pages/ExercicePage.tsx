@@ -6,6 +6,8 @@ import { IconLock, IconCheck } from '../components/chrome/icons';
 import type { Cloture, Compte, GranulariteCloture, Journal, PlanningCloture } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { confirmationCloturePeriode } from '../lib/cloture-periode';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { usePreselectionUnique } from '../lib/preselection-unique';
 
 const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
   PARTIELLE: 'Partielle',
@@ -27,7 +29,11 @@ export function ExercicePage() {
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [planningOuvert, setPlanningOuvert] = useState(true);
   const [journaux, setJournaux] = useState<Journal[]>([]);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptes, setComptes] = useState<Compte[] | null>(null);
+  // Les 12 du plan entier · seule destination admise de l’imputation d’ouverture.
+  const [comptesReport, setComptesReport] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -87,10 +93,40 @@ export function ExercicePage() {
 
   useEffect(() => {
     if (!estAdmin) return;
-    api.get<Journal[]>('/journaux').then(setJournaux);
+    // Un échec de lecture se dit (§ 9 ter) · avalé, la liste des journaux restait vide sans un mot.
+    api.get<Journal[]>('/journaux').then(setJournaux, (err) =>
+      setErreur(`Journaux illisibles · ${err instanceof ApiError ? err.message : 'serveur injoignable'}`),
+    );
     // Comptes d'imputation, pour l'imputation aux capitaux propres d'ouverture.
-    api.get<Compte[]>('/comptes?typeCompte=DETAIL').then(setComptes, () => {});
+    // Liste de choix · comptes retenus ou utilisés (`lib/comptes-proposes.ts`) ;
+    // un échec de lecture se dit, il ne laisse pas deux listes muettes.
+    api.get<Compte[]>(`/comptes?typeCompte=DETAIL&${RETENUS}`).then(
+      (c) => {
+        setComptes(c);
+        setErreurComptes(null);
+      },
+      (err) => setErreurComptes(err instanceof ApiError ? err.message : 'serveur injoignable'),
+    );
+    /*
+      LE 12 SE LIT DANS TOUT LE PLAN · c'est la SEULE destination que le
+      serveur admet (« destination un 12, seul report à nouveau des deux
+      plans », `imputerAuxCapitauxPropresDOuverture`), comme dans
+      l'affectation du résultat, rangée au régime « texte » de
+      `listes-de-comptes.ts`. Au premier exercice, aucun 12 n'est ni retenu ni
+      mouvementé · la règle des comptes retenus viderait la liste au moment où
+      le texte impose le compte. Un 12 unique se présélectionne.
+    */
+    api.get<Compte[]>('/comptes?classe=CLASSE_1&typeCompte=DETAIL').then(
+      (c) => setComptesReport(c.filter((x) => x.numero.startsWith('12'))),
+      (err) => setErreurComptes(err instanceof ApiError ? err.message : 'serveur injoignable'),
+    );
   }, [estAdmin]);
+
+  // La contrepartie, un poste de bilan, reste un CHOIX · liste des comptes
+  // retenus ou utilisés. Un seul compte proposé se présélectionne.
+  const comptesBilan = comptes ? comptes.filter((c) => !/^[67]/.test(c.numero)) : null;
+  usePreselectionUnique(imputationOuverte ? comptesReport : null, iCompteRan, setICompteRan);
+  usePreselectionUnique(imputationOuverte ? comptesBilan : null, iCompteContrepartie, setICompteContrepartie);
 
   const clorePartielle = async (e: FormEvent) => {
     e.preventDefault();
@@ -495,19 +531,26 @@ export function ExercicePage() {
                   Report à nouveau (compte 12)
                   <select required value={iCompteRan} onChange={(e) => setICompteRan(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                     <option value="" />
-                    {comptes.filter((c) => c.numero.startsWith('12')).map((c) => (
+                    {(comptesReport ?? []).map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                     ))}
                   </select>
+                  {erreurComptes && <span className="block font-normal text-danger">Plan de comptes illisible · {erreurComptes}</span>}
+                  {comptesReport && comptesReport.length === 0 && (
+                    <span className="block font-normal text-warning">Aucun compte 12 au plan du dossier · ouvrez-le dans Plan comptable.</span>
+                  )}
                 </label>
                 <label className="text-[11.5px] font-semibold text-text-dim">
                   Contrepartie (poste de bilan)
                   <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                     <option value="" />
-                    {comptes.filter((c) => !/^[67]/.test(c.numero)).map((c) => (
+                    {(comptesBilan ?? []).map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                     ))}
                   </select>
+                  {comptesBilan && comptesBilan.length === 0 && (
+                    <span className="block font-normal text-warning">{motifAucunCompteRetenu(comptesBilan, 'de bilan')}</span>
+                  )}
                 </label>
                 <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Montant · positif pour DÉBITER le report à nouveau, négatif pour le créditer

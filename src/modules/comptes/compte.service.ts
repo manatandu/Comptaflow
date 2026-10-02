@@ -11,7 +11,7 @@ import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 import { naturesDuDossier } from './natures-compte.service';
 import { LIBELLES_NATURE, natureDe } from './natures-compte';
 import { classeDuNumero } from './classe-du-numero';
-import { identifiantsUtilises } from '../../common/suppression/references';
+import { comptesUtilises, estPropose } from './comptes-proposes';
 
 /**
  * Comptes ouverts au lettrage à la création d'un dossier.
@@ -117,12 +117,12 @@ export class CompteService {
     // UTILISÉ = référencé par quoi que ce soit, lu dans le schéma. Le lien
     // d'un compte individuel vers son collectif n'est pas un usage du
     // collectif · un collectif ne se saisit pas à la place de ses tiers.
+    // La règle des listes de choix est celle de `comptes-proposes.ts`, la même
+    // pour toutes les routes qui servent des comptes.
     const utilises =
-      filtres.retenus || filtres.usage
-        ? await identifiantsUtilises(this.prisma, 'Compte', comptes.map((c) => c.id), tenantId, ['Compte.collectifId'])
-        : null;
+      filtres.retenus || filtres.usage ? await comptesUtilises(this.prisma, tenantId, comptes.map((c) => c.id)) : null;
     return comptes
-      .filter((c) => !filtres.retenus || c.estRetenu || utilises!.has(c.id))
+      .filter((c) => !filtres.retenus || estPropose(c, utilises!))
       .map((c) => {
         const n = natureDe(c.numero, natures);
         return {

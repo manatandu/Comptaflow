@@ -11,6 +11,7 @@ import type {
 import { Aide } from '../components/chrome/Aide';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * Interrogation et lettrage · modèle du chapitre 6 des Notes de cours
@@ -70,7 +71,9 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const compteFixe = compteIdProp ?? params.compteId;
   const compteId = compteFixe ?? compteChoisi ?? undefined;
   const navigate = useNavigate();
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const comptes = comptesLus ?? [];
   const [etat, setEtat] = useState<EtatLettrage | null>(null);
   // LA VUE D'ENSEMBLE · chargée quoi qu'il arrive. La fenêtre s'ouvrait vide
   // tant qu'un compte n'était pas choisi, alors que la première question du
@@ -104,13 +107,16 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     // de choisir. Seul l'état de lettrage attend un compte.
     try {
       const [tousComptes, resultat, groupesDuDossier] = await Promise.all([
-        api.get<Compte[]>('/comptes?retenus=true'),
+        api.get<Compte[]>(`/comptes?${RETENUS}`),
         compteId
           ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage${nonLettreesSeulement ? '?nonLettreesSeulement=true' : ''}`)
           : Promise.resolve(null),
         api.get<GroupeLettrageDossier[]>('/lettrage'),
       ]);
-      setComptes(tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif));
+      const proposes = tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif);
+      setComptesLus(proposes);
+      // Un seul compte proposé se présélectionne (§ 9 ter), hors compte imposé par l'adresse.
+      if (!compteFixe && !compteChoisi && proposes.length === 1) setCompteChoisi(proposes[0].id);
       setEtat(resultat);
       setTousGroupes(groupesDuDossier);
       setErreur(null);
@@ -278,6 +284,9 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 </option>
               ))}
             </select>
+            {comptesLus && comptesLus.length === 0 && (
+              <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesLus, 'de détail')}</span>
+            )}
           </label>
           <label className="flex items-center gap-1.5 text-[11.5px] mb-1">
             <input

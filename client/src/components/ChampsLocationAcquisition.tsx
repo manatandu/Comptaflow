@@ -5,6 +5,7 @@ import { montant } from '../lib/montants';
 import type { Tiers } from '../lib/types';
 import type { ContrepartieAdmise } from '../lib/compte-du-bien';
 import { Aide } from './chrome/Aide';
+import { compteUnique, motifAucunCompteRetenu } from '../lib/comptes-proposes';
 import {
   corpsSimulation,
   coutsNets,
@@ -35,7 +36,8 @@ export function ChampsLocationAcquisition({
   compteImmobilisationId: string;
   saisie: SaisieContrat;
   onChange: (s: SaisieContrat) => void;
-  contreparties: ContrepartieAdmise[];
+  /** Contreparties admises, retenues ou utilisées · null tant qu'elles ne sont pas lues. */
+  contreparties: ContrepartieAdmise[] | null;
 }) {
   const [bailleurs, setBailleurs] = useState<Tiers[] | null>(null);
   const [echeancier, setEcheancier] = useState<EcheancierServi | null>(null);
@@ -80,7 +82,13 @@ export function ChampsLocationAcquisition({
 
   // Les coûts directs se paient au comptant ou à crédit · les autres modes
   // (apport, don, production) ne financent pas un contrat.
-  const contrepartiesCouts = contreparties.filter((c) => c.mode === 'ACHAT_COMPTANT' || c.mode === 'ACHAT_A_CREDIT');
+  const contrepartiesCouts = (contreparties ?? []).filter((c) => c.mode === 'ACHAT_COMPTANT' || c.mode === 'ACHAT_A_CREDIT');
+  // Un seul compte proposé (retenu ou utilisé, `lib/comptes-proposes.ts`) se présélectionne.
+  const unique = compteUnique(contrepartiesCouts);
+  useEffect(() => {
+    if (unique && !saisie.compteContrepartieCoutsId) maj({ compteContrepartieCoutsId: unique });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unique, saisie.compteContrepartieCoutsId]);
   const net = coutsNets(saisie);
   if (!peutEcrire) return null;
 
@@ -222,6 +230,11 @@ export function ChampsLocationAcquisition({
                 <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
               ))}
             </select>
+            {compteImmobilisationId && contreparties && contrepartiesCouts.length === 0 && (
+              <span className="block text-[11px] font-normal text-warning">
+                {motifAucunCompteRetenu(contrepartiesCouts, 'de trésorerie ou de fournisseur admis pour ce bien')}
+              </span>
+            )}
           </label>
         )}
       </div>

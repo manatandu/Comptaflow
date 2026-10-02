@@ -271,3 +271,21 @@ export function compteSelonNature<C extends { id: string; numero: string }>(
   if (proposes.length === 1) return { aPoser: proposes[0], proposes: [] };
   return { aPoser: null, proposes };
 }
+
+/**
+ * LES COMPTES DE LA NATURE QUE LA LISTE NE PORTE PAS · la liste des comptes
+ * du bien ne rend que les comptes retenus ou utilisés (`lib/comptes-proposes.ts`),
+ * et une proposition qui disparaît sans un mot fait chercher le compte. Rend
+ * les numéros à dire (« retenez-le dans Plan comptable »), rien si le compte
+ * choisi est déjà l'un d'eux.
+ */
+export function numerosNonProposesPourNature(
+  nature: NatureBaremeFiscal | undefined,
+  comptesDuDossier: { numero: string }[],
+  compteChoisi: { numero: string } | null,
+): string[] {
+  const numeros = nature?.comptes ?? [];
+  const racine = (n: string) => n.replace(/0+$/, '');
+  if (compteChoisi && numeros.some((n) => compteChoisi.numero === n || compteChoisi.numero.startsWith(racine(n)))) return [];
+  return numeros.filter((n) => !comptesDuDossier.some((c) => c.numero === n));
+}

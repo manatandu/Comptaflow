@@ -103,6 +103,7 @@ import {
   motifListeFondsProjetVide,
   RACINES_FONDS_PROJET,
 } from './comptes-du-bien';
+import { comptesProposes } from '../comptes/comptes-proposes';
 import { natureDuBareme } from './bareme-fiscal';
 import {
   comptesEnCoursDuBien,
@@ -1199,6 +1200,8 @@ export class ImmobilisationService {
     tenantId: string,
     cible: { familleId?: string; compteImmobilisationId?: string },
     typeComposant: TypeComposant | null = null,
+    /** Liste de choix · seuls les comptes retenus ou utilisés (`comptes-proposes.ts`). */
+    retenus = false,
   ) {
     const dossier = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
     let numeroBien: string | null = null;
@@ -1224,10 +1227,11 @@ export class ImmobilisationService {
         estActif: true,
         OR: racines.map((r) => ({ numero: { startsWith: r } })),
       },
-      select: { id: true, numero: true, intitule: true },
+      select: { id: true, numero: true, intitule: true, estRetenu: true },
       orderBy: { numero: 'asc' },
     });
-    return comptes.map((c) => {
+    const servis = retenus ? (await comptesProposes(this.prisma, tenantId, comptes)).proposes : comptes;
+    return servis.map(({ estRetenu: _retenu, ...c }) => {
       const mode = modeDuCompteDeContrepartie(dossier.referentiel, c.numero, racines);
       return { ...c, mode, libelleMode: mode ? LIBELLES_MODE_ACQUISITION[mode] : null };
     });
@@ -1250,12 +1254,12 @@ export class ImmobilisationService {
    * se présélectionne, côté écran. Les comptes en sommeil sont comptés, pour
    * que l'écran dise qu'ils ont été écartés.
    */
-  async comptesFondsProjet(tenantId: string) {
+  async comptesFondsProjet(tenantId: string, retenus = false) {
     const regime = await this.regimeComptable(tenantId);
     const projet =
       regime.referentiel === Referentiel.SYCEBNL && regime.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT;
     if (!projet) {
-      return { projet, comptes: [], enSommeil: 0, motifVide: motifListeFondsProjetVide({ projet, nombre: 0, inactifs: 0 }) };
+      return { projet, comptes: [], enSommeil: 0, nonRetenus: 0, motifVide: motifListeFondsProjetVide({ projet, nombre: 0, inactifs: 0 }) };
     }
     const plan = await this.prisma.compte.findMany({
       where: {
@@ -1263,16 +1267,28 @@ export class ImmobilisationService {
         typeCompte: TypeCompteDetailTotal.DETAIL,
         OR: RACINES_FONDS_PROJET.map((r) => ({ numero: { startsWith: r } })),
       },
-      select: { id: true, numero: true, intitule: true, estActif: true },
+      select: { id: true, numero: true, intitule: true, estActif: true, estRetenu: true },
       orderBy: { numero: 'asc' },
     });
     const fonds = plan.filter((c) => estCompteFondsProjet(c.numero));
     const actifs = fonds.filter((c) => c.estActif);
+    // Liste de choix · seuls les fonds retenus ou utilisés (`comptes-proposes.ts`).
+    // Ceux que la règle écarte sont comptés, pour que la liste vide dise
+    // « retenez-le » et non « ouvrez-le ».
+    const { proposes, ecartes } = retenus
+      ? await comptesProposes(this.prisma, tenantId, actifs)
+      : { proposes: actifs, ecartes: 0 };
     return {
       projet,
-      comptes: actifs.map((c) => ({ id: c.id, numero: c.numero, intitule: c.intitule })),
+      comptes: proposes.map((c) => ({ id: c.id, numero: c.numero, intitule: c.intitule })),
       enSommeil: fonds.length - actifs.length,
-      motifVide: motifListeFondsProjetVide({ projet, nombre: actifs.length, inactifs: fonds.length - actifs.length }),
+      nonRetenus: ecartes,
+      motifVide: motifListeFondsProjetVide({
+        projet,
+        nombre: proposes.length,
+        inactifs: fonds.length - actifs.length,
+        nonRetenus: ecartes,
+      }),
     };
   }
 
@@ -1283,12 +1299,12 @@ export class ImmobilisationService {
    * les sections du barème que l'éditeur propose pour lui. Lu en une fois sur
    * le plan, pour que l'écran ne recompose aucun numéro.
    */
-  async comptesDuBien(tenantId: string) {
+  async comptesDuBien(tenantId: string, retenus = false) {
     const [{ referentiel }, plan, divisions] = await Promise.all([
       this.regimeComptable(tenantId),
       this.prisma.compte.findMany({
         where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
-        select: { id: true, numero: true, intitule: true },
+        select: { id: true, numero: true, intitule: true, estRetenu: true },
         orderBy: { numero: 'asc' },
       }),
       // Les en-têtes de division (20 à 24), pour grouper la liste à l'écran
@@ -1299,10 +1315,15 @@ export class ImmobilisationService {
       }),
     ]);
     const intituleDivision = new Map(divisions.map((d) => [d.numero, d.intitule]));
+    // Les 28 et 68 qui SUIVENT le bien se lisent dans TOUT le plan · ils ne se
+    // choisissent pas, la dotation les passe d'office (écriture automatique).
+    // Seule la liste des comptes du bien, que le cabinet choisit, suit la
+    // règle des comptes retenus (`comptes-proposes.ts`).
     const numeros = plan.map((c) => c.numero);
-    const parNumero = new Map(plan.map((c) => [c.numero, c]));
-    return plan
-      .filter((c) => estCompteDeBien(referentiel, c.numero))
+    const parNumero = new Map(plan.map((c) => [c.numero, { id: c.id, numero: c.numero, intitule: c.intitule }]));
+    const deBien = plan.filter((c) => estCompteDeBien(referentiel, c.numero));
+    const servis = retenus ? (await comptesProposes(this.prisma, tenantId, deBien)).proposes : deBien;
+    return servis
       .map((c) => {
         const nonAmortissable = motifNonAmortissable(c.numero, referentiel);
         const suivants = comptesSuivantLeBien(referentiel, c.numero, numeros, !!nonAmortissable);

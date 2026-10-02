@@ -47,7 +47,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-| E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, gardé par un test | refusé deux fois en relecture (incomplet, conflits avec main, listes vides muettes dans les écrans d'immobilisation) · à refaire sur main à jour, après E2 |
+| E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés (`/comptes` et les routes des immobilisations, règle unique `comptes-proposes.ts`), listes vides dites avec le geste, choix unique présélectionné, numéro tapé résolu dans tout le plan ; gardé des deux côtés par une table de routes unique (`listes-de-comptes.ts`) | livré, à intégrer |
 
 
 ## À faire, dans l'ordre

@@ -42,6 +42,7 @@ import { ordonnerLignes } from '../lib/ordre-ecriture';
 import { construireLigneTva, montantTva } from '../lib/tva-saisie';
 import { PortailModale } from './PortailModale';
 import * as montants from '../lib/montants';
+import { motifAucunCompteRetenu } from '../lib/comptes-proposes';
 
 /*
   UNE FACTURE AVEC TVA PASSE PAR UN TIERS, ELLE AUSSI. Ces deux modèles
@@ -98,10 +99,17 @@ type Selection =
 
 export function ModelesSaisieModale({
   comptes,
+  comptesProposes,
   onInserer,
   onFermer,
 }: {
+  /** Le PLAN ENTIER · il résout les numéros du modèle et route la TVA, jamais un refus. */
   comptes: Compte[];
+  /**
+   * La liste de CHOIX (comptes retenus ou utilisés, `lib/comptes-proposes.ts`),
+   * pour les sélecteurs de l'écran ; à défaut, le plan entier.
+   */
+  comptesProposes?: Compte[];
   onInserer: (lignes: LigneInseree[], libelleSuggere: string) => void;
   onFermer: () => void;
 }) {
@@ -135,12 +143,15 @@ export function ModelesSaisieModale({
   const [proposition, setProposition] = useState<EcritureProposee | null>(null);
   const [calcul, setCalcul] = useState(false);
 
+  // Les SÉLECTEURS proposent les comptes retenus ou utilisés ; le reste
+  // (numéros du modèle, routage de TVA) lit le plan entier.
+  const proposes = comptesProposes ?? comptes;
   const comptesTresorerie = useMemo(
-    () => comptes.filter((c) => c.numero.startsWith('5')),
-    [comptes],
+    () => proposes.filter((c) => c.numero.startsWith('5')),
+    [proposes],
   );
-  const comptesCharges = useMemo(() => comptes.filter((c) => c.numero.startsWith('6')), [comptes]);
-  const comptesProduits = useMemo(() => comptes.filter((c) => c.numero.startsWith('7')), [comptes]);
+  const comptesCharges = useMemo(() => proposes.filter((c) => c.numero.startsWith('6')), [proposes]);
+  const comptesProduits = useMemo(() => proposes.filter((c) => c.numero.startsWith('7')), [proposes]);
   // Le routage de TVA ne vise un compte que s'il est OUVERT dans le plan du
   // dossier · un plan élagué doit retomber sur le compte du taux, pas échouer.
   const numerosDuPlan = useMemo(() => new Set(comptes.map((c) => c.numero)), [comptes]);
@@ -405,9 +416,12 @@ export function ModelesSaisieModale({
         : null;
   const numeroTiersDefaut = selection?.genre === 'simple' ? (ligneTiers?.numero ?? null) : null;
   const comptesTiers = useMemo(
-    () => (racineTiers ? comptes.filter((c) => c.numero.startsWith(racineTiers)) : []),
-    [comptes, racineTiers],
+    () => (racineTiers ? proposes.filter((c) => c.numero.startsWith(racineTiers)) : []),
+    [proposes, racineTiers],
   );
+  // Sous la racine, le plan porte-t-il un compte que la liste n'a pas retenu ? ·
+  // le geste est alors de le retenir, pas de l'ouvrir.
+  const tiersAuPlan = racineTiers ? comptes.some((c) => c.numero.startsWith(racineTiers)) : false;
   const utiliseTresorerie =
     selection?.genre === 'simple' && selection.modele.lignes.some((l) => l.role === 'TRESORERIE');
 
@@ -562,6 +576,17 @@ export function ModelesSaisieModale({
                             </option>
                           ))}
                         </select>
+                        {(selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges).length === 0 && (
+                          <>
+                            <span />
+                            <span className="text-[11px] text-warning">
+                              {motifAucunCompteRetenu(
+                                selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges,
+                                selection.modele.code === 'vente_tva' ? 'de produit (classe 7)' : 'de charge (classe 6)',
+                              )}
+                            </span>
+                          </>
+                        )}
                         <label className="text-[11.5px] text-right">Taux de TVA :</label>
                         <select
                           value={tauxTvaId}
@@ -611,9 +636,9 @@ export function ModelesSaisieModale({
   
                     {racineTiers && comptesTiers.length === 0 && (
                       <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[11.5px] leading-[1.5]">
-                        Aucun compte n'est ouvert sous la racine {racineTiers} dans le plan de ce dossier. Cette
-                        opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant
-                        d'employer ce modèle.
+                        {tiersAuPlan
+                          ? `Aucun compte retenu ni utilisé sous la racine ${racineTiers} · cette opération passe OBLIGATOIREMENT par un compte de tiers, retenez-le dans Plan comptable avant d'employer ce modèle.`
+                          : `Aucun compte n'est ouvert sous la racine ${racineTiers} dans le plan de ce dossier. Cette opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant d'employer ce modèle.`}
                       </div>
                     )}
   
@@ -631,6 +656,12 @@ export function ModelesSaisieModale({
                             </option>
                           ))}
                         </select>
+                        {comptesTresorerie.length === 0 && (
+                          <>
+                            <span />
+                            <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesTresorerie, 'de trésorerie (classe 5)')}</span>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

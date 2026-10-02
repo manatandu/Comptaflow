@@ -4,6 +4,7 @@ import { Aide } from './chrome/Aide';
 import { EnteteImpression, BoutonImprimer } from './chrome/EnteteImpression';
 import type { Compte } from '../lib/types';
 import { montant } from '../lib/montants';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * HISTORIQUE DES RAPPELS (point 17 de la comparaison Sage i7) · État / États
@@ -33,7 +34,10 @@ interface ReponseHistorique {
 }
 
 export function HistoriqueRappels() {
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // Liste de choix (comptes retenus ou utilisés) · null tant qu'elle n'est pas lue.
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
+  const comptes = comptesLus ?? [];
   const [compteId, setCompteId] = useState('');
   const [du, setDu] = useState('');
   const [au, setAu] = useState('');
@@ -44,9 +48,10 @@ export function HistoriqueRappels() {
   useEffect(() => {
     // Les comptes de tiers seulement · une relance ne vise qu'un compte de la classe 4.
     api
-      .get<Compte[]>('/comptes?typeCompte=DETAIL&retenus=true')
-      .then((cs) => setComptes(cs.filter((c) => c.numero.startsWith('4'))))
-      .catch(() => setComptes([]));
+      .get<Compte[]>(`/comptes?typeCompte=DETAIL&${RETENUS}`)
+      .then((cs) => setComptesLus(cs.filter((c) => c.numero.startsWith('4'))))
+      // Un échec de lecture se dit · la liste « Tous » seule le taisait.
+      .catch((e) => setErreurComptes(e instanceof ApiError ? e.message : 'serveur injoignable'));
   }, []);
 
   const charger = async () => {
@@ -89,6 +94,10 @@ export function HistoriqueRappels() {
               </option>
             ))}
           </select>
+          {erreurComptes && <span className="text-[11px] text-danger">Comptes de tiers illisibles · {erreurComptes}</span>}
+          {comptesLus && comptesLus.length === 0 && (
+            <span className="text-[11px] text-warning">{motifAucunCompteRetenu(comptesLus, 'de tiers (classe 4)')}</span>
+          )}
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-bold text-text-dim">DU</span>

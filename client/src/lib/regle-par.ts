@@ -1,4 +1,5 @@
 import type { ContrepartieAdmise } from './compte-du-bien';
+import { RETENUS } from './comptes-proposes';
 
 /**
  * LES LISTES « CONTREPARTIE » DU MODULE IMMOBILISATIONS (libellé « Réglé par »
@@ -23,6 +24,11 @@ import type { ContrepartieAdmise } from './compte-du-bien';
  * donc la liste fermée que le SERVEUR calcule pour le bien
  * (`GET /immobilisations/contreparties-acquisition`), jamais une seconde copie
  * de la règle.
+ *
+ * LISTE DE CHOIX · le serveur n'y rend que les comptes RETENUS ou UTILISÉS
+ * (`retenus=true`, décision du 2026-09-28) · un compte admis mais jamais
+ * retenu reste admis au serveur, il attend seulement d'être retenu dans Plan
+ * comptable, et la liste vide le dit.
  *
  * PLUSIEURS BIENS, UNE SEULE CONTREPARTIE · le prix global crédite un même
  * compte pour chaque fiche, et le serveur vérifie la contrepartie bien par
@@ -52,6 +58,7 @@ export function adresseContrepartiesAdmises(cible: CibleReglePar): string | null
   else if (cible.familleId) parametres.push(`familleId=${encodeURIComponent(cible.familleId)}`);
   else return null;
   if (cible.typeComposant) parametres.push(`typeComposant=${encodeURIComponent(cible.typeComposant)}`);
+  parametres.push(RETENUS);
   return `/immobilisations/contreparties-acquisition?${parametres.join('&')}`;
 }
 
@@ -105,8 +112,8 @@ export function etatReglePar(
   if (communes.length === 0) {
     return vide(
       cibles.length > 1
-        ? "Aucun compte du plan n'est admis à la fois pour tous ces biens · ouvrez d'abord un compte de trésorerie, admis pour chacun, ou saisissez les biens séparément."
-        : "Le plan du dossier n'ouvre aucun compte que la fiche du compte du bien admet en contrepartie · ouvrez d'abord un compte de trésorerie ou de fournisseur d'immobilisations.",
+        ? "Aucun compte retenu ou utilisé n'est admis à la fois pour tous ces biens · retenez dans Plan comptable un compte de trésorerie, admis pour chacun (ou ouvrez-le s'il manque au plan), ou saisissez les biens séparément."
+        : "Aucun compte que la fiche du compte du bien admet en contrepartie n'est retenu ni utilisé · retenez dans Plan comptable le compte de trésorerie ou de fournisseur d'immobilisations (ou ouvrez-le s'il manque au plan).",
     );
   }
   return { options: communes, preselection: communes.length === 1 ? communes[0].id : null, enLecture: false, motif: null };

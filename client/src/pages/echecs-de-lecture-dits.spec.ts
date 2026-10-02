@@ -305,8 +305,8 @@ describe('passage d’une facture au journal · une lecture refusée se dit (F25
     expect(source).toContain('useState<Compte[] | null>(null)');
     const debut = source.indexOf("api.get<Journal[]>('/journaux')");
     const lectures = source.slice(debut, source.indexOf('}, [ouvert, facture.sens]);', debut));
-    expect(lectures).toContain('}, echec);');
-    expect(lectures).toContain('      echec,\n    );');
+    // Journaux ET comptes · chacune des deux lectures a `echec` pour second argument.
+    expect(lectures.match(/\}, echec\);/g)?.length).toBe(2);
   });
 
   it('le motif s’affiche, et « aucun journal » n’est dit que sur une liste lue', () => {

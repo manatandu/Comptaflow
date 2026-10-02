@@ -24,6 +24,15 @@ test('SYSCOHADA · une vente saisie à l’écran, avec son tiers et son taux, s
   await appelApi(page, 'POST', '/tiers', { type: 'CLIENT', code: 'CLI-E2E', nom: 'Client e2e SARL' });
   const taux = (await appelApi<Taux[]>(page, 'GET', '/taux-tva?actifsSeuls=true')).find((t) => t.compteCollecteId && Number(t.taux) > 0);
   if (!taux) throw new Error('Aucun taux semé avec un compte de TVA facturée');
+  // Le plan semé part NON RETENU (décision du 2026-09-28, « Comptes retenus ») ·
+  // la liste de choix de la passation ne propose que les comptes retenus ou
+  // utilisés. Le cabinet retient le compte de produit qu'il emploie, comme il
+  // le ferait dans Plan comptable.
+  const produit = (await appelApi<Array<{ id: string; numero: string }>>(page, 'GET', '/comptes?classe=CLASSE_7&typeCompte=DETAIL')).find(
+    (c) => c.numero === '70110000',
+  );
+  if (!produit) throw new Error('Compte 70110000 absent du plan semé');
+  await appelApi(page, 'PATCH', `/comptes/${produit.id}`, { estRetenu: true });
 
   await page.goto('/#/facturation');
   const formulaire = page.locator('section', { hasText: 'Enregistrer une facture' });

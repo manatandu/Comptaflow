@@ -15,6 +15,7 @@ import type {
   SousCommissionInventaire,
 } from '../lib/types';
 import { montant } from '../lib/montants';
+import { compteDuNumeroTape, RETENUS } from '../lib/comptes-proposes';
 
 /**
  * INVENTAIRE PHYSIQUE · les six étapes du CPCC, dans l'ordre où elles se font.
@@ -103,7 +104,12 @@ export function InventairePage() {
   // sur la seule question que la clôture de la campagne pose.
   const [caisses, setCaisses] = useState<CaisseNonComptee[] | null>(null);
   const [erreurCaisses, setErreurCaisses] = useState<string | null>(null);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  // DEUX LECTURES DU PLAN · la liste proposée (comptes retenus ou utilisés) et
+  // le plan entier, où se résout un numéro tapé, jamais refusé faute d'être
+  // retenu (`lib/comptes-proposes.ts`, même règle que la saisie). Null tant
+  // qu'ils ne sont pas lus.
+  const [comptes, setComptes] = useState<{ proposes: Compte[]; plan: Compte[] } | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
 
   const charger = () => {
     api.get<CampagneInventaire[]>('/inventaire').then(setCampagnes, (e: Error) => setErreur(e.message));
@@ -116,7 +122,15 @@ export function InventairePage() {
 
   // Le plan ne sert qu'à ouvrir une fiche · inutile à qui ne peut pas écrire.
   useEffect(() => {
-    if (peutEcrire) api.get<Compte[]>('/comptes').then(setComptes, () => undefined);
+    if (!peutEcrire) return;
+    Promise.all([api.get<Compte[]>(`/comptes?typeCompte=DETAIL&${RETENUS}`), api.get<Compte[]>('/comptes?typeCompte=DETAIL')]).then(
+      ([proposes, plan]) => {
+        setComptes({ proposes, plan });
+        setErreurComptes(null);
+      },
+      // Un échec de lecture se dit · la fiche ne s'ouvrirait pas sans que rien ne dise pourquoi.
+      (e: Error) => setErreurComptes(e.message || "Le plan de comptes n'a pas pu être lu."),
+    );
   }, [peutEcrire]);
 
   const chargerCaisses = (id: string) => {
@@ -415,7 +429,7 @@ export function InventairePage() {
                   FICHES DE COMPTAGE · {detail.fiches?.length ?? 0}
                 </div>
                 {peutEcrire && PEUT_PREPARER.includes(detail.statut) && (
-                  <AjoutFiche campagne={detail} comptes={comptes} agir={agir} />
+                  <AjoutFiche campagne={detail} comptes={comptes} erreurComptes={erreurComptes} agir={agir} />
                 )}
                 {(detail.fiches?.length ?? 0) === 0 && (
                   <div className="px-2.5 py-3 text-[11.5px] text-text-dim">Aucune fiche.</div>
@@ -597,15 +611,27 @@ function AjoutMembre({ sousCommission, agir }: { sousCommission: SousCommissionI
  * comptes de détail : un compte Total n'a pas de solde propre, et le serveur
  * le refuse (`creerFiche`).
  */
-function AjoutFiche({ campagne, comptes, agir }: { campagne: CampagneInventaire; comptes: Compte[]; agir: Agir }) {
+function AjoutFiche({
+  campagne,
+  comptes,
+  erreurComptes,
+  agir,
+}: {
+  campagne: CampagneInventaire;
+  comptes: { proposes: Compte[]; plan: Compte[] } | null;
+  erreurComptes: string | null;
+  agir: Agir;
+}) {
   const [ouvert, setOuvert] = useState(false);
   const [numero, setNumero] = useState('');
   const [designation, setDesignation] = useState('');
   const [emplacement, setEmplacement] = useState('');
   const [uniteMesure, setUniteMesure] = useState('');
   const [sousCommissionId, setSousCommissionId] = useState('');
-  const comptesDetail = comptes.filter((c) => c.typeCompte === 'DETAIL');
-  const compte = comptesDetail.find((c) => c.numero === numero.trim());
+  const proposes = comptes ? comptes.proposes.filter((c) => c.typeCompte === 'DETAIL') : [];
+  // Le numéro tapé se résout dans TOUT le plan de détail · jamais un refus.
+  const compte = comptes ? compteDuNumeroTape(numero, comptes.plan.filter((c) => c.typeCompte === 'DETAIL')) : undefined;
+  const horsListe = !!compte && !proposes.some((c) => c.id === compte.id);
 
   const ajouter = async () => {
     if (!compte) return;
@@ -644,7 +670,7 @@ function AjoutFiche({ campagne, comptes, agir }: { campagne: CampagneInventaire;
           className={`${CHAMP} w-[120px]`}
         />
         <datalist id="inventaire-comptes">
-          {comptesDetail.map((c) => (
+          {proposes.map((c) => (
             <option key={c.id} value={c.numero}>
               {c.intitule}
             </option>
@@ -680,7 +706,16 @@ function AjoutFiche({ campagne, comptes, agir }: { campagne: CampagneInventaire;
       <button type="button" onClick={() => setOuvert(false)} className={BOUTON}>
         Fermer
       </button>
-      {numero.trim() !== '' && !compte && <span className="text-[11px] text-warning">Compte de détail introuvable.</span>}
+      {erreurComptes && <span className="text-[11px] text-danger">Plan de comptes illisible · {erreurComptes}</span>}
+      {comptes && numero.trim() !== '' && !compte && <span className="text-[11px] text-warning">Compte de détail introuvable au plan.</span>}
+      {horsListe && compte && (
+        <span className="text-[11px] text-text-dim">{compte.intitule} · compte ni retenu ni utilisé, pris tel que tapé.</span>
+      )}
+      {comptes && proposes.length === 0 && (
+        <span className="text-[11px] text-warning">
+          Aucun compte retenu ni utilisé à proposer · retenez-le dans Plan comptable, ou tapez le numéro du compte en entier.
+        </span>
+      )}
     </div>
   );
 }
