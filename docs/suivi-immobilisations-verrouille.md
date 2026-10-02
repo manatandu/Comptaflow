@@ -65,6 +65,13 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | A11 | Écriture de l'impôt sur le résultat proposée (D 891 / C 441), SYSCOHADA (AUDCIF Titre VII, compte 89) · relevé CPCC C7 | décision de Manasse du 2026-10-02 |
 | A12 | Intérêts courus sur emprunts proposés à la clôture (D 671 / C 166), contre-passés à l'ouverture (AUDCIF Titre VII, compte 16) · relevé CPCC C8 | décision de Manasse du 2026-10-02 |
 | A13 | Contrôles · banque sans rapprochement clos à la clôture (fiche du compte 52) et période restée ouverte au-delà de la clôture informatique trimestrielle (AUDCIF art. 22, 3°) · relevé CPCC C9 et C10 | décision de Manasse du 2026-10-02 |
+| A14 | Sortie d'immobilisation · nature (vol, pillage, destruction, rebut, cession) et pièce (procès-verbal, décision) portées par la sortie et son écriture (AUDCIF Titre VII, compte 81 ; art. 17) · relevé CPCC C11 | lot 15 intégré (mêmes fichiers) |
+| A15 | Réévaluation · notes annexes et tableau des amortissements après réévaluation, déclaration spéciale, sortie d'un bien réévalué (loi n° 23/053 art. 133 al. 3, 135, 137 ; ch. 28 § 6) · relevé CPCC C12 | lot 14 vérifié |
+| A16 | Registre des provisions · provisions à moins d'un an (4991 / 6591) et conditions propres à la restructuration, au contrat déficitaire et au déménagement (AUDCIF Titre VII compte 49 ; ch. 18 § 2.2.1, § 4.1, § 4.10) · relevé CPCC C13 | décision de Manasse du 2026-10-02 |
+| A17 | SYCEBNL · virements internes 585 et 588 non soldés à la clôture signalés (fiche SYCEBNL du compte 58) · relevé CPCC C14 | A13 intégré (même fichier) |
+| A18 | Décompte final · déduction des avances et prêts, gratification au prorata proposée, indemnité de fin de contrat stipulée (Code du travail art. 64, 112) · relevé CPCC C15 | A9 intégré (même fichier) |
+| A19 | Inventaire · éditions (fiches de comptage vierges, PV d'inventaire, PV de caisse) et lieu du bien recopié sur sa fiche (AUDCIF art. 16) · relevé CPCC C16 | A10 intégré (même module) |
+| A20 | Comptabilité de gestion · clés de répartition, coût de production avec imputation rationnelle, seuil de rentabilité, définitions d'OmegaX dites (AUDCIF Titre VI ; Titre VIII ch. 13 § 2.3) · relevé CPCC C17 | décision de Manasse du 2026-10-02 |
 
 ## Décisions en attente de Manasse
 
