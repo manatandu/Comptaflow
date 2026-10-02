@@ -132,19 +132,25 @@ const COLONNES_MOUVEMENTS = [
  *
  * Même lecture qu'aux notes 5A et 5B des associations (passe R6, B11) · B et
  * C restent le mouvement débit et crédit LU EN BALANCE, pour que
- * D = A + B - C tienne, et les trois sous-colonnes sont des MONTANTS
- * qu'aucune balance ne distingue : LIBRE, vides, sous le motif écrit dans
+ * D = A + B - C tienne ; la réévaluation est un MONTANT qu'aucune balance ne
+ * distingue : LIBRE, vide, sous le motif écrit dans
  * `rubriques-en-saisie.spec.ts` (`VIDES_MOTIVEES`), jamais en saisie sur une
- * ligne chiffrée. Constante PROPRE à ce jeu · les deux jeux ne partagent
- * aucun objet de note.
+ * ligne chiffrée. Les deux sous-colonnes de virements sont SERVIES pour la
+ * mise en service d'un bien en cours, reconnue par la liaison de la fiche
+ * (décision D6 de Manasse, 2026-10-01, `virements-mise-en-service.ts`), et
+ * ce montant sort des deux premières sous-colonnes, intitulées comme le texte
+ * les nomme (« Acquisitions/Apports/Créations », « Cessions/Scissions Hors
+ * service ») et non plus comme le total, qu'elles ne sont plus · la
+ * réévaluation et un virement passé à la main y restent, faute de liaison.
+ * Constante PROPRE à ce jeu · les deux jeux ne partagent aucun objet de note.
  */
 const COLONNES_MOUVEMENTS_DETAILLEES = [
   { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture de l'exercice" },
-  { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
-  { type: 'LIBRE' as const, libelle: 'B · Virements de poste à poste' },
+  { type: 'AUGMENTATIONS' as const, libelle: 'B · Acquisitions/Apports/Créations' },
+  { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'B · Virements de poste à poste' },
   { type: 'LIBRE' as const, libelle: "B · Suite à une réévaluation pratiquée au cours de l'exercice" },
-  { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
-  { type: 'LIBRE' as const, libelle: 'C · Virements de poste à poste' },
+  { type: 'DIMINUTIONS' as const, libelle: 'C · Cessions/Scissions Hors service' },
+  { type: 'VIREMENTS_DIMINUTION' as const, libelle: 'C · Virements de poste à poste' },
   { type: 'CLOTURE' as const, libelle: "D = A + B - C (Montant brut à la clôture de l'exercice)" },
 ];
 

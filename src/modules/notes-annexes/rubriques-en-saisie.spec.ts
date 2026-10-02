@@ -223,17 +223,15 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
   const VIDES_MOTIVEES: Record<JeuNotesAnnexes, Record<string, string>> = {
     ASSOCIATIONS_ORDRES_PROFESSIONNELS: {
       '1|DETTES GARANTIES PAR DES SURETES REELLES :: Note': MOTIF_RENVOI,
-      // Passe R6, constat B11 · la 5A et la 5B portent les sous-colonnes
-      // « Virements de poste à poste » et « Suite à une réévaluation » du
-      // modèle (Partie 4 ch. 2), laissées LIBRES comme celles de la 3A et de
-      // la 3B au SYSCOHADA · un montant saisi à côté de B et C ferait deux
-      // sources pour la même variation.
-      '5A :: B · Virements de poste à poste': MOTIF_MONTANT,
+      // Passe R6, constat B11 · la 5A et la 5B portent la sous-colonne
+      // « Suite à une réévaluation » du modèle (Partie 4 ch. 2), laissée
+      // LIBRE comme celle de la 3A et de la 3B au SYSCOHADA · un montant
+      // saisi à côté de B et C ferait deux sources pour la même variation.
+      // Leurs « Virements de poste à poste » ne sont plus LIBRES depuis la
+      // décision D6 (2026-10-01) · le moteur y sert la mise en service d'un
+      // bien en cours (`VIREMENTS_AUGMENTATION`, `VIREMENTS_DIMINUTION`).
       "5A :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
-      '5A :: C · Virements de poste à poste': MOTIF_MONTANT,
-      '5B :: B · Virements de poste à poste': MOTIF_MONTANT,
       "5B :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
-      '5B :: C · Virements de poste à poste': MOTIF_MONTANT,
       '5D :: D · Virements de poste à poste': MOTIF_MONTANT,
       '5E :: D · Virements de poste à poste': MOTIF_MONTANT,
       '14 :: Devises': MOTIF_DEVISE,
@@ -248,12 +246,10 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
       '17B :: Note': MOTIF_RENVOI,
     },
     PROJETS_DEVELOPPEMENT: {
-      // Même lecture que les 5A et 5B des associations · la 3A porte les
-      // sous-colonnes « Virements de poste à poste » et « Suite à une
-      // réévaluation » du modèle (Partie 4 ch. 3, NOTE 3A), LIBRES et vides.
-      '3A :: B · Virements de poste à poste': MOTIF_MONTANT,
+      // Même lecture que les 5A et 5B des associations · la sous-colonne
+      // « Suite à une réévaluation » de la 3A (Partie 4 ch. 3, NOTE 3A)
+      // reste LIBRE et vide ; les virements sont servis (D6).
       "3A :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
-      '3A :: C · Virements de poste à poste': MOTIF_MONTANT,
       '8 :: Devises': MOTIF_DEVISE,
       '8 :: Montant en devises': MOTIF_DEVISE,
       '8 :: Cours UML Année acquisition': MOTIF_DEVISE,
@@ -262,12 +258,10 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
     },
     SYSCOHADA_SYSTEME_NORMAL: {
       '1|DETTES GARANTIES PAR DES SÛRETÉS RÉELLES :: Note': MOTIF_RENVOI,
-      '3A :: AUGMENTATIONS : Virements de poste à poste': MOTIF_MONTANT,
+      // Les virements de poste à poste des 3A et 3B sont servis depuis la
+      // décision D6 (2026-10-01) · seule la réévaluation reste vide.
       "3A :: Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
-      '3A :: DIMINUTIONS : Virements de poste à poste': MOTIF_MONTANT,
-      '3B :: B · AUGMENTATIONS : Virements de poste à poste': MOTIF_MONTANT,
       "3B :: B · AUGMENTATIONS : Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
-      '3B :: C · DIMINUTIONS : Virements de poste à poste': MOTIF_MONTANT,
       '12|ÉCARTS DE CONVERSION :: Devises': MOTIF_DEVISE,
       '12|ÉCARTS DE CONVERSION :: Montant en devises': MOTIF_DEVISE,
       '12|ÉCARTS DE CONVERSION :: Cours UML Année acquisition': MOTIF_DEVISE,

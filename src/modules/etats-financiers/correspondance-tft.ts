@@ -207,6 +207,14 @@ export interface PosteFluxTresorerie {
    * retranché figure dans le détail du poste, en négatif.
    */
   creditsARetrancher?: { comptes: string[]; exclusions?: string[]; fondement: string }[];
+  /**
+   * Crédits des MISES EN SERVICE d'un bien en cours, reconnues par la liaison
+   * de la fiche (`Immobilisation.ecritureMiseEnServiceId`,
+   * `immobilisations/virements-mise-en-service.ts`), à retrancher sur les
+   * comptes que `creditsARetrancher` ne retranche pas déjà en entier · porte
+   * le fondement. Décision D6 de Manasse (2026-10-01).
+   */
+  misesEnServiceARetrancher?: string;
 }
 
 /**
@@ -407,6 +415,18 @@ export const POSTES_INVESTISSEMENT: PosteFluxTresorerie[] = [
     // LIMITE : un crédit du 239 ou du 249 peut aussi être une mise au rebut
     // par le 81 (fiche du COMPTE 23, « Utilisation au crédit ») · il serait
     // alors retranché à tort. La balance ne dit pas la contrepartie.
+    // DÉCISION D6 (2026-10-01) · depuis que le module inscrit un bien non
+    // achevé au 219 ou au 229 aussi (décision D5, que les fiches 21 et 22 du
+    // SYCEBNL taisent), sa mise en service crédite un en-cours que la liste
+    // ci-dessous ne retranche pas · le débit du compte définitif sortait en
+    // second décaissement. Ce crédit-là se retranche par la LIAISON de la
+    // fiche, jamais par le compte · un crédit du 219 non lié (rebut, virement
+    // passé à la main) reste où la balance le met, comme avant. Le 239 et le
+    // 249, déjà retranchés en entier, ne le sont pas deux fois.
+    misesEnServiceARetrancher:
+      "Mise en service d'un bien inscrit en cours (fiches des COMPTES 21 à 24 ; 219 et 229 offerts par décision " +
+      'de Manasse du 2026-10-01) · virement de poste à poste, sans trésorerie, dont le paiement a déjà été lu au ' +
+      "débit de l'en-cours.",
     creditsARetrancher: [
       {
         comptes: ['239', '249'],

@@ -30,6 +30,7 @@ import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { ancienneteJours, brouillardInvalidable, enRetardDeCentralisation, JOURS_CENTRALISATION } from './centralisation-brouillard';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { agregatsParCompte, filtresDesTroisColonnes, lignesDeBalance, totauxDeBalance } from './balance-trois-colonnes';
+import { AUCUN_VIREMENT, VirementsParCompte } from '../immobilisations/virements-mise-en-service';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 
 /**
@@ -3208,6 +3209,35 @@ export class EcritureService {
 
     const lignesBalance = lignesDeBalance(comptes, agregatsParCompte(reports, mouvements, clotures));
     return { lignes: lignesBalance, totaux: totauxDeBalance(lignesBalance) };
+  }
+
+  /**
+   * LES VIREMENTS DE MISE EN SERVICE D'UN EXERCICE, par compte
+   * (`immobilisations/virements-mise-en-service.ts`, décision D6 de Manasse
+   * du 2026-10-01).
+   *
+   * Les écritures retenues sont celles qu'une fiche d'immobilisation désigne
+   * par `ecritureMiseEnServiceId` · la LIAISON, jamais le compte ni le
+   * libellé, un crédit du 2x9 pouvant aussi être un rebut. Le filtre est celui
+   * de la colonne « mouvements » de `balance(…, false)`, que lisent les notes
+   * annexes et le tableau des flux · LIVRE-JOURNAL SEUL, report à-nouveau
+   * exclu. Une mise en service restée au brouillard n'est pas encore dans les
+   * mouvements de ces états ; la retrancher les ferait passer sous zéro.
+   *
+   * Une somme demandée à la base (`groupBy`), une ligne par compte touché ·
+   * jamais les lignes rapatriées (CLAUDE.md § 8 bis).
+   */
+  async virementsDeMiseEnService(tenantId: string, exerciceId: string | null): Promise<VirementsParCompte> {
+    if (!exerciceId) return AUCUN_VIREMENT;
+    const { mouvements } = filtresDesTroisColonnes({ tenantId, exerciceId, statut: StatutEcriture.VALIDEE });
+    const groupes = await this.prisma.ligneEcriture.groupBy({
+      by: ['compteId'],
+      where: { ecriture: { ...mouvements, immobilisationMiseEnService: { isNot: null } } },
+      _sum: { debit: true, credit: true },
+    });
+    return new Map(
+      groupes.map((g) => [g.compteId, { debit: Number(g._sum.debit ?? 0), credit: Number(g._sum.credit ?? 0) }]),
+    );
   }
 
   /**

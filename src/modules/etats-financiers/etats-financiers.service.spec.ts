@@ -5,6 +5,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { COMPTES_SANS_TRESORERIE, CONTREPARTIES_SANS_TRESORERIE, TOUS_LES_POSTES_FLUX } from './correspondance-tft';
 import { correspond } from './etats-financiers.communs';
+import { VirementsParCompte } from '../immobilisations/virements-mise-en-service';
 
 /** Fabrique une ligne de balance telle que `EcritureService.balance()` la renvoie. */
 function ligne(
@@ -34,6 +35,8 @@ function ligne(
 function serviceAvecExercices(
   lignesParExercice: Record<string, ReturnType<typeof ligne>[]>,
   exercices: Array<{ id: string; dateDebut: Date }> = [],
+  // Mises en service liées à une fiche, par exercice (D6) · par DÉFAUT aucune.
+  virementsParExercice: Record<string, VirementsParCompte> = {},
 ) {
   const ecritureService = {
     balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
@@ -46,6 +49,9 @@ function serviceAvecExercices(
         },
       });
     }),
+    virementsDeMiseEnService: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
+      Promise.resolve((exerciceId && virementsParExercice[exerciceId]) || new Map()),
+    ),
   } as unknown as EcritureService;
   // Sans liste nommée, les exercices du dossier sont ceux dont la balance est
   // fournie, ouverts le même jour pour qu'aucun ne soit le N-1 d'un autre ·
@@ -1212,6 +1218,53 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
     );
     const tft = await service.tableauFluxTresorerie('t1', 'eN');
     expect(ref(tft, 'FI').montant).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  // D6 (2026-10-01) · depuis la décision D5, le module inscrit aussi un bien
+  // non achevé au 219 ou au 229, que la liste des crédits retranchés (239 et
+  // 249) ne couvre pas · la mise en service, LIÉE à la fiche, se retranche
+  // par cette liaison.
+  const CINQUANTE = 50_000_000;
+  const miseEnService = (definitif: string, enCours: string): VirementsParCompte =>
+    new Map([
+      [`id-${definitif}`, { debit: CINQUANTE, credit: 0 }],
+      [`id-${enCours}`, { debit: 0, credit: CINQUANTE }],
+    ]);
+
+  it('D6 · un logiciel acquis au 219 et mis en service au 213 dans l’exercice ne se décaisse qu’une fois', async () => {
+    const lignes = {
+      eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 60_000_000, 0)],
+      eN: [
+        ligneF('21900000', ClasseCompte.CLASSE_2, CINQUANTE, CINQUANTE),
+        ligneF('21300000', ClasseCompte.CLASSE_2, CINQUANTE, 0),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 0, CINQUANTE, [60_000_000, 0]),
+      ],
+    };
+    const tft = await serviceAvecExercices(lignes, DEUX_EXERCICES, { eN: miseEnService('21300000', '21900000') })
+      .tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(-CINQUANTE);
+    expect(tft.controle.coherent).toBe(true);
+    // Le même crédit du 219, SANS fiche qui le désigne, n'est pas retranché ·
+    // la liaison décide, jamais le compte (un rebut crédite aussi le 219).
+    const sansFiche = await serviceAvecExercices(lignes, DEUX_EXERCICES).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(sansFiche, 'FI').montant).toBe(-2 * CINQUANTE);
+  });
+
+  it('D6 · un bâtiment acquis au 239 et mis en service au 231 · le crédit du 239 n’est pas retranché deux fois', async () => {
+    const tft = await serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 60_000_000, 0)],
+        eN: [
+          ligneF('23910000', ClasseCompte.CLASSE_2, CINQUANTE, CINQUANTE),
+          ligneF('23110000', ClasseCompte.CLASSE_2, CINQUANTE, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, CINQUANTE, [60_000_000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+      { eN: miseEnService('23110000', '23910000') },
+    ).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(-CINQUANTE);
     expect(tft.controle.coherent).toBe(true);
   });
 

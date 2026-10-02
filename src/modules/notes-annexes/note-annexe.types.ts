@@ -54,6 +54,17 @@ export type TypeColonneNote =
   | 'AUGMENTATIONS' // B · mouvements de l'exercice qui accroissent le poste
   | 'DIMINUTIONS' // C · mouvements de l'exercice qui le réduisent
   | 'CLOTURE' // D = A + B - C, recalculé et non lu tel quel (voir écartCloture)
+  // --- Sous-colonnes « Virements de poste à poste » de B et de C ---
+  // NOTE 3A et 3B du SYSCOHADA, NOTES 5A et 5B des associations, NOTE 3A des
+  // projets. Elles portent les écritures de MISE EN SERVICE d'un bien en
+  // cours, reconnues par la liaison de la fiche
+  // (`immobilisations/virements-mise-en-service.ts`), sorties de
+  // `AUGMENTATIONS` et de `DIMINUTIONS` · B et C restent la somme de leurs
+  // sous-colonnes, et D = A + B - C ne bouge pas. Absentes de `valeurs` quand
+  // rien n'a été viré : la cellule reste vide, comme le reste d'un tableau
+  // qui ne distingue pas un virement passé à la main.
+  | 'VIREMENTS_AUGMENTATION'
+  | 'VIREMENTS_DIMINUTION'
   // --- Note 30 : B et C sont elles-mêmes ventilées par nature ---
   // Le compte de provision ne dit PAS de quelle nature était la dotation :
   // seule la CONTREPARTIE de l'écriture le dit (691 exploitation, 697

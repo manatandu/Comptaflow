@@ -97,6 +97,8 @@ function balanceComptee(): EcritureService {
         },
       });
     }),
+    // Aucune mise en service liée à une fiche (D6) · les mouvements restent tels quels.
+    virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
   } as unknown as EcritureService;
 }
 

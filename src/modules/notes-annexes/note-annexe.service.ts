@@ -40,6 +40,7 @@ import {
 } from '../etats-financiers-syscohada/correspondance-notes-syscohada';
 import { ajouterMois } from '../../common/ajouter-mois';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+import { AUCUN_VIREMENT, VirementsParCompte, virementsDesLignes } from '../immobilisations/virements-mise-en-service';
 // Sortis au socle (audit final F185), réexportés pour les appelants d'avant.
 export { LOT_LECTURE, lireParLots } from '../../common/lecture-par-lots';
 
@@ -215,6 +216,13 @@ interface RubriqueResolue {
   report: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  /**
+   * La part de ces mouvements qui n'est qu'une MISE EN SERVICE d'un bien en
+   * cours, reconnue par la liaison de la fiche · non orientée elle non plus
+   * (`immobilisations/virements-mise-en-service.ts`).
+   */
+  virementDebit: number;
+  virementCredit: number;
   echeances: Echeances;
   ventilation: VentilationNature;
 }
@@ -440,13 +448,14 @@ export class NoteAnnexeService {
     // Absente pour N-1, que le texte ne ventile pas par échéance.
     echeancesParCompte?: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
+    virements: VirementsParCompte = AUCUN_VIREMENT,
   ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
     // ils ne les remplacent jamais (voir RattachementNote, prisma/schema.prisma).
     const prefixes = [...(rubrique.comptes ?? []), ...numerosRattaches];
     if (prefixes.length === 0) {
       return {
-        montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0,
+        montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0, virementDebit: 0, virementCredit: 0,
         echeances: { ...ECHEANCES_NULLES }, ventilation: VENTILATION_NULLE(),
       };
     }
@@ -471,6 +480,7 @@ export class NoteAnnexeService {
     }));
 
     const brut = comptes.reduce((s, c) => s + c.montant, 0);
+    const vire = virementsDesLignes(matches, virements);
     // `|| 0` normalise -0 en 0 (même souci de propreté qu'au bilan).
     return {
       montant: (rubrique.presenterEnNegatif ? -brut : brut) || 0,
@@ -480,6 +490,10 @@ export class NoteAnnexeService {
       report: matches.reduce((s, l) => s + l.reportDebit - l.reportCredit, 0),
       mouvementDebit: matches.reduce((s, l) => s + l.mouvementDebit, 0),
       mouvementCredit: matches.reduce((s, l) => s + l.mouvementCredit, 0),
+      // Lus sur les MÊMES lignes que les mouvements, par leur compte · un
+      // virement n'est retiré de B ou de C que s'il y était compté.
+      virementDebit: vire.debit,
+      virementCredit: vire.credit,
       // Les échéances suivent le sens de lecture de la rubrique, comme le
       // montant : sur une rubrique créditrice (dettes), une dette de 700
       // s'affiche 700 et non -700.
@@ -528,9 +542,26 @@ export class NoteAnnexeService {
   ): { valeurs: Partial<Record<TypeColonneNote, number>>; ecartCloture?: number } {
     const auCredit = spec.sensAccroissement === 'CREDIT';
     const ouverture = (auCredit ? -r.report : r.report) || 0;
-    const augmentations = (auCredit ? r.mouvementCredit : r.mouvementDebit) || 0;
-    const diminutions = (auCredit ? r.mouvementDebit : r.mouvementCredit) || 0;
-    const cloture = ouverture + augmentations - diminutions;
+    // LA MISE EN SERVICE N'EST NI UNE ACQUISITION NI UNE CESSION (D6,
+    // 2026-10-01). Quand le MODÈLE a ses colonnes « Virements de poste à
+    // poste » (NOTE 3A et 3B du SYSCOHADA, 5A et 5B des associations, 3A des
+    // projets), le virement lié à une fiche sort de la colonne
+    // d'acquisitions et de celle des cessions pour y aller · en plus sur la
+    // ligne du compte définitif, en moins sur celle de l'en-cours, les deux
+    // sur la même ligne quand le modèle range l'en-cours avec son poste (le
+    // 2391 avec le 231). Sans ces colonnes (5C et 3B des locations du
+    // SYCEBNL, qui n'écrivent que « AUGMENTATIONS B | DIMINUTIONS C »), le
+    // virement RESTE dans B et C · B y est le total des augmentations, dont
+    // le virement fait partie selon le découpage que le même texte donne à
+    // la 5A, et l'en retirer ferait D différent du solde.
+    const sousColonnesDeVirement = spec.colonnes.some(
+      (c) => c.type === 'VIREMENTS_AUGMENTATION' || c.type === 'VIREMENTS_DIMINUTION',
+    );
+    const virementsAugmentation = sousColonnesDeVirement ? (auCredit ? r.virementCredit : r.virementDebit) || 0 : 0;
+    const virementsDiminution = sousColonnesDeVirement ? (auCredit ? r.virementDebit : r.virementCredit) || 0 : 0;
+    const augmentations = ((auCredit ? r.mouvementCredit : r.mouvementDebit) || 0) - virementsAugmentation;
+    const diminutions = ((auCredit ? r.mouvementDebit : r.mouvementCredit) || 0) - virementsDiminution;
+    const cloture = ouverture + augmentations + virementsAugmentation - diminutions - virementsDiminution;
     // `montant` est le solde réel de la balance. `calculerRubrique` ne
     // l'oriente que si la rubrique porte `sens`/`presenterEnNegatif` · ce que
     // les tableaux de mouvements ne font pas ·, donc l'orientation au sens de
@@ -540,7 +571,18 @@ export class NoteAnnexeService {
     const reel = auCredit ? -r.montant : r.montant;
     const ecart = cloture - reel;
     return {
-      valeurs: { OUVERTURE: ouverture, AUGMENTATIONS: augmentations, DIMINUTIONS: diminutions, CLOTURE: cloture },
+      valeurs: {
+        OUVERTURE: ouverture,
+        AUGMENTATIONS: augmentations || 0,
+        DIMINUTIONS: diminutions || 0,
+        CLOTURE: cloture,
+        // Rien de viré · la cellule reste vide plutôt que d'afficher un zéro
+        // qui se lirait « aucun virement », alors qu'un virement passé à la
+        // main, sans fiche, reste compté en B et en C (anomalie n° 9 de
+        // `correspondance-notes-syscohada-1.ts`).
+        ...(Math.abs(virementsAugmentation) > 0.005 ? { VIREMENTS_AUGMENTATION: virementsAugmentation } : {}),
+        ...(Math.abs(virementsDiminution) > 0.005 ? { VIREMENTS_DIMINUTION: virementsDiminution } : {}),
+      },
       ecartCloture: Math.abs(ecart) > 0.005 ? ecart : undefined,
     };
   }
@@ -553,6 +595,8 @@ export class NoteAnnexeService {
     // Absente pour N-1, que le texte ne ventile pas par échéance.
     echeancesParCompte?: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
+    // Absents pour N-1, dont le tableau ne présente aucun mouvement.
+    virements: VirementsParCompte = AUCUN_VIREMENT,
   ): RubriqueResolue[] {
     const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
@@ -561,7 +605,7 @@ export class NoteAnnexeService {
         // un test structurel sur chaque spécification. Les agrégats de
         // mouvement se totalisent de la même façon, sinon la ligne TOTAL
         // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
-        const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit') =>
+        const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit' | 'virementDebit' | 'virementCredit') =>
           rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0) -
           (rubrique.moinsRubriques ?? []).reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
         const cumulEcheance = (f: keyof Echeances) =>
@@ -573,6 +617,8 @@ export class NoteAnnexeService {
           report: cumul('report'),
           mouvementDebit: cumul('mouvementDebit'),
           mouvementCredit: cumul('mouvementCredit'),
+          virementDebit: cumul('virementDebit'),
+          virementCredit: cumul('virementCredit'),
           echeances: {
             unAn: cumulEcheance('unAn'),
             deuxAns: cumulEcheance('deuxAns'),
@@ -594,7 +640,9 @@ export class NoteAnnexeService {
       } else {
         const cle = rubrique.cle ? `${spec.code}::${rubrique.cle}` : '';
         resolues.push(
-          this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte, ventilationParCompte),
+          this.calculerRubrique(
+            rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte, ventilationParCompte, virements,
+          ),
         );
       }
     }
@@ -610,13 +658,16 @@ export class NoteAnnexeService {
     echeancesParCompte: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature>,
     saisies: Map<string, (string | number | null)[]> = new Map(),
+    virements: VirementsParCompte = AUCUN_VIREMENT,
   ): NoteCalculee {
-    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte);
+    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte, virements);
     // N-1 n'est pas ventilé par échéance : le texte ne demande les colonnes
     // d'échéance que sur l'exercice présenté.
     const resN1 = this.resoudreRubriques(spec, lignesN1, rattachements);
     const aColonnesDeMouvement = spec.colonnes.some((c) =>
-      (['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE'] as TypeColonneNote[]).includes(c.type),
+      (
+        ['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE', 'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION'] as TypeColonneNote[]
+      ).includes(c.type),
     );
     const aColonneVariationAbsolue = spec.colonnes.some((c) => c.type === 'VARIATION_VALEUR_ABSOLUE');
     const aColonnesVentilees = spec.colonnes.some((c) => c.type.startsWith('AUGMENTATION_') || c.type.startsWith('DIMINUTION_'));
@@ -1153,14 +1204,20 @@ export class NoteAnnexeService {
       chargerLignes(ecriture, tenantId, exerciceN1Id),
     ]);
 
-    const [{ parRubrique: rattachements, sansRubrique: rattachementsSansRubrique }, echeances, ventilation, saisies] = await Promise.all([
-      this.chargerRattachements(tenantId, jeu),
-      this.chargerEcheances(tenantId, exerciceId),
-      this.chargerVentilationParNature(tenantId, exerciceId),
-      this.chargerSaisies(tenantId, exerciceId, jeu),
-    ]);
+    const [{ parRubrique: rattachements, sansRubrique: rattachementsSansRubrique }, echeances, ventilation, saisies, virements] =
+      await Promise.all([
+        this.chargerRattachements(tenantId, jeu),
+        this.chargerEcheances(tenantId, exerciceId),
+        this.chargerVentilationParNature(tenantId, exerciceId),
+        this.chargerSaisies(tenantId, exerciceId, jeu),
+        // Les mises en service de l'exercice (D6) · seules les colonnes de
+        // mouvement les lisent, et seulement sur N.
+        this.ecritureService.virementsDeMiseEnService(tenantId, exerciceId),
+      ]);
     const notes = specs.map((spec) =>
-      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies),
+      this.calculerNote(
+        spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies, virements,
+      ),
     );
 
     // Le titre de la NOTE, commun à ses tableaux · celui du premier tableau

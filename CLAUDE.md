@@ -1516,10 +1516,15 @@ tout lecteur du compte du bien passe par `compteInscritALaDate` (écritures du
 module, deux tableaux, NOTE 1 des deux SMT, fiches d'inventaire), y compris le
 reclassement antidaté ; mise en service refusée avant la fin d'une
 incorporation de coûts d'emprunt (ch. 7 § 2.2.3, jumeau de l'autre sens).
-Non comblés · virement de la dépréciation 29x9 à l'achèvement (aucun texte) ;
-notes 3A (SYSCOHADA) et 5A ou 3A (SYCEBNL) comptent le virement en B ET en C
-(anomalie n° 9, D juste). La nature du barème POSE son compte unique
-(`compteSelonNature`).
+Non comblé · virement de la dépréciation 29x9 à l'achèvement (aucun texte).
+LA MISE EN SERVICE EST UN VIREMENT DE POSTE À POSTE (D6, 2026-10-01) · reconnue
+par la LIAISON (`ecritureMiseEnServiceId`, `virements-mise-en-service.ts`),
+jamais par le compte ni le libellé, elle sort des acquisitions et des cessions
+des notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) vers leurs colonnes
+« Virements de poste à poste », D inchangé ; 5C et 3B des locations n'en ont
+pas, elle y reste en B ; au TFT SYCEBNL, FI retranche le crédit lié du 219 et
+du 229 (le 239 et le 249 l'étaient déjà). La nature du barème POSE son compte
+unique (`compteSelonNature`).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

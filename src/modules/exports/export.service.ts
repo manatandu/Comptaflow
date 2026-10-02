@@ -2650,8 +2650,11 @@ export class ExportService {
    * chiffrée, sa cellule vient de ce que le dossier a saisi quand la colonne
    * le permet (`saisieLibre` · sûretés réelles de la note 1, nature d'un
    * contrat, échéances). Ailleurs elle reste VIDE, et ce vide n'est pas une
-   * réponse · virements de poste à poste, devises et cours, identité des membres,
-   * qu'aucune saisie ne sert encore (`cellules-libres-en-saisie.ts`).
+   * réponse · réévaluation, virements des tableaux d'amortissements, devises
+   * et cours, identité des membres, qu'aucune saisie ne sert encore
+   * (`cellules-libres-en-saisie.ts`). Les virements de poste à poste des
+   * tableaux de valeurs brutes ne sont plus LIBRE · le moteur les sert
+   * (`VIREMENTS_AUGMENTATION`, `VIREMENTS_DIMINUTION`, décision D6).
    */
   private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote, index: number): number | string | null {
     // Rubrique renseignée HORS comptabilité : la cellule vient de ce que le

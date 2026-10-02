@@ -182,6 +182,8 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
         },
       });
     }),
+    // Aucune mise en service liée à une fiche (D6) · les mouvements restent tels quels.
+    virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
   } as unknown as EcritureService;
   const exerciceService = {
     lister: jest.fn().mockResolvedValue([...EXERCICES]),

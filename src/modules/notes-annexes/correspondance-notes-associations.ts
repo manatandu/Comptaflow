@@ -93,21 +93,34 @@ const COLONNES_MOUVEMENTS = [
  * « AUGMENTATIONS B | DIMINUTIONS C » et garde `COLONNES_MOUVEMENTS`.
  *
  * B et C restent le mouvement débit et crédit LU EN BALANCE, pour que
- * D = A + B - C tienne ; un virement ou une réévaluation n'y est pas
- * séparable d'une acquisition, d'où l'en-tête du total et non celui de la
- * première sous-colonne. Les trois sous-colonnes sont des MONTANTS qu'aucune
- * balance ne distingue : LIBRE, vides, sous le motif écrit dans
- * `rubriques-en-saisie.spec.ts` (`VIDES_MOTIVEES`), comme les virements des
- * 5D et 5E et la 3A du SYSCOHADA · jamais en saisie sur une ligne chiffrée,
- * où elles feraient une seconde source à côté de B et C (passe R6, B11).
+ * D = A + B - C tienne ; une réévaluation ou un virement passé à la main n'y
+ * est pas séparable d'une acquisition. La sous-colonne de réévaluation est un
+ * MONTANT qu'aucune balance ne distingue : LIBRE, vide, sous le motif écrit
+ * dans `rubriques-en-saisie.spec.ts` (`VIDES_MOTIVEES`), comme les virements
+ * des 5D et 5E · jamais en saisie sur une ligne chiffrée, où elle ferait une
+ * seconde source à côté de B et C (passe R6, B11).
+ *
+ * LES DEUX SOUS-COLONNES DE VIREMENTS SONT SERVIES (décision D6 de Manasse,
+ * 2026-10-01) pour la mise en service d'un bien inscrit en cours (fiches des
+ * comptes 23 et 24 : « Après achèvement, ces derniers seront portés au débit
+ * des comptes 231 à 238 par le crédit du compte 239 »), reconnue par la
+ * liaison de la fiche (`immobilisations/virements-mise-en-service.ts`). Ce
+ * montant est alors retiré des deux premières sous-colonnes, qui portent
+ * désormais l'intitulé de la sous-colonne du texte (« Acquisitions/Apports/
+ * Créations », « Cessions/Scissions hors service ») et non celui du total
+ * « AUGMENTATIONS B », qu'elles ne sont plus · B est la somme de ses
+ * sous-colonnes, et D = A + B - C ne bouge pas. ÉCART DIT · la réévaluation
+ * et un virement passé à la main, que la balance ne sépare pas, restent dans
+ * la première sous-colonne, faute de liaison. La 5A (compte 20) ne reçoit
+ * jamais de virement, aucun bien n'y étant inscrit en cours.
  */
 const COLONNES_MOUVEMENTS_DETAILLEES = [
   { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture" },
-  { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
-  { type: 'LIBRE' as const, libelle: 'B · Virements de poste à poste' },
+  { type: 'AUGMENTATIONS' as const, libelle: 'B · Acquisitions/Apports/Créations' },
+  { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'B · Virements de poste à poste' },
   { type: 'LIBRE' as const, libelle: "B · Suite à une réévaluation pratiquée au cours de l'exercice" },
-  { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
-  { type: 'LIBRE' as const, libelle: 'C · Virements de poste à poste' },
+  { type: 'DIMINUTIONS' as const, libelle: 'C · Cessions/Scissions hors service' },
+  { type: 'VIREMENTS_DIMINUTION' as const, libelle: 'C · Virements de poste à poste' },
   { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Montant brut à la clôture)' },
 ];
 

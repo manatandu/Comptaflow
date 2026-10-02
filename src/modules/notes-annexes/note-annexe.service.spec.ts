@@ -5,6 +5,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import { VirementsParCompte } from '../immobilisations/virements-mise-en-service';
 
 /**
  * Trois états à zéro · le strict nécessaire pour que la note 33 se calcule
@@ -181,10 +182,14 @@ function service(
   // Par DÉFAUT ils sont vides : la fiche de synthèse sort alors à zéro, sans
   // rien changer pour les tests qui ne s'y intéressent pas.
   etats: EtatsFinanciersService = etatsVides(),
+  // Mises en service liées à une fiche, par exercice (D6) · par DÉFAUT aucune.
+  virementsParExercice: Record<string, VirementsParCompte> = {},
 ) {
   const ecriture = {
     balance: jest.fn().mockImplementation((_t: string, e: string) =>
       Promise.resolve({ lignes: lignesParExercice[e] ?? [], totaux: { debit: 0, credit: 0 } })),
+    virementsDeMiseEnService: jest.fn().mockImplementation((_t: string, e: string | null) =>
+      Promise.resolve((e && virementsParExercice[e]) || new Map())),
   } as unknown as EcritureService;
   // Le dossier TIENT toujours l'exercice que les tests demandent (« e1 ») ·
   // depuis l'audit final F222, un exercice absent du dossier est un 404 et
@@ -261,6 +266,8 @@ describe.each([
     const CALCULEES = [
       'EXERCICE_N', 'EXERCICE_N1', 'VARIATION_VALEUR', 'VARIATION_POURCENT', 'VARIATION_VALEUR_ABSOLUE',
       'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE',
+      // Virements de poste à poste des 5A, 5B et 3A · la mise en service liée à une fiche (D6).
+      'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION',
       'AUGMENTATION_EXPLOITATION', 'AUGMENTATION_FINANCIERE', 'AUGMENTATION_HAO',
       'DIMINUTION_EXPLOITATION', 'DIMINUTION_FINANCIERE', 'DIMINUTION_HAO',
       'ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS', 'LIBRE',
@@ -2336,6 +2343,7 @@ describe('passe R2 · B3, la NOTE 34 SYSCOHADA est calculée depuis les trois é
     const { cellule } = await calculer();
     const ecriture = {
       balance: jest.fn().mockResolvedValue({ lignes: balance, totaux: { debit: 0, credit: 0 } }),
+      virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
     } as unknown as EcritureService;
     const exercice = {
       lister: jest.fn().mockResolvedValue([{ id: 'e1', dateDebut: new Date('2026-01-01') }]),
@@ -2361,5 +2369,116 @@ describe('passe R2 · B3, la NOTE 34 SYSCOHADA est calculée depuis les trois é
     expect(n34.precisionEditeur).toContain('impôt théorique');
     expect(n34.applicable).toBe(true);
     expect(r.ficheRecapitulative.find((f: any) => f.code === '34')!.applicable).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D6 (2026-10-01) · LA MISE EN SERVICE D'UN BIEN EN COURS EST UN VIREMENT
+// ---------------------------------------------------------------------------
+// Jeu d'essai de la décision · un bâtiment acquis en N au 239 pour
+// 50 000 000, mis en service en N au 231 (D 231 / C 239, écriture liée à la
+// fiche par `ecritureMiseEnServiceId`). La balance porte 100 000 000 de
+// débits et 50 000 000 de crédit sur les deux comptes réunis · lue telle
+// quelle, la note montrait deux acquisitions et une cession.
+describe('notes des immobilisations brutes · mise en service d’un bien en cours (D6)', () => {
+  const val = (n: any, libelle: string) => ligneDe(n, libelle).valeurs;
+  const CINQUANTE = 50_000_000;
+  const balanceEnCours = (definitif: string, enCours: string) => [
+    ligne(enCours, ClasseCompte.CLASSE_2, CINQUANTE, CINQUANTE),
+    ligne(definitif, ClasseCompte.CLASSE_2, CINQUANTE, 0),
+  ];
+  // Ce que `EcritureService.virementsDeMiseEnService` rend pour l'écriture
+  // liée · le débit du compte définitif, le crédit de l'en-cours.
+  const viree = (definitif: string, enCours: string): VirementsParCompte =>
+    new Map([
+      [`id-${definitif}`, { debit: CINQUANTE, credit: 0 }],
+      [`id-${enCours}`, { debit: 0, credit: CINQUANTE }],
+    ]);
+  const attendu = {
+    OUVERTURE: 0,
+    AUGMENTATIONS: CINQUANTE,
+    DIMINUTIONS: 0,
+    VIREMENTS_AUGMENTATION: CINQUANTE,
+    VIREMENTS_DIMINUTION: CINQUANTE,
+    CLOTURE: CINQUANTE,
+  };
+  const sansBudget = () => ({
+    executionBudgetaire: jest.fn().mockRejectedValue(new AucunPlanABudgetsException('aucun plan à budgets')),
+  });
+
+  it('SYSCOHADA, NOTE 3A · l’acquisition seule en augmentation, aucune cession, le virement aux deux colonnes', async () => {
+    const s = service(
+      { e1: balanceEnCours('23110000', '23910000') },
+      [],
+      prismaAvec([], [], [], [], Referentiel.SYSCOHADA),
+      sansBudget(),
+      etatsVides(),
+      { e1: viree('23110000', '23910000') },
+    );
+    const n3a = note(await s.notesSyscohada('t', 'e1'), '3A');
+    // Le 231 et le 2391 sont sur la même ligne du modèle · le virement y
+    // paraît en plus et en moins, solde nul.
+    expect(val(n3a, 'Bâtiments hors immeuble de placement')).toEqual(attendu);
+    expect(ligneDe(n3a, 'Bâtiments hors immeuble de placement').ecartCloture).toBeUndefined();
+    expect(val(n3a, 'TOTAL GÉNÉRAL')).toEqual(attendu);
+  });
+
+  it('SYCEBNL associations, NOTE 5B · même lecture, et l’intitulé est celui de la sous-colonne', async () => {
+    const s = service({ e1: balanceEnCours('23110000', '23910000') }, [], prismaAvec(), sansBudget(), etatsVides(), {
+      e1: viree('23110000', '23910000'),
+    });
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(val(n5b, 'Bâtiments hors immeuble de placement')).toEqual(attendu);
+    expect(val(n5b, 'TOTAL GENERAL')).toEqual(attendu);
+    // Plus le total « AUGMENTATIONS B », qu'elle n'est plus.
+    expect(n5b.colonnes.find((c: any) => c.type === 'AUGMENTATIONS').libelle).toBe('B · Acquisitions/Apports/Créations');
+  });
+
+  it('SYCEBNL projets, NOTE 3A · même lecture', async () => {
+    const s = service({ e1: balanceEnCours('23110000', '23910000') }, [], prismaAvec(), sansBudget(), etatsVides(), {
+      e1: viree('23110000', '23910000'),
+    });
+    const n3a = note(await s.notesProjet('t', 'e1'), '3A');
+    expect(val(n3a, 'Bâtiments hors immeuble de placement')).toEqual(attendu);
+    expect(val(n3a, 'TOTAL GENERAL')).toEqual(attendu);
+  });
+
+  it('en-cours et définitif sur deux lignes · en plus sur l’une, en moins sur l’autre', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('23940000', ClasseCompte.CLASSE_2, CINQUANTE, CINQUANTE),
+          ligne('24110000', ClasseCompte.CLASSE_2, CINQUANTE, 0),
+        ],
+      },
+      [],
+      prismaAvec(),
+      sansBudget(),
+      etatsVides(),
+      { e1: viree('24110000', '23940000') },
+    );
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(val(n5b, 'Aménagements, agencements et installations')).toEqual({
+      OUVERTURE: 0, AUGMENTATIONS: CINQUANTE, DIMINUTIONS: 0, VIREMENTS_DIMINUTION: CINQUANTE, CLOTURE: 0,
+    });
+    expect(val(n5b, 'Matériel, mobilier et actifs biologiques')).toEqual({
+      OUVERTURE: 0, AUGMENTATIONS: 0, DIMINUTIONS: 0, VIREMENTS_AUGMENTATION: CINQUANTE, CLOTURE: CINQUANTE,
+    });
+  });
+
+  it('un virement passé à la main, sans fiche, reste en acquisition et en cession · la liaison décide, jamais le compte', async () => {
+    const s = service({ e1: balanceEnCours('23110000', '23910000') });
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(val(n5b, 'Bâtiments hors immeuble de placement')).toEqual({
+      OUVERTURE: 0, AUGMENTATIONS: 2 * CINQUANTE, DIMINUTIONS: CINQUANTE, CLOTURE: CINQUANTE,
+    });
+  });
+
+  it('sans colonne de virements (5C, location-acquisition) · le virement reste dans B, total du texte', async () => {
+    const s = service({ e1: balanceEnCours('23160000', '23910000') }, [], prismaAvec(), sansBudget(), etatsVides(), {
+      e1: viree('23160000', '23910000'),
+    });
+    const n5c = note(await s.notesAssociations('t', 'e1'), '5C');
+    expect(val(n5c, 'Bâtiments')).toEqual({ OUVERTURE: 0, AUGMENTATIONS: CINQUANTE, DIMINUTIONS: 0, CLOTURE: CINQUANTE });
   });
 });

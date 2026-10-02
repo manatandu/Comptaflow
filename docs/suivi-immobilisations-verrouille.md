@@ -47,7 +47,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 |---|---|---|
 | E4 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, gardé par un test | refusé deux fois en relecture (incomplet, conflits avec main, listes vides muettes dans les écrans d'immobilisation) · à refaire sur main à jour, après E2 |
 
-| E5 | Notes 3A, 5A et 3A · la mise en service d'un bien en cours n'est ni une acquisition ni une cession, elle ne gonfle plus les mouvements (D6) | agent en cours |
+| E5 | Notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) · la mise en service d'un bien en cours n'est ni une acquisition ni une cession · reconnue par `ecritureMiseEnServiceId`, elle va aux colonnes « Virements de poste à poste » (en plus sur le définitif, en moins sur l'en-cours, D inchangé) ; TFT SYCEBNL, crédit lié du 219 et du 229 retranché de FI (D6) | livré, à intégrer |
 
 ## À faire, dans l'ordre
 

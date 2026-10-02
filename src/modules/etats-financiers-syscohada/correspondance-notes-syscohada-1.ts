@@ -102,9 +102,10 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  *
  * Le texte pose lui-même « D = A + B - C » (note 3B, 3C). A est le report
  * à-nouveau, B et C les mouvements propres de l'exercice, D est RECALCULÉ et
- * confronté au solde réel (`ecartCloture`). Les sous-colonnes que la balance
- * ne distingue pas d'un mouvement ordinaire (virements de poste à poste,
- * réévaluation) sont déclarées LIBRE · anomalie n° 9.
+ * confronté au solde réel (`ecartCloture`). La réévaluation, que la balance
+ * ne distingue pas d'un mouvement ordinaire, est déclarée LIBRE · anomalie
+ * n° 9 ; les virements de poste à poste sont servis pour la mise en service
+ * d'un bien en cours, reconnue par la fiche (même anomalie, D6).
  *
  * ## ANOMALIES du texte officiel, rencontrées et tranchées ici
  *
@@ -223,8 +224,19 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  * 9. **Colonnes de virements et de réévaluation (3A, 3B)** · un virement de
  *    poste à poste ou une réévaluation ne se distingue pas, en balance, d'une
  *    acquisition ou d'une cession : ce sont des débits et des crédits sur
- *    les mêmes comptes. Ces sous-colonnes sont déclarées LIBRE (saisie) ; B
- *    et C portent le TOTAL des mouvements, et D = A + B - C reste juste.
+ *    les mêmes comptes. La réévaluation reste LIBRE et vide ; B et C la
+ *    portent dans « Acquisitions » et « Cessions », et D = A + B - C reste
+ *    juste. LES VIREMENTS DE POSTE À POSTE SONT SERVIS DEPUIS LE 2026-10-01
+ *    (décision D6 de Manasse) pour ce que le logiciel SAIT être un virement ·
+ *    la mise en service d'un bien inscrit en cours (D compte définitif / C
+ *    2x9, Titre VII, fiches des comptes 21 à 24), reconnue par la liaison de
+ *    la fiche et jamais par le compte (`virements-mise-en-service.ts`). Elle
+ *    sort des acquisitions et des cessions et va aux deux colonnes de
+ *    virements · en plus sur la ligne du compte définitif, en moins sur celle
+ *    de l'en-cours, sur la même ligne quand le modèle les y range (2391 avec
+ *    231). ÉCART RESTANT, ASSUMÉ · un virement passé à la main, ou un
+ *    reclassement (`ImmobilisationService.reclasser`), reste compté en
+ *    acquisition et en cession, faute de liaison qui le dise.
  *
  * 10. **NOTE 3C, immeubles de placement** · le brut distingue 2281, 2315 et
  *    2325, mais le plan n'a AUCUN compte d'amortissement dédié (282 ne
@@ -577,10 +589,11 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
   {
     code: '3A',
     titre: 'IMMOBILISATION BRUTE',
-    // Sept colonnes officielles. B « Acquisitions, Apports, Créations » et C
-    // « Cessions, Scissions, Hors service » portent le total des mouvements
-    // débit et crédit ; les sous-colonnes de virements et de réévaluation
-    // sont en saisie (anomalie n° 9). Le ch. 6 liste les colonnes de la 3A à
+    // Sept colonnes officielles. « Acquisitions, Apports, Créations » et
+    // « Cessions, Scissions, Hors service » portent les mouvements débit et
+    // crédit, hors mise en service d'un bien en cours, servie aux deux
+    // colonnes « Virements de poste à poste » ; la réévaluation reste LIBRE
+    // (anomalie n° 9). Le ch. 6 liste les colonnes de la 3A à
     // plat et écrit DEUX fois « Virements de poste à poste » ; la maquette,
     // elle, les range sous les en-têtes AUGMENTATIONS et DIMINUTIONS, comme
     // le ch. 6 l'écrit explicitement pour la 3B (« B · AUGMENTATIONS
@@ -592,10 +605,10 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     colonnes: [
       { type: 'OUVERTURE' as const, libelle: "MONTANT BRUT À L'OUVERTURE DE L'EXERCICE" },
       { type: 'AUGMENTATIONS' as const, libelle: 'Acquisitions, Apports, Créations' },
-      { type: 'LIBRE' as const, libelle: 'AUGMENTATIONS : Virements de poste à poste' },
+      { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'AUGMENTATIONS : Virements de poste à poste' },
       { type: 'LIBRE' as const, libelle: "Suite à une réévaluation pratiquée au cours de l'exercice" },
       { type: 'DIMINUTIONS' as const, libelle: 'Cessions, Scissions, Hors service' },
-      { type: 'LIBRE' as const, libelle: 'DIMINUTIONS : Virements de poste à poste' },
+      { type: 'VIREMENTS_DIMINUTION' as const, libelle: 'DIMINUTIONS : Virements de poste à poste' },
       { type: 'CLOTURE' as const, libelle: "MONTANT BRUT À LA CLÔTURE DE L'EXERCICE" },
     ],
     // Le bilan (ch. 3) renvoie AD, AI et AP à la note « 3 » sans lettre : la
@@ -654,22 +667,25 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     // La première colonne qualifie le contrat (I, M, A), elle ne porte pas
     // de montant et aucun compte ne la dit : elle se SAISIT, sur les lignes
     // incorporelles (en saisie entière) comme sur les lignes chiffrées, d'où
-    // leurs `cle` (`cellules-libres-en-saisie.ts`). Les sous-colonnes de B et
-    // C qui ne se lisent pas en balance (anomalie n° 9) ne se saisissent que
-    // sur les lignes incorporelles · ce sont des MONTANTS, et sur une ligne
-    // chiffrée ils seraient une seconde source à côté du A, du B et du D que
-    // la balance calcule.
+    // leurs `cle` (`cellules-libres-en-saisie.ts`). La sous-colonne de
+    // réévaluation, qui ne se lit pas en balance (anomalie n° 9), ne se
+    // saisit que sur les lignes incorporelles · c'est un MONTANT, et sur une
+    // ligne chiffrée elle serait une seconde source à côté du A, du B et du D
+    // que la balance calcule. Les virements de poste à poste servent la mise
+    // en service d'un bien en cours vers un compte de location-acquisition
+    // (2391 vers 2316, par exemple · l'en-cours n'est pas dans ce tableau, le
+    // bien y entre par virement).
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'NATURE DU CONTRAT (I ; M ; A)', saisieSurLigneChiffree: true },
       { type: 'OUVERTURE' as const, libelle: "A · MONTANT BRUT À L'OUVERTURE" },
       { type: 'AUGMENTATIONS' as const, libelle: 'B · AUGMENTATIONS : Acquisitions/Apports/Créations' },
-      { type: 'LIBRE' as const, libelle: 'B · AUGMENTATIONS : Virements de poste à poste' },
+      { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'B · AUGMENTATIONS : Virements de poste à poste' },
       {
         type: 'LIBRE' as const,
         libelle: "B · AUGMENTATIONS : Suite à une réévaluation pratiquée au cours de l'exercice",
       },
       { type: 'DIMINUTIONS' as const, libelle: 'C · DIMINUTIONS : Cessions/Scissions/Hors service' },
-      { type: 'LIBRE' as const, libelle: 'C · DIMINUTIONS : Virements de poste à poste' },
+      { type: 'VIREMENTS_DIMINUTION' as const, libelle: 'C · DIMINUTIONS : Virements de poste à poste' },
       { type: 'CLOTURE' as const, libelle: 'D = A + B - C · MONTANT BRUT À LA CLÔTURE' },
     ],
     // Les biens pris en location-acquisition sont les divisionnaires que le

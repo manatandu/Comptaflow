@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ClasseCompte } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { AUCUN_VIREMENT, VirementsParCompte } from '../immobilisations/virements-mise-en-service';
 import { ExerciceService } from '../exercice/exercice.service';
 import {
   CompteDuPoste,
@@ -520,7 +521,11 @@ export class EtatsFinanciersService {
    * d'un compte d'immobilisation serait lu comme une acquisition de
    * l'exercice, et tout le tableau serait faux dès le deuxième exercice.
    */
-  private fluxDuPoste(poste: PosteFluxTresorerie, lignes: LigneBalancePourBilan[]): CompteDuPoste[] {
+  private fluxDuPoste(
+    poste: PosteFluxTresorerie,
+    lignes: LigneBalancePourBilan[],
+    virements: VirementsParCompte = AUCUN_VIREMENT,
+  ): CompteDuPoste[] {
     const comptes: CompteDuPoste[] = [];
     for (const l of lignes) {
       const enFlux = correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux);
@@ -529,7 +534,12 @@ export class EtatsFinanciersService {
       // immobilisée, reprise au 792). Un même compte peut être lu des deux
       // côtés (le 239 : débit payé, crédit viré) · une seule ligne, nette.
       const retranche = (poste.creditsARetrancher ?? []).some((r) => correspond(l.numero, r.comptes, r.exclusions));
-      if (!enFlux && !retranche) continue;
+      // D6 · la mise en service LIÉE à une fiche, sur un compte que la liste
+      // ci-dessus ne retranche pas déjà en entier (le 219, le 229) · sinon
+      // le 239 perdrait deux fois le même crédit.
+      const viree =
+        poste.misesEnServiceARetrancher && !retranche ? (virements.get(l.compteId)?.credit ?? 0) : 0;
+      if (!enFlux && !retranche && !viree) continue;
       let montant = 0;
       if (enFlux) {
         switch (poste.lectureFlux) {
@@ -548,6 +558,7 @@ export class EtatsFinanciersService {
         }
       }
       if (retranche) montant -= l.mouvementCredit;
+      montant -= viree;
       if (Math.abs(montant) > 0.005) comptes.push({ numero: l.numero, intitule: l.intitule, montant });
     }
     return comptes;
@@ -580,8 +591,9 @@ export class EtatsFinanciersService {
     poste: PosteFluxTresorerie,
     lignesN: LigneBalancePourBilan[],
     lignesN1: LigneBalancePourBilan[],
+    virementsN: VirementsParCompte = AUCUN_VIREMENT,
   ): PosteCalcule & { flux: number; variationContrepartie: number } {
-    const comptes = this.fluxDuPoste(poste, lignesN);
+    const comptes = this.fluxDuPoste(poste, lignesN, virementsN);
     const flux = comptes.reduce((s, c) => s + c.montant, 0);
     const contrepartieN = this.contrepartieDuPoste(poste, lignesN);
     const contrepartieN1 = this.contrepartieDuPoste(poste, lignesN1);
@@ -628,6 +640,9 @@ export class EtatsFinanciersService {
   private resoudreFluxPourExercice(
     lignesCourant: LigneBalancePourBilan[],
     lignesAnterieur: LigneBalancePourBilan[],
+    // Les mises en service de l'exercice COURANT (D6), lues sur les mêmes
+    // écritures que ses mouvements.
+    virementsCourant: VirementsParCompte = AUCUN_VIREMENT,
   ): {
     parRef: Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>;
     tresorerieOuverture: number;
@@ -648,7 +663,7 @@ export class EtatsFinanciersService {
     });
 
     for (const poste of TOUS_LES_POSTES_FLUX) {
-      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesCourant, lignesAnterieur));
+      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesCourant, lignesAnterieur, virementsCourant));
     }
     for (const total of TOTAUX_FLUX) {
       parRef.set(total.ref, {
@@ -681,17 +696,20 @@ export class EtatsFinanciersService {
   async tableauFluxTresorerie(tenantId: string, exerciceId: string) {
     const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
     const exerciceN2Id = exerciceN1Id ? await this.trouverExerciceN1(tenantId, exerciceN1Id) : null;
-    const [lignesN, lignesN1, lignesN2] = await Promise.all([
+    const [lignesN, lignesN1, lignesN2, virementsN, virementsN1] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceN1Id),
       this.chargerLignes(tenantId, exerciceN2Id),
+      // Chaque colonne retranche SES mises en service (D6).
+      this.ecritureService.virementsDeMiseEnService(tenantId, exerciceId),
+      this.ecritureService.virementsDeMiseEnService(tenantId, exerciceN1Id),
     ]);
 
-    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1);
+    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1, virementsN);
     // Colonne N-1 : seulement si un exercice N-1 existe · jamais un faux
     // zéro pour un dossier à son premier exercice (même discipline que
     // partout ailleurs dans ce service).
-    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2) : null;
+    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2, virementsN1) : null;
 
     const REFS_TOTAUX = new Set(['ZA', 'ZB', 'ZC', 'ZD', 'ZE', 'ZF', 'ZG', '']);
     const lignesAffichees = ORDRE_AFFICHAGE_FLUX.map((entree) => {
