@@ -43,12 +43,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 | F17 | Notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) · la mise en service d'un bien en cours n'est ni une acquisition ni une cession · reconnue par `ecritureMiseEnServiceId`, elle va aux colonnes « Virements de poste à poste » (en plus sur le définitif, en moins sur l'en-cours, D inchangé) ; TFT SYCEBNL, crédit lié du 219 et du 229 retranché de FI (ex-E5, D6) | Cloud Run 473, Hosting 601, tests 246 |
 | F18 | Coûts d'emprunt incorporés montrés aux Notes annexes en lecture seule (ex-A2, D1), « Réglé par » devenu « Contrepartie » (D2), fonds de projet en sommeil refusé au serveur (D3) | Cloud Run 474, Hosting 603, tests 248 |
 | F19 | Comptes retenus · toutes les listes de choix de comptes ne proposent que les comptes retenus et ceux déjà utilisés, un compte prescrit seul jamais retiré (octroi, affectation, 12, 167 et 4861, 29 de la division, 4739 du remboursement), gardé des deux côtés par une table unique (ex-E4) | Cloud Run 475, Hosting 605, tests 250 |
+| F20 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements, Opérations, Lieux, sans changement de comportement ; ce qui porte sur un bien reste sur sa ligne (échange compris) (ex-A1) | Hosting 607, tests 252 (client seul, Cloud Run non déclenché) |
 
 ## En cours
 
 | # | Objet | État |
 |---|---|---|
-| A1 | Écran Immobilisations rangé en onglets · Biens, Tableaux, Financements (subventions, fonds, legs), Opérations (prix global, clôture des contrats de location-acquisition), Lieux (administrateur seul, comme le bouton qu'il remplace). L'échange reste sur la ligne de son bien, dans Biens, comme tout ce qui porte sur un seul bien. Onglet mémorisé par poste (`lib/onglets-immobilisations.ts`), panneau visité gardé monté (saisie conservée), tableaux relus à chaque visite comme avant | livré, à intégrer |
 
 ## À faire, dans l'ordre
 
