@@ -33,11 +33,39 @@ compte de tiers qu'il ajuste) ; rien des disponibilités.
 
 ## Fait
 
-(au fil des commits)
+1. `extourner` ne contre-passe que l'écart de conversion · partage par la
+   RACINE (`ecarts-disponibilites.ts`, `partagerLignesDEcarts` · 52, 53,
+   55, 57, 58 et 676 / 776 restent), deux parts équilibrées sinon refus
+   nommé ; réévaluation des seules disponibilités · refus nommé (rien à
+   contre-passer).
+2. La banque part en N+1 de sa valeur de clôture de N · l'écart de chaque
+   disponibilité est gardé (`Reevaluation.ecartsDisponibilites`, migration
+   `20270120000000`) et `calculer` l'ajoute à la valeur comptable par
+   `ecartsReportesDesDisponibilites`, en remontant les reports d'OmegaX
+   (SOLDE et DÉTAIL), jamais par libellé. Réévaluation antérieure sans
+   écart gardé · relu sur son écriture (une seule devise sur le compte, ou
+   cours gardé D5 et somme au centime), sinon réserve et passage refusé.
+   À-nouveau provisoire antérieur à la validation de l'écart · réserve.
+   Ancien régime (contre-passation qui a inversé la banque) · rien reporté,
+   total juste (gain N+1 net de la contre-passation).
+3. `reevaluerSousVerrou` refuse tant que la réévaluation de l'exercice
+   précédent porte un 478 / 479 non contre-passé (Application 85),
+   issue nommée.
+4. Contrôle 32 `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
+   anciennes contre-passations qui ont inversé une banque ou une caisse,
+   issue selon l'exercice de la réévaluation (D6 si ouvert ; sinon au
+   cabinet, sans repasser la ligne de la banque à la main).
+5. Commentaire de `report-a-nouveau.ts` mis à jour.
+
+Décision non tranchée par le texte, retenue · la valeur de la banque en
+N+1 se lit par la chaîne des réévaluations, l'à-nouveau ne portant pas
+l'écart sur la ligne de sa devise (écart passé sans devise, F55).
 
 ## Reste
 
-(au fil des commits)
+- Bloc du § 3 complet (serveur et client) à repasser à l'intégration.
+- `prisma migrate diff` contre une base jetable (aucune base ici).
+- Relectures (silent-failure-hunter, typescript-reviewer) à l'intégration.
 
 ## Vérification
 
