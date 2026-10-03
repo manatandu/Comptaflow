@@ -140,6 +140,13 @@ export const MODELES_AUDITES = new Set<string>([
   'ReevaluationBilan',
   'RepriseProvisionReevaluation',
   'MouvementDemantelement',
+  // Les créances douteuses (ligne A7) · le motif, les pièces et la dépréciation
+  // déclarée justifient la charge (fiche du compte 49) · retouchés après coup,
+  // le dossier de révision montrerait une justification qui n'était pas celle
+  // de la décision.
+  'CreanceDouteuse',
+  'AjustementCreanceDouteuse',
+  'MouvementCreanceDouteuse',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

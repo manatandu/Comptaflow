@@ -64,6 +64,13 @@ export const LISTES_DE_COMPTES: Readonly<Record<string, RegimeListeDeComptes>> =
       '378 au SYCEBNL (fiche du compte 37), seule racine admise par le serveur · la reprise en est presque toujours le ' +
       'premier mouvement, la règle viderait la liste.',
   },
+  '/creances-douteuses/comptes': {
+    regime: 'texte',
+    motif:
+      'Le reclassement se fait au 416 que la fiche du compte 41 prescrit (« crédité des créances litigieuses ou douteuses, par le ' +
+      "débit du compte 416 »), seule racine admise par le serveur, et le reclassement en est souvent le premier mouvement · les " +
+      'créances proposées sont celles que la balance montre débitrices, chacune déjà utilisée.',
+  },
   '/affectation-resultat/exercice/:exerciceId': {
     regime: 'texte',
     motif:

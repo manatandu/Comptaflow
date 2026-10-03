@@ -328,6 +328,9 @@ export function AppShell() {
           titre: 'Clôture',
           items: [
             { label: 'Régularisations et abonnements', chemin: '/regularisations', onClick: () => navigate('/regularisations') },
+            // Reclassement au 416, dépréciation revue à la clôture, perte ·
+            // chaque geste passe une écriture (ligne A7).
+            { label: 'Créances douteuses ou litigieuses', chemin: '/creances-douteuses', onClick: () => navigate('/creances-douteuses') },
             { label: 'Devises et réévaluation', chemin: '/devises', onClick: () => navigate('/devises') },
             // Geste ANNUEL, décidé par un organe · ouvert aux deux référentiels.
             { label: 'Affectation du résultat', chemin: '/affectation-resultat', onClick: () => navigate('/affectation-resultat') },

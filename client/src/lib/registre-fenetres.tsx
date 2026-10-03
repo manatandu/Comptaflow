@@ -65,6 +65,7 @@ const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => 
 const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
 const BalanceFonctionnellePage = lazy(() => import('../pages/BalanceFonctionnellePage').then((m) => ({ default: m.BalanceFonctionnellePage })));
 const ProvisionsPage = lazy(() => import('../pages/ProvisionsPage').then((m) => ({ default: m.ProvisionsPage })));
+const CreancesDouteusesPage = lazy(() => import('../pages/CreancesDouteusesPage').then((m) => ({ default: m.CreancesDouteusesPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
 const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
@@ -410,6 +411,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Registre des provisions pour risques et charges',
     titreCourt: 'Provisions',
     rendre: () => <ProvisionsPage />,
+  },
+  {
+    // AUCUN `referentielsApplicables` · les fiches des comptes 41, 49, 65 et
+    // 759 valent aux deux plans ; le serveur résout la nomenclature (le 4161
+    // et le 4162 n'ont pas le même sens). Ligne A7.
+    motif: /^\/creances-douteuses$/,
+    titre: 'Créances douteuses ou litigieuses',
+    titreCourt: 'Créances douteuses',
+    rendre: () => <CreancesDouteusesPage />,
   },
   {
     // Le SECOND jeu · la comptabilité reste tenue et arrêtée en francs, et cet

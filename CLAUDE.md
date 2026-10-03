@@ -617,6 +617,30 @@ francs sans montant en devise sont refusés ; un lot de virements ne rappelle pa
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.
 
+**Créances douteuses ou litigieuses (ligne A7, relevé CPCC C3, 2026-10-03).**
+Fiches des comptes 41, 49, 65 et 759 des deux plans (`creances-douteuses/`) · la
+créance qui devient litigieuse (le client conteste) ou douteuse (il se dérobe) se
+RECLASSE au 416 (D 416 / C compte du client), une ligne par créance
+(`CreanceDouteuse`), MOTIF et PIÈCES exigés (fiche du 49, « élément individualisé »,
+« justifier les motifs »). AUCUN POURCENTAGE PAR ÂGE · à chaque clôture le cabinet
+DÉCLARE la dépréciation nécessaire, motivée, et seul l'ÉCART avec celle en place
+se passe au dernier jour de l'exercice (D 6594 / C 491, ou D 491 / C 7594 ;
+maintenue, la revue est gardée sans écriture). En place = revues antérieures du
+MODULE, jamais le solde du 491 ; revue dans l'ordre (N+1 refusée tant que N ouvert
+n'est pas revu), bornée par ce qui reste au 416 ; dotation refusée au SMT
+(`motifRefusDepreciationSmt`), reprise ouverte. Perte D 651 / C 416 (fiche du 65),
+recouvrement D trésorerie du journal / C 416 ; un mouvement daté avant une revue
+déjà passée est refusé. UN NUMÉRO, DEUX SENS · 4161 et 4162 disent la NATURE au
+SYSCOHADA (litigieuses, douteuses ; croisé, refusé), le DÉBITEUR au SYCEBNL
+(adhérents cotisations, créances des clients-usagers ; proposé, jamais imposé) ;
+491 (4911, 4912) commun ; 6512 « Adhérents » au SYCEBNL seul. Créance en devise non
+lettrée refusée (art. 54, 55), non servie. Trois tables d'acte au journal d'audit,
+écritures RETENUES (`detenteurs-ecriture.ts`), retirées au brouillard du plus
+récent au plus ancien. NON TRANCHÉ · hors taxe ou taxe comprise (aucune fiche ne le
+dit de la dépréciation, le ch. 15 § 1.3.1 ne le dit que de l'ABANDON), TVA d'une
+créance irrécouvrable (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127) ·
+le cabinet déclare le montant, la question est à Manasse.
+
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
 caisse DE SECOURS » · un PV par caisse. QUATRE REFUS : un 57 seul (un 52 se

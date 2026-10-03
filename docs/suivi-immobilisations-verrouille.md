@@ -53,12 +53,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
+| A7 | Dépréciation des créances dossier par dossier · 411 vers 416, D 659 / C 491, motif et pièces (AUDCIF Titre VII, comptes 41 et 49) · relevé CPCC C3 | livré, à intégrer · module `creances-douteuses` (trois tables, migration écrite à la main, diff vérifié) · reclassement au 416 (4161 / 4162 selon la nature au SYSCOHADA, selon le débiteur au SYCEBNL), motif et pièces exigés, revue de la dépréciation à chaque clôture où seul l'écart avec la dépréciation en place du module se passe (D 6594 / C 491, D 491 / C 7594), dans l'ordre des exercices, bornée par le reste au 416, aucune dotation au SMT, perte D 651 / C 416 (6512 pour un adhérent au SYCEBNL), recouvrement D trésorerie / C 416, rapprochement avec les soldes du 416 et du 491, écritures retenues, retrait au brouillard ; fenêtre « Créances douteuses ou litigieuses » sous Traitement > Clôture ; parcours e2e ; questions ouvertes · hors taxe ou TTC, TVA de la créance irrécouvrable (art. 52), lecture SYCEBNL du 4161 et du 4162 |
 
 ## À faire, dans l'ordre
 
 | # | Objet | Préalable |
 |---|---|---|
-| A7 | Dépréciation des créances dossier par dossier · 411 vers 416, D 659 / C 491, motif et pièces (AUDCIF Titre VII, comptes 41 et 49) · relevé CPCC C3 | décision de Manasse du 2026-10-02 |
 | A8 | Décompte final au journal (D 6614 / C 422) et émis figé avec retenues et net (AUDCIF Titre VIII ch. 21 § 5.2 ; Code du travail art. 103) · relevé CPCC C4 | décision de Manasse du 2026-10-02 ; IMPÔT TRANCHÉ le 2026-10-02 · barème du mois (art. 118 et 119, annualisation du mois comme le bulletin) avec réserve écrite sur le versement unique ; COEXISTENCE TRANCHÉE le 2026-10-02 · le décompte REMPLACE le bulletin du dernier mois (il porte le salaire du mois de cessation avec les indemnités ; un bulletin actif du même mois refuse l'émission du décompte, et inversement) |
 | A9 | Décompte final · art. 66 al. 1 (départ à mi-préavis, rémunération due jusqu'au terme) et art. 67 (nouvel emploi, perte du reste) modélisés (Code du travail art. 66, 67) · relevé CPCC C5 | A8 intégré (même fichier) |
 | A10 | Caisse comptée après le 31 décembre · solde lu au livre-journal à la date du comptage et reconstitution vers la clôture dans le PV de caisse (AUDCIF art. 16 ; fiche du compte 57) · relevé CPCC C6 | décision de Manasse du 2026-10-02 |

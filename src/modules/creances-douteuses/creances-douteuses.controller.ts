@@ -1,0 +1,93 @@
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { RoleUtilisateur } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LicenceGuard } from '../licence/licence.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
+import { CreancesDouteusesService } from './creances-douteuses.service';
+import { PerteCreanceDto, ReclasserCreanceDto, RecouvrementCreanceDto, RevoirDepreciationDto } from './dto/creances-douteuses.dto';
+
+/**
+ * CRÉANCES DOUTEUSES OU LITIGIEUSES (ligne A7) · AUCUN `@ReferentielsAutorises`.
+ * Les fiches des comptes 41, 49, 65 et 759 se lisent aux DEUX plans avec la
+ * même mécanique ; ce qui diverge est la NOMENCLATURE (le 4161 et le 4162, le
+ * 651), et c'est le service qui la résout selon le dossier, jamais la route.
+ * Écritures aux mêmes droits que les régularisations ; lectures ouvertes.
+ */
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+@Controller('creances-douteuses')
+export class CreancesDouteusesController {
+  constructor(private readonly service: CreancesDouteusesService) {}
+
+  @Get()
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.lister(user.tenantId, exerciceId);
+  }
+
+  /** Les créances à solde débiteur (lues sur la balance) et les 416 que le texte prescrit. */
+  @Get('comptes')
+  comptes(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.comptes(user.tenantId, exerciceId);
+  }
+
+  @Get(':id/revue')
+  propositionRevue(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.service.propositionRevue(user.tenantId, id, exerciceId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post()
+  reclasser(@CurrentUser() user: AuthenticatedUser, @Body() dto: ReclasserCreanceDto) {
+    return this.service.reclasser(user.tenantId, user.userId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/revue')
+  revoir(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RevoirDepreciationDto) {
+    return this.service.revoir(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/perte')
+  perte(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PerteCreanceDto) {
+    return this.service.perte(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/recouvrement')
+  recouvrement(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RecouvrementCreanceDto) {
+    return this.service.recouvrement(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete(':id')
+  retirer(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.retirerCreance(user.tenantId, id);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete(':id/revues/:revueId')
+  retirerRevue(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('revueId', ParseUUIDPipe) revueId: string,
+  ) {
+    return this.service.retirerRevue(user.tenantId, id, revueId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete(':id/mouvements/:mouvementId')
+  retirerMouvement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('mouvementId', ParseUUIDPipe) mouvementId: string,
+  ) {
+    return this.service.retirerMouvement(user.tenantId, id, mouvementId);
+  }
+}
