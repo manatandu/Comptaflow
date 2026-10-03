@@ -168,7 +168,7 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     ).rejects.toThrow(/400 · .*Ne lettrez pas la facture avec le reclassement/);
 
     // A7 ter, B2 · la perte qui éteint la créance lettre ses lignes du 416.
-    const derniere = await appelApi<{ lettrage416: { pose: boolean; code?: string } | null }>(page, 'POST', `/creances-douteuses/${creance.id}/perte`, {
+    const derniere = await appelApi<{ id: string; lettrage416: { pose: boolean; code?: string } | null }>(page, 'POST', `/creances-douteuses/${creance.id}/perte`, {
       exerciceId: exercice.id,
       journalId: od.id,
       date: `${annee}-12-21`,
@@ -177,6 +177,26 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
       pieces: [{ nature: 'Certificat d’irrécouvrabilité', reference: 'CI-2' }],
     });
     expect(derniere.lettrage416).toMatchObject({ pose: true });
+
+    // A7 ter, B2b · la période close APRÈS l'extinction n'enferme pas la
+    // créance. Tout est validé, la période est close au 30 novembre · la ligne
+    // du reclassement (15 novembre) fige le groupe du module. L'annulation de
+    // la dernière perte s'inscrit en négatif à côté du groupe, qui reste en
+    // place, et la balance rend 1 060 000 au 416 et 100 000 à la perte.
+    await appelApi(page, 'POST', '/ecritures/valider-jusqua', { exerciceId: exercice.id, dateLimite: `${annee}-12-31` });
+    await appelApi(page, 'POST', `/exercices/${exercice.id}/clotures/periode`, { dateLimite: `${annee}-11-30` });
+    const annulee = await appelApi<{ annulation: { traitement: string; lettrageMaintenu?: string }; information?: string }>(
+      page,
+      'POST',
+      `/creances-douteuses/${creance.id}/mouvements/${derniere.id}/annuler`,
+      { motif: 'Le liquidateur annonce un dividende' },
+    );
+    expect(annulee.annulation).toMatchObject({ traitement: 'INSCRITE_EN_NEGATIF', lettrageMaintenu: expect.any(String) });
+    expect(annulee.information).toMatch(/reste en place/);
+    const { lignes: balance } = await appelApi<{ lignes: Array<{ numero: string; solde: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${exercice.id}`);
+    const soldeSous = (racine: string) => balance.filter((l) => l.numero.startsWith(racine)).reduce((t, l) => t + l.solde, 0);
+    expect(soldeSous('416')).toBe(1_060_000);
+    expect(soldeSous('651')).toBe(100_000);
     expect(pannes).toEqual([]);
   });
 }

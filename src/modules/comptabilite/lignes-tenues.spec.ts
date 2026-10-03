@@ -21,6 +21,14 @@ describe('les issues d’une ligne lettrée ou pointée', () => {
     expect(motif).toMatch(/Délettrez-les d’abord\. Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus/);
   });
 
+  it('A7 ter, B2b · seul le groupe TOLÉRÉ est ignoré · toute autre ligne lettrée ou pointée refuse comme avant', () => {
+    const module = { ...libre, lettre: 'A', lettrageId: 'g-A' };
+    expect(motifLignesTenues([module, libre], 'cette écriture', 'annuler', '', 'g-A')).toBeNull();
+    expect(motifLignesTenues([module, { ...libre, lettre: 'B', lettrageId: 'g-B' }], 'cette écriture', 'annuler', '', 'g-A')).toMatch(/1 ligne\(s\) .*lettrées \(B\)/);
+    expect(motifLignesTenues([module, { ...libre, rapprochementId: 'r' }], 'cette écriture', 'annuler', '', 'g-A')).toMatch(/pointées/);
+    expect(motifLignesTenues([module], 'cette écriture', 'annuler')).toMatch(/lettrées \(A\)/);
+  });
+
   it('les gestes cités existent tels qu’ils sont décrits', () => {
     const rapprochement = readFileSync(join(__dirname, '../rapprochement/rapprochement.controller.ts'), 'utf8');
     expect(rapprochement).toContain("@Post(':id/rouvrir')");

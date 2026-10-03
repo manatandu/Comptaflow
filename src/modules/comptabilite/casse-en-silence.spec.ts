@@ -341,6 +341,34 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
   it('laisse partir une écriture que personne ne tient', async () => {
     await expect(serviceEcriture().supprimer('t1', 'e1')).resolves.toEqual({ supprime: true });
   });
+
+  // A7 ter, mineur 7 · le module qui tient l'écriture défait SON lettrage dans
+  // la transaction de la suppression · le refus des lignes lettrées tolère ce
+  // groupe avant, et se rejoue dedans, après `liberer`.
+  it('A7 ter · le lettrage que le module défait dans `liberer` est toléré, et relu dans la transaction', async () => {
+    const s = serviceEcriture({ mouvementCreanceDouteuse: 1 });
+    const prisma = (s as any).prisma;
+    const tete = await prisma.ecriture.findFirst();
+    prisma.ecriture.findFirst.mockResolvedValue({ ...tete, lignes: [{ lettre: 'A', lettrageId: 'g-A', rapprochementId: null }] });
+    // Sans la tolérance, la ligne lettrée refuse avant toute transaction.
+    await expect(
+      s.supprimer('t1', 'e1', { detenteur: 'une créance douteuse (perte ou recouvrement)', liberer: jest.fn() }),
+    ).rejects.toThrow(/lettrée \(A\)/);
+    // Toléré, `liberer` défait le groupe · relue après lui, la ligne est libre et l'écriture part.
+    prisma.ligneEcriture.findMany.mockResolvedValue([{ lettre: null, lettrageId: null }]);
+    const liberer = jest.fn().mockResolvedValue(undefined);
+    await expect(
+      s.supprimer('t1', 'e1', { detenteur: 'une créance douteuse (perte ou recouvrement)', liberer, lettrageTolere: 'g-A' }),
+    ).resolves.toEqual({ supprime: true });
+    expect(liberer).toHaveBeenCalled();
+    // Un groupe posé entre-temps, encore là après `liberer`, refuse DANS la transaction.
+    prisma.ligneEcriture.findMany.mockResolvedValue([{ lettre: 'B', lettrageId: 'g-B' }]);
+    prisma.ecriture.delete.mockClear();
+    await expect(
+      s.supprimer('t1', 'e1', { detenteur: 'une créance douteuse (perte ou recouvrement)', liberer, lettrageTolere: 'g-A' }),
+    ).rejects.toThrow(/lettrée \(B\).*avant de supprimer/);
+    expect(prisma.ecriture.delete).not.toHaveBeenCalled();
+  });
 });
 
 /**

@@ -595,6 +595,36 @@ export function motifNonRetirable(p: {
   return null;
 }
 
+/**
+ * B2b (relecture adverse d'A7 ter) · LE LETTRAGE DU MODULE FIGÉ PAR UNE
+ * CLÔTURE. Une clôture de période, totale ou d'exercice fige le lettrage
+ * (`gel-cloture.ts`) · le groupe que le module a posé à l'extinction de la
+ * créance ne se défait plus dès qu'une de ses lignes tombe sous la clôture
+ * (le reclassement du 15 novembre, la période close au 30). Il RESTE EN
+ * PLACE · soldé sur les lignes qu'il réunit, ce qu'il affirme reste vrai.
+ *
+ * Validée, l'écriture du geste s'annule par inscription en négatif à côté de
+ * lui (AUDCIF art. 20, al. 2), datée au premier jour non clôturé si sa date
+ * l'est (art. 22, 4°) · la ligne en négatif, ouverte, porte le reste rétabli.
+ * Au brouillard, la supprimer laisserait le groupe « soldé » sur une ligne
+ * disparue · refus nommé, avec l'issue · valider, puis annuler.
+ */
+export function motifLettrageFigeAuBrouillard(code: string, figee: string, objet: 'le mouvement' | 'le reclassement'): string {
+  return (
+    `Le lettrage ${code} que le module a posé à l'extinction de la créance ne se défait plus · ${figee}. ` +
+    `Supprimer cette écriture au brouillard le laisserait soldé sur une ligne disparue · validez l'écriture puis annulez ${objet} ` +
+    "(l'inscription en négatif laisse le lettrage en place, et sa ligne ouverte porte le reste rétabli)."
+  );
+}
+
+/** B2b · ce que l'annulation dit quand le lettrage du module reste en place. */
+export function informationLettrageMaintenu(code: string, figee: string): string {
+  return (
+    `Le lettrage ${code} des lignes de la créance reste en place (${figee}) · l'annulation est inscrite en négatif à côté, ` +
+    'et sa ligne ouverte porte le reste rétabli de la créance.'
+  );
+}
+
 /** La plage du motif d'annulation, celle de l'annulation d'une réévaluation des devises. */
 export const MOTIF_ANNULATION_MIN = 3;
 export const MOTIF_ANNULATION_MAX = 500;

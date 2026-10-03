@@ -438,7 +438,9 @@ export function CreancesDouteusesPage() {
     setEnvoi(true);
     setErreurAnnulation(null);
     try {
-      await api.post(chemin, { motif: annulation.motif });
+      // B2b · le lettrage du module figé par une clôture reste en place, et le serveur le dit.
+      const r = await api.post<{ information?: string }>(chemin, { motif: annulation.motif });
+      setInfo(r?.information ?? null);
       setAnnulation(null);
       setVersion((v) => v + 1);
     } catch (e) {

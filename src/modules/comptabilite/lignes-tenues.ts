@@ -37,9 +37,22 @@ export interface LigneTenue {
  * l'annulation d'une réévaluation des devises (D6). `objet` nomme ce qui est
  * lu (« cette écriture », « l'écriture n° 12 »), `geste` ce qui est refusé.
  * `null` si rien ne tient.
+ *
+ * `groupeTolere` · le SEUL groupe qu'un module a posé sur ses propres lignes
+ * et qu'il garde en place parce qu'une clôture l'a figé (ligne A7 ter, B2b ·
+ * une créance douteuse éteinte dont une ligne tombe dans une période close).
+ * L'annulation s'inscrit alors en négatif à côté du groupe, qui reste soldé
+ * sur les lignes qu'il réunit ; la ligne en négatif, ouverte, porte le reste
+ * rétabli. Toute autre ligne lettrée ou pointée refuse comme avant.
  */
-export function motifLignesTenues(lignes: LigneTenue[], objet: string, geste: string, issue = ''): string | null {
-  const lettrees = lignes.filter(estTenueParUnLettrage);
+export function motifLignesTenues(
+  lignes: LigneTenue[],
+  objet: string,
+  geste: string,
+  issue = '',
+  groupeTolere: string | null = null,
+): string | null {
+  const lettrees = lignes.filter((l) => estTenueParUnLettrage(l) && !(groupeTolere !== null && l.lettrageId === groupeTolere));
   if (lettrees.length > 0) {
     return (
       `${lettrees.length} ligne(s) de ${objet} sont lettrées (${[...new Set(lettrees.map(designationLettrage))].join(', ')}). ` +

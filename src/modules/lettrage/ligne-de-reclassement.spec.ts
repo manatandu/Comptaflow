@@ -161,11 +161,11 @@ describe('A7 ter, B2 (b) · le lettrage qu’un module pose sur ses propres lign
   // Les lignes 416 d'une créance éteinte · reclassement 1 160 000, recouvrement 760 000, perte 400 000.
   const lignes416 = () => [ligne('r', '416', 1_160_000, 0), ligne('m1', '416', 0, 760_000), ligne('m2', '416', 0, 400_000)];
 
-  it('pose un groupe SOLDÉ, a priori (origine AUTOMATIQUE_PIECE), lettre servie sur chaque ligne', async () => {
+  it('pose un groupe SOLDÉ, d’origine MODULE (lui seul le défait), lettre servie sur chaque ligne', async () => {
     const { service, groupes, lignes } = monter(lignes416());
     const r = await service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
     expect(r).toEqual({ code: 'A' });
-    expect(groupes[0]).toMatchObject({ statut: 'SOLDE', origine: OrigineLettrage.AUTOMATIQUE_PIECE, compteId: '416' });
+    expect(groupes[0]).toMatchObject({ statut: 'SOLDE', origine: OrigineLettrage.MODULE, compteId: '416' });
     expect(lignes.map((l) => l.lettre)).toEqual(['A', 'A', 'A']);
   });
 
@@ -191,5 +191,11 @@ describe('A7 ter, B2 (b) · le lettrage qu’un module pose sur ses propres lign
     await v.service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
     v.groupes[0].verrouille = true;
     await expect(v.service.defaireLettrageDuModule(v.prisma, 't1', v.groupes[0].id)).rejects.toThrow(/verrouillé/);
+    // Mineur 7 · un groupe d'une autre origine n'est jamais défait par le module.
+    const manuel = monter(lignes416());
+    await manuel.service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
+    manuel.groupes[0].origine = OrigineLettrage.MANUEL;
+    await expect(manuel.service.defaireLettrageDuModule(manuel.prisma, 't1', manuel.groupes[0].id)).rejects.toThrow(/n'a pas été posé par le module/);
+    expect(manuel.groupes).toHaveLength(1);
   });
 });

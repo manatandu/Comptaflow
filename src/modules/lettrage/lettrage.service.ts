@@ -57,13 +57,13 @@ function lettreVersIndex(lettre: string): number {
  *    déduit de la classe, il est posé compte par compte.
  *  - Lettrage automatique « a priori » : « chaque facture saisie est
  *    identifiée par un code unique, généralement le numéro de la pièce
- *    comptable. Et, chaque fois qu'on enregistre un règlement, le système
- *    impose d'enregistrer en même temps le code de la facture objet du
- *    règlement. » → première passe par référence de pièce, avant toute
- *    présomption sur les montants.
- *  - Lettrage automatique « a posteriori » : « l'ordinateur s'efforce
- *    d'associer chaque règlement à une facture en s'appuyant sur des éléments
- *    identiques des deux écritures, généralement le montant ou le libellé. »
+ *    comptable. À chaque règlement enregistré, le système impose
+ *    d'enregistrer en même temps le code de la facture réglée. » (CPCC,
+ *    ch. 6 § 2, relu le 2026-10-03) → première passe par référence de pièce,
+ *    avant toute présomption sur les montants.
+ *  - Lettrage automatique « a posteriori » : « l'ordinateur associe chaque
+ *    règlement à une facture en s'appuyant sur des éléments identiques des
+ *    deux écritures (généralement le montant ou le libellé). »
  *    → les passes par montant, conservées et enrichies.
  *  - « Verrouillage définitif ou non du lettrage » → `Lettrage.verrouille`.
  *  - « Il facilite également, pour les opérations en monnaies étrangères
@@ -830,11 +830,10 @@ export class LettrageService {
   }
 
   /**
-   * Appariement « A PRIORI » · CPCC, ch. 6 : « chaque facture saisie est
+   * Appariement « A PRIORI » · CPCC, ch. 6 § 2 : « chaque facture saisie est
    * identifiée par un code unique, généralement le numéro de la pièce
-   * comptable. Et, chaque fois qu'on enregistre un règlement, le système
-   * impose d'enregistrer en même temps le code de la facture objet du
-   * règlement. »
+   * comptable. À chaque règlement enregistré, le système impose d'enregistrer
+   * en même temps le code de la facture réglée. »
    *
    * OmegaX n'impose pas ce code à la saisie (ce serait un frein pour une
    * petite association qui règle au comptant), mais il le RECONNAÎT : quand
@@ -1131,6 +1130,14 @@ export class LettrageService {
           "Un groupe composé à la main se pose par le lettrage manuel, qui porte son origine propre. La confirmation d'un pré-lettrage conserve l'origine de la passe qui l'a trouvé.",
         );
       }
+      // L'origine MODULE n'est posée que par le module qui tient les lignes
+      // (A7 ter) · reçue d'un client, elle ferait passer un groupe pour celui
+      // que le module défait de lui-même.
+      if (g.origine !== OrigineLettrage.AUTOMATIQUE_PIECE && g.origine !== OrigineLettrage.AUTOMATIQUE_MONTANT) {
+        throw new BadRequestException(
+          "La confirmation d'un pré-lettrage ne porte que l'une des deux origines automatiques (référence de pièce, montant).",
+        );
+      }
       if (g.ligneIds.length < 2) {
         throw new BadRequestException('Un groupe de lettrage porte au moins deux lignes.');
       }
@@ -1216,11 +1223,13 @@ export class LettrageService {
   /**
    * LE LETTRAGE QU'UN MODULE POSE SUR SES PROPRES LIGNES (ligne A7 ter, B2) ·
    * aujourd'hui les lignes 416 d'une créance douteuse éteinte, reconnues par
-   * le module à leur LIAISON. Origine `AUTOMATIQUE_PIECE` · c'est l'appariement
-   * « a priori » du CPCC, ch. 6 (« chaque fois qu'on enregistre un règlement,
-   * le système impose d'enregistrer en même temps le code de la facture objet
-   * du règlement ») · chaque perte et chaque recouvrement est enregistré avec
-   * la créance qu'il solde, jamais rapproché par présomption de montant.
+   * le module à leur LIAISON. Origine `MODULE` · c'est l'appariement « a
+   * priori » du CPCC, ch. 6 § 2 (« À chaque règlement enregistré, le système
+   * impose d'enregistrer en même temps le code de la facture réglée ») ·
+   * chaque perte et chaque recouvrement est enregistré avec la créance qu'il
+   * solde, jamais rapproché par présomption de montant. L'origine propre dit
+   * que le module, et lui seul, défait ce groupe (`defaireLettrageDuModule`) ·
+   * un groupe composé à la main sur les mêmes lignes reste au lettrage.
    *
    * Le groupe se pose SOLDÉ ou pas du tout · rendu `{ motif }` quand il ne se
    * pose pas (compte non lettrable, ligne figée par une clôture, ligne déjà
@@ -1249,7 +1258,7 @@ export class LettrageService {
         this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
         const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
         if (Math.abs(solde) > EPSILON) return { motif: `Les lignes ne soldent pas (écart de ${solde.toFixed(2)}) · rien n'est lettré.` };
-        const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine: OrigineLettrage.AUTOMATIQUE_PIECE, userId });
+        const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine: OrigineLettrage.MODULE, userId });
         return { code: groupe.code };
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
@@ -1265,6 +1274,13 @@ export class LettrageService {
   async defaireLettrageDuModule(tx: Prisma.TransactionClient, tenantId: string, lettrageId: string) {
     const groupe = await tx.lettrage.findFirst({ where: { id: lettrageId, tenantId } });
     if (!groupe) return;
+    // Un groupe d'une autre origine (manuel, automatique) n'est jamais défait
+    // par un module, même posé sur ses seules lignes (A7 ter, mineur 7).
+    if (groupe.origine !== OrigineLettrage.MODULE) {
+      throw new BadRequestException(
+        `Le lettrage ${groupe.code} n'a pas été posé par le module · délettrez-le dans « Lettrage » avant de défaire le mouvement.`,
+      );
+    }
     if (groupe.verrouille) {
       throw new BadRequestException(`Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de défaire le mouvement.`);
     }
