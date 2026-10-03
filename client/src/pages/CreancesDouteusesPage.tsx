@@ -45,10 +45,12 @@ import {
  * Les écritures partent au brouillard ; retirées d'ici tant qu'elles y sont.
  *
  * LES BOUTONS SUIVENT LES DROITS DU SERVEUR (relecture « écran », 9) ·
- * reclasser, déclarer, recouvrer et retirer sont ouverts à qui écrit
- * (`peutEcrire`) ; la revue, la perte et les annulations sont réservées au
- * comptable (`peutValider`, `@ReserveAuComptable`). Masquer n'est pas
- * refuser · le serveur tient seul les droits.
+ * reclasser, déclarer, recouvrer et retirer une créance sont ouverts à qui
+ * écrit (`peutEcrire`) ; la revue, la perte, les annulations et le retrait
+ * d'un mouvement (A7 ter, m7) sont réservés au comptable (`peutValider`,
+ * `@ReserveAuComptable`). Le retrait d'une créance suit le verdict SERVI
+ * (`retirable`, m6). Masquer n'est pas refuser · le serveur tient seul les
+ * droits.
  */
 
 interface CreanceCandidate {
@@ -533,7 +535,7 @@ export function CreancesDouteusesPage() {
               {libelleSoldesProvisoires(r)}
               <Aide
                 titre="Soldes provisoires"
-                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Un report à-nouveau provisoire, calculé sur les seules écritures validées, n'en tient pas lieu : relancez-le une fois le brouillard de l'exercice précédent validé, ou clôturez cet exercice."
+                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Un report à-nouveau provisoire, calculé sur les seules écritures validées, n'en tient pas lieu : relancez-le une fois le brouillard de l'exercice précédent validé, ou clôturez l'exercice précédent."
                 source="Convention d'OmegaX"
               />
             </div>

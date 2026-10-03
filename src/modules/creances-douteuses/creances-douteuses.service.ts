@@ -406,7 +406,7 @@ export class CreancesDouteusesService {
       return (
         " Ce solde est reconstitué depuis l'exercice précédent, brouillard compris · l'à-nouveau de cet exercice n'est qu'un " +
         'report PROVISOIRE, calculé sur le seul livre-journal, qui ne se lit pas comme un solde. Validez le brouillard de ' +
-        `l'exercice précédent et relancez le report (ou clôturez cet exercice), vérifiez le montant, puis ${suite}.`
+        `l'exercice précédent et relancez le report (ou clôturez l'exercice précédent), vérifiez le montant, puis ${suite}.`
       );
     }
     return (
@@ -499,11 +499,11 @@ export class CreancesDouteusesService {
         orderBy: { numero: 'asc' },
         take: PLAFOND_COMPTES_CANDIDATS,
       }),
-      this.prisma.compte.findMany({ where: ou416, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
-      this.prisma.compte.findMany({ where: ou491, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
+      this.prisma.compte.findMany({ where: { ...ou416, tenantId }, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
+      this.prisma.compte.findMany({ where: { ...ou491, tenantId }, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
       // m5 · une liste bornée dit son total (§ 8 bis), jamais une coupe muette.
-      this.prisma.compte.count({ where: ou416 }),
-      this.prisma.compte.count({ where: ou491 }),
+      this.prisma.compte.count({ where: { ...ou416, tenantId } }),
+      this.prisma.compte.count({ where: { ...ou491, tenantId } }),
     ]);
     const soldes = new Map(debiteurs.map((d) => [d.compteId, d.solde]));
     return {
@@ -622,9 +622,9 @@ export class CreancesDouteusesService {
     const enVigueur = { dateReclassement: { lte: ex.dateFin }, annuleeLe: null };
     const base = { tenantId, ...enVigueur };
     const [montants, declarees, mouvements, ecarts, par416, par491, chaine] = await Promise.all([
-      this.prisma.creanceDouteuse.aggregate({ where: base, _sum: { montant: true } }),
+      this.prisma.creanceDouteuse.aggregate({ where: { ...base, tenantId }, _sum: { montant: true } }),
       this.prisma.creanceDouteuse.aggregate({
-        where: { ...base, declareeOuverture: true, dateReclassement: { lte: ex.dateDebut } },
+        where: { ...base, tenantId, declareeOuverture: true, dateReclassement: { lte: ex.dateDebut } },
         _sum: { depreciationOuverture: true },
       }),
       this.prisma.mouvementCreanceDouteuse.aggregate({
@@ -635,8 +635,8 @@ export class CreancesDouteusesService {
         where: { tenantId, annuleeLe: null, exercice: { dateFin: { lte: ex.dateFin } }, creance: enVigueur },
         _sum: { ecart: true },
       }),
-      this.prisma.creanceDouteuse.groupBy({ by: ['compte416Id'], where: base, orderBy: { compte416Id: 'asc' } }),
-      this.prisma.creanceDouteuse.groupBy({ by: ['compte491Id'], where: base, orderBy: { compte491Id: 'asc' } }),
+      this.prisma.creanceDouteuse.groupBy({ by: ['compte416Id'], where: { ...base, tenantId }, orderBy: { compte416Id: 'asc' } }),
+      this.prisma.creanceDouteuse.groupBy({ by: ['compte491Id'], where: { ...base, tenantId }, orderBy: { compte491Id: 'asc' } }),
       this.chaine(tenantId, ex),
     ]);
     const { ids, provisoire } = chaine;

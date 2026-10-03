@@ -54,6 +54,9 @@ Fiche retirée à l'intégration.
 
 - B1 · même parti que la ligne A5 (`DevisesService.ouverturesDe`) · seul l'à-nouveau provisoire, calculé sur le
   seul livre-journal (point 11), cède la place à la clôture précédente reconstituée.
+- B1 · la borne de la déclaration d'ouverture sans à-nouveau qui fait foi se lit sur le report reconstitué
+  (brouillard compris, M2), comme toute lecture du module · jadis refusée sans à-nouveau, bornée par le provisoire
+  avec lui ; sans exercice précédent, toujours refusée.
 - B2 (b) · origine `AUTOMATIQUE_PIECE` (aucune migration) · appariement « a priori » du CPCC, ch. 6 (chaque mouvement
   porte la créance qu'il solde). Rien n'est lettré pour une créance déclarée (montant dans l'à-nouveau, sans ligne
   à elle) ni à travers deux exercices (passé la clôture, la ligne se lettre sur son report Détail, que la liaison
@@ -64,6 +67,9 @@ Fiche retirée à l'intégration.
   créance · refus au reclassement ET à la déclaration (jumeau) ; non déclarée · avertissement, jamais un refus.
 - m8 · « hors module » = lignes de la chaîne sur les 491 du module, hors à-nouveau, hors écritures de revue et leurs
   négatifs ; l'à-nouveau mêle les deux, son reliquat reste nommé comme tel à l'écran.
+
+- e2e · `creances-douteuses.e2e.ts` · rapprochement à sept clés, B3 (lettrage automatique sans paire, manuel
+  refusé) et B2 (perte qui éteint · `lettrage416.pose`) · typé localement, joué par la CI (base réelle).
 
 ## Vérification
 

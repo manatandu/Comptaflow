@@ -15,6 +15,7 @@ interface Liste {
   creances: Array<{ id: string; compte416: { numero: string }; resteALaCloture: number; depreciationALaCloture: number; revue: { id: string; ecritureId: string | null } | null }>;
   rapprochement: { solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
 }
+interface LigneLettrage { id: string; debit: number; credit: number; lettre: string | null }
 
 for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
   test(`${referentiel} · une créance reclassée au 416, dépréciée à la clôture, retenue par le module`, async ({ page }) => {
@@ -97,7 +98,16 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(ligne.resteALaCloture).toBe(1_160_000);
     expect(ligne.depreciationALaCloture).toBe(400_000);
     // Le module et la balance disent la même chose du 416 et du 491.
-    expect(liste.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 400_000, depreciationModule: 400_000 });
+    // A7 ter · le rapprochement dit aussi le report provisoire (B1) et la part du 491 hors module (m8).
+    expect(liste.rapprochement).toEqual({
+      provisoire: false,
+      reportProvisoire: false,
+      solde416: 1_160_000,
+      resteModule: 1_160_000,
+      solde491: 400_000,
+      depreciationModule: 400_000,
+      horsModule491: 0,
+    });
 
     // L'écriture de la dotation est TENUE · elle ne se supprime pas du journal.
     await expect(appelApi(page, 'DELETE', `/ecritures/${ligne.revue!.ecritureId}`)).rejects.toThrow(/400 · .*créance douteuse/);
@@ -114,7 +124,15 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     const apres = await appelApi<Liste & { creances: Array<{ revuesAnnulees: unknown[] }> }>(page, 'GET', `/creances-douteuses?exerciceId=${exercice.id}`);
     expect(apres.creances[0].revue).toBeNull();
     expect(apres.creances[0].revuesAnnulees).toHaveLength(1);
-    expect(apres.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 0, depreciationModule: 0 });
+    expect(apres.rapprochement).toEqual({
+      provisoire: false,
+      reportProvisoire: false,
+      solde416: 1_160_000,
+      resteModule: 1_160_000,
+      solde491: 0,
+      depreciationModule: 0,
+      horsModule491: 0,
+    });
     // Une créance dont une revue est gardée, même annulée, ne se retire plus.
     await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*même annulés/);
 
@@ -136,6 +154,29 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(fin.creances[0].resteALaCloture).toBe(1_060_000);
     expect(fin.creances[0].mouvementsAnnules).toHaveLength(1);
     expect(fin.rapprochement?.solde416).toBe(1_060_000);
+
+    // A7 ter, B3 · le lettrage automatique du compte client n'apparie plus la
+    // facture et le reclassement, de même montant (la TVA deviendrait
+    // exigible) ; le lettrage manuel est refusé par le motif nommé.
+    const auto = await appelApi<{ groupes: number }>(page, 'POST', `/comptes/${client.id}/lettrage/auto`, {});
+    expect(auto.groupes).toBe(0);
+    const lignesClient = await appelApi<{ lignes: LigneLettrage[] }>(page, 'GET', `/comptes/${client.id}/lettrage`);
+    expect(lignesClient.lignes).toHaveLength(2);
+    expect(lignesClient.lignes.every((l) => l.lettre === null)).toBe(true);
+    await expect(
+      appelApi(page, 'POST', `/comptes/${client.id}/lettrage`, { ligneIds: lignesClient.lignes.map((l) => l.id) }),
+    ).rejects.toThrow(/400 · .*Ne lettrez pas la facture avec le reclassement/);
+
+    // A7 ter, B2 · la perte qui éteint la créance lettre ses lignes du 416.
+    const derniere = await appelApi<{ lettrage416: { pose: boolean; code?: string } | null }>(page, 'POST', `/creances-douteuses/${creance.id}/perte`, {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      date: `${annee}-12-21`,
+      montant: 1_060_000,
+      motif: 'Solde irrécouvrable',
+      pieces: [{ nature: 'Certificat d’irrécouvrabilité', reference: 'CI-2' }],
+    });
+    expect(derniere.lettrage416).toMatchObject({ pose: true });
     expect(pannes).toEqual([]);
   });
 }
