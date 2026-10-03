@@ -188,6 +188,10 @@ describe('inscription en négatif pour l’annulation d’une réévaluation', (
 
   it('refus · premier jour ouvert hors de l’exercice, exercice clôturé, déjà corrigée', async () => {
     await expect(annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.toThrow(/hors de l'exercice/);
+    // m-a (second tour d'A7 ter) · une clôture de période est définitive · jamais « rouvrez la période ».
+    const refus = annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm');
+    await expect(refus).rejects.toThrow(/close jusqu'à la fin de l'exercice, définitivement, et plus rien ne s'y inscrit/);
+    await expect(annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.not.toThrow(/rouvrez/);
     await expect(
       annulation(new Date('2026-12-31'), { exercice: { statut: StatutExercice.CLOTURE, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } }).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm'),
     ).rejects.toThrow(/exercice clôturé.*art\. 20, al\. 3/);

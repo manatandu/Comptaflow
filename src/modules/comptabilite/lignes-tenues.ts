@@ -15,9 +15,23 @@ import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-le
 const ISSUE_RAPPROCHEMENT_CLOS =
   'Un rapprochement encore en cours se dépointe directement ; clos, seul l’administrateur le rouvre (« Rouvrir le rapprochement », ' +
   'le dernier clos du compte seulement, motif exigé), puis la ligne se dépointe.';
+/**
+ * Second tour d'A7 ter, B-1 · l'issue d'un lettrage FIGÉ dépend de l'exercice.
+ * Clôturé, l'erreur relève du report à nouveau (AUDCIF art. 20, al. 3). Encore
+ * OUVERT (une clôture de période ou totale seulement), l'erreur est de
+ * l'exercice en cours · son inscription en négatif reste due (art. 20, al. 2),
+ * au premier jour non clôturé (art. 22, 4°) · renvoyer au report à nouveau
+ * était faux. Le module des créances douteuses l'inscrit à côté de son groupe
+ * figé ; pour une autre écriture, OmegaX ne l'inscrit pas sur une ligne
+ * lettrée, et le message le dit plutôt que de promettre une issue (relevé au
+ * suivi).
+ */
 const ISSUE_LETTRAGE_FIGE =
-  'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives, ' +
-  'et l’erreur relève alors du report à nouveau (AUDCIF art. 20, al. 3).';
+  'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives. ' +
+  'Exercice clôturé · l’erreur relève du report à nouveau (AUDCIF art. 20, al. 3). Exercice encore ouvert · l’inscription en ' +
+  'négatif reste due dans l’exercice (art. 20, al. 2), au premier jour non clôturé (art. 22, 4°), mais OmegaX ne l’inscrit pas ' +
+  'sur une ligne lettrée, hors les gestes des créances douteuses, qui l’inscrivent à côté de leur lettrage figé · ce cas est ' +
+  'relevé au suivi.';
 
 /** Une ligne telle que le refus la lit · son lettrage et son pointage. */
 export interface LigneTenue {

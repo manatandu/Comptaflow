@@ -186,8 +186,33 @@ export function libelleSoldesProvisoires(r: RapprochementCreances): string | nul
     : 'Soldes du 416 et du 491 provisoires · à-nouveau non passé';
 }
 
-/** L'issue du lettrage d'une créance éteinte (A7 ter, B2), servie avec le geste. */
-export type IssueLettrage416 = { pose: true; code: string } | { pose: false; motif: string } | null | undefined;
+/**
+ * L'issue du lettrage d'une créance éteinte (A7 ter, B2), servie avec le geste ·
+ * `aDesigner` (second tour, B-1) · le reste est à l'à-nouveau, que le cabinet
+ * désigne par « Lettrer au 416 ».
+ */
+export type IssueLettrage416 = { pose: true; code: string } | { pose: false; motif: string; aDesigner?: boolean } | null | undefined;
+
+/** B-1 · ce que « Lettrer au 416 » montre, servi par le serveur. */
+export interface PropositionLettrage416 {
+  eteinte: boolean;
+  compte416: string;
+  ouvertes: number;
+  aApporter: number;
+  aNouveaux: Array<{ id: string; date: string; numeroPiece: number | null; libelle: string | null; montant: number }>;
+  tronque: boolean;
+  propose: string[];
+}
+
+/**
+ * B-1 · L'ÉCART qui reste entre ce que l'à-nouveau doit apporter et les lignes
+ * cochées · le lettrage ne part qu'à zéro (le serveur pose le groupe SOLDÉ ou
+ * pas du tout). Au centime.
+ */
+export function ecartLettrage416(p: PropositionLettrage416, choisies: ReadonlySet<string>): number {
+  const somme = p.aNouveaux.filter((l) => choisies.has(l.id)).reduce((t, l) => t + l.montant, 0);
+  return auCentime(p.aApporter - somme);
+}
 
 export function messageLettrage416(issue: IssueLettrage416): string | null {
   if (!issue) return null;

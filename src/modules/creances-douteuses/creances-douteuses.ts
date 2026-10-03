@@ -653,7 +653,7 @@ export function motifNonRetirable(p: {
  */
 export function motifLettrageFigeAuBrouillard(code: string, figee: string, objet: 'le mouvement' | 'le reclassement'): string {
   return (
-    `Le lettrage ${code} que le module a posé à l'extinction de la créance ne se défait plus · ${figee}. ` +
+    `Le lettrage ${code} des lignes de la créance au 416 ne se défait plus · ${figee}. ` +
     `Supprimer cette écriture au brouillard le laisserait soldé sur une ligne disparue · validez l'écriture puis annulez ${objet} ` +
     "(l'inscription en négatif laisse le lettrage en place, et sa ligne ouverte porte le reste rétabli)."
   );
@@ -669,6 +669,22 @@ export const INFORMATION_BORNE_RECONSTITUEE =
   "Déclarée sur le report RECONSTITUÉ de l'exercice précédent · l'à-nouveau de cet exercice n'est pas passé, et la borne " +
   "du 416 et du 491 n'est pas sûre (une écriture passée ensuite dans l'exercice précédent la change). Clôturez l'exercice " +
   "précédent ou passez un bilan d'ouverture, puis vérifiez la déclaration.";
+
+/**
+ * Second tour d'A7 ter, B-1 · LE MODULE NE CONSEILLE PLUS LE LETTRAGE MANUEL du
+ * 416 · un groupe ainsi posé, figé ensuite par une clôture de période,
+ * enfermait la créance. Quand les lignes de l'exercice ne soldent pas seules
+ * (reclassement d'un exercice précédent, créance déclarée à l'ouverture), ce
+ * qui manque est porté par l'à-nouveau, que rien ne relie à la créance · le
+ * cabinet DÉSIGNE ces lignes, le module pose le groupe lui-même.
+ */
+export function motifLignesANouveauADesigner(numero416: string): string {
+  return (
+    `Créance éteinte · ses lignes de l'exercice ne soldent pas seules au ${numero416} · le reste est porté par l'à-nouveau ` +
+    '(reclassement d’un exercice précédent, ou créance déclarée à l’ouverture), qu’aucune liaison ne relie à la créance. ' +
+    'Désignez ces lignes d’à-nouveau dans « Lettrer au 416 » · le module pose le lettrage lui-même.'
+  );
+}
 
 /** B2b · ce que l'annulation dit quand le lettrage du module reste en place. */
 export function informationLettrageMaintenu(code: string, figee: string): string {

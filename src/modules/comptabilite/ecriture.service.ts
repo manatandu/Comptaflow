@@ -2085,9 +2085,17 @@ export class EcritureService {
     const premier = await this.exerciceService.premierJourOuvert(tenantId, origine.journalId, date);
     if (premier.getTime() !== date.getTime()) {
       if (premier > origine.exercice.dateFin) {
+        // Second tour d'A7 ter, m-a · une clôture de période ou totale est
+        // DÉFINITIVE (« ne peut pas être annulée ») · « rouvrez la période »
+        // promettait un geste qui n'existe pas. La vérité · l'exercice est clos
+        // jusqu'à sa fin pour ce journal, rien ne s'y inscrit plus, et
+        // l'annulation ne passe pas dans l'exercice suivant (la charge
+        // changerait d'exercice).
         throw new BadRequestException(
           `Le premier jour non clôturé du journal ${origine.journal.code} (${premier.toISOString().slice(0, 10)}) tombe hors de l'exercice · ` +
-            "rouvrez la période pour inscrire l'annulation (AUDCIF art. 22, 4°).",
+            "la période est close jusqu'à la fin de l'exercice, définitivement, et plus rien ne s'y inscrit (AUDCIF art. 22, 4°). " +
+            "L'annulation ne passe pas dans l'exercice suivant, la charge changerait d'exercice · une fois l'exercice clôturé, " +
+            "l'erreur relève du report à nouveau (art. 20, al. 3).",
         );
       }
       dateValeur = date;

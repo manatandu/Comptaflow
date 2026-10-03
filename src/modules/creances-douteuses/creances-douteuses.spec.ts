@@ -1168,8 +1168,8 @@ describe('créances douteuses · service', () => {
 
   // B2 (b) · LA CRÉANCE ÉTEINTE SE LETTRE AU 416 · 1 160 000 reclassés,
   // 760 000 recouvrés, puis la perte de 400 000 qui éteint la créance.
-  const recouvre = { id: 'mv-r', type: TypeMouvementCreanceDouteuse.RECOUVREMENT, date: new Date('2026-11-30'), montant: 760_000, ecritureId: 'ecr-mr', annuleeLe: null };
-  const perteFinale = { id: 'mv-1', type: TypeMouvementCreanceDouteuse.PERTE, date: new Date('2026-12-20'), montant: 400_000, ecritureId: 'ecr-1', annuleeLe: null };
+  const recouvre = { id: 'mv-r', type: TypeMouvementCreanceDouteuse.RECOUVREMENT, date: new Date('2026-11-30'), montant: 760_000, ecritureId: 'ecr-mr', annuleeLe: null, exerciceId: 'ex-26' };
+  const perteFinale = { id: 'mv-1', type: TypeMouvementCreanceDouteuse.PERTE, date: new Date('2026-12-20'), montant: 400_000, ecritureId: 'ecr-1', annuleeLe: null, exerciceId: 'ex-26' };
   const dtoPerteFinale = { exerciceId: 'ex-26', journalId: 'od', date: '2026-12-20', montant: 400_000, motif: 'Liquidation clôturée', pieces: [{ nature: 'Jugement de clôture', reference: 'JC-2' }] };
 
   /**
@@ -1188,6 +1188,9 @@ describe('créances douteuses · service', () => {
     debit: number;
     credit: number;
     lettrageId?: string | null;
+    /** B-1 · une ligne d'à-nouveau (report de clôture), et le report PROVISOIRE. */
+    aNouveau?: boolean;
+    provisoire?: boolean;
   }
   function installerBase(
     m: ReturnType<typeof monter>,
@@ -1203,7 +1206,17 @@ describe('créances douteuses · service', () => {
       ...l,
       lettre: l.lettrageId ? base.groupes?.find((g) => g.id === l.lettrageId)?.code ?? 'X' : null,
       rapprochementId: null,
-      ecriture: { exerciceId: l.exerciceId, date: new Date(l.date), journalId: 'od', journal: { code: 'OD' }, exercice: { statut: StatutExercice.OUVERT } },
+      ecriture: {
+        exerciceId: l.exerciceId,
+        date: new Date(l.date),
+        numeroPiece: 1,
+        journalId: 'od',
+        journal: { code: 'OD' },
+        exercice: { statut: StatutExercice.OUVERT },
+        estGenereeParCloture: l.aNouveau === true || l.provisoire === true,
+        estSoldeDesComptesDeGestion: false,
+        estANouveauProvisoire: l.provisoire === true,
+      },
     });
     m.prisma.ligneEcriture.findMany.mockImplementation(({ where, take }: any) => {
       let r = lignes;
@@ -1212,6 +1225,10 @@ describe('créances douteuses · service', () => {
       if (where.ecritureId?.in) r = r.filter((l) => where.ecritureId.in.includes(l.ecritureId));
       else if (where.ecritureId) r = r.filter((l) => l.ecritureId === where.ecritureId);
       if (where.compteId) r = r.filter((l) => l.compteId === where.compteId);
+      // B-1 · les lignes d'à-nouveau ouvertes d'un exercice (report de clôture, jamais le provisoire).
+      if (where.lettrageId === null) r = r.filter((l) => l.lettrageId === null);
+      if (typeof where.ecriture?.exerciceId === 'string') r = r.filter((l) => l.exerciceId === where.ecriture.exerciceId);
+      if (where.ecriture?.estGenereeParCloture === true) r = r.filter((l) => l.aNouveau === true && !(where.ecriture.estANouveauProvisoire === false && l.provisoire));
       return Promise.resolve(r.slice(0, take ?? r.length).map(vue));
     });
     m.prisma.lettrage.findFirst.mockImplementation(({ where }: any) => Promise.resolve(base.groupes?.find((g) => g.id === where.id) ?? null));
@@ -1236,7 +1253,7 @@ describe('créances douteuses · service', () => {
   const PERIODE_CLOSE = { granularite: 'PERIODE', journalId: null, dateLimite: new Date('2026-11-30') };
 
   function eteinte(exercicePerte = 'ex-26') {
-    const m = monter({ creance: creance([], [recouvre, perteFinale]) });
+    const m = monter({ creance: creance([], [recouvre, { ...perteFinale, exerciceId: exercicePerte }]) });
     // La créance relue AVANT la perte ne porte que le recouvrement.
     m.prisma.creanceDouteuse.findFirst.mockResolvedValueOnce(creance([], [recouvre]));
     installerBase(m, { lignes: lignesEteinte(null, exercicePerte) });
@@ -1258,7 +1275,9 @@ describe('créances douteuses · service', () => {
     const { service, lettrage } = eteinte('ex-27');
     const r: any = await service.perte('t', 'u', 'cd-1', dtoPerteFinale);
     expect(lettrage.lettrerLignesDuModule).not.toHaveBeenCalled();
-    expect(r.lettrage416).toMatchObject({ pose: false, motif: expect.stringMatching(/deux exercices.*report à-nouveau/) });
+    // Second tour, B-1 · le reste est à l'à-nouveau · le cabinet le DÉSIGNE, jamais un lettrage manuel conseillé.
+    expect(r.lettrage416).toMatchObject({ pose: false, aDesigner: true, motif: expect.stringMatching(/Désignez ces lignes d’à-nouveau dans « Lettrer au 416 »/) });
+    expect(r.lettrage416.motif).not.toMatch(/à la main/);
     const partielle = monter({ creance: creance() });
     const p: any = await partielle.service.perte('t', 'u', 'cd-1', dtoPerteFinale);
     expect(p.lettrage416).toBeNull();
@@ -1295,10 +1314,10 @@ describe('créances douteuses · service', () => {
     expect(m.lettrage.defaireLettrageDuModule).not.toHaveBeenCalled();
   });
 
-  it('B2 · un groupe du module qui réunit une ligne étrangère n’est jamais défait · le refus ordinaire joue', async () => {
+  it('B2 · un groupe qui réunit une ligne d’un AUTRE compte n’est jamais défait · le refus ordinaire joue', async () => {
     const m = monter({ creance: creance([], [recouvre, perteFinale]), mouvement: perteEnBase('VALIDEE', 'g-A') });
     installerBase(m, {
-      lignes: [...lignesEteinte('g-A'), { id: 'l-x', ecritureId: 'ecr-autre', date: '2026-12-01', debit: 0, credit: 0, lettrageId: 'g-A' }],
+      lignes: [...lignesEteinte('g-A'), { id: 'l-x', ecritureId: 'ecr-autre', compteId: 'c4162', date: '2026-12-01', debit: 0, credit: 0, lettrageId: 'g-A' }],
       groupes: [GROUPE_MODULE],
     });
     await expect(m.service.annulerMouvement('t', 'u', 'cd-1', 'mv-1', { motif: 'Erreur' })).rejects.toThrow(/lettrée/);
@@ -1398,6 +1417,68 @@ describe('créances douteuses · service', () => {
     expect(m.inscrireEnNegatifPourAnnulation).toHaveBeenCalledWith('t', 'u', 'ecr-r', 'Créance reclassée sur le mauvais client', m.prisma, { groupeTolere: 'g-A' });
     expect(m.lettrage.defaireLettrageDuModule).not.toHaveBeenCalled();
     expect(r.annulation).toMatchObject({ lettrageMaintenu: 'g-A' });
+  });
+
+  // SECOND TOUR, B-1 · LE SCÉNARIO b2 · reclassement en 2026, clôture de 2026,
+  // recouvrement (31/01) et perte (20/03) en 2027 · le module conseillait de
+  // lettrer à la main l'à-nouveau et les mouvements ; la période close au
+  // 31/01 figeait ce groupe MANUEL, et l'annulation de la perte était refusée.
+  const lignesB2 = (groupe: string | null): Ligne416[] => [
+    { id: 'l-r', ecritureId: 'ecr-r', date: '2026-11-15', debit: 1_160_000, credit: 0 },
+    { id: 'l-an', ecritureId: 'ecr-an', exerciceId: 'ex-27', date: '2027-01-01', debit: 1_160_000, credit: 0, aNouveau: true, lettrageId: groupe },
+    { id: 'l-mr', ecritureId: 'ecr-mr', exerciceId: 'ex-27', date: '2027-01-31', debit: 0, credit: 760_000, lettrageId: groupe },
+    { id: 'l-1', ecritureId: 'ecr-1', exerciceId: 'ex-27', date: '2027-03-20', debit: 0, credit: 400_000, lettrageId: groupe },
+  ];
+  const recouvreB2 = { ...recouvre, date: new Date('2027-01-31'), exerciceId: 'ex-27' };
+  const perteB2 = { ...perteFinale, date: new Date('2027-03-20'), exerciceId: 'ex-27' };
+
+  it('B-1 · un groupe MANUEL figé, tout entier sur le 416 de la créance, est TOLÉRÉ · l’annulation de la perte s’inscrit en négatif', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]), mouvement: perteEnBase('VALIDEE', 'g-M') });
+    installerBase(m, {
+      lignes: lignesB2('g-M'),
+      groupes: [{ id: 'g-M', code: 'A', origine: 'MANUEL' }],
+      clotures: [{ granularite: 'PERIODE', journalId: null, dateLimite: new Date('2027-01-31') }],
+    });
+    const r: any = await m.service.annulerMouvement('t', 'u', 'cd-1', 'mv-1', { motif: 'Dividende annoncé' });
+    expect(m.lettrage.defaireLettrageDuModule).not.toHaveBeenCalled();
+    expect(m.inscrireEnNegatifPourAnnulation).toHaveBeenCalledWith('t', 'u', 'ecr-1', 'Dividende annoncé', m.prisma, { groupeTolere: 'g-M' });
+    expect(r.annulation).toMatchObject({ lettrageMaintenu: 'g-M' });
+    // Non figé, un groupe manuel n'est ni défait ni toléré · le cabinet le délettre (rien ne l'en empêche).
+    const libre = monter({ creance: creance([], [recouvreB2, perteB2]), mouvement: perteEnBase('VALIDEE', 'g-M') });
+    installerBase(libre, { lignes: lignesB2('g-M'), groupes: [{ id: 'g-M', code: 'A', origine: 'MANUEL' }] });
+    await expect(libre.service.annulerMouvement('t', 'u', 'cd-1', 'mv-1', { motif: 'Dividende annoncé' })).rejects.toThrow(/lettrées \(A\)/);
+  });
+
+  it('B-1 · « Lettrer au 416 » · le module propose la ligne d’à-nouveau qui solde, et pose LUI-MÊME le groupe (origine MODULE)', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
+    installerBase(m, {
+      lignes: [
+        ...lignesB2(null),
+        // Une autre ligne d'à-nouveau du même 416, d'une autre créance, et le report provisoire, jamais proposés.
+        { id: 'l-an2', ecritureId: 'ecr-an', exerciceId: 'ex-27', date: '2027-01-01', debit: 300_000, credit: 0, aNouveau: true },
+      ],
+    });
+    const p: any = await m.service.propositionLettrage416('t', 'cd-1', 'ex-27');
+    expect(p).toMatchObject({ eteinte: true, ouvertes: 2, aApporter: 1_160_000, propose: ['l-an'] });
+    expect(p.aNouveaux.map((l: any) => [l.id, l.montant])).toEqual([
+      ['l-an', 1_160_000],
+      ['l-an2', 300_000],
+    ]);
+    const r = await m.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: ['l-an'] });
+    expect(r).toEqual({ pose: true, code: 'A' });
+    expect(m.lettrage.lettrerLignesDuModule).toHaveBeenCalledWith('t', 'c4161', ['l-mr', 'l-1', 'l-an'], 'u');
+    // Une ligne qui n'est pas d'à-nouveau (le reclassement de 2026) ne se désigne pas.
+    await expect(m.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: ['l-r'] })).rejects.toThrow(
+      /n'est pas une ligne d'à-nouveau ouverte du 41610000 dans cet exercice/,
+    );
+  });
+
+  it('B-1 · « Lettrer au 416 » refuse le report PROVISOIRE et une créance non éteinte', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
+    installerBase(m, { lignes: [...lignesB2(null).filter((l) => l.id !== 'l-an'), { id: 'l-pv', ecritureId: 'ecr-pv', exerciceId: 'ex-27', date: '2027-01-01', debit: 1_160_000, credit: 0, aNouveau: true, provisoire: true }] });
+    await expect(m.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: ['l-pv'] })).rejects.toThrow(/jamais le report provisoire/);
+    const partielle = monter({ creance: creance([], [recouvreB2]) });
+    await expect(partielle.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: [] })).rejects.toThrow(/n'est pas éteinte \(reste 400000\.00/);
   });
 
   it('mineur 7 · ré-extinction après une annulation · seules les lignes ouvertes se lettrent, le négatif avec la perte repassée', async () => {

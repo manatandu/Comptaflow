@@ -35,6 +35,7 @@ import {
   INFORMATION_BORNE_RECONSTITUEE,
   informationLettrageMaintenu,
   motifLettrageFigeAuBrouillard,
+  motifLignesANouveauADesigner,
   motifRefusAnnulationMouvement,
   motifRefusAnnulationRevue,
   motifRefusAnnulationReclassement,
@@ -57,6 +58,7 @@ import {
   AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
+  Lettrer416Dto,
   PerteCreanceDto,
   PieceJustificativeDto,
   ReclasserCreanceDto,
@@ -1445,43 +1447,152 @@ export class CreancesDouteusesService {
     tenantId: string,
     userId: string,
     creanceId: string,
-  ): Promise<{ pose: true; code: string } | { pose: false; motif: string } | null> {
+  ): Promise<{ pose: true; code: string } | { pose: false; motif: string; aDesigner?: true } | null> {
     const c = await this.creance(tenantId, creanceId);
     if (Math.abs(this.resteFinal(c)) >= 0.005) return null;
-    if (!c.ecritureReclassementId) {
-      return {
-        pose: false,
-        motif: "Créance éteinte, déclarée à l'ouverture · son montant est porté par l'à-nouveau du 416, sans ligne à elle · lettrez-la à la main.",
-      };
-    }
     if (c.mouvements.some((m) => !m.ecritureId)) {
       return { pose: false, motif: "Créance éteinte · un de ses mouvements n'a plus d'écriture, rien n'est lettré." };
     }
-    const ecritureIds = await this.ecrituresDeLaCreance(tenantId, c);
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: { ecritureId: { in: ecritureIds }, compteId: c.compte416Id, ecriture: { tenantId } },
-      select: { id: true, ecritureId: true, lettrageId: true, ecriture: { select: { exerciceId: true } } },
-    });
-    if (lignes.length !== ecritureIds.length || new Set(lignes.map((l) => l.ecritureId)).size !== ecritureIds.length) {
-      return { pose: false, motif: `Créance éteinte · ses lignes du ${c.compte416.numero} ne se retrouvent pas une par écriture, rien n'est lettré.` };
-    }
+    // L'exercice du DERNIER mouvement · celui qui éteint la créance.
+    const exerciceId = c.mouvements.at(-1)?.exerciceId ?? c.exerciceId;
+    const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
+    if ('motif' in lues) return { pose: false, motif: lues.motif };
+    if (lues.ouvertes.length === 0) return { pose: false, motif: `Créance éteinte · ses lignes du ${c.compte416.numero} sont déjà lettrées.` };
     // RÉ-EXTINCTION (mineur 7) · seules les lignes ENCORE OUVERTES se lettrent ·
     // un groupe figé reste en place (B2b), et l'annulation inscrite en négatif
-    // à côté de lui se lettre avec le geste qui éteint de nouveau la créance
-    // (le négatif d'une perte annulée et la perte repassée). Sans groupe figé,
-    // toutes les lignes, annulées et négatifs compris, soldent ensemble.
-    const ouvertes = lignes.filter((l) => l.lettrageId === null);
-    if (ouvertes.length === 0) return { pose: false, motif: `Créance éteinte · ses lignes du ${c.compte416.numero} sont déjà lettrées.` };
-    if (new Set(ouvertes.map((l) => l.ecriture.exerciceId)).size > 1) {
-      return {
-        pose: false,
-        motif:
-          'Créance éteinte · son reclassement et ses mouvements tombent dans deux exercices. Passé la clôture, la ligne du ' +
-          `reclassement se lettre sur son report à-nouveau du ${c.compte416.numero} (mode Détail) · lettrez-la à la main.`,
-      };
+    // à côté de lui se lettre avec le geste qui éteint de nouveau la créance.
+    // Second tour, B-1 · si elles ne soldent pas seules, le reste est à
+    // l'à-nouveau · le cabinet le DÉSIGNE (« Lettrer au 416 »), jamais un
+    // lettrage manuel conseillé, qu'une clôture de période figerait.
+    const somme = lues.ouvertes.reduce((t, l) => t + l.net, 0);
+    if (lues.ouvertes.length < 2 || Math.abs(somme) >= 0.005) {
+      return { pose: false, aDesigner: true, motif: motifLignesANouveauADesigner(c.compte416.numero) };
     }
-    const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, ouvertes.map((l) => l.id), userId);
+    const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, lues.ouvertes.map((l) => l.id), userId);
     return 'code' in r ? { pose: true, code: r.code } : { pose: false, motif: `Créance éteinte · ${r.motif}` };
+  }
+
+  /**
+   * LES LIGNES OUVERTES DE LA CRÉANCE AU 416 DANS UN EXERCICE · reconnues par
+   * leur LIAISON (`ecrituresDeLaCreance`), une par écriture, non lettrées, de
+   * l'exercice demandé. Jamais une ligne d'à-nouveau (le cabinet la désigne).
+   */
+  private async lignesOuvertesDeLaCreance(
+    tenantId: string,
+    c: { id: string; ecritureReclassementId: string | null; compte416Id: string; compte416: { numero: string } },
+    exerciceId: string,
+  ): Promise<{ ouvertes: Array<{ id: string; net: number }> } | { motif: string }> {
+    const ecritureIds = await this.ecrituresDeLaCreance(tenantId, c);
+    if (ecritureIds.length === 0) return { ouvertes: [] };
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId: { in: ecritureIds }, compteId: c.compte416Id, ecriture: { tenantId } },
+      select: { id: true, ecritureId: true, lettrageId: true, debit: true, credit: true, ecriture: { select: { exerciceId: true } } },
+    });
+    if (lignes.length !== ecritureIds.length || new Set(lignes.map((l) => l.ecritureId)).size !== ecritureIds.length) {
+      return { motif: `Créance éteinte · ses lignes du ${c.compte416.numero} ne se retrouvent pas une par écriture, rien n'est lettré.` };
+    }
+    return {
+      ouvertes: lignes
+        .filter((l) => l.lettrageId === null && l.ecriture.exerciceId === exerciceId)
+        .map((l) => ({ id: l.id, net: n(l.debit) - n(l.credit) })),
+    };
+  }
+
+  /**
+   * Second tour d'A7 ter, B-1 · CE QUE « LETTRER AU 416 » MONTRE · les lignes
+   * ouvertes de la créance dans l'exercice, et les lignes d'À-NOUVEAU ouvertes
+   * du même 416, que le cabinet désigne. Une seule ligne d'à-nouveau qui solde
+   * le tout est PROPOSÉE, jamais posée d'office.
+   */
+  async propositionLettrage416(tenantId: string, id: string, exerciceId: string) {
+    const c = await this.creance(tenantId, id);
+    await this.exercice(tenantId, exerciceId);
+    const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
+    if ('motif' in lues) throw new BadRequestException(lues.motif);
+    const aNouveaux = await this.prisma.ligneEcriture.findMany({
+      where: { compteId: c.compte416Id, lettrageId: null, ecriture: { tenantId, exerciceId, ...A_NOUVEAU } },
+      select: { id: true, debit: true, credit: true, libelle: true, ecriture: { select: { date: true, numeroPiece: true } } },
+      orderBy: { id: 'asc' },
+      take: PLAFOND_COMPTES_416_491,
+    });
+    const reste = centimes(-lues.ouvertes.reduce((t, l) => t + l.net, 0));
+    const seules = aNouveaux.filter((l) => Math.abs(centimes(n(l.debit) - n(l.credit)) - reste) < 0.005);
+    return {
+      eteinte: Math.abs(this.resteFinal(c)) < 0.005,
+      compte416: c.compte416.numero,
+      ouvertes: lues.ouvertes.length,
+      // Ce que l'à-nouveau doit apporter pour que le groupe solde.
+      aApporter: reste,
+      aNouveaux: aNouveaux.map((l) => ({
+        id: l.id,
+        date: jour(l.ecriture.date),
+        numeroPiece: l.ecriture.numeroPiece,
+        libelle: l.libelle,
+        montant: centimes(n(l.debit) - n(l.credit)),
+      })),
+      tronque: aNouveaux.length === PLAFOND_COMPTES_416_491,
+      propose: seules.length === 1 ? [seules[0].id] : [],
+    };
+  }
+
+  /**
+   * Second tour d'A7 ter, B-1 · « LETTRER AU 416 » · le module pose LUI-MÊME
+   * le groupe (origine `MODULE`) des lignes ouvertes de la créance dans
+   * l'exercice et des lignes d'à-nouveau que le cabinet désigne. Chaque ligne
+   * désignée est une ligne d'à-nouveau qui fait foi (jamais le report
+   * provisoire, remplacé à la clôture), ouverte, de ce 416 et de cet exercice ;
+   * le groupe se pose SOLDÉ ou pas du tout (`lettrerLignesDuModule`).
+   */
+  lettrer416(tenantId: string, userId: string, id: string, dto: Lettrer416Dto) {
+    return this.sousVerrou(tenantId, 'LETTRAGE AU 416', async () => {
+      const c = await this.creance(tenantId, id);
+      if (Math.abs(this.resteFinal(c)) >= 0.005) {
+        throw new BadRequestException(
+          `La créance n'est pas éteinte (reste ${centimes(this.resteFinal(c)).toFixed(2)} au ${c.compte416.numero}) · ses lignes se lettrent quand perte et recouvrements l'ont soldée.`,
+        );
+      }
+      await this.exercice(tenantId, dto.exerciceId);
+      const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, dto.exerciceId);
+      if ('motif' in lues) throw new BadRequestException(lues.motif);
+      const designees = [...new Set(dto.ligneIds)];
+      if (designees.length > 0) {
+        const trouvees = await this.prisma.ligneEcriture.findMany({
+          where: { id: { in: designees }, ecriture: { tenantId } },
+          select: {
+            id: true,
+            compteId: true,
+            lettrageId: true,
+            ecriture: { select: { exerciceId: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true, estANouveauProvisoire: true } },
+          },
+        });
+        const refusee = designees.find((ligneId) => {
+          const l = trouvees.find((x) => x.id === ligneId);
+          return (
+            !l ||
+            l.compteId !== c.compte416Id ||
+            l.lettrageId !== null ||
+            l.ecriture.exerciceId !== dto.exerciceId ||
+            !l.ecriture.estGenereeParCloture ||
+            l.ecriture.estSoldeDesComptesDeGestion ||
+            l.ecriture.estANouveauProvisoire
+          );
+        });
+        if (refusee) {
+          throw new BadRequestException(
+            `Une ligne désignée n'est pas une ligne d'à-nouveau ouverte du ${c.compte416.numero} dans cet exercice · seules ` +
+              "les lignes du report de la clôture précédente ou du bilan d'ouverture se désignent (jamais le report provisoire, " +
+              'remplacé à la clôture).',
+          );
+        }
+      }
+      const ligneIds = [...lues.ouvertes.map((l) => l.id), ...designees];
+      if (ligneIds.length < 2) {
+        throw new BadRequestException(`Rien à lettrer · les lignes de la créance au ${c.compte416.numero} sont déjà lettrées dans cet exercice.`);
+      }
+      const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, ligneIds, userId);
+      if ('motif' in r) throw new BadRequestException(r.motif);
+      return { pose: true as const, code: r.code };
+    });
   }
 
   /**
@@ -1517,26 +1628,30 @@ export class CreancesDouteusesService {
       );
       return {
         pose: false as const,
-        motif: "Créance éteinte · le lettrage de ses lignes du 416 n'a pas pu se poser · lettrez-les dans « Lettrage ».",
+        motif: "Créance éteinte · le lettrage de ses lignes du 416 n'a pas pu se poser · relancez-le par « Lettrer au 416 » dans cette fenêtre.",
       };
     }
   }
 
   /**
-   * LE GROUPE QUE LE MODULE A POSÉ sur la ligne 416 d'une écriture, s'il en
-   * est un (B2) · d'origine `MODULE`, et toutes ses lignes sont des lignes 416
-   * de LA créance (`ecrituresDeLaCreance`). Un groupe d'une autre origine,
-   * même composé à la main des seules lignes de la créance, n'est jamais
-   * défait par le module (mineur 7) · le refus ordinaire des lignes lettrées
-   * joue. `figee` dit pourquoi le groupe ne se défait plus (B2b · une de ses
-   * lignes est sous une clôture de période, totale ou d'exercice), `null`
-   * sinon.
+   * LE GROUPE QUI TIENT la ligne 416 d'une écriture de la créance, s'il en est
+   * un qui ne réunit QUE des lignes du 416 de la créance (B2 ; second tour,
+   * B-1) · `figee` dit pourquoi il ne se défait plus (une ligne sous une
+   * clôture de période, totale ou d'exercice), `duModule` s'il est d'origine
+   * `MODULE`, que seul le module défait. FIGÉ, il est TOLÉRÉ quelle que soit
+   * son origine · un groupe MANUEL posé sur le conseil d'A7 (« lettrez-la à la
+   * main »), figé ensuite, enfermait la créance ; il n'est pas touché, reste
+   * soldé, et l'annulation s'inscrit en négatif à côté. NON FIGÉ, seul le
+   * groupe du module se défait ; un autre refuse comme toute ligne lettrée
+   * (le cabinet le délettre, rien ne l'en empêche). Les lignes d'à-nouveau
+   * désignées (« Lettrer au 416 ») n'ont pas de liaison · le critère est le
+   * COMPTE, et le groupe est trouvé par une ligne de la créance elle-même.
    */
   private async groupeDuModule(
     tenantId: string,
     c: { id: string; compte416Id: string; ecritureReclassementId: string | null },
     ecritureId: string,
-  ): Promise<{ id: string; code: string; figee: string | null } | null> {
+  ): Promise<{ id: string; code: string; figee: string | null; duModule: boolean } | null> {
     const [ligne] = await this.prisma.ligneEcriture.findMany({
       where: { ecritureId, compteId: c.compte416Id, ecriture: { tenantId } },
       select: { lettrageId: true },
@@ -1547,16 +1662,18 @@ export class CreancesDouteusesService {
       where: { id: ligne.lettrageId, tenantId },
       select: { id: true, code: true, origine: true },
     });
-    if (!groupe || groupe.origine !== OrigineLettrage.MODULE) return null;
-    const permises = new Set(await this.ecrituresDeLaCreance(tenantId, c));
+    if (!groupe) return null;
     const duGroupe = await this.prisma.ligneEcriture.findMany({
       where: { lettrageId: groupe.id, ecriture: { tenantId } },
-      select: { id: true, compteId: true, ecritureId: true },
+      select: { id: true, compteId: true },
     });
-    if (duGroupe.length === 0 || !duGroupe.every((l) => l.compteId === c.compte416Id && permises.has(l.ecritureId))) return null;
+    if (duGroupe.length === 0 || !duGroupe.every((l) => l.compteId === c.compte416Id)) return null;
     const figees = await lignesFigees(this.prisma, tenantId, duGroupe.map((l) => l.id));
     const premiere = [...figees.values()][0];
-    return { id: groupe.id, code: groupe.code, figee: premiere ? `la ligne du ${jour(premiere.date)} est figée, ${premiere.motif}` : null };
+    const figee = premiere ? `la ligne du ${jour(premiere.date)} est figée, ${premiere.motif}` : null;
+    const duModule = groupe.origine === OrigineLettrage.MODULE;
+    if (!figee && !duModule) return null;
+    return { id: groupe.id, code: groupe.code, figee, duModule };
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable, au TTC entier. */

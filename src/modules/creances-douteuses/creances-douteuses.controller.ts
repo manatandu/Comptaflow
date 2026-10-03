@@ -13,6 +13,7 @@ import {
   AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
+  Lettrer416Dto,
   PerteCreanceDto,
   ReclasserCreanceDto,
   RecouvrementCreanceDto,
@@ -85,6 +86,26 @@ export class CreancesDouteusesController {
   @Post(':id/perte')
   perte(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PerteCreanceDto) {
     return this.service.perte(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * Second tour d'A7 ter, B-1 · les lignes ouvertes de la créance dans
+   * l'exercice et les lignes d'à-nouveau du 416 à désigner.
+   */
+  @Get(':id/lettrage-416')
+  propositionLettrage416(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.service.propositionLettrage416(user.tenantId, id, exerciceId);
+  }
+
+  /** B-1 · le module pose LUI-MÊME le lettrage au 416 de la créance éteinte, à-nouveau désigné compris. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/lettrage-416')
+  lettrer416(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: Lettrer416Dto) {
+    return this.service.lettrer416(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

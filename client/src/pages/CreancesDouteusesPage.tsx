@@ -32,6 +32,8 @@ import {
   type NatureCreance,
   type PieceSaisie,
   type RapprochementCreances,
+  ecartLettrage416,
+  type PropositionLettrage416,
 } from '../lib/creances-douteuses';
 
 /**
@@ -177,6 +179,13 @@ export function CreancesDouteusesPage() {
   // L'annulation d'une revue ou d'un mouvement (AUDCIF art. 20, al. 2) · motif de 3 à 500 caractères.
   const [annulation, setAnnulation] = useState<{ creance: CreanceDouteuse; motif: string; mouvementId?: string; reclassement?: boolean } | null>(null);
   const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
+  // Second tour d'A7 ter, B-1 · « Lettrer au 416 » · le module pose le lettrage, le cabinet désigne l'à-nouveau.
+  const [lettrage416, setLettrage416] = useState<{
+    creance: CreanceDouteuse;
+    proposition: PropositionLettrage416 | null;
+    choisies: Set<string>;
+    erreur: string | null;
+  } | null>(null);
   useGardeFermeture(form || annulation ? 'Un geste sur une créance douteuse est en cours de saisie · il serait perdu.' : null);
 
   // UNE RÉPONSE PÉRIMÉE NE REMPLIT JAMAIS UN FORMULAIRE (relecture « écran »,
@@ -188,10 +197,12 @@ export function CreancesDouteusesPage() {
   envoiEnCours.current = envoi;
   const refFormulaire = useRef<HTMLFormElement | null>(null);
   const refAnnulation = useRef<HTMLFormElement | null>(null);
+  const refLettrage = useRef<HTMLFormElement | null>(null);
   const idBase = useId();
   const id = (nom: string) => `${idBase}-${nom}`;
   const formOuvert = form !== null;
   const annulationOuverte = annulation !== null;
+  const lettrageOuvert = lettrage416 !== null;
 
   // CHANGER D'EXERCICE VIDE LA LISTE (relecture « écran », 4) · l'ancienne ne
   // reste jamais affichée sous le nouvel exercice, et sa réponse, si elle
@@ -219,6 +230,7 @@ export function CreancesDouteusesPage() {
     jeton.current++;
     setForm(null);
     setAnnulation(null);
+    setLettrage416(null);
     setInfo(null);
   }, [exerciceId]);
 
@@ -246,17 +258,20 @@ export function CreancesDouteusesPage() {
   // consommée, la fenêtre dessous ne se ferme pas ; pendant l'envoi elle ne
   // ferme rien, la réponse du serveur reste à lire.
   useEffect(() => {
-    if (!formOuvert && !annulationOuverte) return;
+    if (!formOuvert && !annulationOuverte && !lettrageOuvert) return;
     return ecouterEchap(() => {
       if (envoiEnCours.current) return true;
-      if (annulationOuverte) setAnnulation(null);
+      if (lettrageOuvert) {
+        jeton.current++;
+        setLettrage416(null);
+      } else if (annulationOuverte) setAnnulation(null);
       else {
         jeton.current++;
         setForm(null);
       }
       return true;
     });
-  }, [formOuvert, annulationOuverte]);
+  }, [formOuvert, annulationOuverte, lettrageOuvert]);
 
   useEffect(() => {
     if (formOuvert) premierChamp(refFormulaire.current)?.focus({ preventScroll: true });
@@ -264,6 +279,49 @@ export function CreancesDouteusesPage() {
   useEffect(() => {
     if (annulationOuverte) premierChamp(refAnnulation.current)?.focus({ preventScroll: true });
   }, [annulationOuverte]);
+  // Le focus va à la modale de lettrage dès qu'elle s'ouvre (le bouton « Fermer » tant que la lecture court).
+  useEffect(() => {
+    if (lettrageOuvert) (premierChamp(refLettrage.current) ?? refLettrage.current?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
+  }, [lettrageOuvert, lettrage416?.proposition]);
+
+  /** B-1 · ouvre « Lettrer au 416 » et lit la proposition du serveur · une réponse périmée est jetée. */
+  function ouvrirLettrage416(c: CreanceDouteuse) {
+    const j = ++jeton.current;
+    setLettrage416({ creance: c, proposition: null, choisies: new Set(), erreur: null });
+    api.get<PropositionLettrage416>(`/creances-douteuses/${c.id}/lettrage-416?exerciceId=${encodeURIComponent(exerciceId)}`).then(
+      (p) => {
+        if (jeton.current === j) setLettrage416((l) => (l ? { ...l, proposition: p, choisies: new Set(p.propose) } : l));
+      },
+      (e) => {
+        if (jeton.current === j) setLettrage416((l) => (l ? { ...l, erreur: messageDe(e) } : l));
+      },
+    );
+  }
+  function fermerLettrage() {
+    if (envoi) return;
+    jeton.current++;
+    setLettrage416(null);
+  }
+  async function lettrer(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!lettrage416?.proposition || envoi) return;
+    setEnvoi(true);
+    setLettrage416((l) => (l ? { ...l, erreur: null } : l));
+    try {
+      const r = await api.post<{ code: string }>(`/creances-douteuses/${lettrage416.creance.id}/lettrage-416`, {
+        exerciceId,
+        ligneIds: [...lettrage416.choisies],
+      });
+      setInfo(`Lignes de la créance lettrées au ${lettrage416.proposition.compte416} (${r.code}).`);
+      jeton.current++;
+      setLettrage416(null);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setLettrage416((l) => (l ? { ...l, erreur: messageDe(e) } : l));
+    } finally {
+      setEnvoi(false);
+    }
+  }
 
   function fermerFormulaire() {
     if (envoi) return;
@@ -629,6 +687,11 @@ export function CreancesDouteusesPage() {
                             {peutValider && ouvert && c.resteALaCloture > 0 && (
                               <button type="button" className="text-sel hover:underline" onClick={() => ouvrir('perte', c)}>
                                 Perte
+                              </button>
+                            )}
+                            {ouvert && c.resteALaCloture === 0 && c.mouvements.length > 0 && (
+                              <button type="button" className="text-sel hover:underline" onClick={() => ouvrirLettrage416(c)}>
+                                Lettrer au 416
                               </button>
                             )}
                             {peutValider && ouvert && c.revue && (
@@ -1202,6 +1265,122 @@ export function CreancesDouteusesPage() {
                   </button>
                   <button type="submit" disabled={envoi || !motifAnnulationValide(annulation.motif)} className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50">
                     {annulation.reclassement ? 'Annuler le reclassement' : annulation.mouvementId ? 'Annuler le mouvement' : 'Annuler la revue'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+
+      {peutEcrire && lettrage416 && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              ref={refLettrage}
+              onSubmit={lettrer}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={id('titre-lettrage')}
+              className="anim-modale w-full max-w-[560px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span id={id('titre-lettrage')}>Lettrer au 416</span>
+                <button
+                  type="button"
+                  aria-label="Fermer"
+                  disabled={envoi}
+                  onClick={fermerLettrage}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 text-[11.5px] space-y-2">
+                {lettrage416.erreur && <div className="border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 whitespace-pre-wrap">{lettrage416.erreur}</div>}
+                <div className="flex items-center gap-1.5">
+                  {lettrage416.creance.compteCreance.numero} · {lettrage416.creance.tiers ?? lettrage416.creance.compteCreance.intitule}
+                  <Aide
+                    titre="Lettrage au 416"
+                    texte="Le module lettre lui-même les lignes de la créance éteinte au 416. Quand celles de l'exercice ne soldent pas seules (reclassement d'un exercice précédent, créance déclarée à l'ouverture), le reste est porté par l'à-nouveau, qu'aucune liaison ne relie à la créance : cochez ces lignes d'à-nouveau. Le groupe se pose soldé, ou pas du tout. Ne lettrez pas ces lignes à la main : figé par une clôture de période, un lettrage manuel ne se déferait plus."
+                    source="Convention d'OmegaX ; CPCC ch. 6 § 2 (lettrage a priori)"
+                  />
+                </div>
+                {!lettrage416.proposition && !lettrage416.erreur && <div className="text-text-dim">Lecture…</div>}
+                {lettrage416.proposition && lettrage416.proposition.ouvertes === 0 && (
+                  <div>Les lignes de la créance au {lettrage416.proposition.compte416} sont déjà lettrées dans cet exercice.</div>
+                )}
+                {lettrage416.proposition && lettrage416.proposition.ouvertes > 0 && (
+                  <>
+                    <div>
+                      À apporter par l'à-nouveau · <span className="tabular-nums font-semibold">{montant(lettrage416.proposition.aApporter)}</span>
+                    </div>
+                    {lettrage416.proposition.aNouveaux.length === 0 ? (
+                      <div className="text-text-dim">
+                        {Math.abs(lettrage416.proposition.aApporter) < 0.005
+                          ? "Les lignes de l'exercice soldent seules · aucune ligne d'à-nouveau à désigner."
+                          : `Aucune ligne d'à-nouveau ouverte au ${lettrage416.proposition.compte416} dans cet exercice · clôturez l'exercice précédent ou passez le bilan d'ouverture.`}
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th scope="col" className="w-[28px]" />
+                            <th scope="col" className="text-left px-1.5">Date</th>
+                            <th scope="col" className="text-left px-1.5">Pièce</th>
+                            <th scope="col" className="text-left px-1.5">Libellé</th>
+                            <th scope="col" className="text-right px-1.5">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lettrage416.proposition.aNouveaux.map((l) => (
+                            <tr key={l.id}>
+                              <td className="px-1.5">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Désigner la ligne d'à-nouveau ${l.libelle ?? ''}`}
+                                  checked={lettrage416.choisies.has(l.id)}
+                                  onChange={(e) =>
+                                    setLettrage416((x) => {
+                                      if (!x) return x;
+                                      const choisies = new Set(x.choisies);
+                                      if (e.target.checked) choisies.add(l.id);
+                                      else choisies.delete(l.id);
+                                      return { ...x, choisies };
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="px-1.5">{jour(l.date)}</td>
+                              <td className="px-1.5">{l.numeroPiece ?? '·'}</td>
+                              <td className="px-1.5">{l.libelle ?? '·'}</td>
+                              <td className="px-1.5 text-right tabular-nums">{montant(l.montant)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {lettrage416.proposition.tronque && <div className="text-text-dim">Liste tronquée aux premières lignes d'à-nouveau du compte.</div>}
+                    {Math.abs(ecartLettrage416(lettrage416.proposition, lettrage416.choisies)) >= 0.005 && (
+                      <div className="text-warning">Écart · {montant(ecartLettrage416(lettrage416.proposition, lettrage416.choisies))} · le groupe ne se pose que soldé.</div>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button type="button" disabled={envoi} onClick={fermerLettrage} className="border border-bord rounded-[3px] px-3 py-[3px] disabled:opacity-50">
+                    Fermer
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      envoi ||
+                      !lettrage416.proposition ||
+                      lettrage416.proposition.ouvertes === 0 ||
+                      Math.abs(ecartLettrage416(lettrage416.proposition, lettrage416.choisies)) >= 0.005
+                    }
+                    className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50"
+                  >
+                    Lettrer
                   </button>
                 </div>
               </div>

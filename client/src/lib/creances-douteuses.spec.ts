@@ -16,6 +16,7 @@ import {
   motifListe651Vide,
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
+  ecartLettrage416,
 } from './creances-douteuses';
 import { montant } from './montants';
 import { montantSaisi } from './montant-saisi';
@@ -142,9 +143,12 @@ describe('créances douteuses · écran (ligne A7)', () => {
   });
 
   it('1, 6 · modales en dialogue, Échap par la couche, envoi unique et fermeture tenue pendant l’envoi', () => {
-    expect(page.match(/role="dialog"/g)).toHaveLength(2);
-    expect(page.match(/aria-modal="true"/g)).toHaveLength(2);
-    expect(page.match(/aria-label="Fermer"/g)).toHaveLength(2);
+    // Trois modales · le geste, l'annulation, et « Lettrer au 416 » (second tour, B-1).
+    expect(page.match(/role="dialog"/g)).toHaveLength(3);
+    expect(page.match(/aria-modal="true"/g)).toHaveLength(3);
+    expect(page.match(/aria-label="Fermer"/g)).toHaveLength(3);
+    const lettrer = page.slice(page.indexOf('async function lettrer'), page.indexOf('async function envoyer'));
+    expect(lettrer).toMatch(/ev\.preventDefault\(\);\s*if \(!lettrage416\?\.proposition \|\| envoi\) return;/);
     expect(page).toContain('return ecouterEchap(() => {');
     expect(page).toContain('premierChamp(refFormulaire.current)?.focus({ preventScroll: true })');
     const envoyer = page.slice(page.indexOf('async function envoyer'), page.indexOf('async function annuler'));
@@ -263,5 +267,32 @@ describe('A7 ter · le rapprochement et le lettrage de la créance éteinte, dit
     const envoyer = page.slice(page.indexOf('async function envoyer'), page.indexOf('async function annuler'));
     expect(envoyer.match(/setInfo\(messageLettrage416\(r\?\.lettrage416\)\)/g)).toHaveLength(2);
     expect(envoyer).toContain('setInfo(r?.avertissement ?? null)');
+  });
+});
+
+// SECOND TOUR D'A7 TER, B-1 · le module ne conseille plus le lettrage manuel du
+// 416 · « Lettrer au 416 » fait désigner l'à-nouveau, le serveur pose le groupe.
+describe('créances douteuses · « Lettrer au 416 » (second tour, B-1)', () => {
+  const proposition = {
+    eteinte: true,
+    compte416: '41620000',
+    ouvertes: 2,
+    aApporter: 1_160_000,
+    aNouveaux: [
+      { id: 'an', date: '2027-01-01', numeroPiece: 1, libelle: 'RAN détail', montant: 1_160_000 },
+      { id: 'autre', date: '2027-01-01', numeroPiece: 1, libelle: 'RAN détail', montant: 300_000 },
+    ],
+    tronque: false,
+    propose: ['an'],
+  };
+  it('le lettrage ne part qu’à écart nul, au centime', () => {
+    expect(ecartLettrage416(proposition, new Set(['an']))).toBe(0);
+    expect(ecartLettrage416(proposition, new Set(['an', 'autre']))).toBe(-300_000);
+    expect(ecartLettrage416(proposition, new Set())).toBe(1_160_000);
+  });
+  it('l’écran ouvre la désignation et ne conseille aucun lettrage manuel', () => {
+    expect(page).toContain('Lettrer au 416');
+    expect(page).toContain('/lettrage-416');
+    expect(page).not.toMatch(/lettrez-l[ae]s? à la main/i);
   });
 });

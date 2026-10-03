@@ -21,6 +21,15 @@ describe('les issues d’une ligne lettrée ou pointée', () => {
     expect(motif).toMatch(/Délettrez-les d’abord\. Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus/);
   });
 
+  // Second tour d'A7 ter, B-1 · « l'erreur relève alors du report à nouveau »
+  // était faux d'un exercice OUVERT, figé par une clôture de période seulement.
+  it('B-1 · l’issue d’un lettrage figé distingue l’exercice clôturé de l’exercice encore ouvert', () => {
+    const motif = motifLignesTenues([{ ...libre, lettre: 'A', lettrageId: 'g' }], 'cette écriture', 'corriger')!;
+    expect(motif).toMatch(/Exercice clôturé · l’erreur relève du report à nouveau \(AUDCIF art\. 20, al\. 3\)/);
+    expect(motif).toMatch(/Exercice encore ouvert · l’inscription en négatif reste due dans l’exercice \(art\. 20, al\. 2\), au premier jour non clôturé \(art\. 22, 4°\)/);
+    expect(motif).not.toMatch(/l’erreur relève alors du report à nouveau/);
+  });
+
   it('A7 ter, B2b · seul le groupe TOLÉRÉ est ignoré · toute autre ligne lettrée ou pointée refuse comme avant', () => {
     const module = { ...libre, lettre: 'A', lettrageId: 'g-A' };
     expect(motifLignesTenues([module, libre], 'cette écriture', 'annuler', '', 'g-A')).toBeNull();
