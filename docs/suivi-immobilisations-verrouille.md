@@ -7,9 +7,14 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 ## Règles de la liste
 
-1. **L'ordre est fixe.** Une ligne « À faire » ne commence que lorsque la
-   précédente est poussée ET vérifiée en production (Cloud Run, Hosting,
-   tests navigateur verts).
+1. **L'ordre est fixe dans chaque famille.** Une ligne « À faire » ne
+   commence que lorsque la précédente de SA famille est poussée ET vérifiée
+   en production (Cloud Run, Hosting, tests navigateur verts). Deux lignes de
+   familles différentes avancent ensemble (décision de Manasse du
+   2026-10-03) · paie (A8, A9, A18), caisse et inventaire (A10, A19),
+   fiscalité (A7 bis, A11, A21), clôture et contrôles (A12, A13, A17),
+   immobilisations (A14, A15, A22), seules (A7, A16, A20). Les intégrations
+   sur `main` restent une à une.
 2. **Une ligne ne passe à « Fait » que vérifiée en production**, avec le
    numéro des trois exécutions. Poussé n'est pas fait.
 3. **Rien ne s'ajoute en cours de route.** Ce qu'on découvre va en
@@ -18,7 +23,15 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
    n'en dépendent pas.
 5. **Tout travail d'agent est relu par un relecteur adverse, repris sur ses
    refus, relu par l'intégrateur, puis passe les suites complètes et les
-   tests navigateur** avant d'être poussé.
+   tests navigateur** avant d'être poussé. Deux tours de relecture au plus ;
+   au-delà, seul un BLOQUANT (montant faussé en silence, geste juste refusé
+   sans issue, dossier enfermé) fait reprendre la ligne, le reste va aux
+   « Relevés en attente » (décision de Manasse du 2026-10-03).
+6. **Rien ne se perd à une coupure** (décision de Manasse du 2026-10-03) ·
+   l'agent committe à chaque étape finie, pousse aussitôt sur une branche de
+   sauvegarde `travail/<ligne>` (aucun workflow ne la déploie, elle se
+   supprime après l'intégration) et tient une fiche `AVANCEMENT-<ligne>.md`
+   (fait, reste, décisions avec leur article), retirée à l'intégration.
 
 ## Fait · vérifié en production
 
