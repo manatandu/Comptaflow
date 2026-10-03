@@ -387,6 +387,8 @@ describe('créances douteuses · service', () => {
     { id: 'adh', numero: '41100002', intitule: 'Adhérent Mbuyi', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
     // m9 · un client-usager au SYCEBNL (412), dont la créance n'est pas une cotisation.
     { id: 'usa', numero: '41200005', intitule: 'Usager Kalala', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+    // Mineur 8 · un chèque d'adhérent revenu impayé (4131), au SYCEBNL.
+    { id: 'imp', numero: '41310003', intitule: 'Adhérent Mbuyi, chèque impayé', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
     { id: 'c4161', numero: '41610000', intitule: '4161', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
     { id: 'c4162', numero: '41620000', intitule: '4162', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
     { id: 'c4911', numero: '49110000', intitule: '4911', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
@@ -1859,6 +1861,25 @@ describe('créances douteuses · service', () => {
     // Un client-usager (412) n'est pas une cotisation · rien à refuser.
     await service.reclasser('t', 'u', { ...dtoReclassement, compteCreanceId: 'usa' });
     expect(creer).toHaveBeenCalledTimes(1);
+  });
+
+  // A7 TER, MINEUR 8 · sous l'ENCAISSEMENT, un impayé d'adhérent (4131, 4133)
+  // n'est pas refusé · la fiche du compte 41 impose le 413 aux valeurs revenues
+  // impayées, le § 5.4.2.1 compte la cotisation à son encaissement effectif, et
+  // aucun texte lu ne dit si un chèque rejeté a été encaissé. Rien tranché
+  // n'est pas bloqué · avertissement qui cite les deux textes.
+  it('mineur 8 · ENCAISSEMENT · un chèque d’adhérent impayé (4131) se reclasse, avec un avertissement qui cite les deux textes', async () => {
+    const { service, creer } = monter({ referentiel: Referentiel.SYCEBNL, regime: { methodeCotisations: 'ENCAISSEMENT' } });
+    const r: any = await service.reclasser('t', 'u', { ...dtoReclassement, compteCreanceId: 'imp' });
+    expect(creer).toHaveBeenCalledTimes(1);
+    // Le débiteur est un adhérent · le 4161.
+    expect(creer.mock.calls[0][2].lignes[0]).toMatchObject({ compteId: 'c4161' });
+    expect(r.avertissement).toMatch(/impayé d'adhérent · fiche SYCEBNL du compte 41, « Les chèques, effets à payer et autres valeurs revenus impayés/);
+    expect(r.avertissement).toMatch(/§ 5\.4\.2\.1.*Aucun texte lu ne dit si une valeur remise puis revenue impayée a été encaissée/);
+    // La méthode lue est celle du jour · le refus du 411 le dit.
+    await expect(service.reclasser('t', 'u', { ...dtoReclassement, compteCreanceId: 'adh' })).rejects.toThrow(
+      /méthode déclarée aujourd’hui dans Paramètres du dossier, qui ne garde pas l’historique/,
+    );
   });
 
   it('m9 · méthode non déclarée · le reclassement passe avec un AVERTISSEMENT, servi aussi à la liste des comptes', async () => {

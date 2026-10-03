@@ -373,7 +373,7 @@ export function CreancesDouteusesPage() {
         const deprec = montantSaisi(form.depreciationOuverture);
         if (deprec == null) throw new Error('Saisissez la dépréciation existante · zéro se tape, vide n’est pas zéro.');
         // Mineur 4 · une borne lue sur le report reconstitué n'est pas sûre, et le serveur le dit.
-        const r = await api.post<{ borneProvisoire?: boolean; information?: string }>('/creances-douteuses/declarations', {
+        const r = await api.post<{ borneProvisoire?: boolean; information?: string; avertissement?: string | null }>('/creances-douteuses/declarations', {
           exerciceId,
           compteCreanceId: form.compteCreanceId,
           compte416Id: form.compte416Id,
@@ -385,7 +385,7 @@ export function CreancesDouteusesPage() {
           motif: form.motif || undefined,
           pieces: piecesAEnvoyer(form.pieces),
         });
-        setInfo(r?.information ?? null);
+        setInfo([r?.information, r?.avertissement].filter(Boolean).join(' ') || null);
       } else if (form.geste === 'reclasser') {
         const r = await api.post<{ avertissement?: string | null }>('/creances-douteuses', {
           ...commun,

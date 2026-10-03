@@ -950,6 +950,8 @@ export class CreancesDouteusesService {
       depreciationOuverture: n(ligne.depreciationOuverture),
       borneProvisoire: ouverture.reconstitue,
       ...(ouverture.reconstitue ? { information: INFORMATION_BORNE_RECONSTITUEE } : {}),
+      // Mineur 8 · méthode non déclarée, ou impayé d'adhérent sous l'encaissement · dit, jamais bloqué.
+      avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null),
     };
   }
 

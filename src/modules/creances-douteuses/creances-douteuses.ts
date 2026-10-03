@@ -180,6 +180,32 @@ const PARAGRAPHE_5421 =
   'cadre conceptuel du SYCEBNL, § 5.4.2.1, « Toutefois, si l’entité ne peut justifier d’un droit d’agir en recouvrement, les ' +
   'cotisations et le droit d’entrée sont comptabilisés lors de leur encaissement effectif »';
 
+/** La fiche SYCEBNL du compte 41, sur les impayés (Commentaires). */
+const FICHE_41_IMPAYES =
+  'fiche SYCEBNL du compte 41, « Les chèques, effets à payer et autres valeurs revenus impayés doivent être enregistrés dans le ' +
+  'compte 413 Adhérents, clients-usagers chèques, et autres valeurs impayés pour un meilleur suivi des incidents de paiements »';
+
+/**
+ * A7 ter, mineur 8 · UN IMPAYÉ D'ADHÉRENT (4131 chèques, 4133 autres valeurs)
+ * sous la méthode de l'ENCAISSEMENT · le corpus ne tranche pas. La fiche du
+ * compte 41 impose le 413 pour les valeurs revenues impayées ; le § 5.4.2.1
+ * dit que la cotisation se comptabilise « lors de son encaissement
+ * effectif ». Un chèque remis puis rejeté a-t-il été encaissé ? Aucun texte
+ * lu ne le dit · rien tranché n'est pas bloqué, le reclassement passe avec
+ * cet avertissement, et la question est remontée à Manasse (suivi, A7 bis).
+ */
+function estImpayeAdherent(numeroSource: string): boolean {
+  return numeroSource.startsWith('4131') || numeroSource.startsWith('4133');
+}
+
+/**
+ * LA MÉTHODE LUE EST CELLE DÉCLARÉE AUJOURD'HUI · `Tenant.methodeCotisations`
+ * ne garde aucun historique (A7 ter, mineur 8) · une créance née sous une
+ * méthode antérieure se juge sur la méthode déclarée au jour du geste, et le
+ * message le dit.
+ */
+const METHODE_DU_JOUR = 'méthode déclarée aujourd’hui dans Paramètres du dossier, qui ne garde pas l’historique de ses changements';
+
 /**
  * UNE COTISATION COMPTABILISÉE À L'ENCAISSEMENT N'EST PAS UNE CRÉANCE (ligne
  * A7 ter, m9). Au SYCEBNL, le 4161 reçoit les « Adhérents cotisations
@@ -198,8 +224,10 @@ export function motifRefusCotisationsEncaissement(
 ): string | null {
   if (referentiel !== Referentiel.SYCEBNL || methode !== 'ENCAISSEMENT') return null;
   if (debiteurSycebnl(numeroSource) !== 'ADHERENT') return null;
+  // Mineur 8 · un impayé d'adhérent (4131, 4133) n'est pas refusé · le corpus ne tranche pas (avertissement).
+  if (estImpayeAdherent(numeroSource)) return null;
   return (
-    `Le dossier comptabilise les cotisations à leur ENCAISSEMENT (Paramètres du dossier) · ${PARAGRAPHE_5421}. Une cotisation ` +
+    `Le dossier comptabilise les cotisations à leur ENCAISSEMENT (${METHODE_DU_JOUR}) · ${PARAGRAPHE_5421}. Une cotisation ` +
     `non encaissée n'y est pas une créance, et ne se reclasse pas au 4161 · si le compte ${numeroSource} porte une créance, c'est ` +
     "la méthode déclarée ou l'écriture d'appel qui est à revoir."
   );
@@ -210,8 +238,16 @@ export function avertissementMethodeCotisations(
   numeroSource: string,
   methode: MethodeCotisationsDeclaree,
 ): string | null {
-  if (referentiel !== Referentiel.SYCEBNL || methode !== null) return null;
+  if (referentiel !== Referentiel.SYCEBNL) return null;
   if (debiteurSycebnl(numeroSource) !== 'ADHERENT') return null;
+  if (methode === 'ENCAISSEMENT' && estImpayeAdherent(numeroSource)) {
+    return (
+      `Le dossier comptabilise les cotisations à leur ENCAISSEMENT (${METHODE_DU_JOUR}) et le compte ${numeroSource} est un ` +
+      `impayé d'adhérent · ${FICHE_41_IMPAYES} ; ${PARAGRAPHE_5421}. Aucun texte lu ne dit si une valeur remise puis revenue ` +
+      'impayée a été encaissée · le reclassement au 4161 est admis, vérifiez que l’entité peut en poursuivre le recouvrement.'
+    );
+  }
+  if (methode !== null) return null;
   return (
     'La méthode de comptabilisation des cotisations n’est pas déclarée (Paramètres du dossier) · le reclassement au 4161 suppose ' +
     `une cotisation APPELÉE, dont l'entité peut poursuivre le recouvrement ; sinon, ${PARAGRAPHE_5421}.`
