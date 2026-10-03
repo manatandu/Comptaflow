@@ -63,6 +63,8 @@ function service(ecritures: ReturnType<typeof ecriture>[]) {
       }),
     },
     ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
+    // Les traces des contre-passations annulées (A5 bis, contrôle 32) · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },

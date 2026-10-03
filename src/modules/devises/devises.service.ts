@@ -631,6 +631,21 @@ const SELECTION_REEVALUATION_RELUE = {
 type ReevaluationRelue = Prisma.ReevaluationGetPayload<{ select: typeof SELECTION_REEVALUATION_RELUE }>;
 
 /** Débit moins crédit de l'écriture des écarts, par banque ou caisse (52, 53, 55, 57, 58). */
+/**
+ * LA FENÊTRE DE LECTURE DE L'ÉCART D'UNE RÉÉVALUATION · l'exercice réévalué
+ * à partir de la date de la réévaluation, puis chaque exercice jusqu'à celui
+ * qui reçoit la contre-passation. UNE borne de date, partagée par la lecture
+ * des soldes du 478 / 479 et par celle des écritures hors module qui
+ * nourrissent la part d'écart du tiers (`DevisesService.etatDeLEcart`) · deux
+ * bornes écrites deux fois avaient divergé.
+ */
+function dansLaFenetre(
+  x: { dateReevaluation: Date; exercice: { id: string } },
+  fenetre: Array<{ id: string }>,
+): { OR: Prisma.EcritureWhereInput[] } {
+  return { OR: [{ exerciceId: x.exercice.id, date: { gte: x.dateReevaluation } }, { exerciceId: { in: fenetre.map((e) => e.id) } }] };
+}
+
 function passeSurLesDisponibilites(reeval: Pick<ReevaluationRelue, 'ecritureEcarts'>): Map<string, number> {
   const passe = new Map<string, number>();
   for (const l of reeval.ecritureEcarts?.lignes ?? []) {
@@ -2279,7 +2294,14 @@ export class DevisesService {
       comptes47,
       comptesTiers,
       /** L'ouverture fiable de la fenêtre qui ne correspond pas à la clôture précédente, compte par compte. */
-      ouverture: null as null | { exercice: { dateDebut: Date; dateFin: Date }; ecart: Map<string, number> },
+      ouverture: null as null | {
+        /** La dernière ouverture de la fenêtre qui ne correspond pas à la clôture qui la précède. */
+        exercice: { id: string; dateDebut: Date; dateFin: Date };
+        /** Toutes celles de la fenêtre, dans l'ordre. */
+        exercices: Array<{ id: string; dateDebut: Date; dateFin: Date }>;
+        /** La somme de leurs écarts, compte par compte (ouverture moins clôture précédente). */
+        ecart: Map<string, number>;
+      },
       ecartTiers: new Map<string, number>(),
       /** Les écritures hors module tenues dans le lu (corrigeables, déclarables). */
       ecritures: [] as EcritureSurLEcart[],
@@ -2290,8 +2312,21 @@ export class DevisesService {
     };
     if (!cible) return etat;
 
-    // LE 478 ET LE 479 · de la cible en remontant jusqu'au premier exercice
-    // dont l'ouverture est fiable (à-nouveau de clôture ou bilan importé).
+    // UNE SEULE LECTURE, UNE SEULE FENÊTRE, UNE SEULE OUVERTURE (vérification
+    // finale d'A5 bis). Le 478 / 479 et la part d'écart du tiers se lisaient
+    // chacun à sa manière · le 47 par la chaîne remontant de la CIBLE jusqu'à
+    // sa dernière ouverture fiable, le tiers par l'écart de CETTE SEULE
+    // ouverture. Une ouverture fiable PLUS ANCIENNE de la fenêtre (N+1 clôturé
+    // repris d'un autre logiciel sans l'écart, N+2 ouvert par l'à-nouveau de
+    // clôture de N+1) sortait le 47 sans écart quand le tiers le gardait · ni
+    // « rétablissez » ni l'art. 34 n'étaient dits. Les deux se lisent
+    // désormais sur la MÊME fenêtre (l'exercice réévalué depuis la date de la
+    // réévaluation, puis chaque exercice jusqu'à la cible, borne de date
+    // partagée par `dansLaFenetre`), et l'ouverture se traite d'une seule
+    // façon · CHAQUE ouverture fiable de la fenêtre est confrontée à la
+    // clôture reconstituée qui la précède (AUDCIF art. 34 ; SYCEBNL art. 16,
+    // 4)), et ces écarts s'additionnent, pour le 47 comme pour le tiers.
+    // L'à-nouveau provisoire, qui ne lit que le validé, n'entre jamais.
     const jusquaLaCible = await this.prisma.exercice.findMany({
       where: { tenantId, dateDebut: { lte: cible.dateDebut } },
       orderBy: { dateDebut: 'desc' },
@@ -2313,45 +2348,11 @@ export class DevisesService {
         })
       ).map((e) => e.exerciceId),
     );
-    const indexOuverture = jusquaLaCible.findIndex((e) => avecOuverture.has(e.id));
-    if (indexOuverture < 0 && jusquaLaCible.length >= PLAFOND_REEVALUATIONS_EXAMINEES) etat.tronque = true;
-    const chaineDepuis = (debut: number) => {
-      const ids: string[] = [];
-      for (let i = debut; i < jusquaLaCible.length; i++) {
-        ids.push(jusquaLaCible[i].id);
-        if (avecOuverture.has(jusquaLaCible[i].id)) break;
-      }
-      return ids;
-    };
-    const sommes = async (exerciceIds: string[], compteIds: string[], ouvertureSeule = false) => {
-      const s = new Map<string, number>();
-      if (exerciceIds.length === 0 || compteIds.length === 0) return s;
-      const groupes = await this.prisma.ligneEcriture.groupBy({
-        by: ['compteId'],
-        where: {
-          compteId: { in: compteIds },
-          ecriture: {
-            tenantId,
-            exerciceId: { in: exerciceIds },
-            estANouveauProvisoire: false,
-            ...(ouvertureSeule ? { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } : {}),
-          },
-        },
-        _sum: { debit: true, credit: true },
-      });
-      for (const g of groupes) s.set(g.compteId, (s.get(g.compteId) ?? 0) + centimesDe({ debit: g._sum.debit ?? 0, credit: g._sum.credit ?? 0 }));
-      return s;
-    };
-    const lu47 = await sommes(chaineDepuis(0), ids47);
-    // L'ouverture fiable de la fenêtre contre la clôture reconstituée de
-    // l'exercice qui la précède · seulement après l'exercice réévalué (avant
-    // lui, le lu remonte jusqu'à l'écart lui-même).
-    if (indexOuverture >= 0 && indexOuverture + 1 < jusquaLaCible.length && jusquaLaCible[indexOuverture].dateDebut.getTime() > x.exercice.dateFin.getTime()) {
-      const exo = jusquaLaCible[indexOuverture];
-      const ouverture = await sommes([exo.id], idsEcart, true);
-      const cloture = await sommes(chaineDepuis(indexOuverture + 1), idsEcart);
-      const ecart = new Map(idsEcart.map((c) => [c, (ouverture.get(c) ?? 0) - (cloture.get(c) ?? 0)]));
-      if ([...ecart.values()].some((v) => v !== 0)) etat.ouverture = { exercice: exo, ecart };
+    const lecture = await this.lireLaFenetreDeLEcart(tenantId, x, fenetre, jusquaLaCible, avecOuverture, idsEcart);
+    etat.tronque = etat.tronque || lecture.tronque;
+    const lu47 = new Map(ids47.map((c) => [c, lecture.solde.get(c) ?? 0]));
+    if (lecture.ouvertures.length > 0) {
+      etat.ouverture = { exercice: lecture.ouvertures[lecture.ouvertures.length - 1], exercices: lecture.ouvertures, ecart: lecture.ecartOuverture };
     }
 
     // LES ÉCARTS DU MODULE en place dans la cible.
@@ -2391,7 +2392,7 @@ export class DevisesService {
       reevaluationExtourne: { is: null },
       reevaluationContrePassationDeclaree: { is: null },
       lignes: { some: { compteId: { in: ids47 } } },
-      OR: [{ exerciceId: x.exercice.id, date: { gte: x.dateReevaluation } }, { exerciceId: { in: fenetre.map((e) => e.id) } }],
+      ...dansLaFenetre(x, fenetre),
     } satisfies Prisma.EcritureWhereInput;
     const liste =
       ids47.length === 0
@@ -2444,7 +2445,9 @@ export class DevisesService {
     // Le tiers · écart d'ouverture plus mouvements des écritures hors module
     // tenues dans le lu. Lecture tronquée · leur somme entière, sans autre écart
     // tenu pour en place.
-    for (const c of idsTiers) etat.ecartTiers.set(c, etat.ouverture?.ecart.get(c) ?? 0);
+    // Même ouverture que le 47 · la somme des écarts de TOUTES les ouvertures
+    // fiables de la fenêtre (`lireLaFenetreDeLEcart`).
+    for (const c of idsTiers) etat.ecartTiers.set(c, lecture.ecartOuverture.get(c) ?? 0);
     if (tronqueListe) {
       const groupes = await this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
@@ -2478,6 +2481,90 @@ export class DevisesService {
       ecritures: tronqueListe ? null : etat.ecritures,
     });
     return etat;
+  }
+
+  /**
+   * LA LECTURE UNIQUE DE L'ÉCART SUR SA FENÊTRE (vérification finale d'A5
+   * bis) · pour chaque compte de l'écart (478, 479, tiers), le solde réel à la
+   * cible, et la somme des écarts d'ouverture de la fenêtre. Le solde part de
+   * la clôture reconstituée de l'exercice réévalué AVANT la date de la
+   * réévaluation (sa chaîne remontant jusqu'à une ouverture fiable), ajoute
+   * les mouvements de la fenêtre (`dansLaFenetre`, ouvertures exclues), et,
+   * à chaque exercice de la fenêtre dont l'ouverture est fiable (à-nouveau de
+   * clôture ou bilan importé), REPART de cette ouverture · l'écart entre elle
+   * et le solde qui la précède est gardé (AUDCIF art. 34 ; SYCEBNL art. 16,
+   * 4)). Le solde rendu est donc celui qu'aurait lu la chaîne de la cible
+   * (même nombre), et l'écart d'ouverture celui de TOUTES les ouvertures de la
+   * fenêtre · le 47 et le tiers le lisent de la même façon.
+   */
+  private async lireLaFenetreDeLEcart(
+    tenantId: string,
+    x: { dateReevaluation: Date; exercice: { id: string; dateFin: Date } },
+    fenetre: Array<{ id: string; dateDebut: Date; dateFin: Date }>,
+    jusquaLaCible: Array<{ id: string; dateDebut: Date; dateFin: Date }>,
+    avecOuverture: Set<string>,
+    comptes: string[],
+  ) {
+    const centimesDe = (l: { debit: unknown; credit: unknown }) => Math.round(Number(l.debit) * 100) - Math.round(Number(l.credit) * 100);
+    const resultat = {
+      solde: new Map<string, number>(),
+      ecartOuverture: new Map<string, number>(comptes.map((c) => [c, 0])),
+      ouvertures: [] as Array<{ id: string; dateDebut: Date; dateFin: Date }>,
+      tronque: false,
+    };
+    if (comptes.length === 0) return resultat;
+    const sommes = async (ecriture: Prisma.EcritureWhereInput) => {
+      const s = new Map<string, number>();
+      const groupes = await this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { compteId: { in: comptes }, ecriture: { tenantId, estANouveauProvisoire: false, ...ecriture } },
+        _sum: { debit: true, credit: true },
+      });
+      for (const g of groupes) s.set(g.compteId, (s.get(g.compteId) ?? 0) + centimesDe({ debit: g._sum.debit ?? 0, credit: g._sum.credit ?? 0 }));
+      return s;
+    };
+    const ouvertureSeule = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } satisfies Prisma.EcritureWhereInput;
+    const horsOuverture = { NOT: ouvertureSeule } satisfies Prisma.EcritureWhereInput;
+    // La base · l'exercice réévalué AVANT la date de la réévaluation, et les
+    // exercices qui le précèdent jusqu'à la première ouverture fiable.
+    const indexX = jusquaLaCible.findIndex((e) => e.id === x.exercice.id);
+    const avant: string[] = [];
+    if (indexX < 0) {
+      resultat.tronque = true;
+    } else if (!avecOuverture.has(x.exercice.id)) {
+      for (let i = indexX + 1; i < jusquaLaCible.length; i++) {
+        avant.push(jusquaLaCible[i].id);
+        if (avecOuverture.has(jusquaLaCible[i].id)) break;
+      }
+      // Aucune ouverture fiable dans la borne de lecture · la chaîne part du
+      // premier exercice lu, et la lecture se dit bornée.
+      if (!avant.some((id) => avecOuverture.has(id)) && jusquaLaCible.length >= PLAFOND_REEVALUATIONS_EXAMINEES) resultat.tronque = true;
+    }
+    const base = await sommes({
+      OR: [{ exerciceId: x.exercice.id, date: { lt: x.dateReevaluation } }, ...(avant.length > 0 ? [{ exerciceId: { in: avant } }] : [])],
+    });
+    const solde = new Map(comptes.map((c) => [c, base.get(c) ?? 0]));
+    const ajouter = (m: Map<string, number>) => {
+      for (const c of comptes) solde.set(c, (solde.get(c) ?? 0) + (m.get(c) ?? 0));
+    };
+    // L'exercice réévalué, depuis la réévaluation (son ouverture est dans la base).
+    ajouter(await sommes({ exerciceId: x.exercice.id, date: { gte: x.dateReevaluation }, ...horsOuverture }));
+    for (const exo of fenetre) {
+      if (avecOuverture.has(exo.id)) {
+        const ouverture = await sommes({ exerciceId: exo.id, ...ouvertureSeule });
+        let ecarte = false;
+        for (const c of comptes) {
+          const d = (ouverture.get(c) ?? 0) - (solde.get(c) ?? 0);
+          if (d !== 0) ecarte = true;
+          resultat.ecartOuverture.set(c, (resultat.ecartOuverture.get(c) ?? 0) + d);
+          solde.set(c, ouverture.get(c) ?? 0);
+        }
+        if (ecarte) resultat.ouvertures.push(exo);
+      }
+      ajouter(await sommes({ exerciceId: exo.id, ...horsOuverture }));
+    }
+    resultat.solde = solde;
+    return resultat;
   }
 
   /**
@@ -2539,7 +2626,7 @@ export class DevisesService {
               ? 'deux lectures sont possibles'
               : 'les comptes ne se lisent ni comme l’écart en place, ni comme l’écart contre-passé';
     const ouverture = etat.ouverture
-      ? `l'ouverture de ${periode(etat.ouverture.exercice)} ne correspond pas à la clôture de l'exercice précédent (${correspondance} · ${[
+      ? `l'ouverture de ${etat.ouverture.exercices.map(periode).join(' et de ')} ne correspond pas à la clôture de l'exercice précédent (${correspondance} · ${[
           ...etat.comptes47,
           ...etat.comptesTiers,
         ]
@@ -2552,8 +2639,12 @@ export class DevisesService {
       for (const g of issue.gestes) {
         if (g.type === 'RETABLIR') {
           etapes.push(
-            `rétablissez l'écart, que l'ouverture${etat.ouverture ? ` de ${periode(etat.ouverture.exercice)}` : ''} omet (${correspondance}), ` +
-              `par une OD à cette ouverture (${libelleMontantsDeLEcart(attendusX)})`,
+            `rétablissez l'écart, que l'ouverture${etat.ouverture ? ` de ${etat.ouverture.exercices.map(periode).join(' et de ')}` : ''} omet (${correspondance}), ` +
+              // L'ouverture qui l'omet peut être celle d'un exercice CLÔTURÉ de
+              // la fenêtre · l'OD se passe alors à l'ouverture de la cible.
+              (etat.ouverture && etat.ouverture.exercice.id !== etat.cible.id
+                ? `par une OD à l'ouverture de ${periode(etat.cible)} (${libelleMontantsDeLEcart(attendusX)})`
+                : `par une OD à cette ouverture (${libelleMontantsDeLEcart(attendusX)})`),
           );
           continue;
         }

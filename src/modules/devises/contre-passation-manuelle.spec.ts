@@ -197,6 +197,7 @@ function ecritureRetenue(e: EcritureFaite, w: Record<string, unknown> = {}): boo
   const some = (w.lignes as { some?: { compteId: { in: string[] } } } | undefined)?.some;
   if (some && !e.lignes.some((x) => some.compteId.in.includes(x.compteId))) return false;
   if (Array.isArray(w.OR) && !(w.OR as Record<string, unknown>[]).some((o) => ecritureRetenue(e, o))) return false;
+  if (w.NOT !== undefined && ecritureRetenue(e, w.NOT as Record<string, unknown>)) return false;
   return true;
 }
 
@@ -776,6 +777,40 @@ describe('m1 · l’ouverture qui ne porte pas l’écart', () => {
     const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1, faux] });
     await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/Corrigez la pièce n° 3 du 2027-01-01/);
     expect(creer).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * VÉRIFICATION FINALE · UNE FENÊTRE, UNE OUVERTURE. N+1 CLÔTURÉ, repris d'un
+ * autre logiciel par un bilan d'ouverture qui omet l'écart de N ; N+2 ouvert
+ * par l'à-nouveau de clôture de N+1. Le 478 / 479 se lisait par la chaîne de
+ * la cible (N+2 seul) · 4791 à zéro ; le tiers par l'écart de la SEULE
+ * dernière ouverture (celle de N+2, qui correspond à N+1) · aucun. Le 47 sans
+ * écart, le tiers avec · ni l'omission ni l'art. 34 n'étaient dits, et le
+ * refus tombait sur « aucune correction ne se déduit ». Lus sur la même
+ * fenêtre, avec la même ouverture, ils disent l'omission de N+1 et l'issue
+ * (rétablir à l'ouverture de la cible, puis contre-passer).
+ */
+describe('vérification finale · le 478 / 479 et le tiers lus sur la même fenêtre, avec la même ouverture', () => {
+  const N1_CLOS: Exo = { ...N1, statut: 'CLOTURE' };
+  const IMPORT_N1: EcritureFaite = { id: 'import', exercice: N1_CLOS, numeroPiece: 1, estGenereeParCloture: true, lignes: [l('c-4111', '41110000', 2_000_000, 0)] };
+  const AN_N2: EcritureFaite = { id: 'an28', exercice: N2, numeroPiece: 1, estGenereeParCloture: true, lignes: [l('c-4111', '41110000', 2_000_000, 0)] };
+
+  it('l’omission dans l’ouverture d’un exercice CLÔTURÉ de la fenêtre est dite (AUDCIF art. 34), l’issue · rétablir à l’ouverture de la cible, puis contre-passer', async () => {
+    const { svc, creer } = monter({ exercices: [N, N1_CLOS, N2], ecritures: [...BASE_N, IMPORT_N1, AN_N2] });
+    const refus = svc.extourner('t', 'u', 'r1', 'e28');
+    await expect(refus).rejects.toThrow(
+      /Rétablissez l'écart, que l'ouverture de l'exercice du 2027-01-01 au 2027-12-31 omet \(AUDCIF art\. 34\), par une OD à l'ouverture de l'exercice du 2028-01-01 au 2028-12-31 \(41110000 au débit de 500000\.00, 47910000 au crédit de 500000\.00\), puis contre-passez/,
+    );
+    await expect(svc.extourner('t', 'u', 'r1', 'e28')).rejects.not.toThrow(/aucune correction ne se déduit/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('l’OD de rétablissement passée dans la cible · « Contre-passer » admis', async () => {
+    const retablissement: EcritureFaite = { id: 'retab', exercice: N2, numeroPiece: 2, lignes: [l('c-4111', '41110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
+    const { svc, creer } = monter({ exercices: [N, N1_CLOS, N2], ecritures: [...BASE_N, IMPORT_N1, AN_N2, retablissement] });
+    await svc.extourner('t', 'u', 'r1', 'e28');
+    expect(creer).toHaveBeenCalled();
   });
 });
 

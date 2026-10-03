@@ -63,6 +63,28 @@ interface AutreReevaluation {
   ecartsDisponibilites: unknown;
 }
 
+/** L'écriture des écarts de la doublure · exercice `n`, au 31/12/2026, ni ouverture ni à-nouveau provisoire. */
+function ecritureDesEcartsRetenue(w: Record<string, unknown> = {}): boolean {
+  const borne = (valeur: unknown, filtre: unknown): boolean => {
+    if (filtre === undefined) return true;
+    if (filtre && typeof filtre === 'object' && !(filtre instanceof Date)) {
+      const f = filtre as Record<string, unknown>;
+      if ('in' in f) return (f.in as unknown[]).includes(valeur);
+      const t = (valeur as Date).getTime();
+      if (f.lt && !(t < (f.lt as Date).getTime())) return false;
+      if (f.gte && !(t >= (f.gte as Date).getTime())) return false;
+      if (f.lte && !(t <= (f.lte as Date).getTime())) return false;
+      if (f.gt && !(t > (f.gt as Date).getTime())) return false;
+      return true;
+    }
+    return valeur === filtre;
+  };
+  if (!borne('n', w.exerciceId) || !borne(new Date('2026-12-31'), w.date)) return false;
+  if (w.estGenereeParCloture === true) return false;
+  if (Array.isArray(w.OR) && !(w.OR as Record<string, unknown>[]).some((o) => ecritureDesEcartsRetenue(o))) return false;
+  return true;
+}
+
 function monter(
   dateDebutSuivant: string,
   lignes: LigneFaite[] = [
@@ -138,9 +160,12 @@ function monter(
     // ou le 479 porte l'écart de la réévaluation, en place.
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: {
-      groupBy: jest.fn(async (a: { where: { compteId: { in: string[] } } }) =>
+      // La doublure honore la fenêtre de lecture · les lignes sont celles de
+      // l'écriture des écarts (exercice `n`, au 31/12/2026, hors ouverture),
+      // lues par la seule requête dont la borne la couvre.
+      groupBy: jest.fn(async (a: { where: { compteId: { in: string[] }; ecriture?: Record<string, unknown> } }) =>
         lignes
-          .filter((x) => a.where.compteId.in.includes(x.compteId))
+          .filter((x) => a.where.compteId.in.includes(x.compteId) && ecritureDesEcartsRetenue(a.where.ecriture))
           .map((x) => ({ compteId: x.compteId, _sum: { debit: x.debit, credit: x.credit } })),
       ),
     },

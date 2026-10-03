@@ -147,6 +147,9 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       // Les lectures « hors à-nouveau » (quatrième tour, `manuellesSurLEcart`) · l'ouverture n'en est pas.
       if (e.estGenereeParCloture === false && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE')) return false;
       if (e.estANouveauProvisoire === false && l.ouverture === 'PROVISOIRE') return false;
+      // Les mouvements de la fenêtre · tout sauf l'ouverture (`NOT` de l'ouverture seule).
+      const non = e.NOT as Record<string, unknown> | undefined;
+      if (non?.estGenereeParCloture === true && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE')) return false;
       return true;
     });
   };
@@ -173,11 +176,17 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       const ouverte = l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE';
       if (e.estGenereeParCloture === true && !ouverte) return false;
       if (e.estANouveauProvisoire === false && l.ouverture === 'PROVISOIRE') return false;
+      // Les mouvements de la fenêtre · tout sauf l'ouverture (`NOT` de l'ouverture seule).
+      const non = e.NOT as Record<string, unknown> | undefined;
+      if (non?.estGenereeParCloture === true && ouverte) return false;
       if (branches) {
         const saisieAvant = branches.some((b) =>
           b.createdAt
             ? correspond(l.creeeLe ?? new Date('2026-06-01'), b.createdAt)
-            : b.date !== undefined && correspond(l.date, b.date) && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE'),
+            : // La fenêtre de l'écart (vérification finale) · une branche par exercice et borne de date.
+              b.exerciceId !== undefined
+              ? correspond(l.exerciceId, b.exerciceId) && correspond(l.date, b.date)
+              : b.date !== undefined && correspond(l.date, b.date) && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE'),
         );
         if (!saisieAvant) return false;
       }
