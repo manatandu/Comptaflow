@@ -31,6 +31,8 @@ type Etat = {
   lignesCaisse?: { debit: number; credit: number; compte: { id: string; numero: string; intitule: string } }[];
   pvCaisse?: { compteId: string }[];
   ecartsSansDecision?: number;
+  /** Le solde du livre-journal de la caisse à la date du comptage (ligne A10). */
+  soldeLivre?: number;
 };
 
 function service(etat: Etat = {}) {
@@ -58,7 +60,19 @@ function service(etat: Etat = {}) {
       }),
     },
     compte: { findFirst: jest.fn().mockResolvedValue(etat.compte ?? null) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []) },
+    // Le solde comparé est LU au livre-journal (ligne A10) · exercice 2025,
+    // comptage au 31 décembre, rien au brouillard. Les cas de la date du
+    // comptage sont dans `solde-caisse-au-comptage.spec.ts`, sur une doublure
+    // qui honore les filtres.
+    exercice: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'ex1', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    ligneEcriture: {
+      findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []),
+      count: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { debit: etat.soldeLivre ?? 1_250_000, credit: 0 }, _count: { _all: 1 } }),
+    },
     procesVerbalComptageCaisse: {
       findMany: jest.fn().mockResolvedValue(etat.pvCaisse ?? []),
       create: creerPv,
@@ -84,8 +98,7 @@ const COMMISSION_COMPLETE = {
 const pv = (extra: Record<string, unknown> = {}) => ({
   compteId: 'c57',
   sousCommissionId: 'sc1',
-  dateComptage: '2026-12-31',
-  soldeComptable: 1_250_000,
+  dateComptage: '2025-12-31',
   especesComptees: 1_250_000,
   ...extra,
 });
@@ -198,14 +211,14 @@ describe('la ventilation par coupure doit égaler le total qu’elle justifie', 
 });
 
 describe('l’écart est figé sur le PV', () => {
-  it('calcule espèces comptées moins solde comptable', async () => {
-    const { svc, creerPv } = service({ campagne: CAMPAGNE, compte: CAISSE, sousCommission: COMMISSION_COMPLETE });
-    await svc.etablirPvCaisse(
-      't1',
-      'camp1',
-      'u1',
-      pv({ soldeComptable: 1_250_000, especesComptees: 1_180_000 }) as never,
-    );
+  it('calcule espèces comptées moins solde du livre-journal, lu par le serveur', async () => {
+    const { svc, creerPv } = service({
+      campagne: CAMPAGNE,
+      compte: CAISSE,
+      sousCommission: COMMISSION_COMPLETE,
+      soldeLivre: 1_250_000,
+    });
+    await svc.etablirPvCaisse('t1', 'camp1', 'u1', pv({ especesComptees: 1_180_000 }) as never);
     expect(creerPv.mock.calls[0][0].data.ecart).toBe(-70_000);
     // Le solde comptable est COPIÉ sur le PV, jamais relu · un règlement passé
     // le lendemain déplacerait la cible et refermerait l'écart tout seul.
@@ -217,7 +230,7 @@ describe('l’attestation, et ce que le corpus n’en dit pas', () => {
   it('refuse une attestation sans signataire', async () => {
     const { svc } = service({ campagne: CAMPAGNE, compte: CAISSE, sousCommission: COMMISSION_COMPLETE });
     await expect(
-      svc.etablirPvCaisse('t1', 'camp1', 'u1', pv({ attestationEtablieLe: '2026-12-31' }) as never),
+      svc.etablirPvCaisse('t1', 'camp1', 'u1', pv({ attestationEtablieLe: '2025-12-31' }) as never),
     ).rejects.toThrow(/atteste de rien/);
   });
 
@@ -227,7 +240,7 @@ describe('l’attestation, et ce que le corpus n’en dit pas', () => {
       't1',
       'camp1',
       'u1',
-      pv({ attestationEtablieLe: '2026-12-31', attestationPar: 'Mme la caissière principale' }) as never,
+      pv({ attestationEtablieLe: '2025-12-31', attestationPar: 'Mme la caissière principale' }) as never,
     );
     const data = creerPv.mock.calls[0][0].data;
     expect(data.attestationPar).toBe('Mme la caissière principale');

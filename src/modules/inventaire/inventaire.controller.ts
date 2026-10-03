@@ -189,6 +189,15 @@ export class InventaireController {
     return this.inventaire.etablirPvCaisse(user.tenantId, id, user.userId, dto);
   }
 
+  /**
+   * Les mouvements de caisse entre la clôture et le comptage, ligne à ligne,
+   * tels que le PV les a lus (ligne A10) · lecture seule, tranche bornée.
+   */
+  @Get('pv-caisse/:pvId/mouvements')
+  mouvementsReconstitution(@CurrentUser() user: AuthenticatedUser, @Param('pvId') pvId: string) {
+    return this.inventaire.mouvementsReconstitution(user.tenantId, pvId);
+  }
+
   /** Les caisses à solde non nul qui n'ont pas encore leur PV de comptage. */
   @Get(':id/caisses-non-comptees')
   caissesNonComptees(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

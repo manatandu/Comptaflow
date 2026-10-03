@@ -24,6 +24,14 @@ import {
 import { decrireLigne, lignesManquantes, type LigneAttendue } from '../comptabilite/rattachement-ecriture';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { compteInscritALaDate } from '../immobilisations/immobilisation-en-cours';
+import {
+  compteApresLaCloture,
+  especesReconstitueesALaCloture,
+  exercicesDuComptage,
+  filtreExercicesSuivants,
+  lireSoldeCaisseAuComptage,
+  mouvementsLusParLePv,
+} from './solde-caisse-au-comptage';
 
 /**
  * INVENTAIRE PHYSIQUE · l'obligation qu'OmegaX ne portait pas.
@@ -926,6 +934,14 @@ export class InventaireService {
    *     questions (« Le comptage des espèces a-t-il eu lieu au 31 décembre ? »
    *     puis « SI OUI, une attestation a-t-elle été établie ? »).
    *
+   * ET LE SOLDE COMPARÉ N'EST PAS SAISI (ligne A10, relevé CPCC C6) · c'est
+   * celui du livre-journal à la DATE DU COMPTAGE, lu par le serveur et figé ;
+   * compté après la clôture, le PV fige aussi sa reconstitution vers la
+   * clôture. Un solde non calculable (brouillard sur la caisse, exercice
+   * suivant non ouvert, à-nouveau provisoire, date hors de l'exercice ou
+   * future) REFUSE le PV avec son motif, jamais à zéro · voir
+   * `solde-caisse-au-comptage.ts`.
+   *
    * ET CE QUE LE MODULE NE FAIT PAS : il ne dit pas ce que l'attestation
    * contient. Aucune source lue ne la définit · le module en enregistre
    * l'existence, sa date et son signataire, et laisse le document au cabinet.
@@ -983,16 +999,37 @@ export class InventaireService {
       );
     }
 
-    const ecart = Number((dto.especesComptees - dto.soldeComptable).toFixed(2));
+    // LE SOLDE COMPARÉ EST LU PAR LE SERVEUR, jamais reçu de l'écran (ligne
+    // A10). Saisi à la main, il laissait figer n'importe quel chiffre, et le
+    // solde proposé était celui de l'exercice entier, brouillard compris · une
+    // caisse comptée le 10 janvier se comparait au 31 décembre, et chaque
+    // mouvement de janvier devenait un écart. Voir `solde-caisse-au-comptage.ts`.
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: campagne.exerciceId, tenantId },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    if (!exercice) throw new NotFoundException("Exercice de la campagne introuvable.");
+    const dateComptage = new Date(dto.dateComptage);
+    const lecture = await lireSoldeCaisseAuComptage(this.prisma, tenantId, compte.id, exercice, dateComptage);
+    if (!lecture.lisible) throw new BadRequestException(lecture.motif);
+    const r = lecture.reconstitution;
+
+    const ecart = Number((dto.especesComptees - lecture.soldeComptable).toFixed(2));
     const pv = await this.prisma.procesVerbalComptageCaisse.create({
       data: {
         tenantId,
         campagneId: campagne.id,
         compteId: dto.compteId,
         sousCommissionId: dto.sousCommissionId,
-        dateComptage: new Date(dto.dateComptage),
+        dateComptage,
         heureComptage: dto.heureComptage?.trim() || null,
-        soldeComptableFige: dto.soldeComptable,
+        soldeComptableFige: lecture.soldeComptable,
+        // Les quatre ensemble, ou aucun · un comptage au plus tard à la
+        // clôture n'a rien à reconstituer.
+        soldeALaCloture: r ? r.soldeALaCloture : null,
+        encaissementsPosterieurs: r ? r.encaissementsPosterieurs : null,
+        decaissementsPosterieurs: r ? r.decaissementsPosterieurs : null,
+        mouvementsPosterieurs: r ? r.mouvementsPosterieurs : null,
         especesComptees: dto.especesComptees,
         ecart,
         attestationEtablieLe: dto.attestationEtablieLe ? new Date(dto.attestationEtablieLe) : null,
@@ -1114,6 +1151,11 @@ export class InventaireService {
     const campagne = await this.prisma.campagneInventaire.findFirst({
       where: { id: campagneId, tenantId },
       include: {
+        exercice: { select: { dateFin: true } },
+        pvComptageCaisse: {
+          include: { compte: { select: { numero: true, intitule: true } }, coupures: true },
+          orderBy: { dateComptage: 'asc' },
+        },
         sousCommissions: { include: { membres: true }, orderBy: { nom: 'asc' } },
         fiches: {
           include: { compte: { select: { numero: true, intitule: true } } },
@@ -1130,8 +1172,125 @@ export class InventaireService {
       where: { id: tenantId },
       select: { referentiel: true },
     });
-    return { ...campagne, sanction: InventaireService.sanctionApplicable(tenant.referentiel) };
+    const { exercice, pvComptageCaisse, ...reste } = campagne;
+    return {
+      ...reste,
+      pvComptageCaisse: pvComptageCaisse.map((pv) => InventaireService.presenterPvCaisse(pv, exercice.dateFin)),
+      sanction: InventaireService.sanctionApplicable(tenant.referentiel),
+    };
   }
+
+  /**
+   * Un PV de caisse tel que l'écran le montre · la reconstitution FIGÉE, et
+   * les espèces existant à la clôture qu'elle reconstitue. Compté après la
+   * clôture sans reconstitution figée (PV d'avant la ligne A10), le PV le DIT
+   * (`reconstitutionManquante`) au lieu de se présenter comme un comptage du
+   * 31 décembre.
+   */
+  static presenterPvCaisse<
+    T extends {
+      dateComptage: Date;
+      especesComptees: unknown;
+      soldeALaCloture: unknown;
+      encaissementsPosterieurs: unknown;
+      decaissementsPosterieurs: unknown;
+      mouvementsPosterieurs: number | null;
+    },
+  >(pv: T, dateCloture: Date) {
+    const apres = compteApresLaCloture(pv.dateComptage, dateCloture);
+    const figee =
+      pv.soldeALaCloture != null && pv.encaissementsPosterieurs != null && pv.decaissementsPosterieurs != null
+        ? {
+            soldeALaCloture: Number(pv.soldeALaCloture),
+            encaissementsPosterieurs: Number(pv.encaissementsPosterieurs),
+            decaissementsPosterieurs: Number(pv.decaissementsPosterieurs),
+          }
+        : null;
+    return {
+      ...pv,
+      dateCloture,
+      compteApresLaCloture: apres,
+      reconstitutionManquante: apres && figee === null,
+      especesReconstitueesALaCloture: figee ? especesReconstitueesALaCloture(Number(pv.especesComptees), figee) : null,
+    };
+  }
+
+  /**
+   * LES MOUVEMENTS DE CAISSE ENTRE LA CLÔTURE ET LE COMPTAGE, ligne à ligne ·
+   * le chemin de révision de la reconstitution (AUDCIF art. 22, 6° ; art. 16,
+   * al. 5). Lus tels que le PV les a lus (`mouvementsLusParLePv`), en tranche
+   * bornée qui dit son total, et confrontés aux totaux FIGÉS · une différence
+   * se dit (`concorde: false`), elle ne réécrit jamais le PV.
+   */
+  async mouvementsReconstitution(tenantId: string, pvId: string) {
+    const pv = await this.prisma.procesVerbalComptageCaisse.findFirst({
+      where: { id: pvId, tenantId },
+      include: { campagne: { select: { exerciceId: true } } },
+    });
+    if (!pv) throw new NotFoundException('Procès-verbal de comptage introuvable.');
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: pv.campagne.exerciceId, tenantId },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    if (!exercice) throw new NotFoundException("Exercice de la campagne introuvable.");
+    if (!compteApresLaCloture(pv.dateComptage, exercice.dateFin)) {
+      return { applicable: false as const, motif: 'Comptage au plus tard à la clôture · rien à reconstituer.' };
+    }
+    const suivants = await this.prisma.exercice.findMany({
+      where: filtreExercicesSuivants(tenantId, exercice.dateFin, pv.dateComptage),
+      select: { id: true, dateDebut: true, dateFin: true },
+      orderBy: { dateDebut: 'asc' },
+    });
+    const couverture = exercicesDuComptage(exercice.dateFin, pv.dateComptage, suivants);
+    if ('motif' in couverture) return { applicable: false as const, motif: couverture.motif };
+
+    const ecriture = mouvementsLusParLePv(tenantId, couverture.ids, pv.dateComptage, pv.etabliLe);
+    const where = { compteId: pv.compteId, ecriture };
+    const [lignes, total, sommes] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where,
+        select: {
+          id: true,
+          libelle: true,
+          debit: true,
+          credit: true,
+          ecriture: { select: { id: true, date: true, dateValeur: true, numeroPiece: true, libelle: true, journal: { select: { code: true } } } },
+        },
+        orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+        take: InventaireService.PLAFOND_MOUVEMENTS_RECONSTITUTION,
+      }),
+      this.prisma.ligneEcriture.count({ where }),
+      this.prisma.ligneEcriture.aggregate({ where, _sum: { debit: true, credit: true } }),
+    ]);
+    const encaissements = Number(Number(sommes._sum?.debit ?? 0).toFixed(2));
+    const decaissements = Number(Number(sommes._sum?.credit ?? 0).toFixed(2));
+    const figes =
+      pv.encaissementsPosterieurs != null && pv.decaissementsPosterieurs != null
+        ? { encaissements: Number(pv.encaissementsPosterieurs), decaissements: Number(pv.decaissementsPosterieurs) }
+        : null;
+    return {
+      applicable: true as const,
+      lignes: lignes.map((l) => ({
+        id: l.id,
+        date: l.ecriture.dateValeur ?? l.ecriture.date,
+        journal: l.ecriture.journal.code,
+        numeroPiece: l.ecriture.numeroPiece,
+        libelle: l.libelle ?? l.ecriture.libelle,
+        encaissement: Number(l.debit),
+        decaissement: Number(l.credit),
+      })),
+      total,
+      tronque: total > lignes.length,
+      encaissements,
+      decaissements,
+      // null quand le PV n'a rien figé (établi avant la ligne A10) · rien à
+      // confronter, et ce n'est pas un accord.
+      concorde: figes ? figes.encaissements === encaissements && figes.decaissements === decaissements : null,
+    };
+  }
+
+  /** Une tranche de travail qui se dit (§ 8 bis) · total et `tronque` servis. */
+  static readonly PLAFOND_MOUVEMENTS_RECONSTITUTION = 500;
 
   /**
    * LE RÉSUMÉ DE L'OPÉRATION D'INVENTAIRE · ce que le livre d'inventaire

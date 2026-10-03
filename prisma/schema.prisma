@@ -6065,6 +6065,20 @@ model ProcesVerbalComptageCaisse {
   /// especesComptees − soldeComptableFige. Positif = excédent.
   ecart              Decimal @db.Decimal(18, 2)
 
+  /// RECONSTITUTION VERS LA CLÔTURE (ligne A10, relevé CPCC C6) · renseignée
+  /// quand la caisse est comptée APRÈS la clôture de l'exercice de la campagne,
+  /// nulle sinon. `soldeComptableFige` est alors le solde du livre-journal à la
+  /// DATE DU COMPTAGE (fiche du compte 57, « toujours ») et il vaut
+  /// soldeALaCloture + encaissementsPosterieurs − decaissementsPosterieurs ;
+  /// les espèces existant à la clôture se reconstituent dans l'autre sens
+  /// (AUDCIF art. 16, al. 4 et 5 ; art. 42). Les quatre colonnes vont
+  /// ensemble · toutes nulles ou toutes renseignées. Nulles sur un PV établi
+  /// avant la règle, et l'écran le dit.
+  soldeALaCloture          Decimal? @db.Decimal(18, 2)
+  encaissementsPosterieurs Decimal? @db.Decimal(18, 2)
+  decaissementsPosterieurs Decimal? @db.Decimal(18, 2)
+  mouvementsPosterieurs    Int?
+
   /// CPCC · « Si oui, une attestation a-t-elle été établie ? », chaîné au
   /// comptage. AUCUNE SOURCE LUE NE DIT CE QUE CETTE ATTESTATION CONTIENT :
   /// le module en enregistre l'existence, sa date et son signataire, et

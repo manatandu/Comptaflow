@@ -57,7 +57,15 @@ function service(etat: Etat = {}) {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYCEBNL }) },
     compte: { findFirst: jest.fn().mockResolvedValue({ id: 'c1', numero: '31100000', typeCompte: 'DETAIL' }) },
     campagneInventaire: {
-      findFirst: jest.fn().mockResolvedValue(etat.campagne ?? null),
+      // La doublure HONORE l'inclusion · `consulter` demande l'exercice et les
+      // PV de caisse (ligne A10), une simple lecture de statut ne les demande pas.
+      findFirst: jest.fn().mockImplementation((a?: { include?: { pvComptageCaisse?: unknown; exercice?: unknown } }) =>
+        Promise.resolve(
+          etat.campagne && a?.include?.pvComptageCaisse
+            ? { ...etat.campagne, exercice: { dateFin: EXERCICE.dateFin }, pvComptageCaisse: [] }
+            : (etat.campagne ?? null),
+        ),
+      ),
       create: jest.fn().mockImplementation((a) => Promise.resolve({ id: 'camp1', ...a.data })),
       update: maj,
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),

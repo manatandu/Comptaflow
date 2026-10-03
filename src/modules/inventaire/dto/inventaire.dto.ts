@@ -189,9 +189,10 @@ export class EtablirPvCaisseDto {
   @MaxLength(20)
   heureComptage?: string;
 
-  /** Le solde de la balance au moment du comptage · figé sur le PV. */
-  @IsNumber()
-  soldeComptable!: number;
+  // AUCUN SOLDE COMPTABLE ICI (ligne A10) · le serveur le lit au
+  // livre-journal à la date du comptage et le fige. Reçu de l'écran, il
+  // laissait figer n'importe quel chiffre ; envoyé quand même, il est refusé
+  // par la liste blanche du pipe de validation.
 
   @IsNumber()
   @Min(0)
