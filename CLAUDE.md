@@ -681,7 +681,8 @@ pose (`update` unitaire, 409 si une autre l'a pris), son annulation le remet à 
 fois. DÉCHÉANCE de l'art. 37, al. 2 (décret art. 96 ; art. 126, « dans les
 conditions prévues pour exercer le droit à déduction ») · perte antérieure au
 1er janvier de l'année qui précède la clôture de la période, non imputée · DÉCHUE,
-comptée et dite (`recuperationCreancesDechue`), jamais reprise. (K2) LA TVA
+comptée et dite (`recuperationCreancesDechue`), jamais reprise, le droit naissant à la constatation
+(M2). (K2) LA TVA
 FACTURÉE VIENT DU SERVEUR · calculée sur les ventes d'origine au prorata de la part
 reprise (`tvaFactureeDesOrigines`), valeur envoyée refusée au-delà d'un centime
 d'écart, la sienne figée. (K3) LA FACTURE D'ORIGINE SE CHOISIT · ventes validées non
@@ -690,11 +691,7 @@ plus ancienne d'abord, la dernière en partiel, convention d'OmegaX ; proposée 
 sans ambiguïté, `origineProposee`), jamais lue sur le lettrage. LE RECLASSEMENT
 N'EST PAS UN ENCAISSEMENT (décret art. 57) · dans un groupe de lettrage, sa ligne ne
 date rien ; ce sont les RECOUVREMENTS validés non annulés du module qui encaissent la
-part reclassée, à leur prorata (`reglementsDuGroupe`, exigibilité et art. 62). Une
-vente dont la TVA n'est exigible qu'à l'ENCAISSEMENT (art. 25, 2°,
-`baseExigibiliteDesVentes`) n'a jamais été déclarée pour la part perdue · sa TVA sort
-du 443 sur une ligne SANS TAUX (`tvaNonExigible`), hors de toute déclaration ; bases
-mêlées, refus. (K4) UN MOUVEMENT S'ANNULE comme une revue · brouillard supprimé,
+part reclassée, à leur prorata (`reglementsDuGroupe`, exigibilité et art. 62). (K4) UN MOUVEMENT S'ANNULE comme une revue · brouillard supprimé,
 validé inscrit en négatif, marqué par un `update` unitaire, motif ; refus · revue qui
 l'a compté non annulée, exercice clos, perte imputée par une liquidation non
 annulée ; annulé, il sort du reste, des revues, de la clôture, de la déclaration
@@ -704,7 +701,31 @@ créances reclassées avant, déclarées comprises) et sur ce 491. (M-b) le rapp
 lit le seul 491 des créances du module. (M-c) mouvement de l'exercice sans revue ·
 information. (M-d) perte et annulation `@ReserveAuComptable()`. (M-e) une créance
 déclarée à l'ouverture n'ouvre de récupération que si ses ventes d'origine sont
-tenues dans OmegaX, et l'écran le dit.
+tenues dans OmegaX, et l'écran le dit. TROISIÈME RELECTURE (2026-10-03). (B-1) LA
+PART DÉJÀ EXIGIBLE SE LIT PAR LE MOTEUR DE LA DÉCLARATION, jamais par la nature ·
+`TauxTvaService.tvaDesVentesOrigine` rejoue `baseExigibilite` puis `exigibilite` sur
+chaque vente d'origine TELLE QU'ELLE A ÉTÉ OU SERAIT DÉCLARÉE (un lettrage posé après
+la liquidation qui couvre la vente est ignoré) ; elle s'impute d'abord sur la part
+hors créance (`tvaFactureeDesOrigines`). Une prestation non lettrée, lue au comptant
+et liquidée, se RÉCUPÈRE avec son taux (art. 52, duplicata) ; seule la part JAMAIS
+exigible sort du 443 d'office, au prorata, sur une ligne SANS TAUX
+(`tvaNonExigible`, montant), sans assujettissement ni duplicata, jamais saisie. La
+règle « service non lettré = comptant », antérieure, contredit l'art. 25, 2° ·
+consignée au journal du plan, non corrigée. (B-2) UNE TRANCHE PAR ENCAISSEMENT
+(décret art. 57) · `exigibilite` rend des tranches · groupe à une seule facture,
+une par règlement (le test des deux acomptes est adapté, 40 000 et 80 000) ; groupe
+à reclassement, une par recouvrement au prorata des factures ; groupe de plusieurs
+factures ordinaires, fraction cumulée au dernier règlement, consigné. (B-3) SANS
+LIQUIDATION ANTÉRIEURE dans OmegaX, la perte ne s'impute que dans la déclaration du
+premier mois civil qui suit, ailleurs « non imputée » (`recuperationCreancesNonImputees`),
+comme les avoirs ; une liquidation antérieure ouvre K1, trou toléré. (B-4) un
+recouvrement VALIDÉ dont la date tombe dans une période liquidée ne s'annule qu'après
+la liquidation. (M1) au plus tôt une période qui commence le premier jour du mois
+civil suivant la perte. (M2) la déchéance dit l'autre lecture en réserve
+(exigibilité de la vente) et le virement en charge par le cabinet. (M4) une vente
+candidate vaut son reste réel (lettrage partiel au prorata des factures), jamais le
+TTC entier, sauf à l'ouverture. (M5) une période liquidée ne montre que ce QU'ELLE a
+imputé.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

@@ -78,6 +78,17 @@ export function mouvementAAnnulerParDefaut(mouvements: readonly { id: string; da
   return [...mouvements].sort((a, b) => a.date.localeCompare(b.date)).at(-1)!.id;
 }
 
+/**
+ * LA PART DE TVA JAMAIS EXIGIBLE, ANNONCÉE AVANT LE CLIC (troisième relecture,
+ * B-1) · elle sort d'office du 443, sans taux, au prorata de la perte ;
+ * l'écran ne fait que la montrer, le serveur la calcule. `null` sans montant.
+ */
+export function annonceTvaNonExigible(nonExigibleCreance: number, perte: number | null, montantCreance: number): string | null {
+  if (perte == null || !(montantCreance > 0) || !(nonExigibleCreance > 0)) return null;
+  const part = Math.round(((nonExigibleCreance * perte) / montantCreance) * 100) / 100;
+  return `TVA jamais exigible · ${montant(part)} sortent d'office du 443, sans taux, hors de toute déclaration.`;
+}
+
 export const LIBELLE_NATURE: Record<NatureCreance, string> = {
   LITIGIEUSE: 'Litigieuse (le client conteste)',
   DOUTEUSE: 'Douteuse (le client se dérobe)',

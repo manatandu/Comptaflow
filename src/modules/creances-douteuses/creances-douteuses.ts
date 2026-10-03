@@ -398,6 +398,12 @@ export interface EntreeRecuperationTva {
   tvaFactureeCreance: number | null | undefined;
   /** La valeur que l'écran a montrée, s'il en envoie une · refusée au-delà d'un centime d'écart. */
   tvaFactureeSaisie?: number | null;
+  /**
+   * La part de cette TVA que la déclaration a DÉJÀ rendue exigible (B-1) · la
+   * seule qui se récupère. Absente, toute la TVA facturée est tenue pour
+   * exigible.
+   */
+  tvaExigibleCreance?: number | null;
   numeroCompteTva: string | null;
   compteTvaEstDetail: boolean;
   duplicataReference: string | null | undefined;
@@ -446,12 +452,19 @@ export function motifRefusRecuperationTva(e: EntreeRecuperationTva): string | nu
       `(${centimes(facturee).toFixed(2)}) · elle se lit sur les ventes rattachées à la créance, jamais à la saisie.`
     );
   }
+  const exigible = e.tvaExigibleCreance ?? facturee;
+  if (!(exigible > 0)) {
+    return (
+      'Aucune part de la TVA de cette créance n’a été rendue exigible par la déclaration · elle n’a jamais été acquittée, ' +
+      'il n’y a rien à récupérer (O.-L. n° 10/001, art. 25, 2° et 52). Elle sort d’office du 443 sans taux, avec la perte.'
+    );
+  }
   if (!(e.tvaRecuperee > 0)) return 'La TVA récupérée doit être positive.';
-  const plafond = plafondTvaRecuperable(facturee, e.montantSorti, e.montantCreance);
+  const plafond = plafondTvaRecuperable(exigible, e.montantSorti, e.montantCreance);
   if (centimes(e.tvaRecuperee) > plafond + 0.005) {
     return (
-      `La TVA récupérée (${centimes(e.tvaRecuperee).toFixed(2)}) dépasse le prorata de la TVA facturée sur la part perdue ` +
-      `(${plafond.toFixed(2)}) · seule la TVA de la créance demeurée impayée se récupère (art. 52).`
+      `La TVA récupérée (${centimes(e.tvaRecuperee).toFixed(2)}) dépasse le prorata, sur la part perdue, de la TVA facturée ` +
+      `déjà exigible (${plafond.toFixed(2)}) · seule la taxe acquittée de la créance demeurée impayée se récupère (art. 52).`
     );
   }
   if (!e.duplicataReference || e.duplicataReference.trim().length === 0 || !e.duplicataDateEnvoi) {
@@ -642,6 +655,11 @@ export function motifRefusAnnulationMouvement(p: {
   exerciceClos: boolean;
   revueNonAnnulee: string | null;
   liquidationRecuperation: { du: string; au: string } | null;
+  /**
+   * B-4 · la période liquidée où tombe un RECOUVREMENT validé · il a rendu
+   * exigible la TVA de la part reclassée (K3), et cette taxe est déclarée.
+   */
+  periodeLiquidee?: { du: string; au: string } | null;
   motif: string | null | undefined;
 }): string | null {
   if (p.dejaAnnule) return `Ce mouvement est déjà annulé, le ${p.dejaAnnule}.`;
@@ -659,6 +677,13 @@ export function motifRefusAnnulationMouvement(p: {
       `La TVA récupérée par cette perte est imputée par la liquidation du ${p.liquidationRecuperation.du} au ` +
       `${p.liquidationRecuperation.au} · annulez d'abord cette liquidation (Déclaration de TVA), sans quoi la déduction resterait ` +
       'acquise sur une perte qui n’existe plus (décret n° 011/42, art. 126).'
+    );
+  }
+  if (p.periodeLiquidee) {
+    return (
+      `La période du ${p.periodeLiquidee.du} au ${p.periodeLiquidee.au} est liquidée, et ce recouvrement y a rendu exigible la ` +
+      "TVA de la part reclassée (décret n° 011/42, art. 57) · annulez d'abord la liquidation (Déclaration de TVA), sans quoi " +
+      'la taxe resterait déclarée sur un encaissement qui n’existe plus.'
     );
   }
   const m = (p.motif ?? '').trim();
@@ -731,34 +756,61 @@ export function origineProposee(montant: number, candidates: readonly VenteCandi
 }
 
 /**
- * LA TVA FACTURÉE DE LA CRÉANCE · sur chaque vente d'origine, la TVA de la
- * vente au prorata de la part que la créance en reprend (TTC au compte du
- * client). Un seul compte et un seul taux · sinon la récupération ne se
- * répartit pas d'office, et la raison est dite.
+ * LA TVA FACTURÉE DE LA CRÉANCE, ET SA PART DÉJÀ EXIGIBLE (K2, B-1) · sur
+ * chaque vente d'origine, la TVA de la vente au prorata de la part que la
+ * créance en reprend (TTC au compte du client). La part exigible est celle
+ * que le moteur de la déclaration a rendue exigible (`fractionExigible`),
+ * imputée d'abord sur ce qui n'est PAS dans la créance (la part réglée l'a
+ * été la première) · le reste de la créance n'a jamais été déclaré. Un seul
+ * compte de TVA ; le TAUX n'est exigé que pour la part exigible, qui seule
+ * entre dans une déclaration.
  */
 export function tvaFactureeDesOrigines(
-  origines: readonly { part: number; ttcClient: number; tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[] }[],
-): { compteId: string; numero: string; tauxTvaId: string; tvaFacturee: number } | { raison: string } {
+  origines: readonly {
+    part: number;
+    ttcClient: number;
+    fractionExigible?: number;
+    tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[];
+  }[],
+):
+  | { compteId: string; numero: string; tauxTvaId: string | null; raisonTaux: string | null; tvaFacturee: number; tvaExigible: number }
+  | { raison: string } {
   if (origines.length === 0) {
     return { raison: 'Aucune facture d’origine n’est rattachée à cette créance · la TVA facturée et son taux ne se lisent pas.' };
   }
   const comptes = new Map<string, string>();
   const taux = new Set<string | null>();
-  let total = 0;
+  let facturee = 0;
+  let exigible = 0;
   for (const o of origines) {
     const tvaVente = o.tva.reduce((s, l) => s + l.montant, 0);
     for (const l of o.tva) {
       comptes.set(l.compteId, l.numero);
       taux.add(l.tauxTvaId);
     }
-    if (o.ttcClient > 0) total += (tvaVente * o.part) / o.ttcClient;
+    if (!(o.ttcClient > 0)) continue;
+    const tvaCreance = (tvaVente * o.part) / o.ttcClient;
+    const horsCreance = tvaVente - tvaCreance;
+    const declaree = tvaVente * Math.min(1, Math.max(0, o.fractionExigible ?? 1));
+    facturee += tvaCreance;
+    exigible += Math.min(tvaCreance, Math.max(0, declaree - horsCreance));
   }
   if (comptes.size === 0) return { raison: 'Les ventes d’origine ne portent aucune TVA facturée.' };
   if (comptes.size > 1) return { raison: 'Les ventes d’origine portent plusieurs comptes de TVA · la récupération ne se répartit pas d’office.' };
-  if (taux.has(null)) return { raison: 'Une ligne de TVA des ventes d’origine ne porte aucun taux · le taux de la vente ne se lit pas.' };
-  if (taux.size !== 1) return { raison: 'Les ventes d’origine portent plusieurs taux de TVA · le taux de la récupération serait deviné.' };
   const [[compteId, numero]] = [...comptes.entries()];
-  return { compteId, numero, tauxTvaId: [...taux][0]!, tvaFacturee: centimes(total) };
+  const raisonTaux = taux.has(null)
+    ? 'Une ligne de TVA des ventes d’origine ne porte aucun taux · le taux de la vente ne se lit pas.'
+    : taux.size !== 1
+      ? 'Les ventes d’origine portent plusieurs taux de TVA · le taux de la récupération serait deviné.'
+      : null;
+  return {
+    compteId,
+    numero,
+    tauxTvaId: raisonTaux ? null : [...taux][0]!,
+    raisonTaux,
+    tvaFacturee: centimes(facturee),
+    tvaExigible: centimes(exigible),
+  };
 }
 
 /**

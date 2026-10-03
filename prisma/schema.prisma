@@ -9031,11 +9031,10 @@ model MouvementCreanceDouteuse {
   compteTva          Compte?   @relation("MouvementCreanceDouteuseTva", fields: [compteTvaId], references: [id], onDelete: Restrict)
   duplicataReference String?
   duplicataDateEnvoi DateTime? @db.Date
-  /// La TVA d'une vente qui n'est exigible qu'à l'ENCAISSEMENT (O.-L.
-  /// n° 10/001, art. 25, 2°) · la part perdue n'a jamais été exigible ni
-  /// déclarée, sa ligne au 443 ne porte aucun taux et n'entre dans aucune
-  /// déclaration (K3).
-  tvaNonExigible     Boolean   @default(false)
+  /// La part de la TVA perdue que la déclaration n'a JAMAIS rendue exigible
+  /// (O.-L. n° 10/001, art. 25, 2°) · sortie d'office du 443 sur une ligne
+  /// SANS TAUX, hors de toute déclaration (troisième relecture, B-1).
+  tvaNonExigible     Decimal?  @db.Decimal(18, 2)
 
   /// LA LIQUIDATION QUI IMPUTE LA RÉCUPÉRATION (K1) · posée par elle, remise à
   /// null par son annulation. Nulle, la perte validée reste à récupérer par la

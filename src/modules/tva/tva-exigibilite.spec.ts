@@ -438,9 +438,12 @@ describe('La date de l’encaissement · le RÈGLEMENT, jamais le lettrage (déc
     expect(mars.tvaEnAttenteEncaissement).toBe(400_000);
   });
 
-  it('le règlement le PLUS RÉCENT du groupe date la part encaissée', async () => {
-    // Deux acomptes sur la même créance · c'est le second qui a porté la
-    // fraction au niveau constaté, et l'art. 57 date chaque perception.
+  it('CHAQUE règlement date SA part · deux acomptes, deux périodes, jamais la part du premier redéclarée au second', async () => {
+    // Deux acomptes sur la même créance. L'art. 57 date CHAQUE perception ·
+    // ce test gelait jusqu'au 2026-10-03 la fraction CUMULÉE au dernier
+    // règlement (0 en avril, 120 000 en juin), qui déclarait en juin la part
+    // déjà exigible en avril (troisième relecture d'A7, B-2). Une facture
+    // seule dans son groupe se découpe désormais en une tranche par règlement.
     const s = service('LIVRAISONS', [
       ligneTva({
         compte: '44320000',
@@ -458,8 +461,8 @@ describe('La date de l’encaissement · le RÈGLEMENT, jamais le lettrage (déc
         },
       }),
     ]);
-    expect((await s.declaration('t1', AVRIL, FIN_AVRIL)).totalCollecte).toBe(0);
-    expect((await s.declaration('t1', JUIN, FIN_JUIN)).totalCollecte).toBe(120_000);
+    expect((await s.declaration('t1', AVRIL, FIN_AVRIL)).totalCollecte).toBe(40_000);
+    expect((await s.declaration('t1', JUIN, FIN_JUIN)).totalCollecte).toBe(80_000);
   });
 
   it('sans aucun règlement identifiable, la date de l’écriture sert de repli · jamais celle du lettrage', async () => {

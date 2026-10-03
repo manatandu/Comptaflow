@@ -4,12 +4,12 @@
 -- l'impute, jamais au calendrier (décret n° 011/42, art. 126, « la
 -- déclaration du ou des mois suivants ») · posée par la liquidation, remise à
 -- null par son annulation.
--- K3 · la TVA d'une vente exigible à l'encaissement sort du 443 sans entrer
--- dans aucune déclaration (O.-L. n° 10/001, art. 25, 2°), et la facture
--- d'origine se DÉCLARE au reclassement, jamais lue sur le lettrage.
+-- K3 · la facture d'origine se DÉCLARE au reclassement, jamais lue sur le
+-- lettrage ; la part de TVA jamais rendue exigible (O.-L. n° 10/001,
+-- art. 25, 2°) sort du 443 sans entrer dans aucune déclaration (B-1).
 -- K4 · un mouvement s'ANNULE (AUDCIF art. 20, al. 2) · marqué, jamais
 -- supprimé ; son écriture supprimée au brouillard laisse le lien vide.
-ALTER TABLE "mouvements_creances_douteuses" ADD COLUMN "tvaNonExigible" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "mouvements_creances_douteuses" ADD COLUMN "tvaNonExigible" DECIMAL(18,2);
 ALTER TABLE "mouvements_creances_douteuses" ADD COLUMN "liquidationRecuperationId" TEXT;
 ALTER TABLE "mouvements_creances_douteuses" ADD COLUMN "annuleeLe" TIMESTAMP(3);
 ALTER TABLE "mouvements_creances_douteuses" ADD COLUMN "annuleePar" TEXT;

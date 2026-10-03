@@ -482,6 +482,7 @@ describe('créances douteuses · service', () => {
         update: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
       },
+      liquidationTva: { findFirst: jest.fn().mockResolvedValue(null) },
       origineCreanceDouteuse: {
         create: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -489,7 +490,7 @@ describe('créances douteuses · service', () => {
       },
       $transaction: (f: (tx: unknown) => unknown) => f(prisma),
     };
-    const tva = { baseExigibiliteDesVentes: jest.fn().mockResolvedValue({ base: 'FAIT_GENERATEUR', raison: null }) };
+    const tva = { tvaDesVentesOrigine: jest.fn().mockResolvedValue([]) };
     const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, tva as any);
     return { service, prisma, creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation };
   }
@@ -871,6 +872,48 @@ describe('créances douteuses · service', () => {
     await expect(pointee.service.annulerMouvement('t', 'u', 'cd-1', 'mv-f', { motif: 'Erreur' })).rejects.toThrow(/pointée|rapproch/);
   });
 
+  it('B-4 · un recouvrement VALIDÉ dont la date tombe dans une période liquidée ne s’annule pas avant la liquidation', async () => {
+    const recouvrement = { ...mvFaux(), date: new Date('2026-08-10') };
+    const { service, prisma } = monter({ mouvement: mouvementEnBase(recouvrement, 'VALIDEE') });
+    prisma.liquidationTva.findFirst.mockResolvedValue({ dateDebut: new Date('2026-08-01'), dateFin: new Date('2026-08-31') });
+    await expect(service.annulerMouvement('t', 'u', 'cd-1', 'mv-f', { motif: 'Erreur' })).rejects.toThrow(
+      /période du 2026-08-01 au 2026-08-31 est liquidée.*annulez d'abord la liquidation/,
+    );
+    expect(prisma.liquidationTva.findFirst.mock.calls[0][0].where).toEqual({
+      tenantId: 't',
+      dateDebut: { lte: new Date('2026-08-10') },
+      dateFin: { gte: new Date('2026-08-10') },
+    });
+    expect(prisma.mouvementCreanceDouteuse.update).not.toHaveBeenCalled();
+    // Au brouillard, la déclaration ne l'a jamais lu · l'annulation passe.
+    const brouillard = monter({ mouvement: mouvementEnBase(recouvrement, 'BROUILLARD') });
+    brouillard.prisma.liquidationTva.findFirst.mockResolvedValue({ dateDebut: new Date('2026-08-01'), dateFin: new Date('2026-08-31') });
+    await brouillard.service.annulerMouvement('t', 'u', 'cd-1', 'mv-f', { motif: 'Erreur' });
+    expect(brouillard.prisma.liquidationTva.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('M4 · une vente dans un lettrage partiel ne se propose qu’à son reste réel, jamais au TTC entier', async () => {
+    const { service, prisma } = monter();
+    prisma.ligneEcriture.findMany.mockImplementation(({ where }: { where: Record<string, any> }) =>
+      Promise.resolve(
+        where.debit && where.compteId === 'cli'
+          ? [
+              {
+                ecritureId: 'fac-p',
+                debit: 1_160_000,
+                ecriture: { date: new Date('2026-02-10'), numeroPiece: 4, libelle: 'Facture payée à moitié' },
+                lettrage: { solde: 580_000, lignes: [{ debit: 1_160_000, credit: 0 }, { debit: 0, credit: 580_000 }] },
+              },
+            ]
+          : [],
+      ),
+    );
+    const v = await service.ventesOrigine('t', { exerciceId: 'ex-26', compteCreanceId: 'cli', montant: '580000', date: '2026-11-15' });
+    expect(v.ventes[0]).toMatchObject({ ttc: 1_160_000, ouvert: 580_000 });
+    expect(v.proposees).toEqual(['fac-p']);
+    await expect(service.reclasser('t', 'u', { ...dtoReclassement, ventesOrigineIds: ['fac-p'] })).rejects.toThrow(/ne portent que 580000\.00/);
+  });
+
   it('M-a · la déclaration d’ouverture se borne par l’à-nouveau MOINS le reste à la veille des créances du module sur ce 416', async () => {
     const { service, prisma } = monter();
     // Reclassée en 2025 pour 600 000, dont 200 000 perdus en décembre 2025 · il en reste 400 000 au 4162.
@@ -992,9 +1035,10 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
   });
 
   /**
-   * LA DOUBLURE DES VENTES D'ORIGINE (K3) · la créance porte ses origines, et
-   * `ligneEcriture.findMany` rend, pour ces écritures, la ligne du client et
-   * les lignes de 443 · seulement si la requête vise bien ces écritures.
+   * LA DOUBLURE DES VENTES D'ORIGINE (K3, B-1) · la créance porte ses
+   * origines, et le moteur de la TVA (`tvaDesVentesOrigine`) rend, pour elles
+   * seules, le TTC au compte du client, les lignes de 443 et la fraction de
+   * leur TVA que la déclaration a rendue exigible.
    */
   function monterE2(
     assujettiTva: boolean,
@@ -1002,7 +1046,7 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
     lignesTva: Array<{ compteId: string; tauxTvaId: string | null; credit: number; numero: string }> = [
       { compteId: 'c4431', tauxTvaId: 'tx16', credit: 160_000, numero: '44310000' },
     ],
-    base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT' = 'FAIT_GENERATEUR',
+    fractionExigible = 1,
   ) {
     let rang = 0;
     const creer = jest.fn().mockImplementation(() => Promise.resolve({ id: `ecr-${++rang}` }));
@@ -1020,17 +1064,6 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
           Promise.resolve(where.id ? plan[where.id] ?? null : Object.values(plan).find((c) => c.numero.startsWith(where.numero.startsWith)) ?? null),
         ),
         findMany: jest.fn().mockResolvedValue([{ id: 'c4431', numero: '44310000', intitule: 'TVA facturée sur ventes' }]),
-      },
-      ligneEcriture: {
-        findMany: jest.fn().mockImplementation(({ where }) => {
-          const ids: string[] = where.ecritureId?.in ?? [];
-          return Promise.resolve(
-            ids.flatMap((ecritureId) => [
-              { ecritureId, compteId: 'cli', tauxTvaId: null, debit: 1_160_000, credit: 0, compte: { numero: '41110001' } },
-              ...lignesTva.map((l) => ({ ecritureId, compteId: l.compteId, tauxTvaId: l.tauxTvaId, debit: 0, credit: l.credit, compte: { numero: l.numero } })),
-            ]),
-          );
-        }),
       },
       creanceDouteuse: {
         findFirst: jest.fn().mockResolvedValue({
@@ -1051,7 +1084,19 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
       mouvementCreanceDouteuse: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'mv', ...data })) },
       $transaction: (f: (tx: unknown) => unknown) => f(prisma),
     };
-    const tva = { baseExigibiliteDesVentes: jest.fn().mockResolvedValue({ base, raison: null }) };
+    const tva = {
+      tvaDesVentesOrigine: jest.fn().mockImplementation((_t: string, _c: string, o: Array<{ ecritureId: string; part: number }>) =>
+        Promise.resolve(
+          o.map((x) => ({
+            ecritureId: x.ecritureId,
+            part: x.part,
+            ttcClient: 1_160_000,
+            tva: lignesTva.map((l) => ({ compteId: l.compteId, numero: l.numero, tauxTvaId: l.tauxTvaId, montant: l.credit })),
+            fractionExigible,
+          })),
+        ),
+      ),
+    };
     const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation: jest.fn() } as any, tva as any);
     return { service, creer, prisma, tva };
   }
@@ -1096,15 +1141,21 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
   });
 
   it('K3 · la TVA d’origine se lit sur les VENTES RATTACHÉES, jamais sur le lettrage ; sans elles, rien n’est proposé', async () => {
-    const { service, prisma, tva } = monterE2(true);
+    const { service, tva } = monterE2(true);
     expect(await service.tvaOrigine('t', 'cd-1')).toMatchObject({
       assujetti: true,
-      proposition: { compteTvaId: 'c4431', numero: '44310000', tauxTvaId: 'tx16', tvaFactureeCreance: 160_000, base: 'FAIT_GENERATEUR' },
+      proposition: {
+        compteTvaId: 'c4431',
+        numero: '44310000',
+        tauxTvaId: 'tx16',
+        tvaFactureeCreance: 160_000,
+        tvaExigibleCreance: 160_000,
+        tvaNonExigibleCreance: 0,
+      },
       raison: null,
     });
-    // La requête vise les écritures rattachées, et la base se lit sur elles.
-    expect(prisma.ligneEcriture.findMany.mock.calls[0][0].where.ecritureId).toEqual({ in: ['fac-1'] });
-    expect(tva.baseExigibiliteDesVentes).toHaveBeenCalledWith('t', ['fac-1']);
+    // Le moteur de la déclaration est interrogé sur les seules ventes rattachées, avec leur part.
+    expect(tva.tvaDesVentesOrigine).toHaveBeenCalledWith('t', 'cli', [{ ecritureId: 'fac-1', part: 1_160_000 }]);
     const sans = monterE2(true, []);
     expect(await sans.service.tvaOrigine('t', 'cd-1')).toMatchObject({ proposition: null, raison: expect.stringContaining('Aucune vente d’origine') });
   });
@@ -1152,11 +1203,29 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
     expect(juste.prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data.tvaFactureeCreance).toBe(160_000);
   });
 
-  it('K3 · une vente dont la TVA n’est exigible qu’à l’encaissement · la TVA sort du 443 SANS TAUX, hors déclaration', async () => {
-    const { service, creer, prisma } = monterE2(true, undefined, undefined, 'ENCAISSEMENT');
+  it('B-1 · une TVA que la déclaration n’a JAMAIS rendue exigible sort d’office, sans taux, sans assujettissement ni duplicata', async () => {
+    // Prestation impayée dont la ligne du client est lettrée avec le
+    // reclassement · rien encaissé, rien déclaré (fraction exigible nulle).
+    const jamais = monterE2(false, undefined, undefined, 0);
+    const { recuperationTva: _r, ...sansRecup } = dto;
+    await jamais.service.perte('t', 'u', 'cd-1', { ...sansRecup, montant: 580_000 });
+    expect(jamais.creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c6511', debit: 500_000, credit: 0 },
+      // Au prorata de la perte, et sans taux · hors de toute déclaration.
+      { compteId: 'c4431', debit: 80_000, credit: 0 },
+      { compteId: 'c4162', debit: 0, credit: 580_000 },
+    ]);
+    expect(jamais.prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data).toMatchObject({ tvaNonExigible: 80_000, tvaRecuperee: null });
+    // La « récupérer » rembourserait une taxe jamais acquittée · refusé.
+    const demande = monterE2(true, undefined, undefined, 0);
+    await expect(demande.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow(/Aucune part de la TVA de cette créance n’a été rendue exigible/);
+  });
+
+  it('B-1 · la TVA déjà rendue exigible (prestation non lettrée, lue au comptant et liquidée) se RÉCUPÈRE avec son taux', async () => {
+    const { service, creer, prisma } = monterE2(true, undefined, undefined, 1);
     await service.perte('t', 'u', 'cd-1', dto);
-    expect(creer.mock.calls[0][2].lignes[1]).toEqual({ compteId: 'c4431', debit: 160_000, credit: 0, tauxTvaId: undefined });
-    expect(prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data).toMatchObject({ tvaNonExigible: true, tvaRecuperee: 160_000 });
+    expect(creer.mock.calls[0][2].lignes[1]).toEqual({ compteId: 'c4431', debit: 160_000, credit: 0, tauxTvaId: 'tx16' });
+    expect(prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data).toMatchObject({ tvaRecuperee: 160_000, tvaNonExigible: null });
   });
 });
 
@@ -1188,20 +1257,32 @@ describe('créances douteuses · seconde relecture, règles (K2, K3, K4, M-c)', 
       compteId: 'c4431',
       numero: '44310000',
       tauxTvaId: 'tx16',
+      raisonTaux: null,
       tvaFacturee: 80_000,
+      tvaExigible: 80_000,
     });
     expect(tvaFactureeDesOrigines([])).toMatchObject({ raison: expect.stringContaining('Aucune facture d’origine') });
-    expect(tvaFactureeDesOrigines([{ part: 1, ttcClient: 1, tva: [tva(1, null)] }])).toMatchObject({ raison: expect.stringContaining('aucun taux') });
+    // Le taux n'est exigé que pour la part exigible · ambigu, il est dit, sans bloquer la sortie sans taux.
+    expect(tvaFactureeDesOrigines([{ part: 1, ttcClient: 1, tva: [tva(1, null)] }])).toMatchObject({ tauxTvaId: null, raisonTaux: expect.stringContaining('aucun taux') });
     expect(
       tvaFactureeDesOrigines([
         { part: 1, ttcClient: 1, tva: [tva(1)] },
         { part: 1, ttcClient: 1, tva: [tva(1, 'tx8')] },
       ]),
-    ).toMatchObject({ raison: expect.stringContaining('plusieurs taux') });
+    ).toMatchObject({ raisonTaux: expect.stringContaining('plusieurs taux') });
+  });
+
+  it('B-1 · la part exigible s’impute d’abord sur ce qui n’est PAS dans la créance (la part réglée)', () => {
+    const tva = [{ compteId: 'c4432', numero: '44320000', tauxTvaId: 'tx16', montant: 160_000 }];
+    // Prestation de 1 160 000, moitié encaissée (fraction 0,5 · 80 000 déclarés), moitié reclassée · rien de la créance n'a été déclaré.
+    expect(tvaFactureeDesOrigines([{ part: 580_000, ttcClient: 1_160_000, fractionExigible: 0.5, tva }])).toMatchObject({ tvaFacturee: 80_000, tvaExigible: 0 });
+    // Lue au comptant (aucun lettrage), toute la TVA a été déclarée · celle de la créance aussi.
+    expect(tvaFactureeDesOrigines([{ part: 580_000, ttcClient: 1_160_000, fractionExigible: 1, tva }])).toMatchObject({ tvaFacturee: 80_000, tvaExigible: 80_000 });
+    expect(tvaFactureeDesOrigines([{ part: 1_160_000, ttcClient: 1_160_000, fractionExigible: 0.25, tva }])).toMatchObject({ tvaFacturee: 160_000, tvaExigible: 40_000 });
   });
 
   it('K4 · l’annulation d’un mouvement · déjà annulé, exercice clos, revue non annulée, liquidation qui impute, motif', () => {
-    const ok = { dejaAnnule: null, exerciceClos: false, revueNonAnnulee: null, liquidationRecuperation: null, motif: 'Montant saisi faux' };
+    const ok = { dejaAnnule: null, exerciceClos: false, revueNonAnnulee: null, liquidationRecuperation: null, periodeLiquidee: null, motif: 'Montant saisi faux' };
     expect(motifRefusAnnulationMouvement(ok)).toBeNull();
     expect(motifRefusAnnulationMouvement({ ...ok, dejaAnnule: '2026-12-21' })).toContain('déjà annulé');
     expect(motifRefusAnnulationMouvement({ ...ok, exerciceClos: true })).toContain('art. 20, al. 3');
@@ -1210,6 +1291,10 @@ describe('créances douteuses · seconde relecture, règles (K2, K3, K4, M-c)', 
       'cette liquidation (Déclaration de TVA)',
     );
     expect(motifRefusAnnulationMouvement({ ...ok, motif: 'ab' })).toContain('de 3 à 500');
+    // B-4 · un recouvrement validé dont la date tombe dans une période liquidée.
+    expect(motifRefusAnnulationMouvement({ ...ok, periodeLiquidee: { du: '2026-08-01', au: '2026-08-31' } })).toMatch(
+      /période du 2026-08-01 au 2026-08-31 est liquidée.*annulez d'abord la liquidation/,
+    );
   });
 
   it('M-c · un mouvement de l’exercice sans revue est COMPTÉ, jamais refusé', () => {

@@ -15,6 +15,7 @@ import {
   LIBELLE_NATURE,
   motifAnnulationValide,
   motifListe651Vide,
+  annonceTvaNonExigible,
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
   type NatureCreance,
@@ -77,7 +78,8 @@ interface Mouvement {
   montant: number;
   motif: string;
   tvaRecuperee: number | null;
-  tvaNonExigible: boolean;
+  /** La part de TVA jamais rendue exigible, sortie sans taux (B-1). */
+  tvaNonExigible: number | null;
   /** La liquidation de TVA qui impute la récupération (K1). */
   liquidationRecuperation: { du: string; au: string } | null;
 }
@@ -97,7 +99,17 @@ interface Liste {
 interface TvaOrigine {
   assujetti: boolean;
   comptes443: { id: string; numero: string; intitule: string }[];
-  proposition: { compteTvaId: string; numero: string; tvaFactureeCreance: number; base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT' } | null;
+  proposition: {
+    compteTvaId: string;
+    numero: string;
+    tauxTvaId: string | null;
+    raisonTaux: string | null;
+    tvaFactureeCreance: number;
+    /** Déjà rendue exigible par la déclaration · récupérable (B-1). */
+    tvaExigibleCreance: number;
+    /** Jamais rendue exigible · sortie d'office du 443, sans taux (B-1). */
+    tvaNonExigibleCreance: number;
+  } | null;
   raison: string | null;
 }
 interface PropositionRevue {
@@ -707,6 +719,14 @@ export function CreancesDouteusesPage() {
                       )}
                     </>
                   )}
+                  {form.geste === 'perte' && tvaOrigine?.proposition && tvaOrigine.proposition.tvaNonExigibleCreance > 0 && (
+                    <>
+                      <span />
+                      <span className="text-text-dim">
+                        {annonceTvaNonExigible(tvaOrigine.proposition.tvaNonExigibleCreance, montantSaisi(form.montant), form.creance?.montant ?? 0)}
+                      </span>
+                    </>
+                  )}
                   {form.geste === 'perte' && (
                     <>
                       <span />
@@ -715,7 +735,7 @@ export function CreancesDouteusesPage() {
                         Récupérer la TVA de la créance
                         <Aide
                           titre="TVA d'une créance irrécouvrable"
-                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. Le compte, le taux et la TVA facturée se lisent sur les ventes d'origine rattachées à la créance (sans elles, la récupération est refusée ; une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module). La récupération s'inscrit en déduction dans la première déclaration liquidée qui suit la constatation, une seule fois, jusqu'au 31 décembre de l'année suivante. Une TVA exigible à l'encaissement n'a jamais été déclarée pour la part perdue : elle sort du 443 sans entrer dans la déclaration."
+                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. Le compte, le taux et la TVA facturée se lisent sur les ventes d'origine rattachées à la créance (sans elles, la récupération est refusée ; une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module). Seule la part que la déclaration a déjà rendue exigible se récupère ; elle s'inscrit en déduction au plus tôt dans la déclaration du mois civil qui suit la constatation, une seule fois, jusqu'au 31 décembre de l'année suivante. La part jamais exigible (prestation dont le prix n'a pas été encaissé) n'a jamais été déclarée : elle sort d'office du 443, sans taux, hors de toute déclaration."
                           source="O.-L. n° 10/001, art. 25, 37 et 52 ; décret n° 011/42, art. 96, 126 et 127"
                         />
                       </label>
@@ -750,10 +770,12 @@ export function CreancesDouteusesPage() {
                           )}
                           <span className="text-right">TVA facturée (créance) :</span>
                           <span className="tabular-nums">{tvaOrigine?.proposition ? montant(tvaOrigine.proposition.tvaFactureeCreance) : '·'}</span>
-                          {tvaOrigine?.proposition?.base === 'ENCAISSEMENT' && (
+                          <span className="text-right">Dont déjà exigible :</span>
+                          <span className="tabular-nums">{tvaOrigine?.proposition ? montant(tvaOrigine.proposition.tvaExigibleCreance) : '·'}</span>
+                          {tvaOrigine?.proposition?.raisonTaux && (
                             <>
                               <span />
-                              <span className="text-text-dim">TVA exigible à l'encaissement · jamais déclarée pour la part perdue, elle sort du 443 hors de toute déclaration.</span>
+                              <span className="text-text-dim">{tvaOrigine.proposition.raisonTaux}</span>
                             </>
                           )}
                           <label className="text-right">TVA récupérée :</label>

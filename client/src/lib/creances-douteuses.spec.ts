@@ -5,6 +5,7 @@ import {
   compte416Initial,
   motifAnnulationValide,
   motifListe651Vide,
+  annonceTvaNonExigible,
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
 } from './creances-douteuses';
@@ -67,10 +68,10 @@ describe('créances douteuses · écran (ligne A7)', () => {
 });
 
 describe('créances douteuses · E2 à l’écran', () => {
-  it('la récupération de la TVA se demande (case décochée), proposée par le serveur, et la première déclaration liquidée qui suit est dite', () => {
+  it('la récupération de la TVA se demande (case décochée), proposée par le serveur, et le mois civil qui suit est dit', () => {
     expect(page).toContain('recupererTva: false,');
     expect(page).toContain('/tva-origine`');
-    expect(page).toContain('première déclaration liquidée qui suit la constatation');
+    expect(page).toContain('au plus tôt dans la déclaration du mois civil qui suit la constatation');
     expect(page).toContain('décret n° 011/42, art. 96, 126 et 127');
   });
 });
@@ -113,5 +114,17 @@ describe('créances douteuses · seconde relecture à l’écran (K2, K3, K4, M-
   it('M-c et M-e · le mouvement sans revue se dit ; la créance déclarée sans vente tenue n’ouvre aucune récupération, et c’est dit', () => {
     expect(page).toContain('mouvement(s) sans revue');
     expect(page).toContain("une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module");
+  });
+});
+
+describe('créances douteuses · troisième relecture à l’écran (B-1)', () => {
+  it('la part jamais exigible s’annonce au prorata de la perte, sortie sans taux, et ne se saisit pas', () => {
+    expect(annonceTvaNonExigible(160_000, 580_000, 1_160_000)).toBe(
+      `TVA jamais exigible · ${montant(80_000)} sortent d'office du 443, sans taux, hors de toute déclaration.`,
+    );
+    expect(annonceTvaNonExigible(0, 580_000, 1_160_000)).toBeNull();
+    expect(annonceTvaNonExigible(160_000, null, 1_160_000)).toBeNull();
+    expect(page).toContain('Dont déjà exigible :');
+    expect(page).not.toContain("champ('tvaNonExigible'");
   });
 });

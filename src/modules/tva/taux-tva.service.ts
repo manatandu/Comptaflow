@@ -1349,12 +1349,12 @@ export class TauxTvaService {
       } | null;
     }>,
     dateEcriture: Date,
-  ): { date: Date | null; fraction: number } {
+  ): Array<{ date: Date | null; fraction: number }> {
     // Aucune contrepartie de tiers lettrable : rien ne dit quand l'argent est
     // entré. On s'en tient à la date de l'écriture · c'est le cas d'une vente
     // au comptant, où encaissement et écriture coïncident de toute façon.
     const avecLettrage = lignesTiers.filter((l) => l.lettrage);
-    if (avecLettrage.length === 0) return { date: dateEcriture, fraction: 1 };
+    if (avecLettrage.length === 0) return [{ date: dateEcriture, fraction: 1 }];
 
     const groupe = avecLettrage[0].lettrage!;
     // Sens de la FACTURE sur le compte de tiers · une vente débite le 411, un
@@ -1363,30 +1363,61 @@ export class TauxTvaService {
     // groupe, un règlement d'une autre facture.
     const sensFacture = avecLettrage.reduce((t, l) => t + (Number(l.debit) - Number(l.credit)), 0);
     const dateReglement = TauxTvaService.dateDernierReglement(groupe.lignes, sensFacture);
+    const engage = avecLettrage.reduce((t, l) => t + Math.abs(Number(l.debit) - Number(l.credit)), 0);
+    const reglements = TauxTvaService.reglementsDuGroupe(groupe.lignes, sensFacture);
+    const factures = (groupe.lignes ?? []).reduce((t, g) => {
+      const sens = Number(g.debit) - Number(g.credit);
+      return Math.abs(sens) > EPSILON && sens > 0 === sensFacture > 0 ? t + Math.abs(sens) : t;
+    }, 0);
+    const reclassement = TauxTvaService.porteUnReclassement(groupe.lignes, sensFacture);
+
+    /*
+      UNE TRANCHE PAR ENCAISSEMENT (troisième relecture d'A7, B-2). L'art. 57
+      du décret n° 011/42 date CHAQUE perception · « l'encaissement s'entend de
+      la perception des sommes, à quelque titre que ce soit, notamment avances,
+      acomptes et règlement pour solde ». Rendre une seule date et la fraction
+      CUMULÉE faisait déclarer, à la date du dernier règlement, la part déjà
+      exigible à celle du premier · deux acomptes en avril et en juin portaient
+      tout en juin, et deux recouvrements en août et en octobre faisaient
+      déclarer août à nouveau en octobre (80 000 + 120 000 pour 120 000 dus).
+
+      La découpe ne vaut que là où elle ne devine rien · un groupe qui ne
+      porte QUE cette facture (aucune autre ligne de son sens), ou qui porte
+      un reclassement en créance douteuse (ligne A7, K3), dont les
+      recouvrements se répartissent au prorata des factures du groupe. Un
+      groupe qui réunit plusieurs factures ordinaires garde la date du
+      dernier règlement et la fraction cumulée · l'imputation des règlements
+      entre ces factures n'est pas connue, et c'est dit plus haut.
+    */
+    const seule = engage > EPSILON && factures <= engage + EPSILON;
+    if ((seule || reclassement) && reglements.length > 0) {
+      const base = seule ? engage : factures;
+      if (base <= EPSILON) return [{ date: null, fraction: 0 }];
+      const ordre = [...reglements].sort((a, b) => a.date.getTime() - b.date.getTime());
+      const tranches: Array<{ date: Date | null; fraction: number }> = [];
+      let regle = 0;
+      for (const r of ordre) {
+        const part = Math.min(r.montant, base - regle);
+        if (part <= EPSILON) break;
+        regle += part;
+        tranches.push({ date: r.date, fraction: part / base });
+      }
+      // Un groupe SOLDÉ sans reclassement est réglé en entier · un écart
+      // (escompte, arrondi) se rattache au dernier règlement, comme avant.
+      if (!reclassement && groupe.statut === 'SOLDE' && regle < base - EPSILON && tranches.length > 0) {
+        tranches[tranches.length - 1].fraction += (base - regle) / base;
+      }
+      return tranches.length > 0 ? tranches : [{ date: null, fraction: 0 }];
+    }
 
     /*
       UN GROUPE QUI PORTE UN RECLASSEMENT EN CRÉANCE DOUTEUSE (ligne A7, K3) ·
       le reclassement solde le compte du client sans qu'un franc soit entré.
       Lu comme un règlement, il rendait exigible au jour du reclassement la TVA
-      d'une prestation qui n'a jamais été payée (décret n° 011/42, art. 57,
-      « l'encaissement s'entend de la perception des sommes »). La part
-      reclassée reste donc EN ATTENTE, et devient exigible au RECOUVREMENT du
-      module, à son prorata ; une perte ne l'encaisse jamais. La proportion se
-      lit sur le groupe entier (règlements et recouvrements sur factures),
-      comme l'imputation la plus neutre décrite plus haut.
+      d'une prestation qui n'a jamais été payée. Sans recouvrement, rien
+      n'est encaissé · la part reclassée reste EN ATTENTE.
     */
-    if (TauxTvaService.porteUnReclassement(groupe.lignes, sensFacture)) {
-      const reglements = TauxTvaService.reglementsDuGroupe(groupe.lignes, sensFacture);
-      const factures = (groupe.lignes ?? []).reduce((t, g) => {
-        const sens = Number(g.debit) - Number(g.credit);
-        return Math.abs(sens) > EPSILON && sens > 0 === sensFacture > 0 ? t + Math.abs(sens) : t;
-      }, 0);
-      if (factures <= EPSILON) return { date: null, fraction: 0 };
-      const encaisse = reglements.reduce((t, r) => t + r.montant, 0);
-      const fraction = Math.min(1, Math.max(0, encaisse / factures));
-      if (fraction <= EPSILON) return { date: null, fraction: 0 };
-      return { date: dateReglement ?? dateEcriture, fraction };
-    }
+    if (reclassement) return [{ date: null, fraction: 0 }];
 
     if (groupe.statut === 'SOLDE') {
       // Dénoué : exigible en totalité, à la date du DERNIER règlement · c'est
@@ -1395,19 +1426,18 @@ export class TauxTvaService {
       // dont les lignes ne sont pas chargées), la date de l'écriture sert de
       // repli : elle date au plus tôt, ce qui fait déclarer d'avance et non en
       // retard, quand `soldeAt` datait au plus tard.
-      return { date: dateReglement ?? dateEcriture, fraction: 1 };
+      return [{ date: dateReglement ?? dateEcriture, fraction: 1 }];
     }
     // Groupe PARTIEL · une part est encaissée. `solde` est le reste à solder,
     // signé ; la part réglée est donc (engagé - |reste|) / engagé.
-    const engage = avecLettrage.reduce((t, l) => t + Math.abs(Number(l.debit) - Number(l.credit)), 0);
     const reste = Math.abs(Number(groupe.solde));
-    if (engage <= EPSILON) return { date: null, fraction: 0 };
+    if (engage <= EPSILON) return [{ date: null, fraction: 0 }];
     const fraction = Math.min(1, Math.max(0, (engage - reste) / engage));
-    if (fraction <= EPSILON) return { date: null, fraction: 0 };
+    if (fraction <= EPSILON) return [{ date: null, fraction: 0 }];
     // La part encaissée l'a été à la date du règlement le plus récent du
     // groupe · l'acompte de l'art. 57 rend la taxe exigible ce jour-là, et non
     // au jour de la facture ni au jour du lettrage.
-    return { date: dateReglement ?? dateEcriture, fraction };
+    return [{ date: dateReglement ?? dateEcriture, fraction }];
   }
 
   /**
@@ -1899,53 +1929,132 @@ export class TauxTvaService {
   }
 
   /**
-   * LA BASE D'EXIGIBILITÉ DE VENTES DONNÉES, lue par la même règle que la
-   * déclaration (`baseExigibilite`, régime du dossier À LA DATE de la vente) ·
-   * servie au module des créances douteuses (ligne A7, K3). La TVA d'une vente
-   * exigible au FAIT GÉNÉRATEUR a été déclarée, et sa part perdue se récupère
-   * (O.-L. n° 10/001, art. 52) ; celle d'une vente exigible à l'ENCAISSEMENT
-   * (art. 25, 2°) ne l'a jamais été pour la part perdue, et rien ne se
-   * récupère. Des ventes de bases différentes ne se tranchent pas · `null`,
-   * avec la raison.
+   * LA TVA DES VENTES D'ORIGINE D'UNE CRÉANCE DOUTEUSE, ET LA PART QUE LA
+   * DÉCLARATION EN A RENDUE EXIGIBLE (ligne A7, troisième relecture, B-1).
+   *
+   * Décider sur la seule NATURE de la vente se trompait · le moteur de la
+   * déclaration lit une prestation de services dont la ligne du client n'est
+   * dans aucun lettrage comme un comptant, exigible à la facture, et une
+   * prestation impayée a pu être déclarée et liquidée en février. Sortie
+   * « jamais exigible » en juin, ses 160 000 versés au Trésor ne se
+   * récupéraient plus. La part est donc lue par le MOTEUR LUI-MÊME
+   * (`baseExigibilite`, puis `exigibilite` à l'encaissement), sur chaque vente
+   * TELLE QU'ELLE A ÉTÉ OU SERAIT DÉCLARÉE · quand la période de la vente est
+   * liquidée, un lettrage posé APRÈS cette liquidation n'existait pas pour
+   * elle, et il est ignoré (la vente était alors lue au comptant). Limite
+   * dite · une ligne ajoutée après coup à un groupe plus ancien que la
+   * liquidation n'est pas distinguée.
    */
-  async baseExigibiliteDesVentes(
+  async tvaDesVentesOrigine(
     tenantId: string,
-    ecritureIds: readonly string[],
-  ): Promise<{ base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT' | null; raison: string | null }> {
-    if (ecritureIds.length === 0) return { base: null, raison: 'Aucune vente d’origine.' };
+    compteClientId: string,
+    origines: ReadonlyArray<{ ecritureId: string; part: number }>,
+  ): Promise<
+    Array<{
+      ecritureId: string;
+      part: number;
+      ttcClient: number;
+      tva: Array<{ compteId: string; numero: string; tauxTvaId: string | null; montant: number }>;
+      /** Fraction de la TVA de la vente rendue exigible, telle qu'elle a été ou serait déclarée. */
+      fractionExigible: number;
+    }>
+  > {
+    if (origines.length === 0) return [];
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const regime = tenant?.regimeExigibiliteTva ?? 'LIVRAISONS';
     const dateAutorisation = tenant?.dateAutorisationDebitsTva ?? null;
     const ecritures = await this.prisma.ecriture.findMany({
-      where: { tenantId, id: { in: [...ecritureIds] } },
+      where: { tenantId, id: { in: origines.map((o) => o.ecritureId) } },
       select: {
+        id: true,
         date: true,
         lignes: {
-          where: {
-            OR: [{ compte: { numero: { startsWith: RACINE_COLLECTEE } } }, { compte: { classe: ClasseCompte.CLASSE_7 } }],
+          select: {
+            compteId: true,
+            tauxTvaId: true,
+            debit: true,
+            credit: true,
+            compte: { select: { numero: true, classe: true } },
+            lettrage: {
+              select: {
+                statut: true,
+                solde: true,
+                soldeAt: true,
+                createdAt: true,
+                lignes: {
+                  select: {
+                    debit: true,
+                    credit: true,
+                    ecriture: {
+                      select: {
+                        date: true,
+                        creanceDouteuseReclassement: {
+                          select: {
+                            mouvements: {
+                              where: {
+                                type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
+                                annuleeLe: null,
+                                ecriture: { statut: StatutEcriture.VALIDEE },
+                              },
+                              select: { date: true, montant: true },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
-          select: { compte: { select: { numero: true, classe: true } } },
         },
       },
-      take: ecritureIds.length,
+      take: origines.length,
     });
-    const bases = new Set<'FAIT_GENERATEUR' | 'ENCAISSEMENT'>();
-    for (const e of ecritures) {
+    const resultat = [];
+    for (const o of origines) {
+      const e = ecritures.find((x) => x.id === o.ecritureId);
+      if (!e) continue;
+      const tva = e.lignes
+        .filter((l) => l.compte.numero.startsWith(RACINE_COLLECTEE))
+        .map((l) => ({ compteId: l.compteId, numero: l.compte.numero, tauxTvaId: l.tauxTvaId, montant: Number(l.credit) - Number(l.debit) }));
+      const ttcClient = e.lignes.filter((l) => l.compteId === compteClientId).reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
       const regimeVente = regime === 'DEBITS' && dateAutorisation && e.date < dateAutorisation ? 'LIVRAISONS' : regime;
       const contreparties = e.lignes.filter((l) => l.compte.classe === ClasseCompte.CLASSE_7).map((l) => l.compte.numero);
-      for (const l of e.lignes) {
-        if (!l.compte.numero.startsWith(RACINE_COLLECTEE)) continue;
-        bases.add(this.baseExigibilite(tenant?.referentiel, regimeVente, l.compte.numero, true, false, contreparties).base);
+      // La liquidation qui a couvert la date de la vente, s'il y en a une ·
+      // l'état du lettrage qu'elle a lu est celui d'AVANT elle.
+      const liquidation = await this.prisma.liquidationTva.findFirst({
+        where: { tenantId, dateDebut: { lte: e.date }, dateFin: { gte: e.date } },
+        select: { createdAt: true },
+      });
+      const lignesTiers = e.lignes
+        .filter((l) => l.compte.classe === ClasseCompte.CLASSE_4 && l.lettrage)
+        .map((l) => ({
+          debit: l.debit,
+          credit: l.credit,
+          lettrage: liquidation && l.lettrage!.createdAt > liquidation.createdAt ? null : l.lettrage,
+        }));
+      let pese = 0;
+      let exigible = 0;
+      for (const l of e.lignes.filter((x) => x.compte.numero.startsWith(RACINE_COLLECTEE))) {
+        const montant = Number(l.credit) - Number(l.debit);
+        if (Math.abs(montant) <= EPSILON) continue;
+        const { base } = this.baseExigibilite(tenant?.referentiel, regimeVente, l.compte.numero, true, false, contreparties);
+        const f =
+          base === 'FAIT_GENERATEUR'
+            ? 1
+            : Math.min(
+                1,
+                this.exigibilite(l, lignesTiers, e.date)
+                  .filter((t) => t.date)
+                  .reduce((s, t) => s + t.fraction, 0),
+              );
+        pese += Math.abs(montant);
+        exigible += Math.abs(montant) * f;
       }
+      resultat.push({ ecritureId: o.ecritureId, part: o.part, ttcClient, tva, fractionExigible: pese > EPSILON ? exigible / pese : 1 });
     }
-    if (bases.size === 1) return { base: [...bases][0], raison: null };
-    if (bases.size === 0) return { base: null, raison: 'Les ventes d’origine ne portent aucune TVA facturée.' };
-    return {
-      base: null,
-      raison:
-        'Les ventes d’origine mêlent une TVA exigible à la facture et une TVA exigible à l’encaissement (O.-L. n° 10/001, art. 25) · ' +
-        'la part récupérable ne se tranche pas d’office. Rattachez la créance à des ventes d’une seule nature.',
-    };
+    return resultat;
   }
 
   /**
@@ -2353,6 +2462,8 @@ export class TauxTvaService {
     // les marque (K1). Et celles dont le délai de l'art. 37, al. 2 est expiré.
     const pertesARecuperer = new Set<string>();
     let recuperationCreancesDechue = 0;
+    // Pertes qu'aucune liquidation antérieure ne permet de situer (B-3).
+    let recuperationCreancesNonImputees = 0;
     // LE MÊME CUMUL, COMPTE PAR COMPTE. La saisie et la facture passée au
     // journal ROUTENT la taxe sur la subdivision que la contrepartie appelle
     // (4432 pour une prestation vendue, 4453 pour un transport déduit), quand
@@ -2504,6 +2615,29 @@ export class TauxTvaService {
             const parCetteLiquidation =
               !!liq && liq.dateDebut.getTime() === dateDebut.getTime() && liq.dateFin.getTime() === dateFin.getTime();
             if (liq && !parCetteLiquidation) return;
+            // UNE PÉRIODE LIQUIDÉE MONTRE CE QU'ELLE A LIQUIDÉ (troisième
+            // relecture, M5) · une perte redevenue libre (liquidation qui
+            // l'imputait annulée) ne s'y affiche pas ; la prochaine période la
+            // reprendra.
+            if (!liq && dejaLiquidee) return;
+            if (!parCetteLiquidation) {
+              // AU PLUS TÔT LE MOIS CIVIL QUI SUIT (M1) · « la déclaration du
+              // ou des mois SUIVANTS celui de la constatation » (décret
+              // art. 126) · jamais la seconde quinzaine du mois de la perte.
+              const moisSuivant = new Date(Date.UTC(dateEcriture.getUTCFullYear(), dateEcriture.getUTCMonth() + 1, 1));
+              if (dateDebut < moisSuivant) return;
+              // SANS LIQUIDATION ANTÉRIEURE DANS OMEGAX (B-3), même règle que
+              // les avoirs · rien ne dit ce qui a déjà été déclaré. La perte ne
+              // s'impute que dans la déclaration qui couvre le PREMIER mois
+              // civil suivant ; ailleurs elle est comptée « non imputée »,
+              // jamais déduite (sinon chaque déclaration la redéduisait). Une
+              // liquidation antérieure ouvre la règle de K1, trou toléré.
+              const finMoisSuivant = new Date(Date.UTC(moisSuivant.getUTCFullYear(), moisSuivant.getUTCMonth() + 1, 1) - 1);
+              if (!derniereLiquidation && dateDebut > finMoisSuivant) {
+                recuperationCreancesNonImputees = TauxTvaService.c(recuperationCreancesNonImputees + avoir);
+                return;
+              }
+            }
             if (!parCetteLiquidation && dateEcriture < limiteDecheance) {
               recuperationCreancesDechue = TauxTvaService.c(recuperationCreancesDechue + avoir);
               return;
@@ -2667,13 +2801,14 @@ export class TauxTvaService {
               ? auxDebits
                 ? TauxTvaService.tranchesAuxDebits(lignesTiers, dateEcriture)
                 : [{ date: dateEcriture, fraction: 1 }]
-              : [this.exigibilite(l, lignesTiers, l.ecriture.date)];
+              : this.exigibilite(l, lignesTiers, l.ecriture.date);
 
           // Part facturée sur la période et pas encore exigible · c'est le chiffre
           // qui explique l'écart entre le chiffre d'affaires et la déclaration, et
           // sans lequel le régime paraît perdre de la TVA.
           if (estCollecte && base === 'ENCAISSEMENT' && dansLaPeriode) {
-            cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - tranches[0].fraction));
+            const exigibleTotal = Math.min(1, tranches.reduce((t, x) => t + x.fraction, 0));
+            cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - exigibleTotal));
           }
           // Une tranche unique garde l'arrondi d'avant ; plusieurs tranches se
           // répartissent au centime, la dernière recevant le reste, pour que la
@@ -2815,6 +2950,7 @@ export class TauxTvaService {
         creancesIrrecouvrablesConstatees,
         recuperationCreancesIrrecouvrables,
         recuperationCreancesDechue,
+        recuperationCreancesNonImputees,
         avoirsCollecteNonImputes,
         avoirsSansNoteDeCredit,
         tvaExclueArt41,
@@ -2844,6 +2980,8 @@ export class TauxTvaService {
       recuperationCreancesIrrecouvrables,
       /** TVA de pertes antérieures dont le délai de l'art. 37, al. 2 est expiré · jamais reprise (K1). */
       recuperationCreancesDechue,
+      /** TVA de pertes antérieures qu'aucune liquidation ne permet de situer · jamais déduite (B-3). */
+      recuperationCreancesNonImputees,
       /**
        * Les pertes que cette déclaration récupère et qu'aucune liquidation
        * n'impute encore · la liquidation de la période les marque (K1).
@@ -2947,6 +3085,7 @@ export class TauxTvaService {
     creancesIrrecouvrablesConstatees: number;
     recuperationCreancesIrrecouvrables: number;
     recuperationCreancesDechue?: number;
+    recuperationCreancesNonImputees?: number;
     avoirsCollecteNonImputes: number;
     avoirsSansNoteDeCredit: number;
     tvaExclueArt41: number;
@@ -3232,7 +3371,17 @@ export class TauxTvaService {
         `RÉCUPÉRATION SUR CRÉANCE IRRÉCOUVRABLE DÉCHUE · ${fc(e.recuperationCreancesDechue ?? 0)} CDF de TVA de pertes ` +
           'constatées avant le 1er janvier de l’année précédente n’ont été imputés par aucune liquidation · le droit à déduction ' +
           '« est exercé jusqu’au 31 décembre de l’année qui suit » (O.-L. n° 10/001, art. 37 al. 2 ; décret n° 011/42, art. 96 et ' +
-          '126). Ils ne sont pas repris.',
+          '126), le droit naissant ici à la constatation de la perte. Ils ne sont pas repris · le montant déchu se vire en charge, ' +
+          'par le cabinet (aucune écriture d’office). RÉSERVE · une autre lecture fait courir le délai depuis l’exigibilité de la ' +
+          'vente d’origine, plus tôt ; elle n’est pas appliquée.',
+      );
+    }
+    if ((e.recuperationCreancesNonImputees ?? 0) > EPSILON) {
+      phrases.push(
+        `PERTES SUR CRÉANCES NON IMPUTÉES · ${fc(e.recuperationCreancesNonImputees ?? 0)} CDF de TVA de pertes constatées avant ` +
+          'cette période ne sont pas déduites ici · aucune liquidation comptabilisée antérieure ne dit si la déclaration du mois ' +
+          'qui a suivi la perte les a déjà imputées (décret n° 011/42, art. 126). Seule celle de ce mois-là les impute d’office ; ' +
+          'au-delà, à porter à la main après vérification des déclarations déposées.',
       );
     }
     if (e.creancesIrrecouvrablesConstatees > EPSILON) {
