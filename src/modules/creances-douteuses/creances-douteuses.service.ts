@@ -1585,9 +1585,17 @@ export class CreancesDouteusesService {
           );
         }
       }
+      // Troisième passage, m2 · au moins UNE ligne de la créance elle-même ·
+      // deux lignes d'à-nouveau désignées seules (d'autres créances du même 416)
+      // ne sont pas le lettrage de CETTE créance.
+      if (lues.ouvertes.length === 0) {
+        throw new BadRequestException(`Rien à lettrer · les lignes de la créance au ${c.compte416.numero} sont déjà lettrées dans cet exercice.`);
+      }
       const ligneIds = [...lues.ouvertes.map((l) => l.id), ...designees];
       if (ligneIds.length < 2) {
-        throw new BadRequestException(`Rien à lettrer · les lignes de la créance au ${c.compte416.numero} sont déjà lettrées dans cet exercice.`);
+        throw new BadRequestException(
+          `Une seule ligne de la créance au ${c.compte416.numero} · désignez la ligne d'à-nouveau qui la solde.`,
+        );
       }
       const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, ligneIds, userId);
       if ('motif' in r) throw new BadRequestException(r.motif);

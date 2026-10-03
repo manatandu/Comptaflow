@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { estEcheanceAReglerSur, lignesDuReglement, montantDu, motifRefusMontant, motifHorsEcheance } from './reglement-tiers';
+import { estEcheanceAReglerSur, lignesDuReglement, montantDu, motifRefusMontant, motifHorsEcheance, avertissementCreanceReclassee } from './reglement-tiers';
 import { ReglementsService } from './reglements.service';
 import type { OrdresVirementService } from './ordres-virement.service';
 import { PrismaService } from '../../common/prisma.service';
@@ -202,7 +202,7 @@ describe('enregistrer', () => {
     const r = await service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] });
     expect(creer).toHaveBeenCalledTimes(1);
     expect(r.avertissements).toEqual([
-      expect.stringMatching(/41110000 porte une créance reclassée au 41620000 le 2026-11-15.*passez-le par « Recouvrement » dans ce module/),
+      expect.stringMatching(/41110000 porte une créance reclassée au 41620000 le 2026-11-15.*passez-le par « Recouvrement » dans ce module.*une autre facture du client paraît impayée/),
     ]);
     // Un fournisseur ne lit aucune créance.
     const f = monter([], [{ compteCreanceId: 'c401', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }]);
@@ -219,13 +219,19 @@ describe('enregistrer', () => {
     const { service, creer } = monter([], reclassee, { c411: 500 });
     await expect(
       service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] }),
-    ).rejects.toThrow(/41110000 porte une créance reclassée au 41620000 le 2026-11-15 · son solde net n'est que de 0\.00.*« Recouvrement »/);
+    ).rejects.toThrow(/41110000 porte une créance reclassée au 41620000 le 2026-11-15 · son solde net n'est que de 0\.00.*Réglez ici au plus 0\.00.*« Recouvrement ».*pièce au journal/);
     expect(creer).not.toHaveBeenCalled();
     // Une part reclassée seulement · 300 restent dus, 300 se règlent, 301 non.
     const partiel = monter([], reclassee, { c411: 200 });
     await expect(
       partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 301 }] }),
-    ).rejects.toThrow(/solde net n'est que de 300\.00/);
+    ).rejects.toThrow(/solde net n'est que de 300\.00.*Réglez ici au plus 300\.00/);
+    // m3 (troisième passage) · l'issue réelle, jamais « ne réglez que les autres factures ».
+    await expect(
+      partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 301 }] }),
+    ).rejects.not.toThrow(/ne réglez que les autres factures/);
+    // m4 · le compte ne devient plus créditeur · l'avertissement ne le dit plus.
+    expect(avertissementCreanceReclassee('41110000', '41620000', '2026-11-15')).not.toMatch(/devient créditeur/);
     await partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 300 }] });
     expect(partiel.creer).toHaveBeenCalledTimes(1);
   });

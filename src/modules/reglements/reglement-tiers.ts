@@ -58,40 +58,47 @@ export function motifHorsEcheance(numeroCompte: string): string {
 }
 
 /**
- * A7 ter, mineur 1 · L'AVERTISSEMENT DU RÈGLEMENT d'une facture dont le compte
- * porte une créance reclassée au 416 en vigueur · si ce règlement encaisse la
- * créance, il passe par le module · réglée ici, la facture se solde sur le
- * compte du client pendant que le 416 garde la créance, et le compte du client
- * devient créditeur. Un avertissement, jamais un refus · une vente postérieure
- * au reclassement se règle ici comme une autre.
- */
-/**
  * Second tour d'A7 ter, m-d · LE RÈGLEMENT SE BORNE AU SOLDE NET du compte d'un
  * client qui porte une créance reclassée en vigueur. La facture reclassée reste
  * ouverte au compte du client (le reclassement ne la lettre pas, règle d'A7),
  * mais sa valeur est au 416 · la régler ici en entier laissait le compte du
  * client créditeur de 1 160 000, le 416 à 1 160 000 et la dépréciation de
  * 400 000 sur une créance encaissée (scénario d, base réelle). Au-delà du solde
- * net, refus nommé · l'encaissement de la créance reclassée est le
- * « Recouvrement » du module.
+ * net, refus nommé, avec l'ISSUE RÉELLE (troisième passage, m3) · régler au
+ * plus le solde net, chiffré ; un encaissement de la créance reclassée passe
+ * par le « Recouvrement » du module, un autre (avance, trop-perçu) par une
+ * pièce au journal. « Ne réglez que les autres factures » était faux quand la
+ * facture choisie EN EST une, et que le net est entamé par un crédit non
+ * affecté du compte (cas e2 · 200 000 non affectés, facture B de 500 000).
  */
 export function motifReglementAuDelaDuNet(numeroCompte: string, compte416: string, dateReclassement: string, net: number, montant: number): string | null {
   const c = (x: number) => Math.round(x * 100) / 100;
   if (c(montant) <= c(net) + 0.005) return null;
+  const plafond = Math.max(0, c(net)).toFixed(2);
   return (
     `Le compte ${numeroCompte} porte une créance reclassée au ${compte416} le ${dateReclassement} · son solde net n'est que de ` +
-    `${Math.max(0, c(net)).toFixed(2)} (la créance reclassée est au ${compte416}), et un règlement de ${c(montant).toFixed(2)} le ` +
-    'rendrait créditeur. L’encaissement de la créance reclassée se passe par « Recouvrement » dans « Créances douteuses ou ' +
-    'litigieuses » ; ici, ne réglez que les autres factures du client.'
+    `${plafond} (la créance reclassée est au ${compte416}), et un règlement de ${c(montant).toFixed(2)} le rendrait créditeur. ` +
+    `Réglez ici au plus ${plafond}. Un encaissement de la créance reclassée se passe par « Recouvrement » dans « Créances ` +
+    'douteuses ou litigieuses » ; un autre encaissement (avance, trop-perçu) se passe en pièce au journal.'
   );
 }
 
+/**
+ * A7 ter, mineur 1 · L'AVERTISSEMENT DU RÈGLEMENT d'une facture dont le compte
+ * porte une créance reclassée au 416 en vigueur · si ce règlement encaisse la
+ * créance, il passe par le module. Réglée ici, dans la borne du solde net
+ * (m-d), la facture reclassée se solde au compte du client pendant que le 416
+ * garde la créance, et c'est une AUTRE facture du client qui paraît alors
+ * impayée (troisième passage, m4 · le compte ne devient plus créditeur, m-d
+ * l'empêche). Un avertissement, jamais un refus · une vente postérieure au
+ * reclassement se règle ici comme une autre.
+ */
 export function avertissementCreanceReclassee(numeroCompte: string, compte416: string, dateReclassement: string): string {
   return (
     `Le compte ${numeroCompte} porte une créance reclassée au ${compte416} le ${dateReclassement} (« Créances douteuses ou ` +
     'litigieuses »). Si ce règlement encaisse cette créance, passez-le par « Recouvrement » dans ce module · réglée ici, la ' +
-    `facture se solde au ${numeroCompte} pendant que le ${compte416} garde la créance, et le compte du client devient créditeur. ` +
-    'Au brouillard, la pièce se supprime ; validée, elle s’annule par inscription en négatif.'
+    `facture reclassée se solde au ${numeroCompte} pendant que le ${compte416} garde la créance, et une autre facture du client ` +
+    'paraît impayée. Au brouillard, la pièce se supprime ; validée, elle s’annule par inscription en négatif.'
   );
 }
 

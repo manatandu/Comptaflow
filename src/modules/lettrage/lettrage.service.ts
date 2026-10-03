@@ -935,17 +935,24 @@ export class LettrageService {
     // A7 ter, B3 (règle d'A7 rétablie au second tour, B-2) · la ligne du
     // compte client d'un reclassement en créance douteuse n'est JAMAIS
     // proposée · la paire facture-reclassement, de même montant, rendait la
-    // TVA exigible (`ligne-de-reclassement.ts`). UNE passe, sur les autres
-    // lignes · deux passes (sans le reclassement, puis avec lui sans les
-    // pièces taxées) appariaient de travers. Qu'une paire facture-règlement
-    // par montant reste ambiguë (deux factures de même montant, un seul
-    // règlement), c'est l'ambiguïté connue du lettrage par montant, une
-    // PRÉSOMPTION du logiciel que le pré-lettrage rend au comptable, pas un
-    // défaut propre au reclassement.
+    // TVA exigible (`ligne-de-reclassement.ts`). L'appariement se fait AVEC
+    // elle, comme avant A7 ter, puis tout groupe qui la contient est ÉCARTÉ ·
+    // la facture qu'elle aurait prise (la facture reclassée, d'ordinaire)
+    // reste ouverte, sans jamais être donnée au règlement d'une AUTRE facture.
+    // L'écarter des candidates AVANT l'appariement (troisième passage) laissait
+    // la facture reclassée prendre ce règlement · U du 10/02 lettrée avec le
+    // règlement P du 20/07 de la facture T, la TVA de T déclarée en mai au lieu
+    // de juillet, celle de U lue comme encaissée, et T dite impayée par le
+    // contrôle d'ancienneté (vérification sur base réelle, cas e4 et N pour 1).
     const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
-    const nonLettrees = candidates.filter((l) => !figees.has(l.id) && !reclassees.has(l.id));
+    const nonLettrees = candidates.filter((l) => !figees.has(l.id));
     const { parPiece, parMontant } = this.apparier(nonLettrees);
-    return { parPiece, parMontant, lignes: nonLettrees };
+    const sansReclassement = (g: string[]) => !g.some((id) => reclassees.has(id));
+    return {
+      parPiece: parPiece.filter(sansReclassement),
+      parMontant: parMontant.filter(sansReclassement),
+      lignes: nonLettrees.filter((l) => !reclassees.has(l.id)),
+    };
   }
 
   /**

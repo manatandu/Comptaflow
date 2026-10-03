@@ -1473,6 +1473,23 @@ describe('créances douteuses · service', () => {
     );
   });
 
+  it('m2 (troisième passage) · « Lettrer au 416 » exige une ligne de la créance elle-même, jamais deux à-nouveaux seuls', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
+    // Les lignes de la créance en 2027 sont déjà lettrées ; deux à-nouveaux d'autres créances, de sens contraire.
+    installerBase(m, {
+      lignes: [
+        { id: 'l-r', ecritureId: 'ecr-r', date: '2026-11-15', debit: 1_160_000, credit: 0 },
+        { id: 'l-mr', ecritureId: 'ecr-mr', exerciceId: 'ex-27', date: '2027-01-31', debit: 0, credit: 760_000, lettrageId: 'g-X' },
+        { id: 'l-1', ecritureId: 'ecr-1', exerciceId: 'ex-27', date: '2027-03-20', debit: 0, credit: 400_000, lettrageId: 'g-X' },
+        { id: 'an-a', ecritureId: 'ecr-an', exerciceId: 'ex-27', date: '2027-01-01', debit: 500_000, credit: 0, aNouveau: true },
+        { id: 'an-b', ecritureId: 'ecr-an', exerciceId: 'ex-27', date: '2027-01-01', debit: 0, credit: 500_000, aNouveau: true },
+      ],
+      groupes: [{ id: 'g-X', code: 'X', origine: 'MODULE' }],
+    });
+    await expect(m.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: ['an-a', 'an-b'] })).rejects.toThrow(/Rien à lettrer/);
+    expect(m.lettrage.lettrerLignesDuModule).not.toHaveBeenCalled();
+  });
+
   it('B-1 · « Lettrer au 416 » refuse le report PROVISOIRE et une créance non éteinte', async () => {
     const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
     installerBase(m, { lignes: [...lignesB2(null).filter((l) => l.id !== 'l-an'), { id: 'l-pv', ecritureId: 'ecr-pv', exerciceId: 'ex-27', date: '2027-01-01', debit: 1_160_000, credit: 0, aNouveau: true, provisoire: true }] });

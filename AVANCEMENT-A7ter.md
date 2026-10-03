@@ -42,6 +42,20 @@ grappe jetable `/tmp/pg-a7ter-55445` (port 55445), serveur jetable port 8195 (`s
   `npx jest --maxWorkers=2` 714 suites, 10 005 tests, `npm run build` vert ; client `tsc` vert, 208 fichiers,
   1 699 tests, construction verte ; e2e typé
 
+Troisième passage (2026-10-03), après la vérification ciblée du second tour ·
+
+- [x] BLOQUANT · le lettrage automatique donnait le règlement à la facture reclassée (`calculerPropositions`
+  écartait la ligne du reclassement AVANT l'appariement) · l'appariement se fait AVEC elle, puis tout groupe
+  qui la contient est écarté ; la facture qu'elle aurait prise reste ouverte, jamais donnée à un autre
+  règlement ; même calcul au pré-lettrage. Tests e4 ([T,P] posé, U et R ouverts), N pour 1 ([P,T,V]),
+  pré-lettrage ([T,P] proposé) ; commentaire du service et du spec corrigés
+- [x] m3 · le refus au-delà du net nomme l'issue réelle · « Réglez ici au plus <net> », « Recouvrement » pour la
+  créance reclassée, pièce au journal pour un autre encaissement (cas e2)
+- [x] m4 · l'avertissement ne dit plus que le compte devient créditeur (m-d l'empêche) ; commentaire orphelin
+  rattaché à sa fonction
+- [x] m2 · « Lettrer au 416 » exige au moins une ligne de la créance elle-même (deux à-nouveaux seuls refusés)
+- [x] relevés sans code · m1 au suivi ; défaut (1) du moteur de TVA confirmé à la ligne A7 bis
+
 ## Second tour · scénarios réels et soldes
 
 - b2, module et manuel · reclassement 15/11/2026, clôture de 2026, recouvrement 31/01/2027 (760 000), perte
@@ -55,8 +69,9 @@ grappe jetable `/tmp/pg-a7ter-55445` (port 55445), serveur jetable port 8195 (`s
   416 = 0, clôture de 2026 passée, à-nouveau 2027 identique.
 - e5 (443 soldé ou non) · lettrage de l'à-nouveau du client avec le reclassement de 2027 refusé · client 0,
   416 = 1 160 000.
-- e4 · une passe · une paire (U et P, celle de l'ancienne passe unique, ambiguïté connue du lettrage par
-  montant), le reclassement ouvert · client 0, 416 = 1 160 000.
+- e4 · une passe · une paire posée (U et P), le reclassement ouvert · client 0, 416 = 1 160 000. FAUX, relevé
+  par la vérification du troisième passage · le règlement P de T donné à la facture reclassée U (BLOQUANT
+  ci-dessous) ; « l'ancienne passe unique » posait [T,P], pas [U,P].
 - d (SYSCOHADA, SYCEBNL) · règlement de la facture reclassée refusé (solde net 300 000), autre facture réglée,
   créance encaissée par « Recouvrement » · client 0, 416 = 0, banque 1 460 000, clôture de 2026 passée ; un
   encaissement passé à la main en 2027 sur une nouvelle créance reclassée · constat en AVERTISSEMENT (-500 000).

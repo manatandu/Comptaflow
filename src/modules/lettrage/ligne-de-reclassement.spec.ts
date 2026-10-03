@@ -136,11 +136,21 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(p.propositions).toHaveLength(0);
   });
 
-  it('un règlement ordinaire de même montant reste apparié à la facture', async () => {
-    const { service, groupes } = monter([facture(), reclassement(), ligne('reg', '411', 0, 1_160_000)]);
-    await service.lettrageAutomatique('t1', '411', 'u1');
-    expect(groupes).toHaveLength(1);
-    expect(groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_MONTANT);
+  it('la facture que le reclassement aurait prise reste OUVERTE · jamais donnée au règlement qui suit', async () => {
+    // Facture du 15/03, reclassement, puis un règlement de même montant · la
+    // facture est appariée au reclassement, groupe écarté · elle reste ouverte,
+    // le règlement aussi (une présomption que le cabinet tranche à la main).
+    const { service, groupes, lignes } = monter([facture(), reclassement(), ligne('reg', '411', 0, 1_160_000)]);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(r.groupes).toBe(0);
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettrageId === null)).toBe(true);
+    // Un règlement ANTÉRIEUR au reclassement reste apparié à sa facture, comme avant A7 ter.
+    const avant = monter([facture(), ligne('reg', '411', 0, 1_160_000), reclassement()]);
+    await avant.service.lettrageAutomatique('t1', '411', 'u1');
+    expect(avant.groupes).toHaveLength(1);
+    expect(avant.groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_MONTANT);
+    expect(avant.lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort()).toEqual(['fac', 'reg']);
   });
 
   it('le lettrage MANUEL, le complément et la confirmation d’un pré-lettrage sont refusés par le motif nommé', async () => {
@@ -174,27 +184,48 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(groupes).toHaveLength(0);
   });
 
-  // Scénario e4 · U (la facture reclassée, sans TVA), T (service taxé), R (le
-  // reclassement de U), P (le règlement de T), tous de 1 160 000. Une passe
-  // sans R · U et T, de même montant, face à P · la passe apparie le premier
-  // débit, U avec P, exactement comme l'ancienne passe unique d'A7 · c'est
-  // l'ambiguïté connue du lettrage par MONTANT (une présomption, que le
-  // pré-lettrage rend au comptable), pas une paire que le reclassement crée.
-  it('B-2 · e4 · une seule passe sans le reclassement · aucune paire nouvelle, R reste ouvert', async () => {
-    const lignesE4 = [
-      ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
-      ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000', '44320000']),
-      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
-      ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
-    ];
-    const { service, groupes, lignes } = monter(lignesE4);
+  // VÉRIFICATION SUR BASE RÉELLE (troisième passage), cas e4 · U (la facture
+  // reclassée, 10/02), T (service taxé, 01/05), R (le reclassement de U,
+  // 15/06), P (le règlement de T, 20/07), tous de 1 160 000, dans l'ordre des
+  // dates. Écartée des candidates AVANT l'appariement, R laissait U prendre P ·
+  // la TVA de T déclarée en mai au lieu de juillet, celle de U lue comme
+  // encaissée. Appariée AVEC R puis écartée · [U,R] tombe, [T,P] reste, comme
+  // avant A7 ter ; U et R restent ouverts.
+  const lignesE4 = () => [
+    ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
+    ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000', '44320000']),
+    ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
+    ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
+  ];
+  const lettrees = (lignes: Array<{ id: string; lettrageId: string | null }>) => lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort();
+
+  it('e4 · le règlement P reste à sa facture T · la facture reclassée U n’est jamais lettrée avec lui', async () => {
+    const { service, groupes, lignes } = monter(lignesE4());
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
     expect(r.groupes).toBe(1);
     expect(groupes).toHaveLength(1);
-    // Le reclassement n'entre dans aucun groupe.
+    expect(lettrees(lignes)).toEqual(['P', 'T']);
+    expect(lignes.find((l) => l.id === 'U')!.lettrageId).toBeNull();
     expect(lignes.find((l) => l.id === 'R')!.lettrageId).toBeNull();
-    // La paire est celle de l'ancienne passe unique · le premier débit de même montant que P.
-    expect(lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort()).toEqual(['P', 'U']);
+  });
+
+  it('N pour 1 · U et R écartés, le règlement P de T et V (700 000 + 460 000) leur reste', async () => {
+    const { service, groupes, lignes } = monter([
+      ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
+      ligne('T', '411', 700_000, 0, null, ['41110001', '70610000']),
+      ligne('V', '411', 460_000, 0, null, ['41110001', '70610000']),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
+      ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
+    ]);
+    await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(1);
+    expect(lettrees(lignes)).toEqual(['P', 'T', 'V']);
+  });
+
+  it('e4 · le pré-lettrage, qui partage le calcul, propose de même [T,P] et rien avec U ni R', async () => {
+    const { service } = monter(lignesE4());
+    const p = await service.preLettrage('t1', '411');
+    expect(p.propositions.map((x: { ligneIds: string[] }) => [...x.ligneIds].sort())).toEqual([['P', 'T']]);
   });
 
   it('un reclassement ANNULÉ ne retient plus rien · sa ligne se lettre comme une autre', async () => {
