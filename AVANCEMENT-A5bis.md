@@ -116,6 +116,9 @@ Migration `20270124000000` complétée (six colonnes, non encore sur main) ;
 éprouvées sur base jetable (filtre JSON DbNull, update à filtre étendu,
 groupBy à référence de champ).
 
+Rattachée à main ab53edc (A9, suivi). Bloc du § 3 passé · serveur 9992
+tests (`npx jest --maxWorkers=2`), client 1698, typages et constructions.
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
