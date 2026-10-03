@@ -203,6 +203,8 @@ describe('F55 · la clôture passe la devise au report', () => {
       exercice: { findFirst: jest.fn().mockResolvedValue(N1), create: jest.fn(), update: jest.fn().mockResolvedValue({ ...N, statut: 'CLOTURE' }) },
       ecriture: { findFirst: jest.fn().mockResolvedValue(null), delete: jest.fn(), create: jest.fn().mockResolvedValue({}) },
       ligneEcriture: { ...lecture.ligneEcriture, deleteMany: jest.fn() },
+      // Les dépréciations orphelines se relisent DANS la transaction de clôture (ligne A7, M2).
+      creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const prisma = {
       exercice: {
