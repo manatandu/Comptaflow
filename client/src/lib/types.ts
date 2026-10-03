@@ -4015,6 +4015,13 @@ export interface ProcesVerbalCaisse {
   encaissementsPosterieurs: string | null;
   decaissementsPosterieurs: string | null;
   mouvementsPosterieurs: number | null;
+  mouvementsValeurAvantCloture: string | null;
+  /** FRANCS, DEVISE (montants du PV dans la devise `unite`), ou francs au cours historique. */
+  modeComparaison: 'FRANCS' | 'DEVISE' | 'FRANCS_COURS_HISTORIQUES';
+  /** Code de la devise quand le PV est dans une devise, sinon null (francs). */
+  unite: string | null;
+  /** Mentions écrites par le serveur (`mentionsDuPv`), jamais recomposées à l'écran. */
+  mentions: string[];
   dateCloture: string;
   compteApresLaCloture: boolean;
   reconstitutionManquante: boolean;
@@ -4029,6 +4036,7 @@ export type MouvementsReconstitutionCaisse =
   | { applicable: false; motif: string }
   | {
       applicable: true;
+      unite: string | null;
       lignes: {
         id: string;
         date: string;
@@ -4040,10 +4048,33 @@ export type MouvementsReconstitutionCaisse =
       }[];
       total: number;
       tronque: boolean;
+      soldeALaCloture: number;
+      mouvementsValeurAvantCloture: number;
       encaissements: number;
       decaissements: number;
       /** null · le PV n'a rien figé (établi avant la ligne A10), rien à confronter. */
       concorde: boolean | null;
+      /** Lignes datées au plus tard du comptage, validées APRÈS le PV. */
+      saisiesDepuisLePv: { nombre: number; net: number };
+    };
+
+/** GET /inventaire/:id/pv-caisse/apercu · ce que le PV figera, ou le motif du refus. */
+export type ApercuPvCaisse =
+  | { lisible: false; motif: string }
+  | {
+      lisible: true;
+      soldeComptable: number;
+      modeComparaison: 'FRANCS' | 'DEVISE' | 'FRANCS_COURS_HISTORIQUES';
+      devise: string | null;
+      dateCloture: string;
+      reconstitution: {
+        soldeALaCloture: number;
+        mouvementsValeurAvantCloture: number;
+        encaissementsPosterieurs: number;
+        decaissementsPosterieurs: number;
+        mouvementsPosterieurs: number;
+      } | null;
+      mentions: string[];
     };
 
 /**

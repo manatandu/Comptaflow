@@ -51,6 +51,12 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    antérieure à la clôture isolées, (e) date AAAA-MM-JJ (@Matches et
    lireDateComptage), (f) bilan importé dans N+1 prouvé écarté, (g) mentions
    servies par le serveur (mentionsDuPv).
+5. Écran · aperçu affiché avant « Établir le PV » (bouton fermé tant que
+   l'aperçu n'est pas favorable), unité de la caisse sur les espèces et les
+   coupures, mentions du serveur, (i) réponses périmées jetées au changement
+   de campagne (`campagneAffichee`), (j) `scope`, (k) écart dit par un mot,
+   (l) tests de structure (clés du corps envoyé, garde découpée par
+   équilibrage), (m) dates du bloc en UTC.
 
 ## Reste
 

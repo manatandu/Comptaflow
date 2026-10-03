@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
@@ -10,6 +10,7 @@ import type {
   EcartInventaire,
   Exercice,
   FicheInventaire,
+  ApercuPvCaisse,
   MouvementsReconstitutionCaisse,
   ProcesVerbalCaisse,
   PropositionRedressement,
@@ -135,29 +136,55 @@ export function InventairePage() {
     );
   }, [peutEcrire]);
 
+  // LA CAMPAGNE AFFICHÉE · une réponse arrivée pour une autre (changement de
+  // campagne pendant la lecture) est JETÉE, jamais posée sur l'écran de la
+  // nouvelle · sinon les PV et les caisses d'une campagne s'affichaient sous
+  // le nom d'une autre (seconde passe A10, i).
+  const campagneAffichee = useRef<string | null>(null);
+
   const chargerCaisses = (id: string) => {
     setErreurCaisses(null);
-    return api.get<CaisseNonComptee[]>(`/inventaire/${id}/caisses-non-comptees`).then(setCaisses, (e: Error) => {
-      setCaisses(null);
-      setErreurCaisses(e.message || 'La liste des caisses n’a pas pu être lue.');
-    });
+    return api.get<CaisseNonComptee[]>(`/inventaire/${id}/caisses-non-comptees`).then(
+      (c) => {
+        if (campagneAffichee.current === id) setCaisses(c);
+      },
+      (e: Error) => {
+        if (campagneAffichee.current !== id) return;
+        setCaisses(null);
+        setErreurCaisses(e.message || 'La liste des caisses n’a pas pu être lue.');
+      },
+    );
   };
 
+  const lireDetail = (id: string) =>
+    api.get<CampagneInventaire>(`/inventaire/${id}`).then(
+      (d) => {
+        if (campagneAffichee.current === id) setDetail(d);
+      },
+      (e: Error) => {
+        if (campagneAffichee.current === id) setErreur(e.message);
+      },
+    );
+
   useEffect(() => {
-    if (!selectionId) {
-      setDetail(null);
-      setCaisses(null);
-      setErreurCaisses(null);
-      return;
-    }
-    api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, (e: Error) => setErreur(e.message));
+    campagneAffichee.current = selectionId;
+    // Vidé d'abord · le détail de la campagne précédente ne reste pas affiché
+    // pendant la lecture de la nouvelle.
+    setDetail(null);
+    setCaisses(null);
+    setErreurCaisses(null);
+    if (!selectionId) return;
+    lireDetail(selectionId);
     chargerCaisses(selectionId);
+    return () => {
+      if (campagneAffichee.current === selectionId) campagneAffichee.current = null;
+    };
   }, [selectionId]);
 
   const rafraichir = () => {
     charger();
     if (selectionId) {
-      api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, () => undefined);
+      lireDetail(selectionId);
       chargerCaisses(selectionId);
     }
   };
@@ -1145,6 +1172,31 @@ function FormulairePvCaisse({
   const [attestationLe, setAttestationLe] = useState('');
   const [attestationPar, setAttestationPar] = useState('');
   const [observations, setObservations] = useState('');
+  // L'APERÇU AVANT DE FIGER (seconde passe A10, a) · ce que le serveur figera
+  // pour cette caisse à cette date, ou le motif de son refus. Le PV est
+  // unique et définitif · le chiffre se voit avant de signer. Une réponse
+  // pour une autre date est jetée.
+  const [apercu, setApercu] = useState<ApercuPvCaisse | null>(null);
+  const [erreurApercu, setErreurApercu] = useState<string | null>(null);
+  useEffect(() => {
+    let perime = false;
+    setApercu(null);
+    setErreurApercu(null);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateComptage)) return;
+    const q = new URLSearchParams({ compteId: caisse.compteId, dateComptage });
+    api.get<ApercuPvCaisse>(`/inventaire/${campagne.id}/pv-caisse/apercu?${q.toString()}`).then(
+      (a) => {
+        if (!perime) setApercu(a);
+      },
+      (err: Error) => {
+        if (!perime) setErreurApercu(err.message || 'L’aperçu n’a pas pu être lu.');
+      },
+    );
+    return () => {
+      perime = true;
+    };
+  }, [campagne.id, caisse.compteId, dateComptage]);
+  const unite = apercu?.lisible && apercu.devise ? apercu.devise : null;
 
   const e = lireNombre(especes);
   // `CoupureDto` · valeur faciale positive, nombre entier positif.
@@ -1155,7 +1207,13 @@ function FormulairePvCaisse({
   });
   const totalCoupures = coupures.reduce((t, c) => t + (lireNombre(c.valeur) ?? 0) * (lireNombre(c.nombre) ?? 0), 0);
   const pret =
-    !!sousCommissionId && !!dateComptage && typeof e === 'number' && e >= 0 && coupuresLisibles;
+    !!sousCommissionId &&
+    !!dateComptage &&
+    typeof e === 'number' &&
+    e >= 0 &&
+    coupuresLisibles &&
+    // Un refus connu ne s'envoie pas · le serveur le rendrait de toute façon.
+    apercu?.lisible === true;
 
   const etablir = async () => {
     const ok = await agir(() =>
@@ -1211,7 +1269,7 @@ function FormulairePvCaisse({
           />
         </span>
         <label className="text-[11px] text-text-dim">
-          Espèces comptées
+          Espèces comptées{unite ? ` (${unite})` : ''}
           <input
             value={especes}
             onChange={(ev) => setEspeces(ev.target.value)}
@@ -1219,8 +1277,9 @@ function FormulairePvCaisse({
           />
         </label>
       </div>
+      <ApercuDuPv apercu={apercu} erreur={erreurApercu} />
       <div className="text-[11px] text-text-dim">
-        Ventilation par coupure
+        Ventilation par coupure{unite ? ` (${unite})` : ''}
         {coupures.map((c, i) => (
           <div key={i} className="flex gap-2 items-center mt-1">
             <input
@@ -1277,6 +1336,86 @@ function FormulairePvCaisse({
 }
 
 /**
+ * Une date du PV de caisse · lue en UTC (seconde passe A10, m). Le serveur
+ * rend un jour à minuit UTC ; lu à l'heure du poste, un poste à l'ouest de
+ * Greenwich affichait la veille.
+ */
+const jourUtc = (d: string | null | undefined) =>
+  d ? new Date(d).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '·';
+
+/** Un montant du PV dans son unité · la devise de la caisse quand elle en a une. */
+const dansLUnite = (v: unknown, unite: string | null) => (unite ? `${montant(v)} ${unite}` : montant(v));
+
+/**
+ * L'écart DIT par un mot, jamais par la seule couleur (seconde passe A10, k).
+ * Un excédent n'est pas un manquant, et un lecteur qui ne distingue pas le
+ * rouge doit lire lequel des deux il a sous les yeux.
+ */
+function qualifierEcart(ecart: unknown): string {
+  const n = Number(ecart);
+  if (!Number.isFinite(n)) return '·';
+  if (n === 0) return 'aucun écart';
+  return n < 0 ? 'manquant' : 'excédent';
+}
+
+/** L'aperçu du PV avant de figer (seconde passe A10, a). */
+function ApercuDuPv({ apercu, erreur }: { apercu: ApercuPvCaisse | null; erreur: string | null }) {
+  if (erreur) return <div className="text-[11.5px] text-danger">Aperçu illisible · {erreur}</div>;
+  if (apercu === null) return <div className="text-[11.5px] text-text-dim">Lecture du solde au jour du comptage…</div>;
+  if (!apercu.lisible) return <div className="text-[11.5px] text-danger">Procès-verbal impossible à cette date · {apercu.motif}</div>;
+  const r = apercu.reconstitution;
+  return (
+    <div className="text-[11.5px]">
+      <table>
+        <tbody>
+          {r && (
+            <>
+              <tr>
+                <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+                  Solde à la clôture du {jourUtc(apercu.dateCloture)}
+                </th>
+                <td className="text-right tabular-nums">{dansLUnite(r.soldeALaCloture, apercu.devise)}</td>
+              </tr>
+              {r.mouvementsValeurAvantCloture !== 0 && (
+                <tr>
+                  <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+                    Opérations à date de valeur antérieure à la clôture
+                  </th>
+                  <td className="text-right tabular-nums">{dansLUnite(r.mouvementsValeurAvantCloture, apercu.devise)}</td>
+                </tr>
+              )}
+              <tr>
+                <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+                  + Encaissements jusqu’au comptage
+                </th>
+                <td className="text-right tabular-nums">{dansLUnite(r.encaissementsPosterieurs, apercu.devise)}</td>
+              </tr>
+              <tr>
+                <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+                  − Paiements jusqu’au comptage
+                </th>
+                <td className="text-right tabular-nums">{dansLUnite(r.decaissementsPosterieurs, apercu.devise)}</td>
+              </tr>
+            </>
+          )}
+          <tr>
+            <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+              Solde qui sera figé
+            </th>
+            <td className="text-right tabular-nums">{dansLUnite(apercu.soldeComptable, apercu.devise)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {apercu.mentions.map((m) => (
+        <div key={m} className="text-warning">
+          {m}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * LES PROCÈS-VERBAUX DE CAISSE ÉTABLIS, avec leur reconstitution (ligne A10).
  * Compté après la clôture, le PV montre comment le solde du livre-journal au
  * jour du comptage remonte au solde de clôture, et les espèces qui existaient
@@ -1291,7 +1430,7 @@ function BlocPvCaisse({ pvs }: { pvs: ProcesVerbalCaisse[] | undefined }) {
         Procès-verbaux de comptage des caisses · {pvs.length}
         <Aide
           titre="Reconstitution vers la clôture"
-          texte="Une caisse comptée après la clôture se compare au solde du livre-journal du jour du comptage. Le procès-verbal remonte à la clôture · solde à la clôture, plus les encaissements, moins les paiements intercalés, égale le solde au jour du comptage ; dans l’autre sens, les espèces comptées, moins les encaissements, plus les paiements, donnent les espèces existant à la clôture. L’écart est le même des deux côtés. Les totaux sont figés à l’établissement ; les mouvements se relisent tels que le procès-verbal les a lus."
+          texte="Une caisse comptée après la clôture se compare au solde du livre-journal du jour du comptage. Le procès-verbal remonte à la clôture · solde à la clôture, plus les encaissements, moins les paiements intercalés, égale le solde au jour du comptage ; dans l’autre sens, les espèces comptées, moins les encaissements, plus les paiements, donnent les espèces existant à la clôture. L’écart est le même des deux côtés. Une caisse dont toutes les lignes portent une seule devise se compare dans cette devise ; des lignes mêlées se comparent en francs, au cours historique. Les totaux sont figés à l’établissement ; les mouvements se relisent tels que le procès-verbal les a lus."
           source="Fiche du compte 57 ; AUDCIF art. 16, al. 4 et 5, art. 42"
         />
       </div>
@@ -1307,6 +1446,7 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [lecture, setLecture] = useState(false);
   const figee = pv.soldeALaCloture !== null && pv.encaissementsPosterieurs !== null && pv.decaissementsPosterieurs !== null;
+  const u = pv.unite;
 
   const lireMouvements = () => {
     setLecture(true);
@@ -1320,6 +1460,15 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
       .finally(() => setLecture(false));
   };
 
+  const ligne = (libelle: string, valeur: unknown) => (
+    <tr>
+      <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+        {libelle}
+      </th>
+      <td className="text-right tabular-nums">{dansLUnite(valeur, u)}</td>
+    </tr>
+  );
+
   return (
     <div className="px-2.5 py-1.5 border-b border-border/40 text-[11.5px]">
       <div className="flex flex-wrap items-center gap-x-3">
@@ -1327,50 +1476,42 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
           {pv.compte.numero} <span className="text-text-dim">{pv.compte.intitule}</span>
         </span>
         <span className="text-text-dim">
-          Compté le {jour(pv.dateComptage)}
+          Compté le {jourUtc(pv.dateComptage)}
           {pv.heureComptage ? ` à ${pv.heureComptage}` : ''}
+          {u ? ` · en ${u}` : ''}
         </span>
       </div>
       <table className="mt-1">
         <tbody>
-          {figee && (
-            <>
-              <tr>
-                <td className="pr-4 text-text-dim">Solde à la clôture du {jour(pv.dateCloture)}</td>
-                <td className="text-right tabular-nums">{montant(pv.soldeALaCloture)}</td>
-              </tr>
-              <tr>
-                <td className="pr-4 text-text-dim">
-                  + Encaissements jusqu’au comptage ({pv.mouvementsPosterieurs ?? '·'} ligne(s) au total)
-                </td>
-                <td className="text-right tabular-nums">{montant(pv.encaissementsPosterieurs)}</td>
-              </tr>
-              <tr>
-                <td className="pr-4 text-text-dim">− Paiements jusqu’au comptage</td>
-                <td className="text-right tabular-nums">{montant(pv.decaissementsPosterieurs)}</td>
-              </tr>
-            </>
-          )}
+          {figee && ligne(`Solde à la clôture du ${jourUtc(pv.dateCloture)}`, pv.soldeALaCloture)}
+          {figee &&
+            pv.mouvementsValeurAvantCloture !== null &&
+            Number(pv.mouvementsValeurAvantCloture) !== 0 &&
+            ligne('Opérations à date de valeur antérieure à la clôture', pv.mouvementsValeurAvantCloture)}
+          {figee &&
+            ligne(
+              `+ Encaissements jusqu’au comptage (${pv.mouvementsPosterieurs ?? '·'} ligne(s) au total)`,
+              pv.encaissementsPosterieurs,
+            )}
+          {figee && ligne('− Paiements jusqu’au comptage', pv.decaissementsPosterieurs)}
+          {ligne('Solde au livre-journal au jour du comptage', pv.soldeComptableFige)}
+          {ligne('Espèces comptées', pv.especesComptees)}
+          {figee && ligne('Espèces reconstituées à la clôture', pv.especesReconstitueesALaCloture)}
           <tr>
-            <td className="pr-4 text-text-dim">Solde au livre-journal au jour du comptage</td>
-            <td className="text-right tabular-nums">{montant(pv.soldeComptableFige)}</td>
-          </tr>
-          <tr>
-            <td className="pr-4 text-text-dim">Espèces comptées</td>
-            <td className="text-right tabular-nums">{montant(pv.especesComptees)}</td>
-          </tr>
-          {figee && (
-            <tr>
-              <td className="pr-4 text-text-dim">Espèces reconstituées à la clôture</td>
-              <td className="text-right tabular-nums">{montant(pv.especesReconstitueesALaCloture)}</td>
-            </tr>
-          )}
-          <tr>
-            <td className="pr-4 text-text-dim">Écart</td>
-            <td className={`text-right tabular-nums ${Number(pv.ecart) !== 0 ? 'text-danger' : ''}`}>{montant(pv.ecart)}</td>
+            <th scope="row" className="pr-4 text-left font-normal text-text-dim">
+              Écart
+            </th>
+            <td className={`text-right tabular-nums ${Number(pv.ecart) !== 0 ? 'text-danger' : ''}`}>
+              {dansLUnite(pv.ecart, u)} · {qualifierEcart(pv.ecart)}
+            </td>
           </tr>
         </tbody>
       </table>
+      {pv.mentions.map((m) => (
+        <div key={m} className="text-warning mt-1">
+          {m}
+        </div>
+      ))}
       {pv.reconstitutionManquante && (
         <div className="text-warning mt-1">
           Compté après la clôture sans reconstitution figée · procès-verbal antérieur, son solde est celui qui avait été saisi.
@@ -1393,23 +1534,23 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
             <table className="w-full">
               <thead>
                 <tr>
-                  <th className="text-left px-2 py-1 font-normal">Date</th>
-                  <th className="text-left px-2 py-1 font-normal">Journal</th>
-                  <th className="text-left px-2 py-1 font-normal">Pièce</th>
-                  <th className="text-left px-2 py-1 font-normal">Libellé</th>
-                  <th className="text-right px-2 py-1 font-normal">Encaissement</th>
-                  <th className="text-right px-2 py-1 font-normal">Paiement</th>
+                  <th scope="col" className="text-left px-2 py-1 font-normal">Date</th>
+                  <th scope="col" className="text-left px-2 py-1 font-normal">Journal</th>
+                  <th scope="col" className="text-left px-2 py-1 font-normal">Pièce</th>
+                  <th scope="col" className="text-left px-2 py-1 font-normal">Libellé</th>
+                  <th scope="col" className="text-right px-2 py-1 font-normal">Encaissement</th>
+                  <th scope="col" className="text-right px-2 py-1 font-normal">Paiement</th>
                 </tr>
               </thead>
               <tbody>
                 {mouvements.lignes.map((l) => (
                   <tr key={l.id}>
-                    <td className="px-2 py-0.5">{jour(l.date)}</td>
+                    <td className="px-2 py-0.5">{jourUtc(l.date)}</td>
                     <td className="px-2 py-0.5">{l.journal}</td>
                     <td className="px-2 py-0.5">{l.numeroPiece ?? '·'}</td>
                     <td className="px-2 py-0.5">{l.libelle}</td>
-                    <td className="px-2 py-0.5 text-right tabular-nums">{montant(l.encaissement)}</td>
-                    <td className="px-2 py-0.5 text-right tabular-nums">{montant(l.decaissement)}</td>
+                    <td className="px-2 py-0.5 text-right tabular-nums">{dansLUnite(l.encaissement, mouvements.unite)}</td>
+                    <td className="px-2 py-0.5 text-right tabular-nums">{dansLUnite(l.decaissement, mouvements.unite)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1421,11 +1562,18 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
             </div>
           )}
           <div className="text-text-dim mt-1 tabular-nums">
-            Totaux relus · encaissements {montant(mouvements.encaissements)}, paiements {montant(mouvements.decaissements)}
+            Totaux relus · solde à la clôture {dansLUnite(mouvements.soldeALaCloture, mouvements.unite)}, encaissements{' '}
+            {dansLUnite(mouvements.encaissements, mouvements.unite)}, paiements {dansLUnite(mouvements.decaissements, mouvements.unite)}
           </div>
           {mouvements.concorde === false && (
             <div className="text-danger mt-1">
               Les totaux relus diffèrent des totaux figés sur le procès-verbal · le livre-journal a changé depuis son établissement.
+            </div>
+          )}
+          {mouvements.saisiesDepuisLePv.nombre > 0 && (
+            <div className="text-warning mt-1 tabular-nums">
+              Saisies depuis le procès-verbal · {mouvements.saisiesDepuisLePv.nombre} ligne(s) datée(s) au plus tard du comptage,
+              validée(s) après lui, net {dansLUnite(mouvements.saisiesDepuisLePv.net, mouvements.unite)}.
             </div>
           )}
         </div>
