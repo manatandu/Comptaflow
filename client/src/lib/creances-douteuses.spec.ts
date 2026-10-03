@@ -250,7 +250,9 @@ describe('A7 ter · le rapprochement et le lettrage de la créance éteinte, dit
   it('B1 · les soldes provisoires disent pourquoi · à-nouveau absent, ou report provisoire', () => {
     expect(libelleSoldesProvisoires(r)).toBeNull();
     expect(libelleSoldesProvisoires({ ...r, provisoire: true })).toMatch(/à-nouveau non passé/);
-    expect(libelleSoldesProvisoires({ ...r, provisoire: true, reportProvisoire: true })).toMatch(/report à-nouveau provisoire, à relancer/);
+    expect(libelleSoldesProvisoires({ ...r, provisoire: true, reportProvisoire: true })).toMatch(/le report à-nouveau provisoire n'étant pas lu/);
+    // Mineur 3 · le module ne lit jamais le report provisoire · aucun libellé ne propose de le relancer.
+    expect(libelleSoldesProvisoires({ ...r, provisoire: true, reportProvisoire: true })).not.toMatch(/relancer/);
   });
 
   it('B2 · l’issue du lettrage du 416 se dit, posée ou non, et l’écran l’affiche après le geste', () => {

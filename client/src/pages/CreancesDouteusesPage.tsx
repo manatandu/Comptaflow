@@ -372,7 +372,8 @@ export function CreancesDouteusesPage() {
       if (form.geste === 'declarer') {
         const deprec = montantSaisi(form.depreciationOuverture);
         if (deprec == null) throw new Error('Saisissez la dépréciation existante · zéro se tape, vide n’est pas zéro.');
-        await api.post('/creances-douteuses/declarations', {
+        // Mineur 4 · une borne lue sur le report reconstitué n'est pas sûre, et le serveur le dit.
+        const r = await api.post<{ borneProvisoire?: boolean; information?: string }>('/creances-douteuses/declarations', {
           exerciceId,
           compteCreanceId: form.compteCreanceId,
           compte416Id: form.compte416Id,
@@ -384,6 +385,7 @@ export function CreancesDouteusesPage() {
           motif: form.motif || undefined,
           pieces: piecesAEnvoyer(form.pieces),
         });
+        setInfo(r?.information ?? null);
       } else if (form.geste === 'reclasser') {
         const r = await api.post<{ avertissement?: string | null }>('/creances-douteuses', {
           ...commun,
@@ -537,7 +539,7 @@ export function CreancesDouteusesPage() {
               {libelleSoldesProvisoires(r)}
               <Aide
                 titre="Soldes provisoires"
-                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Un report à-nouveau provisoire, calculé sur les seules écritures validées, n'en tient pas lieu : relancez-le une fois le brouillard de l'exercice précédent validé, ou clôturez l'exercice précédent."
+                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Le module ne lit jamais le report à-nouveau provisoire : le relancer ne change rien ici. Clôturez l'exercice précédent ou passez un bilan d'ouverture."
                 source="Convention d'OmegaX"
               />
             </div>

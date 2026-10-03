@@ -623,6 +623,17 @@ export function motifLettrageFigeAuBrouillard(code: string, figee: string, objet
   );
 }
 
+/**
+ * A7 ter, mineur 4 · UNE DÉCLARATION BORNÉE PAR LE REPORT RECONSTITUÉ n'est
+ * jamais présentée comme sûre · sans à-nouveau qui fait foi, le 416 et le 491
+ * d'ouverture se lisent sur la clôture précédente reconstituée, brouillard
+ * compris, qu'une écriture passée ensuite dans l'exercice précédent change.
+ */
+export const INFORMATION_BORNE_RECONSTITUEE =
+  "Déclarée sur le report RECONSTITUÉ de l'exercice précédent · l'à-nouveau de cet exercice n'est pas passé, et la borne " +
+  "du 416 et du 491 n'est pas sûre (une écriture passée ensuite dans l'exercice précédent la change). Clôturez l'exercice " +
+  "précédent ou passez un bilan d'ouverture, puis vérifiez la déclaration.";
+
 /** B2b · ce que l'annulation dit quand le lettrage du module reste en place. */
 export function informationLettrageMaintenu(code: string, figee: string): string {
   return (

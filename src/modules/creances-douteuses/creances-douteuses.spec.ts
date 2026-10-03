@@ -700,7 +700,7 @@ describe('créances douteuses · service', () => {
   it('M2 · sans à-nouveau, le solde se lit sur le report reconstitué de l’exercice précédent, et le refus le dit', async () => {
     const { service, prisma } = monter({ aNouveauDans: [], solde: 1_000_000 });
     await expect(service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15' })).rejects.toThrow(
-      /report RECONSTITUÉ de l'exercice précédent.*passez l'à-nouveau/,
+      /report RECONSTITUÉ de l'exercice précédent.*clôturez l'exercice précédent ou passez un bilan d'ouverture/,
     );
     expect(prisma.ligneEcriture.aggregate.mock.calls[0][0].where.ecriture.exerciceId).toEqual({ in: ['ex-27', 'ex-26'] });
   });
@@ -742,7 +742,7 @@ describe('créances douteuses · service', () => {
     // En 2027, le client doit 1 160 000, jamais 2 320 000.
     await expect(
       service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15', montant: 2_000_000 }),
-    ).rejects.toThrow(/\(1160000\.00\).*report PROVISOIRE.*relancez le report/);
+    ).rejects.toThrow(/\(1160000\.00\).*report PROVISOIRE, que ce module ne lit jamais\. Clôturez l'exercice précédent ou passez un bilan d'ouverture/);
     expect(creer).not.toHaveBeenCalled();
     await service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15' });
     expect(creer).toHaveBeenCalledTimes(1);
@@ -767,8 +767,11 @@ describe('créances douteuses · service', () => {
       depreciationOuverture: 100_000,
       source: 'Balance de reprise',
     };
-    await service.declarer('t', 'u', dto);
+    const servie: any = await service.declarer('t', 'u', dto);
     expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
+    // Mineur 4 · la borne lue sur le report reconstitué est SERVIE comme provisoire, et dite.
+    expect(servie.borneProvisoire).toBe(true);
+    expect(servie.information).toMatch(/report RECONSTITUÉ.*n'est pas sûre.*Clôturez l'exercice précédent ou passez un bilan d'ouverture/);
     await expect(service.declarer('t', 'u', { ...dto, montant: 500_000.01 })).rejects.toThrow(/report PROVISOIRE.*reprenez la déclaration/);
   });
 
@@ -929,7 +932,10 @@ describe('créances douteuses · service', () => {
       depreciationOuverture: 300_000,
       source: 'Balance de reprise',
     };
-    await service.declarer('t', 'u', dto);
+    const servie: any = await service.declarer('t', 'u', dto);
+    // Mineur 4 · sur l'à-nouveau qui fait foi, la borne est sûre et rien n'est dit.
+    expect(servie.borneProvisoire).toBe(false);
+    expect(servie.information).toBeUndefined();
     expect(creer).not.toHaveBeenCalled();
     expect(prisma.creanceDouteuse.create.mock.calls[0][0].data).toMatchObject({
       declareeOuverture: true,

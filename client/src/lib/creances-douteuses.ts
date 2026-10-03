@@ -174,11 +174,15 @@ export function ecartsRapprochement(r: RapprochementCreances) {
   return { ecart416, ecart491, horsModule491, reste491: auCentime(ecart491 - horsModule491) };
 }
 
-/** B1 · pourquoi les soldes du rapprochement sont provisoires. */
+/**
+ * B1 · pourquoi les soldes du rapprochement sont provisoires. Mineur 3 · le
+ * module ne lit jamais le report à-nouveau provisoire · le relancer ne change
+ * rien, et le libellé ne le propose plus.
+ */
 export function libelleSoldesProvisoires(r: RapprochementCreances): string | null {
   if (!r.provisoire) return null;
   return r.reportProvisoire
-    ? 'Soldes du 416 et du 491 provisoires · report à-nouveau provisoire, à relancer après validation du brouillard'
+    ? "Soldes du 416 et du 491 provisoires · lus sur l'exercice précédent, le report à-nouveau provisoire n'étant pas lu"
     : 'Soldes du 416 et du 491 provisoires · à-nouveau non passé';
 }
 

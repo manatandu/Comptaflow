@@ -32,6 +32,7 @@ import {
   comptePertePropose,
   ecartDeDepreciation,
   enPlaceAvant,
+  INFORMATION_BORNE_RECONSTITUEE,
   informationLettrageMaintenu,
   motifLettrageFigeAuBrouillard,
   motifRefusAnnulationMouvement,
@@ -400,22 +401,22 @@ export class CreancesDouteusesService {
 
   /**
    * LE SOLDE RECONSTITUÉ SE DIT, avec son issue (relecture adverse, M2 ; A7
-   * ter, B1) · sans à-nouveau, passer l'à-nouveau ou le bilan d'ouverture ;
-   * avec un report PROVISOIRE, le relancer une fois le brouillard de
-   * l'exercice précédent validé (le report provisoire ne lit que le
-   * livre-journal, point 11), ou clôturer cet exercice.
+   * ter, B1 et mineur 3). Le module ne lit JAMAIS le report à-nouveau
+   * provisoire (`HORS_REPORT_PROVISOIRE`) · le relancer ne change rien à ce
+   * solde, et le message ne le propose plus. Les deux seules issues · clôturer
+   * l'exercice précédent (son report fait foi) ou passer un bilan d'ouverture.
    */
   private async motifSoldeReconstitue(tenantId: string, exerciceId: string, suite: string) {
     if (await this.aUnReportProvisoire(tenantId, exerciceId)) {
       return (
         " Ce solde est reconstitué depuis l'exercice précédent, brouillard compris · l'à-nouveau de cet exercice n'est qu'un " +
-        'report PROVISOIRE, calculé sur le seul livre-journal, qui ne se lit pas comme un solde. Validez le brouillard de ' +
-        `l'exercice précédent et relancez le report (ou clôturez l'exercice précédent), vérifiez le montant, puis ${suite}.`
+        "report PROVISOIRE, que ce module ne lit jamais. Clôturez l'exercice précédent ou passez un bilan d'ouverture, " +
+        `vérifiez le montant, puis ${suite}.`
       );
     }
     return (
       " Ce solde est le report RECONSTITUÉ de l'exercice précédent, l'à-nouveau de cet exercice n'étant pas encore passé · " +
-      `passez l'à-nouveau (ou le bilan d'ouverture), puis ${suite}.`
+      `clôturez l'exercice précédent ou passez un bilan d'ouverture, puis ${suite}.`
     );
   }
 
@@ -651,7 +652,7 @@ export class CreancesDouteusesService {
       comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
       comptes491.length > 0 ? this.horsModule491(tenantId, comptes491, ids, ex.dateFin) : Promise.resolve(0),
       // B1 · l'écran dit pourquoi les soldes sont provisoires · à-nouveau
-      // absent, ou report provisoire à relancer.
+      // absent, ou report provisoire, que le module ne lit jamais.
       provisoire ? this.aUnReportProvisoire(tenantId, ex.id) : Promise.resolve(false),
     ]);
     return {
@@ -933,20 +934,17 @@ export class CreancesDouteusesService {
         },
       }),
     );
-    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture) };
+    // Mineur 4 · la borne lue sur le report reconstitué se SERT et se dit ·
+    // jamais présentée comme sûre.
+    return {
+      ...ligne,
+      montant: n(ligne.montant),
+      depreciationOuverture: n(ligne.depreciationOuverture),
+      borneProvisoire: ouverture.reconstitue,
+      ...(ouverture.reconstitue ? { information: INFORMATION_BORNE_RECONSTITUEE } : {}),
+    };
   }
 
-  /**
-   * LA BORNE DE LA DÉCLARATION D'OUVERTURE (relecture adverse, M3 ; A7 ter,
-   * B1) · l'à-nouveau QUI FAIT FOI du 416 (débit net) et du 491 (crédit net).
-   * Sans lui, le report RECONSTITUÉ de la clôture précédente, brouillard
-   * compris, à la veille de l'ouverture · comme toute lecture du module
-   * (M2), et jamais l'à-nouveau PROVISOIRE, calculé sur le seul livre-journal
-   * · il ignorait le brouillard de l'exercice précédent, et une créance
-   * passée au 416 au brouillard se déclarait refusée, ou une sortie au
-   * brouillard laissait déclarer ce qui n'y était plus. Sans à-nouveau ni
-   * exercice précédent, aucune borne · la déclaration est refusée.
-   */
   /**
    * A7 TER, MINEUR 2 · LA POSITION NETTE EN DEVISE, par compte et par devise,
    * sur la chaîne (`chaine`), à-nouveau provisoire exclu · somme des montants
@@ -989,6 +987,17 @@ export class CreancesDouteusesService {
     return [...net.values()].some((v) => Math.abs(v) >= 0.005);
   }
 
+  /**
+   * LA BORNE DE LA DÉCLARATION D'OUVERTURE (relecture adverse, M3 ; A7 ter,
+   * B1) · l'à-nouveau QUI FAIT FOI du 416 (débit net) et du 491 (crédit net).
+   * Sans lui, le report RECONSTITUÉ de la clôture précédente, brouillard
+   * compris, à la veille de l'ouverture · comme toute lecture du module
+   * (M2), et jamais l'à-nouveau PROVISOIRE, calculé sur le seul livre-journal
+   * · il ignorait le brouillard de l'exercice précédent, et une créance
+   * passée au 416 au brouillard se déclarait refusée, ou une sortie au
+   * brouillard laissait déclarer ce qui n'y était plus. Sans à-nouveau ni
+   * exercice précédent, aucune borne · la déclaration est refusée.
+   */
   private async soldesALOuverture(tenantId: string, ex: { id: string; dateDebut: Date }, compte416Id: string, compte491Id: string) {
     if (await this.aUnANouveau(tenantId, ex.id)) {
       const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
