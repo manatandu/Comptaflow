@@ -6,6 +6,11 @@ import { NON_AUDITES_MOTIVES, colonnesNonRestituables } from '../../../common/au
 import { analyserCsv } from '../../import/lecture-fichier';
 import { ecrireManifeste } from './manifeste-restitution';
 
+// Chaque cas écrit puis relit une archive ZIP entière · sous une suite chargée
+// deux d'entre eux ont dépassé les cinq secondes par défaut de Jest
+// (2026-10-03), sans qu'aucune assertion ait changé.
+jest.setTimeout(30000);
+
 /**
  * L'ARCHIVE, ET CE QU'ELLE NE DOIT PAS CONTENIR.
  *
