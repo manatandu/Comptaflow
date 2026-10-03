@@ -116,9 +116,11 @@ describe('écran Devises · la contre-passation manuelle déclarée', () => {
     const modale = source.slice(source.indexOf('{aDeclarer && ('));
     const corps = modale.slice(0, modale.indexOf('</PortailModale>'));
     // Quatrième tour · la liste vide dit ce que le serveur sert (`motifHorsModule` · corriger, rétablir) ;
-    // « contre-passez par le module » seulement quand rien de manuel ne touche ces comptes.
+    // cinquième tour · `null` veut dire que l'état des comptes porte l'écart en place, et seulement alors
+    // « contre-passez par le module ».
     expect(corps).toContain('aDeclarer.lues.motifHorsModule ??');
-    expect(corps).toContain('Aucune écriture passée à la main ne touche ces comptes');
+    expect(corps).toContain("Les comptes de l'écart le portent encore en place");
+    expect(corps).not.toContain('Aucune écriture passée à la main ne touche ces comptes');
     expect(corps).not.toContain("Aucune écriture de ce dossier n'inverse exactement ces montants");
     expect(corps).toContain('{erreurDeclaration}');
     expect(source).toContain('lues.candidates.length === 1 ? lues.candidates[0].id');

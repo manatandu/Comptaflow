@@ -1010,7 +1010,7 @@ export function DevisesPage() {
                   Déclarer une contre-passation manuelle · réévaluation du {jour(aDeclarer.reevaluation.dateReevaluation)}
                   <Aide
                     titre="Contre-passation faite à la main"
-                    texte="L'écart de conversion de cette réévaluation a déjà été contre-passé par une écriture du cabinet, hors du module. Désignez-la : elle doit inverser exactement, au centime, chaque compte de l'écart (le tiers et son 478 ou 479), dans l'exercice qui suit la réévaluation ou le premier ouvert après des exercices clôturés ; d'autres lignes, sur d'autres comptes, sont admises. Déclarée, la réévaluation est tenue pour contre-passée et l'écriture ne se modifie, ni ne se supprime plus. Contre-passer par le module l'inverserait une seconde fois."
+                    texte="L'écart de conversion de cette réévaluation a déjà été contre-passé par une écriture du cabinet, hors du module. Désignez-la : elle doit inverser exactement, au centime, chaque compte de l'écart (le tiers et son 478 ou 479), dans l'exercice qui suit la réévaluation, le premier ouvert après des exercices clôturés, ou l'exercice réévalué lui-même à partir de la date de la réévaluation ; d'autres lignes, sur d'autres comptes, sont admises. La déclaration n'est admise que si les comptes de l'écart se lisent déjà contre-passés ; sinon le serveur nomme ce qu'il faut corriger ou rétablir d'abord. Déclarée, la réévaluation est tenue pour contre-passée et l'écriture ne se modifie, ni ne se supprime plus. Contre-passer par le module l'inverserait une seconde fois."
                     source="Guide SYSCOHADA, Partie 2 ch. 22, Applications 84 et 85 ; AUDCIF art. 54"
                   />
                 </span>
@@ -1037,7 +1037,7 @@ export function DevisesPage() {
                     {aDeclarer.lues.candidates.length === 0 ? (
                       <p className="text-[11.5px] text-warning mb-2">
                         {aDeclarer.lues.motifHorsModule ??
-                          "Aucune écriture passée à la main ne touche ces comptes là où la contre-passation se passe · contre-passez par le module (« Contre-passer »)."}
+                          "Les comptes de l'écart le portent encore en place · aucune écriture du cabinet ne l'a contre-passé · contre-passez par le module (« Contre-passer »)."}
                       </p>
                     ) : (
                       <fieldset className="mb-3 border border-border px-3 py-2">

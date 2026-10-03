@@ -4424,6 +4424,13 @@ export class ControlesService {
     // version de provision d'ouverture déclarée après elle se retire ou se
     // corrige) ; une contre-passation INTÉGRALE par exception nommée (B2, M2)
     // est dite comme telle, sans issue à prendre.
+    //
+    // CINQUIÈME TOUR · ce contrôle lit la BANQUE inversée, que la règle d'état
+    // de l'écart (`DevisesService.etatDeLEcart`, le 478, le 479 et le tiers) ne
+    // lit pas ; l'issue qu'il nomme (annuler, ou retirer et corriger) remet
+    // l'écart en place, et « Contre-passer » la rejuge sur cet état avant de
+    // passer · le message le dit, sans promettre un geste que la règle
+    // refuserait.
     {
       const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
       if (contrePassees.elements.length > 0 || contrePassees.tronque) {
@@ -4456,7 +4463,10 @@ export class ControlesService {
             (annulable.length > 0
               ? 'Contre-passation dans un exercice encore ouvert · annulez-la (Devises, « Annuler la contre-passation », AUDCIF ' +
                 "art. 20, al. 2), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué" +
-                (aRepasser ? ', puis repassez-la · seuls le 478, le 479 et les comptes de tiers le seront' : '') +
+                (aRepasser
+                  ? ', puis repassez-la · seuls le 478, le 479 et les comptes de tiers le seront, si leur état porte l’écart en place ' +
+                    '(« Contre-passer » le rejuge et nomme l’issue sinon)'
+                  : '') +
                 (rienARepasser
                   ? `${aRepasser ? ' ; ' : ' · '}une réévaluation des seules disponibilités n'a aucun écart de conversion, il n'y a rien à repasser`
                   : '') +
@@ -4465,7 +4475,8 @@ export class ControlesService {
             (manuelleOuverte
               ? "Contre-passation manuelle déclarée, dans un exercice encore ouvert · retirez la déclaration (Devises, « Retirer la " +
                 "déclaration »), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, corrigez l'écriture " +
-                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers' +
+                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers ' +
+                '(« Contre-passer » rejuge l’état des comptes de l’écart et nomme l’issue s’il n’est pas en place)' +
                 (groupee
                   ? " ; l'écriture portait d'autres gestes, que son inscription en négatif annule avec elle · repassez-les. "
                   : '. ')
