@@ -44,11 +44,14 @@ import { comptesPrescrits, natureDuCompte, type Referentiel } from '../reglement
  * le complète sans ouvrir d'exercice nouveau (`groupeTolere`).
  *
  * (3) CE QUI RESTE D'UN GROUPE DÉJÀ À CHEVAL se dit au contrôle des comptes
- * (`lettragesACheval`), jamais à la clôture · au DÉTAIL, le groupe et la
+ * (`lettragesACheval`) · au DÉTAIL, le groupe et la
  * lecture qui reste ouverte (INFORMATION, rien à défaire) ; en devise, un
  * groupe soldé dans sa devise et non en francs dont l'écart réalisé n'est
  * pas passé (AVERTISSEMENT, AUDCIF art. 55), avec son issue · passer l'écart
- * proposé, sur le groupe, figé ou non (second tour, B2).
+ * proposé, sur le groupe, figé ou non (second tour, B2). Cet écart-là,
+ * dénoué dans l'exercice, la clôture le REFUSE aussi (A6 ter, m-1,
+ * `ecartsRealisesNonConstates`) · l'issue existant depuis le B2, le refus
+ * n'enferme plus le dossier.
  */
 
 type Lecteur = Pick<PrismaService, 'lettrage' | 'ligneEcriture' | 'cloture'>;
