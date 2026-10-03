@@ -8,6 +8,7 @@ import {
   type LigneAContrePasser,
 } from './contre-passation-manuelle';
 import { estDisponibilite } from './ecarts-disponibilites';
+import { PLAFOND_REEVALUATIONS_EXAMINEES, ecrituresDesContrePassationsAnnulees } from './contre-passations-de-disponibilites';
 
 /**
  * A5 BIS, TROISIÈME TOUR · UNE CONTRE-PASSATION FAITE À LA MAIN SE DÉCLARE.
@@ -333,5 +334,19 @@ describe('retirer la déclaration', () => {
 
   it('rien de déclaré · refus nommé', async () => {
     await expect(monter().svc.retirerContrePassationManuelle('t', 'r1')).rejects.toThrow(/Aucune contre-passation manuelle n'est déclarée/);
+  });
+});
+
+describe('troisième tour, mineur 3 · les traces des contre-passations annulées, lues dans un ordre stable', () => {
+  it('les plus récentes d’abord, l’identifiant pour départager ; au-delà de la borne, `tronque`', async () => {
+    const findMany = jest.fn(async (_a: unknown) =>
+      Array.from({ length: PLAFOND_REEVALUATIONS_EXAMINEES + 1 }, (_, i) => ({ annulationsContrePassation: [{ ecritureId: `e${i}` }] })),
+    );
+    const r = await ecrituresDesContrePassationsAnnulees({ reevaluation: { findMany } } as never, 't');
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: [{ dateReevaluation: 'desc' }, { id: 'asc' }], take: PLAFOND_REEVALUATIONS_EXAMINEES + 1 }),
+    );
+    expect(r.tronque).toBe(true);
+    expect(r.ids.size).toBe(PLAFOND_REEVALUATIONS_EXAMINEES);
   });
 });

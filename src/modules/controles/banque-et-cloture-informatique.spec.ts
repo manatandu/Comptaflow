@@ -326,6 +326,8 @@ function monter(options: {
   ecritures?: ReturnType<typeof ecriture>[];
   /** Les traces des contre-passations annulées (A5 bis, M1) · lues par le contrôle 32 (second tour, m3). */
   annulationsContrePassation?: { ecritureId: string; negatifId?: string }[];
+  /** Plus de traces que la borne · la vraie au-delà (troisième tour, mineur 3). */
+  tracesAuDelaDeLaBorne?: boolean;
 }) {
   const ecritures = options.ecritures ?? [
     ecriture('e1', 'jBQ', 'BQ', [ligne('1', '52110000', 1000), ligne('2', '52670000', 0, 1000)]),
@@ -397,7 +399,12 @@ function monter(options: {
     reevaluation: {
       findMany: jest.fn(async ({ where }: { where: { annulationsContrePassation?: unknown } }) =>
         where.annulationsContrePassation && options.annulationsContrePassation
-          ? [{ annulationsContrePassation: options.annulationsContrePassation }]
+          ? [
+              ...(options.tracesAuDelaDeLaBorne
+                ? Array.from({ length: 50 }, (_, i) => ({ annulationsContrePassation: [{ ecritureId: `autre-${i}` }] }))
+                : []),
+              { annulationsContrePassation: options.annulationsContrePassation },
+            ]
           : [],
       ),
     },
@@ -547,6 +554,23 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
         annulationsContrePassation: [{ ecritureId: 'e6', negatifId: 'e7' }],
       });
       expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+    });
+
+    it('mineur 3 · au-delà de la borne des traces, la contre-passation annulée redevient une opération · la lecture bornée est DITE', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: [
+          ...fermeEnDevisesPuisReevalue({ ecartsDeReevaluation: true }),
+          ecriture('e6', 'jOD', 'OD', [ligne('11', '52110000', 0, 20), ligne('12', '77600000', 20)], { date: '2026-12-31' }),
+          ecriture('e7', 'jOD', 'OD', [ligne('13', '52110000', 20), ligne('14', '77600000', 0, 20)], { date: '2026-12-31' }),
+        ],
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+        annulationsContrePassation: [{ ecritureId: 'e6', negatifId: 'e7' }],
+        tracesAuDelaDeLaBorne: true,
+      });
+      const a = await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE');
+      expect(a?.occurrences[0]).toMatchObject({ reference: 'Lecture bornée', detail: expect.stringMatching(/50 réévaluations à contre-passation annulée lues/) });
+      expect(a?.occurrences).toHaveLength(2);
     });
 
     it('jumeau · la même ligne passée à la main, vraie opération de banque après le relevé, reste signalée', async () => {
