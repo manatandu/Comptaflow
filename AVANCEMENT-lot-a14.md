@@ -74,9 +74,43 @@ emprunt, et au SYCEBNL le 16 pris pour emprunt. Tout concorde.
 
 Reste · rien pour A12.
 
-## A16 · registre des provisions, moins d'un an et conditions propres
+## A16 · registre des provisions, moins d'un an et conditions propres (relevé CPCC C13)
 
-À faire.
+Fait
+- Migration `20270128000000_provisions_court_terme_conditions_propres`
+  (`courtTerme`, `conditionsPropres` JSONB), dérive « No difference ».
+- `provisions/court-terme-et-conditions.ts` · comptes du court terme par plan,
+  refus 19 en court terme et 499 / 599 en long terme, concordance de
+  l'échéance, conditions propres citées. Le service les applique à la
+  création, à la modification et au statut, les sert au tableau, les reporte.
+- Écran · case « Échéance à moins d'un an », compte gardé, retiré en le
+  disant ou présélectionné (`compteApresChangementDHorizon`), conditions
+  propres cochées une à une, servies par le serveur.
+
+Décisions et textes
+- AUDCIF Titre VII, fiche du compte 49 · « dette probable à moins d'un an »,
+  exclusion « à plus d'un an → 19 » ; SYCEBNL, fiche du compte 19, exclusion
+  « risques à moins d'un an (utiliser 499) » ; tableau synoptique du ch. 18 ·
+  499 et 599 au passif circulant.
+- Un numéro, deux plans · 4991 / 4997 / 4998 au SYSCOHADA, 4991 / 4998 au
+  SYCEBNL (aucun 4997) ; 599 aux deux.
+- Dotation dite, jamais passée (le registre ne passe rien) · 6591 et 6791
+  (§ 2.2.1), 839 (fiche du 49), 679 (fiche du 59).
+- Conditions propres · § 4.1, § 4.1.1, § 4.1.2 (restructuration, cinq),
+  § 4.3 (contrat déficitaire, trois), § 4.10 (déménagement, trois).
+- La note de la ligne A5 ter (SYCEBNL, risque de change à moins d'un an au
+  4991) est cohérente · le registre l'admet au 4991 ; la correction du module
+  des devises reste à A5 ter.
+
+Rejeu sur vraie base, SYSCOHADA et SYCEBNL · litige à court terme au 4991
+(500 000, D 6591), déménagement au 1988 (1 200 000, conditions propres
+complètes) ; refus 191 en court terme, échéance dans l'année en long terme,
+condition propre manquante, restructuration incomplète (SYSCOHADA) ;
+rapprochements à zéro ; clôture ; report (deux lignes, horizon et
+conditions gardés) ; reprise N+1 D 4991 / C 7591 500 000, 4991 soldé et
+rapprochement à zéro. Tout concorde.
+
+Reste · rien pour A16.
 
 ## Vérification
 
