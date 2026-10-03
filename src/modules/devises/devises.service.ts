@@ -3062,6 +3062,13 @@ export class DevisesService {
     const jour = (d: Date) => d.toISOString().slice(0, 10);
     let actives = new Set(cles);
     let courant = { id: exercice.id, dateDebut: exercice.dateDebut };
+    // LES EXERCICES TRAVERSÉS depuis la cible (relecture adverse d'A5 bis,
+    // second tour, B-I) · une contre-passation qui a inversé la banque y est
+    // dans le compte que la cible lit, où qu'elle soit tombée parmi eux (une
+    // version antérieure la laissait poser deux exercices plus loin, ou après
+    // un exercice clôturé sans réévaluation) ; posée APRÈS la cible, elle
+    // n'a pas encore eu lieu pour elle.
+    const parcourus = new Set<string>([exercice.id]);
     // Borne de sûreté · dix ans de conservation (AUDCIF art. 24), et au-delà.
     for (let pas = 0; pas < 50 && actives.size > 0; pas++) {
       const precedent = await this.prisma.exercice.findFirst({
@@ -3098,12 +3105,13 @@ export class DevisesService {
           ecritureExtourne: { select: { exerciceId: true, lignes: { select: { compte: { select: { numero: true } } } } } },
         },
       });
-      // Inversée DANS l'exercice qui suit, et là seulement · une
-      // contre-passation passée plus loin (avant M1) laisse l'écart sur la
-      // banque pendant tout cet exercice ; le portillon la refuse, et le
-      // calcul ne la tient pas pour faite.
+      // Inversée dans un exercice TRAVERSÉ, de celui qui suit jusqu'à la
+      // cible · le compte que la cible lit la porte. Posée au-delà de la
+      // cible, elle n'est pas encore faite pour elle, et l'écart se reporte.
       const inverseeParLAncienneContrePassation =
-        (reeval?.ecritureExtourne?.exerciceId === courant.id &&
+        (reeval?.ecritureExtourne !== null &&
+          reeval?.ecritureExtourne !== undefined &&
+          parcourus.has(reeval.ecritureExtourne.exerciceId) &&
           reeval.ecritureExtourne.lignes.some((l) => estDisponibilite(l.compte.numero))) ||
         false;
       if (reeval?.ecritureEcarts && !inverseeParLAncienneContrePassation) {
@@ -3153,6 +3161,7 @@ export class DevisesService {
         }
       }
       courant = { id: precedent.id, dateDebut: precedent.dateDebut };
+      parcourus.add(precedent.id);
     }
     return { parCle, reserves: [...new Set(reserves)] };
   }

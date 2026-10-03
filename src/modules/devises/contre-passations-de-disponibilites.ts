@@ -14,8 +14,13 @@ export const PLAFOND_REEVALUATIONS_EXAMINEES = 50;
 /** Une ligne de disponibilité qu'une ancienne contre-passation a inversée. */
 export interface DisponibiliteContrePassee {
   dateReevaluation: Date;
-  /** L'exercice de la réévaluation est clôturé · l'annulation (D6) n'y est plus ouverte. */
+  /** L'exercice de la réévaluation est clôturé. */
   exerciceReevaluationClos: boolean;
+  /**
+   * L'exercice qui PORTE la contre-passation est clôturé (second tour, m2) ·
+   * c'est lui qui règle l'issue · ouvert, elle s'annule seule.
+   */
+  exerciceContrePassationClos: boolean;
   piece: number | null;
   date: Date;
   compteNumero: string;
@@ -58,6 +63,7 @@ export async function contrePassationsDeDisponibilites(
         select: {
           numeroPiece: true,
           date: true,
+          exercice: { select: { statut: true } },
           lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } },
         },
       },
@@ -72,6 +78,7 @@ export async function contrePassationsDeDisponibilites(
       elements.push({
         dateReevaluation: r.dateReevaluation,
         exerciceReevaluationClos: r.exercice.statut === 'CLOTURE',
+        exerciceContrePassationClos: r.ecritureExtourne.exercice?.statut === 'CLOTURE',
         piece: r.ecritureExtourne.numeroPiece,
         date: r.ecritureExtourne.date,
         compteNumero: l.compte.numero,

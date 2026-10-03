@@ -40,13 +40,18 @@ function service(reevaluations: unknown[]) {
   return { svc: new ControlesService(prisma), findMany };
 }
 
-/** Réévaluation au 31/12/2026, contre-passée au 01/01/2027 caisse comprise (forme d'avant A5 bis). */
-const ancienne = (statutExercice: 'OUVERT' | 'CLOTURE') => ({
+/**
+ * Réévaluation au 31/12/2026, contre-passée au 01/01/2027 caisse comprise
+ * (forme d'avant A5 bis). L'issue se règle sur l'exercice qui PORTE la
+ * contre-passation (second tour, m2).
+ */
+const ancienne = (statutExercice: 'OUVERT' | 'CLOTURE', statutPorteuse: 'OUVERT' | 'CLOTURE' = statutExercice) => ({
   dateReevaluation: new Date('2026-12-31'),
   exercice: { statut: statutExercice },
   ecritureExtourne: {
     numeroPiece: 12,
     date: new Date('2027-01-01'),
+    exercice: { statut: statutPorteuse },
     lignes: [
       { debit: 0, credit: 300_000, compte: { numero: '47810000' } },
       { debit: 300_000, credit: 0, compte: { numero: '41110000' } },
@@ -68,22 +73,37 @@ describe('contrôle 34 · contre-passation qui a inversé une disponibilité', (
     expect(a!.occurrences).toEqual([
       expect.objectContaining({ reference: '57120000 · contre-passation n° 12', montant: 300_000, date: '2027-01-01' }),
     ]);
-    expect(a!.action).toMatch(/annulez-la/);
+    expect(a!.action).toMatch(/annulez-la \(Devises, « Annuler la contre-passation »/);
     // Lu dans l'exercice qui PORTE la contre-passation, réévaluations annulées écartées.
     expect(findMany.mock.calls[0][0].where).toMatchObject({ tenantId: 't', annuleeLe: null, ecritureExtourne: { is: { exerciceId: 'e27' } } });
   });
 
-  it('exercice de la réévaluation clôturé · aucune annulation proposée, et la ligne de la banque ne se repasse pas à la main', async () => {
+  it('exercice qui porte la contre-passation clôturé · aucune annulation proposée, et la ligne de la banque ne se repasse pas à la main', async () => {
     const { svc } = service([ancienne('CLOTURE')]);
     const a = await trouver(svc);
     expect(a!.action).not.toMatch(/annulez-la/);
+    expect(a!.action).toMatch(/Contre-passation dans un exercice clôturé/);
     expect(a!.action).toMatch(/passerait l’écart une seconde fois/);
   });
 
-  it('M7 · exercice ouvert · l’annulation nomme ses préalables (D6), et la phrase de l’exercice clôturé ne vient pas', async () => {
+  it('m2 · réévaluation d’un exercice clôturé, contre-passation dans un exercice ouvert · elle s’annule seule, sans la réévaluation entière', async () => {
+    const { svc } = service([ancienne('CLOTURE', 'OUVERT')]);
+    const a = await trouver(svc);
+    expect(a!.action).toMatch(/Contre-passation dans un exercice encore ouvert · annulez-la \(Devises, « Annuler la contre-passation »/);
+    expect(a!.action).not.toMatch(/exercice clôturé/);
+  });
+
+  it('B-I · la conséquence ne promet un résultat juste qu’une fois la réévaluation passée, et cumulé', async () => {
     const { svc } = service([ancienne('OUVERT')]);
     const a = await trouver(svc);
-    expect(a!.action).toMatch(/annulé toute réévaluation postérieure et retiré ou corrigé toute provision d'ouverture déclarée après elle/);
+    expect(a!.consequence).toMatch(/une fois elle passée, le résultat cumulé des exercices en sort juste/);
+    expect(a!.consequence).not.toMatch(/le résultat net en sort juste/);
+  });
+
+  it('M7 · exercice ouvert · l’annulation nomme son préalable, et la phrase de l’exercice clôturé ne vient pas', async () => {
+    const { svc } = service([ancienne('OUVERT')]);
+    const a = await trouver(svc);
+    expect(a!.action).toMatch(/après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué/);
     expect(a!.action).not.toMatch(/exercice clôturé/);
   });
 

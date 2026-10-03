@@ -4375,11 +4375,18 @@ export class ControlesService {
     // Guide). Avant A5 bis, la contre-passation inversait aussi la banque et
     // la caisse. INFORMATION, jamais un retraitement · l'écriture est validée
     // (art. 22, 2°) et tenue par la réévaluation, et la réévaluation de cet
-    // exercice-ci, qui mesure alors la banque depuis son coût historique
-    // (`ecartsReportesDesDisponibilites` ne reporte pas un écart déjà
-    // contre-passé), la réaligne · le résultat net en sort juste, ses 676 et
-    // 776 en sont gonflés de part et d'autre, et la trésorerie est fausse
-    // jusque-là.
+    // exercice-ci, qui mesure alors la banque sans l'écart contre-passé
+    // (`ecartsReportesDesDisponibilites` ne reporte pas un écart contre-passé
+    // dans un exercice traversé, B-I du second tour), la réaligne · le
+    // résultat CUMULÉ des exercices en sort juste une fois elle passée (pas
+    // forcément celui de chaque exercice, si un intermédiaire a été réévalué
+    // avant A5 bis), ses 676 et 776 en sont gonflés de part et d'autre, et la
+    // trésorerie est fausse jusque-là.
+    //
+    // L'ISSUE SE RÈGLE SUR L'EXERCICE QUI PORTE LA CONTRE-PASSATION (second
+    // tour, m2) · ouvert, la contre-passation s'annule seule (« Annuler la
+    // contre-passation ») et se repasse, sans annuler la réévaluation
+    // entière ; clôturé, elle ne s'annule plus.
     //
     // Le texte suit les faits (relecture adverse, M7) · la phrase de
     // l'exercice clôturé ne vient que si l'un l'est ; l'annulation nomme ses
@@ -4391,8 +4398,8 @@ export class ControlesService {
       const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
       if (contrePassees.elements.length > 0 || contrePassees.tronque) {
         const anciennes = contrePassees.elements.filter((e) => e.exception === null);
-        const annulable = anciennes.some((e) => !e.exerciceReevaluationClos);
-        const close = anciennes.some((e) => e.exerciceReevaluationClos);
+        const annulable = anciennes.some((e) => !e.exerciceContrePassationClos);
+        const close = anciennes.some((e) => e.exerciceContrePassationClos);
         const parException = contrePassees.elements.some((e) => e.exception !== null);
         anomalies.push({
           code: 'CONTRE_PASSATION_DE_DISPONIBILITE',
@@ -4401,16 +4408,17 @@ export class ControlesService {
           consequence:
             "L'écart d'une disponibilité en devise est réalisé et reste au résultat de l'exercice où il est constaté (AUDCIF art. 57) · " +
             "contre-passé, il remet la trésorerie au cours historique jusqu'à la réévaluation de cet exercice et inscrit au 676 ou au 776 " +
-            "le contraire d'une perte ou d'un gain déjà supporté. La réévaluation de clôture repasse l'écart depuis le coût historique · " +
-            'le résultat net en sort juste, la présentation des pertes et gains de change ne l’est pas.',
+            "le contraire d'une perte ou d'un gain déjà supporté. La réévaluation de clôture de l'exercice qui porte la contre-passation " +
+            "mesure la banque sans l'écart contre-passé et le repasse · une fois elle passée, le résultat cumulé des exercices en sort juste " +
+            "(d'ici là, l'exercice porte la contre-passation seule) ; la présentation des pertes et gains de change ne l’est pas.",
           action:
             (annulable
-              ? "Réévaluation d'un exercice encore ouvert · annulez-la (Devises, AUDCIF art. 20, al. 2), après avoir annulé toute " +
-                "réévaluation postérieure et retiré ou corrigé toute provision d'ouverture déclarée après elle, repassez-la, puis " +
-                'contre-passez à nouveau · seuls le 478, le 479 et les comptes de tiers le seront. '
+              ? 'Contre-passation dans un exercice encore ouvert · annulez-la (Devises, « Annuler la contre-passation », AUDCIF ' +
+                "art. 20, al. 2), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, puis repassez-la · seuls " +
+                'le 478, le 479 et les comptes de tiers le seront. '
               : '') +
             (close
-              ? "Réévaluation d'un exercice clôturé · la contre-passation ne s'annule plus ; toute régularisation est à décider par le cabinet. "
+              ? "Contre-passation dans un exercice clôturé · elle ne s'annule plus ; toute régularisation est à décider par le cabinet. "
               : '') +
             (parException
               ? "Contre-passation intégrale par exception nommée (exercice suivant réévalué sous l'ancien régime, ou écriture des écarts " +

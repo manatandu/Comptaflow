@@ -564,6 +564,64 @@ describe('A5 bis · la banque en devise sur deux exercices, report en SOLDE et e
     const r = await svc.calculer('t', { exerciceId: 'e27' });
     expect(r.positions).toEqual([expect.objectContaining({ valeurComptable: 2_100_000, ecart: 50_000 })]);
   });
+
+  /**
+   * B-I (second tour) · L'ANCIENNE CONTRE-PASSATION DE N POSÉE À L'OUVERTURE
+   * DE N+2 (main le permettait). 1 000 USD au coût historique de 1 364 000 ;
+   * N · +100 000 (contre-passation d'avant A5 bis, banque comprise, passée en
+   * N+2) ; cours de N+2 · 1 600. La banque finit N+2 à 1 600 000 · lue
+   * seulement dans l'exercice qui suit N, l'inversion était manquée, l'écart
+   * de N reporté une seconde fois, et la banque finissait à 1 500 000.
+   */
+  describe('B-I · contre-passation de N posée à l’ouverture de N+2', () => {
+    const N2: Exo = { id: 'e28', dateDebut: new Date('2028-01-01'), dateFin: new Date('2028-12-31'), statut: 'OUVERT' };
+    const banque: Ligne = { ...banqueN, debit: 1_364_000 };
+    const ouvertures: Ligne[] = [
+      { ...banque, exerciceId: 'e27', date: N1.dateDebut, ouverture: 'DEFINITIF' },
+      { ...banque, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' },
+    ];
+    const reevalN: Reeval = { exerciceId: 'e26', lignesEcarts: ecartsN, extourneInverseLaCaisse: true, contrePasseeDans: 'e28' };
+    const cours1600 = (date: Date) => (date.getTime() >= N2.dateDebut.getTime() ? 1600 : 1605);
+
+    it('N+1 réévalué après A5 bis (+141 000) · la banque vaut 1 505 000 avant la réévaluation de N+2, et finit à 1 600 000', async () => {
+      const { svc } = monter({
+        exercices: [N, { ...N1, statut: 'CLOTURE' }, N2],
+        lignes: [banque, ...ouvertures],
+        reevals: [
+          reevalN,
+          {
+            exerciceId: 'e27',
+            dateReevaluation: N1.dateFin,
+            lignesEcarts: [
+              { compteId: 'c-5215', numero: '52150000', debit: 141_000, credit: 0 },
+              { compteId: 'c-776', numero: '77600000', debit: 0, credit: 141_000 },
+            ],
+            ecartsDisponibilites: [{ compteId: 'c-5215', deviseId: 'usd', ecart: 141_000 }],
+          },
+        ],
+        cours: cours1600,
+      });
+      const r = await svc.calculer('t', { exerciceId: 'e28' });
+      expect(r.positions).toEqual([expect.objectContaining({ valeurComptable: 1_505_000, valeurReevaluee: 1_600_000, ecart: 95_000 })]);
+    });
+
+    it('N+1 clôturé sans réévaluation · la banque vaut 1 364 000 avant la réévaluation de N+2, et finit à 1 600 000', async () => {
+      const { svc } = monter({
+        exercices: [N, { ...N1, statut: 'CLOTURE' }, N2],
+        lignes: [banque, ...ouvertures],
+        reevals: [reevalN],
+        cours: cours1600,
+      });
+      const r = await svc.calculer('t', { exerciceId: 'e28' });
+      expect(r.positions).toEqual([expect.objectContaining({ valeurComptable: 1_364_000, valeurReevaluee: 1_600_000, ecart: 236_000 })]);
+    });
+
+    it('lue pour N+1, la même contre-passation n’a pas encore eu lieu · l’écart de N se reporte', async () => {
+      const { svc } = monter({ exercices: [N, N1, N2], lignes: [banque, ...ouvertures], reevals: [reevalN], cours: cours1600 });
+      const r = await svc.calculer('t', { exerciceId: 'e27' });
+      expect(r.positions).toEqual([expect.objectContaining({ valeurComptable: 1_464_000 })]);
+    });
+  });
 });
 
 /**
