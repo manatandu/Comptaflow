@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  Matches,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -13,7 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DecisionEcartInventaire, RoleMembreInventaire } from '@prisma/client';
+import { DecisionEcartInventaire, ModeComparaisonCaisse, RoleMembreInventaire } from '@prisma/client';
 
 export class CreerCampagneDto {
   @IsUUID()
@@ -180,7 +181,9 @@ export class EtablirPvCaisseDto {
   @IsUUID()
   sousCommissionId!: string;
 
-  @IsDateString()
+  // Une date CIVILE, sans heure ni fuseau (seconde passe A10, e) · une heure
+  // avec décalage déplaçait le jour du comptage d'un côté de minuit.
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La date du comptage s’écrit AAAA-MM-JJ, sans heure ni fuseau.' })
   dateComptage!: string;
 
   /** Ajout de l'éditeur · une caisse bouge dans la journée. */
@@ -189,9 +192,23 @@ export class EtablirPvCaisseDto {
   @MaxLength(20)
   heureComptage?: string;
 
-  /** Le solde de la balance au moment du comptage · figé sur le PV. */
-  @IsNumber()
-  soldeComptable!: number;
+  // AUCUN SOLDE COMPTABLE ICI (ligne A10) · le serveur le lit au
+  // livre-journal à la date du comptage et le fige. Reçu de l'écran, il
+  // laissait figer n'importe quel chiffre ; envoyé quand même, il est refusé
+  // par la liste blanche du pipe de validation.
+
+  // L'UNITÉ LUE À L'APERÇU (second tour A10) · les espèces sont saisies dans
+  // l'unité que l'aperçu a annoncée. Une ligne validée entre l'aperçu et la
+  // création peut faire basculer la caisse de la devise aux francs · les
+  // espèces comptées en dollars seraient alors figées contre un solde en
+  // francs, écart faux sans un mot. Le serveur compare et refuse en 409.
+  @IsEnum(ModeComparaisonCaisse)
+  modeComparaison!: ModeComparaisonCaisse;
+
+  /** La devise annoncée par l'aperçu, `null` hors comparaison en devise. */
+  @IsOptional()
+  @IsUUID()
+  deviseId?: string | null;
 
   @IsNumber()
   @Min(0)

@@ -303,6 +303,7 @@ export const DETENTEUR_PAIE_DU_MOIS: DetenteurEcriture = 'la paie du mois (bulle
 export const DETENTEUR_RECLASSEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (reclassement au 416)';
 export const DETENTEUR_REVUE_CREANCE: DetenteurEcriture = 'une créance douteuse (revue de la dépréciation)';
 export const DETENTEUR_MOUVEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (perte ou recouvrement)';
+export const DETENTEUR_IMPOT_RESULTAT: DetenteurEcriture = "l'écriture de l'impôt sur le résultat (fenêtre Résultat fiscal)";
 
 /**
  * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
@@ -1218,6 +1219,11 @@ export class EcritureService {
       // Un mouvement annulé (K4) ne retient plus · son écriture validée est
       // neutralisée par l'inscription en négatif, celle du brouillard est partie.
       [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
+      // L'impôt sur le résultat constaté depuis la fenêtre Résultat fiscal
+      // (ligne A11) · retirée seule, l'écriture laisserait l'exercice se dire
+      // constaté, et la proposition ne reviendrait plus. Un constat ANNULÉ ne
+      // retient plus · son écriture validée est neutralisée par le négatif.
+      [DETENTEUR_IMPOT_RESULTAT, this.prisma.constatImpotResultat.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La

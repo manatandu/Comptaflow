@@ -3988,9 +3988,95 @@ export interface CampagneInventaire {
   fiches?: FicheInventaire[];
   ecarts?: EcartInventaire[];
   sousCommissions?: SousCommissionInventaire[];
+  /** Les PV de comptage des caisses, servis par `consulter` (ligne A10). */
+  pvComptageCaisse?: ProcesVerbalCaisse[];
   /** Le texte que le dossier encourt · AUDCIF art. 111 ou SYCEBNL art. 24. */
   sanction?: { texte: string; article: string };
 }
+
+/**
+ * LE PV DE COMPTAGE D'UNE CAISSE, tel que le serveur le présente (ligne A10).
+ * `soldeComptableFige` est le solde du livre-journal à la DATE DU COMPTAGE,
+ * lu par le serveur ; compté après la clôture, la reconstitution est figée
+ * (quatre champs, tous nuls ou tous renseignés) et
+ * `especesReconstitueesALaCloture` en découle. `reconstitutionManquante` · un
+ * PV d'avant la règle, compté après la clôture, qui n'a rien figé.
+ */
+export interface ProcesVerbalCaisse {
+  id: string;
+  compteId: string;
+  compte: { numero: string; intitule: string };
+  dateComptage: string;
+  heureComptage: string | null;
+  soldeComptableFige: string;
+  especesComptees: string;
+  ecart: string;
+  soldeALaCloture: string | null;
+  encaissementsPosterieurs: string | null;
+  decaissementsPosterieurs: string | null;
+  mouvementsPosterieurs: number | null;
+  mouvementsValeurAvantCloture: string | null;
+  /** FRANCS, DEVISE (montants du PV dans la devise `unite`), ou francs au cours historique. */
+  modeComparaison: 'FRANCS' | 'DEVISE' | 'FRANCS_COURS_HISTORIQUES';
+  /** Code de la devise quand le PV est dans une devise, sinon null (francs). */
+  unite: string | null;
+  /** Mentions écrites par le serveur (`mentionsDuPv`), jamais recomposées à l'écran. */
+  mentions: string[];
+  dateCloture: string;
+  compteApresLaCloture: boolean;
+  reconstitutionManquante: boolean;
+  especesReconstitueesALaCloture: number | null;
+  attestationEtablieLe: string | null;
+  attestationPar: string | null;
+  observations: string | null;
+}
+
+/** GET /inventaire/pv-caisse/:pvId/mouvements · lignes telles que le PV les a lues. */
+export type MouvementsReconstitutionCaisse =
+  | { applicable: false; motif: string }
+  | {
+      applicable: true;
+      unite: string | null;
+      lignes: {
+        id: string;
+        date: string;
+        journal: string;
+        numeroPiece: number | null;
+        libelle: string;
+        encaissement: number;
+        decaissement: number;
+      }[];
+      total: number;
+      tronque: boolean;
+      soldeALaCloture: number;
+      mouvementsValeurAvantCloture: number;
+      encaissements: number;
+      decaissements: number;
+      /** null · le PV n'a rien figé (établi avant la ligne A10), rien à confronter. */
+      concorde: boolean | null;
+      /** Lignes datées au plus tard du comptage, validées APRÈS le PV. */
+      saisiesDepuisLePv: { nombre: number; net: number };
+    };
+
+/** GET /inventaire/:id/pv-caisse/apercu · ce que le PV figera, ou le motif du refus. */
+export type ApercuPvCaisse =
+  | { lisible: false; motif: string }
+  | {
+      lisible: true;
+      soldeComptable: number;
+      modeComparaison: 'FRANCS' | 'DEVISE' | 'FRANCS_COURS_HISTORIQUES';
+      deviseId: string | null;
+      devise: string | null;
+      dateCloture: string;
+      reconstitution: {
+        soldeALaCloture: number;
+        mouvementsValeurAvantCloture: number;
+        encaissementsPosterieurs: number;
+        decaissementsPosterieurs: number;
+        mouvementsPosterieurs: number;
+      } | null;
+      mentions: string[];
+    };
 
 /**
  * CIRCULARISATION · l'inventaire documentaire du CPCC, conduit selon la

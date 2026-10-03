@@ -51,6 +51,8 @@ function analyser(statutExercice: 'OUVERT' | 'CLOTURE', ecritures: Faux[]) {
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
+    // Ligne A13 · les clôtures de période et totales que lit le contrôle 33.
+    cloture: { findMany: jest.fn().mockResolvedValue([]) },
     dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reclassementImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },

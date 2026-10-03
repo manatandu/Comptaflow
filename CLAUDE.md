@@ -755,7 +755,21 @@ choix écrit) ; l'écart non arbitré reste le PREMIER motif. Contenu de l'attes
 non défini · seuls existence, date, signataire. Ajouts de l'éditeur : l'HEURE, et la
 VENTILATION PAR COUPURE facultative (fiche du compte 57, « le solde du compte caisse
 doit toujours correspondre exactement à la somme disponible réellement »). Solde
-FIGÉ sur le PV.
+FIGÉ sur le PV. CAISSE COMPTÉE APRÈS LA CLÔTURE (ligne A10, 2026-10-03,
+`inventaire/solde-caisse-au-comptage.ts`) · le solde comparé est celui du
+LIVRE-JOURNAL à la DATE DU COMPTAGE, lu par le serveur, jamais saisi (art. 16,
+al. 4) ; un comptage postérieur RECONSTITUE la clôture (art. 42, CPCC § VI) ·
+solde de N, mouvements intercalés, opérations de N+1 à date de valeur
+antérieure ISOLÉES, à-nouveaux et bilan importé jamais comptés deux fois. Une
+caisse dont toutes les lignes portent UNE devise se compare dans cette devise
+(sens par débit moins crédit, lignes inscrites en négatif SOUSTRAITES, écarts de
+réévaluation écartés) ; lignes mêlées · en francs au cours historique, AVEC la
+mention, jamais refusé. Aperçu GET avant de figer ; lecture et création dans UNE
+transaction, unité de l'aperçu rejouée (409 si elle a changé), `etabliLe` posé
+après la lecture ; mentions écrites par le serveur (écart au jour du comptage,
+solde créditeur cité de la fiche du 57, espèces reconstituées négatives) ;
+concordance relue sur quatre totaux, les validations postérieures au PV
+comptées à part.
 
 **Composant « révisions majeures ».** AUDCIF art. 38-2, Titre VIII ch. 5 § 1 :
 amorti « JUSQU'À LA PROCHAINE RÉVISION », puis chaque révision réalisée « amorti[e]
@@ -1920,6 +1934,26 @@ paierait deux fois ; omis, les acomptes sont sous-évalués.
 REPROPOSÉE chaque exercice avec montant et article, jamais inscrite d'office. Un
 compte plafonné ne propose que l'EXCÉDENT.
 
+**Écriture de l'impôt sur le résultat (ligne A11, 2026-10-03).** SYSCOHADA seul
+(`fiscalite/ecriture-impot-resultat.ts`, `constat-impot.service.ts`) · PROPOSÉE,
+passée au seul clic par le comptable (`@ReserveAuComptable`, comme la revue
+d'A7), montant REJOUÉ par le serveur, au brouillard au dernier jour de
+l'exercice, journal OD (repli dit). Fiche du compte 89 · D 89110000 / C 441 de
+l'impôt ENTIER « quelles que soient les modalités de règlement » (Application
+8) ; le MINIMUM de l'art. 57 (strictement supérieur, arrondi de l'art. 150
+d'abord) au 89500000, l'impôt que la loi n° 23/053 nomme « impôt minimum
+forfaitaire » (art. 42 al. 2, 2°, 45, 150) · lecture d'OmegaX, aucun texte ne
+nomme son compte. Imputation des acomptes DÉCIDÉE, bornée au plus petit des
+acomptes déclarés et de l'impôt, refusée au-delà du solde du 4492 (le Guide
+débite le 441 · double pratique dite) ; l'excédent reste au 4492 (art. 57 ter).
+La réintégration de l'impôt se compare aux seuls DÉBITS des 891, 892 et 895 ;
+le 899 (dégrèvements) est NOMMÉ, jamais déduit (art. 45 a contrario, aucun texte
+exprès). Constat qui RETIENT son écriture, une fois par exercice, s'annule
+(art. 20, al. 2) ; visible et annulable même si la forme a quitté l'IS. Refus
+nommés · forme non renseignée, personne physique (art. 3 ; AUDCIF compte
+1043), régime autre, exercice clos, brouillard des classes 6 à 8, 891 ou 895
+déjà mouvementé ; forme à condition (art. 4 à 6) · attestation écrite.
+
 États financiers et notes annexes · un écran par référentiel derrière
 l'aiguillage ; seules les aides techniques sont partagées
 (`etats-financiers.communs.ts`, `note-annexe.types.ts`,
@@ -2309,6 +2343,25 @@ somme. Déjà pointé · `RAPPROCHEMENT_A_NOUVEAU_POINTE`, jamais rouvert d'offi
 administrateur (`POST /rapprochements/:id/rouvrir`), motif, journal d'audit, SEUL
 le dernier clos du compte, ni avec un en cours ni à travers une période figée
 (`motifLigneFigee`) ; il se reclôt, ne s'annule pas.
+
+**Banque à rapprocher et période sans clôture informatique (ligne A13,
+2026-10-03).** `controles/banque-et-cloture-informatique.ts`, deux contrôles
+d'ÉTAT, jamais de retard. (1) Tout compte 52 mouvementé dans l'exercice sans
+rapprochement clos daté au plus tôt de la clôture est « à rapprocher avant
+l'arrêté des comptes » (fiche du compte 52 ; AUDCIF art. 42, non exclu par
+l'art. 3 du SYCEBNL ; délai de l'art. 23). Un compte FERMÉ n'est couvert que par
+TROIS faits ensemble · dernier relevé clos à zéro, daté au plus tôt de la
+dernière ligne du compte, solde comptable nul en centimes ; les lignes d'une
+réévaluation (écarts, contre-passation, leurs négatifs, annulée ou non),
+reconnues par LIAISON, n'avancent jamais cette dernière ligne. Limite écrite ·
+un mouvement bancaire non passé après le relevé nul échappe. (2) Art. 22, 3° ·
+une période de plus de trois mois (fin de mois si le quantième manque, 31/01
+donne 30/04) sans clôture de période ou totale POSÉE DANS OmegaX, journal par
+journal ; les clôtures de N+1 qui figent N comptent (aucune borne haute) ;
+l'à-nouveau provisoire n'est pas un journal écrit ; un journal créé en cours
+d'année part de l'exercice, pas de sa première écriture (« insertion
+intercalaire »). La clôture se fait par l'administrateur, définitive, et fige
+lettrage et ventilation.
 
 **Règlement des tiers (2026-09-25).** `reglements/` · UNE pièce par tiers,
 lettrage MANUEL aussitôt. (1) TIERS ET TRÉSORERIE SEULS (guide SYSCOHADA Partie 1
