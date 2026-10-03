@@ -63,9 +63,11 @@ function service(ecritures: ReturnType<typeof ecriture>[], regime: Record<string
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
-    // Le contrôle 32 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
     reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
-    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+    // Ligne A13 · les clôtures de période et totales que lit le contrôle 33.
+    cloture: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);
 }

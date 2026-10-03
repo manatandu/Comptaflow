@@ -324,9 +324,9 @@ function serviceControles(
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue(mandats) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
-    // Le contrôle 32 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
     reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
-    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);
 }

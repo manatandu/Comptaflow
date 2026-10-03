@@ -40,7 +40,7 @@ compte de tiers qu'il ajuste) ; rien des disponibilités.
    contre-passer).
 2. La banque part en N+1 de sa valeur de clôture de N · l'écart de chaque
    disponibilité est gardé (`Reevaluation.ecartsDisponibilites`, migration
-   `20270120000000`) et `calculer` l'ajoute à la valeur comptable par
+   `20270124000000`) et `calculer` l'ajoute à la valeur comptable par
    `ecartsReportesDesDisponibilites`, en remontant les reports d'OmegaX
    (SOLDE et DÉTAIL), jamais par libellé. Réévaluation antérieure sans
    écart gardé · relu sur son écriture (une seule devise sur le compte, ou
@@ -51,7 +51,7 @@ compte de tiers qu'il ajuste) ; rien des disponibilités.
 3. `reevaluerSousVerrou` refuse tant que la réévaluation de l'exercice
    précédent porte un 478 / 479 non contre-passé (Application 85),
    issue nommée.
-4. Contrôle 32 `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
+4. Contrôle 34 `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
    anciennes contre-passations qui ont inversé une banque ou une caisse,
    issue selon l'exercice de la réévaluation (D6 si ouvert ; sinon au
    cabinet, sans repasser la ligne de la banque à la main).

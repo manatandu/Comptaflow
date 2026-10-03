@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { FormeJuridiqueSyscohada, Referentiel, SensRetraitementFiscal, TypeCompteDetailTotal } from '@prisma/client';
 import { FiscaliteService, arrondirImpotArt150 } from './fiscalite.service';
 import { CATALOGUE_RETRAITEMENTS, CODE_LIBRE } from './catalogue-retraitements';
+import { motifsRefusConstat } from './ecriture-impot-resultat';
 
 /**
  * RÉSULTAT FISCAL · ce qui casserait en silence.
@@ -1456,5 +1457,48 @@ describe('Passes F11 et O1a · le 4492 et la succursale', () => {
     const o = r.observations.join(' ');
     expect(o).toContain('SI ce propriétaire est une société non-résidente');
     expect(o).toContain('(AUSCGIE, art. 116)');
+  });
+});
+
+describe('Ligne A11 · le 899 lu à part de l’impôt constaté', () => {
+  it('899 crédité, le module reste passable · aucune réintégration exigée, le dégrèvement nommé', async () => {
+    const { s } = service({
+      balances: {
+        N: [ligne('70110000', -10_000_000), ligne('60110000', 2_000_000), ligne('89910000', -500_000)],
+      },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // Seuls les DÉBITS des 891, 892 et 895 sont l'impôt constaté · le crédit du
+    // 899 n'y entre pas, sans quoi aucune réintégration (toujours positive) ne
+    // l'égalait et le constat restait refusé pour toujours.
+    expect(r.impotConstateAu89).toBe(0);
+    expect(r.degrevementsAu899).toBe(500_000);
+    const o = r.observations.join(' ');
+    expect(o).toMatch(/DÉGRÈVEMENT AU 899/);
+    expect(o).not.toMatch(/IMPÔT NON RÉINTÉGRÉ/);
+    expect(
+      motifsRefusConstat({
+        formeJuridique: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+        regime: r.regime,
+        impotDu: r.impotDu,
+        minimumApplique: r.minimumApplique,
+        simulationAvantLaLoi: false,
+        exerciceClos: false,
+        brouillardGestion: 0,
+        impotDejaConstate: r.impotExerciceAu89,
+        impotConstateAu89: r.impotConstateAu89,
+        reintegrationsImpot: r.reintegrationsImpot,
+        attestationRegime: null,
+      }),
+    ).toEqual([]);
+  });
+
+  it('un 892 débité sans sa réintégration reste signalé · le rappel est de l’impôt constaté', async () => {
+    const { s } = service({
+      balances: { N: [ligne('70110000', -10_000_000), ligne('60110000', 2_000_000), ligne('89200000', 300_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.impotConstateAu89).toBe(300_000);
+    expect(r.observations.join(' ')).toMatch(/IMPÔT NON RÉINTÉGRÉ/);
   });
 });

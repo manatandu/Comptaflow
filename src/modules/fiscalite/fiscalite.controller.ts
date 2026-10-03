@@ -8,7 +8,15 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FiscaliteService } from './fiscalite.service';
-import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
+import {
+  AnnulerConstatImpotDto,
+  CreerRetraitementDto,
+  ModifierDossierFiscalDto,
+  ModifierRetraitementDto,
+  PasserConstatImpotDto,
+} from './dto/fiscalite.dto';
+import { ConstatImpotService } from './constat-impot.service';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // LA DÉTERMINATION DU RÉSULTAT FISCAL lit une balance SYSCOHADA · la fenêtre
@@ -24,7 +32,10 @@ import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('fiscalite')
 export class FiscaliteController {
-  constructor(private readonly fiscalite: FiscaliteService) {}
+  constructor(
+    private readonly fiscalite: FiscaliteService,
+    private readonly constats: ConstatImpotService,
+  ) {}
 
   /**
    * LE STATUT D'EXEMPTION D'IS D'UNE ENTITÉ NON LUCRATIVE · à rebours du reste
@@ -87,6 +98,48 @@ export class FiscaliteController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async supprimerRetraitement(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.fiscalite.supprimerRetraitement(user.tenantId, id);
+  }
+
+  /**
+   * L'ÉCRITURE DE L'IMPÔT SUR LE RÉSULTAT (ligne A11) · proposée, jamais
+   * passée d'office. SYSCOHADA seul par la classe (`ReferentielGuard`) ; une
+   * EBNL est exemptée (loi n° 23/053, art. 5) et son 89 n'existe pas.
+   */
+  @Get('exercices/:exerciceId/ecriture-impot')
+  async ecritureImpot(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.constats.etat(user.tenantId, exerciceId);
+  }
+
+  /**
+   * Le clic · le montant est REJOUÉ par le serveur, le corps n'en porte aucun. Au brouillard.
+   * Réservé au comptable, comme la revue des créances douteuses (A7) · le geste
+   * ne se réduit pas à une saisie, le cabinet y ATTESTE l'assujettissement et
+   * y DÉCIDE l'imputation des acomptes.
+   */
+  @Post('exercices/:exerciceId/ecriture-impot')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async passerEcritureImpot(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Body() dto: PasserConstatImpotDto,
+  ) {
+    return this.constats.passer(user.tenantId, user.userId, exerciceId, dto);
+  }
+
+  /**
+   * L'annulation (AUDCIF art. 20, al. 2) · une écriture validée s'inscrit en
+   * négatif, geste du comptable seul, comme la correction.
+   */
+  @Post('exercices/:exerciceId/ecriture-impot/annuler')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async annulerEcritureImpot(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Body() dto: AnnulerConstatImpotDto,
+  ) {
+    return this.constats.annuler(user.tenantId, user.userId, exerciceId, dto);
   }
 
   @Patch('exercices/:exerciceId/dossier')

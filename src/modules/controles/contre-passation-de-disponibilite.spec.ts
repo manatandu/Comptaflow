@@ -3,7 +3,7 @@ import { ControlesService } from './controles.service';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
- * CONTRÔLE 32 · LES ANCIENNES CONTRE-PASSATIONS QUI ONT INVERSÉ UNE CAISSE
+ * CONTRÔLE 34 · LES ANCIENNES CONTRE-PASSATIONS QUI ONT INVERSÉ UNE CAISSE
  * (ligne A5 bis). AUDCIF art. 57 · l'écart d'une disponibilité en devise est
  * réalisé, inscrit « directement dans les produits et charges de
  * l'exercice » ; avant A5 bis, la contre-passation l'inversait à
@@ -59,7 +59,7 @@ const ancienne = (statutExercice: 'OUVERT' | 'CLOTURE') => ({
 const trouver = async (svc: ControlesService) =>
   (await svc.analyser('t', 'e27')).anomalies.find((a) => a.code === 'CONTRE_PASSATION_DE_DISPONIBILITE');
 
-describe('contrôle 32 · contre-passation qui a inversé une disponibilité', () => {
+describe('contrôle 34 · contre-passation qui a inversé une disponibilité', () => {
   it('nomme la caisse inversée, son montant, et l’annulation quand l’exercice de la réévaluation est ouvert', async () => {
     const { svc, findMany } = service([ancienne('OUVERT')]);
     const a = await trouver(svc);
