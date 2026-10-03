@@ -396,6 +396,27 @@ export interface ProvisionOuvertureNonDeclaree {
 const arrondiCentime = (x: number) => Math.round(x * 100) / 100;
 
 /** Reprise d'un verrou de provision laissé par un processus tombé · convention d'OmegaX, quinze minutes. */
+/**
+ * LE MOTIF DE L'ATTESTATION DE L'ÉTAT DE L'ÉCART (vérification finale d'A5
+ * bis) · de 10 à 500 caractères, convention d'OmegaX, comme une
+ * justification écrite et non un mot. Bornes partagées par le DTO et le
+ * service.
+ */
+export const MOTIF_ATTESTATION_MIN = 10;
+export const MOTIF_ATTESTATION_MAX = 500;
+
+/** L'avertissement qui remplace un refus de la règle d'état sur une réévaluation dont l'état est attesté. */
+export function avertissementEtatAtteste(
+  attestation: { motifAttestation: string | null; etatAttesteLe: Date | null },
+  motifEtat: string,
+): string {
+  const le = attestation.etatAttesteLe ? attestation.etatAttesteLe.toISOString().slice(0, 10) : '·';
+  return (
+    `État de l'écart attesté par le cabinet le ${le} (« ${attestation.motifAttestation ?? ''} ») · ce refus de la règle d'état ` +
+    `devient un avertissement, le cabinet répondant de l'état des comptes · ${motifEtat}`
+  );
+}
+
 export const ECHEANCE_VERROU_PROVISION_MS = 15 * 60 * 1000;
 export const MOTIF_VERROU_PROVISION =
   'Une opération sur la provision pour pertes de change est en cours sur ce dossier · réessayez après sa fin.';
@@ -1197,7 +1218,7 @@ export class DevisesService {
   private async motifContrePassationManquante(
     tenantId: string,
     exercice: { id: string; dateDebut: Date },
-  ): Promise<{ refus: string | null; depassement: string | null }> {
+  ): Promise<{ refus: string | null; depassement: string | null; avertissements: string[] }> {
     const jourDe = (d: Date) => d.toISOString().slice(0, 10);
     const lues = await this.prisma.reevaluation.findMany({
       where: { tenantId, annuleeLe: null, exerciceId: { not: exercice.id }, exercice: { dateFin: { lt: exercice.dateDebut } } },
@@ -1211,6 +1232,11 @@ export class DevisesService {
         exercice: { select: { id: true, dateDebut: true, dateFin: true } },
         ecritureExtourneId: true,
         ecritureExtourne: { select: { id: true, numeroPiece: true, date: true, exercice: { select: { id: true, dateDebut: true } } } },
+        // L'état de l'écart attesté (vérification finale) · un refus de la
+        // règle d'état devient un avertissement.
+        etatAtteste: true,
+        motifAttestation: true,
+        etatAttesteLe: true,
         // La contre-passation faite à la main, DÉCLARÉE · elle couvre la
         // réévaluation comme celle du module, à la même règle de place.
         contrePassationDeclareeId: true,
@@ -1233,6 +1259,7 @@ export class DevisesService {
       ouvertureCible: string;
       integrale: boolean;
       manuelles: string | null;
+      atteste: { motifAttestation: string | null; etatAttesteLe: Date | null } | null;
     }> = [];
     let referentiel: Referentiel | null = null;
     const malPlacees: Array<{ jour: string; periode: string; piece: string; ouvertureCible: string; declaree: boolean }> = [];
@@ -1291,6 +1318,7 @@ export class DevisesService {
         ouvertureCible,
         integrale: partage.motifRefus !== null,
         manuelles,
+        atteste: r.etatAtteste ? { motifAttestation: r.motifAttestation, etatAttesteLe: r.etatAttesteLe } : null,
       });
     }
     const messages: string[] = [];
@@ -1305,7 +1333,18 @@ export class DevisesService {
           `${m.ouvertureCible}, puis réévaluez.`,
       );
     }
+    const avertissements: string[] = [];
     for (const m of manquantes) {
+      // ÉTAT ATTESTÉ (vérification finale) · le refus que la RÈGLE D'ÉTAT
+      // tire des comptes devient un avertissement · le cabinet répond de
+      // l'état. Une réévaluation dont l'écart est EN PLACE (`manuelles` nul)
+      // reste à contre-passer, attestée ou non (Applications 84 et 85).
+      if (m.manuelles && m.atteste) {
+        avertissements.push(
+          avertissementEtatAtteste(m.atteste, `réévaluation du ${m.jour} (${m.periode}) · ${m.manuelles.charAt(0).toLowerCase()}${m.manuelles.slice(1)}`),
+        );
+        continue;
+      }
       if (m.manuelles) {
         messages.push(
           `La réévaluation du ${m.jour} n'est pas contre-passée (${m.periode}) · ${m.manuelles.charAt(0).toLowerCase()}${m.manuelles.slice(1)}`,
@@ -1323,7 +1362,7 @@ export class DevisesService {
             : ''),
       );
     }
-    return { refus: messages.length > 0 ? messages.join(' ') : null, depassement };
+    return { refus: messages.length > 0 ? messages.join(' ') : null, depassement, avertissements };
   }
 
   /**
@@ -1439,6 +1478,7 @@ export class DevisesService {
     const rapport = await this.calculer(tenantId, dto);
     // La borne de lecture se DIT avec la réévaluation passée, jamais tue.
     if (contrePassation.depassement) rapport.avertissements.push(contrePassation.depassement);
+    rapport.avertissements.push(...contrePassation.avertissements);
     // La réserve et la version incohérente se disent AVANT « aucune position »
     // (sixième passe, m1) · un exercice sans devise mais à provision
     // d'ouverture non déclarée doit dire ce qui manque, pas qu'il n'a rien.
@@ -1778,6 +1818,7 @@ export class DevisesService {
           '(AUDCIF art. 57) · il n’y a aucun écart de conversion à contre-passer.',
       );
     }
+    let avertissementEtat: string | null = null;
     // LA CONTRE-PASSATION SUIT L'ÉTAT RÉEL DES COMPTES (cinquième tour,
     // `etatDeLEcart`) · elle ne passe que si le 478, le 479 et le tiers
     // portent l'écart en place ; déjà contre-passé à la main, une ouverture
@@ -1803,7 +1844,13 @@ export class DevisesService {
         reeval.dateReevaluation.toISOString().slice(0, 10),
         tenant?.referentiel ?? Referentiel.SYSCOHADA,
       );
-      if (refusEtat) throw new BadRequestException(refusEtat);
+      // ÉTAT ATTESTÉ (vérification finale) · le refus devient un
+      // avertissement, SAUF quand l'état dit l'écart DÉJÀ contre-passé (ou
+      // l'une des deux lectures) · la contre-passation du module
+      // l'inverserait une seconde fois, ce qu'aucune attestation ne justifie.
+      const deuxieme = etat.jugement?.verdict === 'CONTRE_PASSEE' || etat.jugement?.verdict === 'AMBIGU';
+      if (refusEtat && (!reeval.etatAtteste || deuxieme)) throw new BadRequestException(refusEtat);
+      if (refusEtat) avertissementEtat = avertissementEtatAtteste(reeval, refusEtat);
     }
 
     const jourReeval = reeval.dateReevaluation.toISOString().slice(0, 10);
@@ -1850,7 +1897,7 @@ export class DevisesService {
     return {
       ...enregistree,
       // Le dire dans la réponse (B2, M2) · l'exception n'est jamais tue.
-      avertissement: integrale.code ? AVERTISSEMENT_INTEGRALE[integrale.code] : null,
+      avertissement: [integrale.code ? AVERTISSEMENT_INTEGRALE[integrale.code] : null, avertissementEtat].filter((a) => a !== null).join(' ') || null,
     };
   }
 
@@ -2072,6 +2119,9 @@ export class DevisesService {
         ecritureExtourne: { select: { numeroPiece: true } },
         contrePassationDeclareeId: true,
         contrePassationDeclaree: { select: { numeroPiece: true } },
+        etatAtteste: true,
+        motifAttestation: true,
+        etatAttesteLe: true,
         exercice: { select: { id: true, dateDebut: true, dateFin: true } },
         ecritureEcarts: {
           select: { lignes: { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } } },
@@ -2192,19 +2242,25 @@ export class DevisesService {
     // lectures) · une contre-passation d'un écart absent de l'ouverture (X2),
     // ou qu'une autre écriture rétablit, ne se déclare pas ; le refus dit
     // l'issue que le calcul prouve.
+    let avertissement: string | null = null;
     {
       const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
       const etat = await this.etatDeLEcart(tenantId, reeval, attendus);
       const verdict = etat.jugement?.verdict;
       if (verdict !== 'CONTRE_PASSEE' && verdict !== 'AMBIGU') {
         const motifEtat = this.motifEtatDeLEcart(etat, attendus, jour(reeval.dateReevaluation), tenant?.referentiel ?? Referentiel.SYSCOHADA);
-        throw new BadRequestException(
+        const refusEtat =
           `${Piece} ne se déclare pas · ` +
-            (motifEtat
-              ? `${motifEtat.charAt(0).toLowerCase()}${motifEtat.slice(1)}`
-              : `l'écart de conversion de la réévaluation du ${jour(reeval.dateReevaluation)} est en place dans les comptes, une autre ` +
-                'écriture hors module compensant celle-ci · contre-passez par le module (Devises, « Contre-passer »).'),
-        );
+          (motifEtat
+            ? `${motifEtat.charAt(0).toLowerCase()}${motifEtat.slice(1)}`
+            : `l'écart de conversion de la réévaluation du ${jour(reeval.dateReevaluation)} est en place dans les comptes, une autre ` +
+              'écriture hors module compensant celle-ci · contre-passez par le module (Devises, « Contre-passer »).');
+        // ÉTAT ATTESTÉ (vérification finale) · le refus de la règle d'état
+        // devient un avertissement. Les refus de PRINCIPE, joués plus haut,
+        // restent · inscription en négatif, écriture neutralisée, inversion
+        // inexacte, place, seconde contre-passation.
+        if (!reeval.etatAtteste) throw new BadRequestException(refusEtat);
+        avertissement = avertissementEtatAtteste(reeval, refusEtat);
       }
     }
     // Un `update` UNITAIRE · le journal d'audit garde l'avant et l'après,
@@ -2230,7 +2286,7 @@ export class DevisesService {
       }
       throw e;
     }
-    return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+    return { ...(await this.prisma.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } })), avertissement };
   }
 
   /**
@@ -2698,7 +2754,11 @@ export class DevisesService {
     const { reeval, attendus, jour } = await this.reevaluationADeclarer(tenantId, reevaluationId);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
     const etat = await this.etatDeLEcart(tenantId, reeval, attendus);
-    const declarable = etat.jugement !== null && (etat.jugement.verdict === 'CONTRE_PASSEE' || etat.jugement.verdict === 'AMBIGU');
+    // État attesté (vérification finale) · la déclaration n'attend plus que
+    // l'état se lise contre-passé · les écritures qui inversent exactement se
+    // proposent, l'avertissement dit l'état lu.
+    const declarable =
+      etat.jugement !== null && (etat.jugement.verdict === 'CONTRE_PASSEE' || etat.jugement.verdict === 'AMBIGU' || reeval.etatAtteste);
     const ids = declarable ? etat.ecritures.filter((e) => e.exacte).map((e) => e.id) : [];
     const candidates =
       ids.length === 0
@@ -2722,8 +2782,142 @@ export class DevisesService {
       candidates,
       tronque: etat.tronque || ids.length > PLAFOND_CANDIDATES,
       motifHorsModule:
-        candidates.length > 0 ? null : this.motifEtatDeLEcart(etat, attendus, jour(reeval.dateReevaluation), tenant?.referentiel ?? Referentiel.SYSCOHADA),
+        candidates.length > 0 && !reeval.etatAtteste
+          ? null
+          : this.motifEtatDeLEcart(etat, attendus, jour(reeval.dateReevaluation), tenant?.referentiel ?? Referentiel.SYSCOHADA),
+      etatAtteste: reeval.etatAtteste,
     };
+  }
+
+  /**
+   * ATTESTER L'ÉTAT DE L'ÉCART (vérification finale d'A5 bis). La règle
+   * d'état (`etatDeLEcart`) refuse ce qu'elle ne sait pas lire · un écart
+   * antérieur traité hors du module, une ouverture reprise d'un autre
+   * logiciel. Le texte ne fait pas d'OmegaX le juge de la tenue · « l'entité
+   * détermine, sous sa responsabilité, les procédures nécessaires » (AUDCIF
+   * art. 69 ; SYCEBNL art. 16, 2) côté EBNL). Le cabinet ATTESTE donc, par
+   * écrit, que l'état des comptes de l'écart est justifié · les refus de la
+   * règle d'état deviennent des avertissements pour cette réévaluation.
+   *
+   * RESTENT REFUSÉS, attestation ou non · la banque, dont l'écart est réalisé
+   * et ne se contre-passe pas (AUDCIF art. 57) ; une SECONDE contre-passation
+   * par le module, l'état disant l'écart déjà contre-passé ; la déclaration
+   * d'une inscription en négatif ou d'une écriture neutralisée (art. 20,
+   * al. 2). Le motif (10 à 500 caractères), l'auteur et la date sont posés
+   * par le SERVEUR, jamais reçus du client ; un `update` unitaire, filtré sur
+   * l'état libre, au journal d'audit ; sous le verrou du dossier.
+   */
+  async attesterEtatDeLEcart(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const raison = (motif ?? '').trim();
+    if (raison.length < MOTIF_ATTESTATION_MIN || raison.length > MOTIF_ATTESTATION_MAX) {
+      throw new BadRequestException(
+        `Le motif de l'attestation est obligatoire, de ${MOTIF_ATTESTATION_MIN} à ${MOTIF_ATTESTATION_MAX} caractères · dites ce qui justifie l'état des comptes de l'écart.`,
+      );
+    }
+    return this.sousVerrouDuDossier(tenantId, "ATTESTATION DE L'ÉTAT DE L'ÉCART", async () => {
+      const reeval = await this.prisma.reevaluation.findFirst({
+        where: { id: reevaluationId, tenantId },
+        select: { id: true, annuleeLe: true, etatAtteste: true },
+      });
+      if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+      if (reeval.annuleeLe) throw new ConflictException("Cette réévaluation est annulée · il n'y a rien à attester.");
+      if (reeval.etatAtteste) throw new ConflictException("L'état de l'écart de cette réévaluation est déjà attesté · retirez l'attestation pour en poser une autre.");
+      try {
+        await this.prisma.reevaluation.update({
+          where: { id: reeval.id, tenantId, annuleeLe: null, etatAtteste: false },
+          data: { etatAtteste: true, motifAttestation: raison, etatAttesteLe: new Date(), etatAttestePar: userId },
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          throw new ConflictException("L'attestation de cette réévaluation a changé entre-temps · relancez le geste.");
+        }
+        throw e;
+      }
+      return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+    });
+  }
+
+  /**
+   * RETIRER L'ATTESTATION, avec son motif (mêmes bornes), gardé dans
+   * `retraitsAttestation` avec l'attestation retirée, jamais effacé. Refusé
+   * tant qu'un geste s'y est appuyé · une contre-passation (du module ou
+   * déclarée) posée depuis l'attestation, ou une réévaluation postérieure
+   * passée depuis elle, qui a franchi le portillon par elle · les annuler ou
+   * les retirer d'abord.
+   */
+  async retirerAttestationEtatDeLEcart(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const raison = (motif ?? '').trim();
+    if (raison.length < MOTIF_ATTESTATION_MIN || raison.length > MOTIF_ATTESTATION_MAX) {
+      throw new BadRequestException(`Le motif du retrait est obligatoire, de ${MOTIF_ATTESTATION_MIN} à ${MOTIF_ATTESTATION_MAX} caractères.`);
+    }
+    return this.sousVerrouDuDossier(tenantId, "RETRAIT DE L'ATTESTATION DE L'ÉTAT DE L'ÉCART", async () => {
+      const reeval = await this.prisma.reevaluation.findFirst({
+        where: { id: reevaluationId, tenantId },
+        select: {
+          id: true,
+          etatAtteste: true,
+          motifAttestation: true,
+          etatAttesteLe: true,
+          etatAttestePar: true,
+          retraitsAttestation: true,
+          exercice: { select: { dateFin: true } },
+          ecritureExtourne: { select: { numeroPiece: true, createdAt: true } },
+          contrePassationDeclareeLe: true,
+        },
+      });
+      if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+      if (!reeval.etatAtteste) throw new BadRequestException("L'état de l'écart de cette réévaluation n'est pas attesté · il n'y a rien à retirer.");
+      const depuis = reeval.etatAttesteLe ?? new Date(0);
+      if (reeval.ecritureExtourne && reeval.ecritureExtourne.createdAt.getTime() >= depuis.getTime()) {
+        throw new BadRequestException(
+          `La contre-passation (pièce n° ${reeval.ecritureExtourne.numeroPiece ?? '·'}) a été passée sous cette attestation · ` +
+            "annulez-la d'abord (Devises, « Annuler la contre-passation »), puis retirez l'attestation.",
+        );
+      }
+      if (reeval.contrePassationDeclareeLe && reeval.contrePassationDeclareeLe.getTime() >= depuis.getTime()) {
+        throw new BadRequestException(
+          "La contre-passation manuelle a été déclarée sous cette attestation · retirez d'abord la déclaration (Devises, « Retirer la déclaration »).",
+        );
+      }
+      const appui = await this.prisma.reevaluation.findFirst({
+        where: { tenantId, annuleeLe: null, id: { not: reeval.id }, exercice: { dateDebut: { gt: reeval.exercice.dateFin } }, createdAt: { gte: depuis } },
+        orderBy: [{ dateReevaluation: 'asc' }, { id: 'asc' }],
+        select: { dateReevaluation: true },
+      });
+      if (appui) {
+        throw new BadRequestException(
+          `La réévaluation du ${appui.dateReevaluation.toISOString().slice(0, 10)} a été passée sous cette attestation · annulez-la ` +
+            "d'abord (Devises, « Annuler la réévaluation »), puis retirez l'attestation.",
+        );
+      }
+      const anciens = Array.isArray(reeval.retraitsAttestation) ? reeval.retraitsAttestation : [];
+      const trace = {
+        motifAttestation: reeval.motifAttestation,
+        attesteLe: reeval.etatAttesteLe?.toISOString() ?? null,
+        attestePar: reeval.etatAttestePar,
+        motif: raison,
+        par: userId,
+        le: new Date().toISOString(),
+      };
+      try {
+        await this.prisma.reevaluation.update({
+          where: { id: reeval.id, tenantId, etatAtteste: true },
+          data: {
+            etatAtteste: false,
+            motifAttestation: null,
+            etatAttesteLe: null,
+            etatAttestePar: null,
+            retraitsAttestation: [...anciens, trace] as unknown as Prisma.InputJsonValue,
+          },
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          throw new ConflictException("L'attestation de cette réévaluation a changé entre-temps · relancez le geste.");
+        }
+        throw e;
+      }
+      return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+    });
   }
 
   /**

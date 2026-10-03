@@ -31,6 +31,20 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     appel: 'api.delete(`/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation-manuelle`, { motif: aAnnuler.motif.trim() })',
   },
   {
+    route: 'POST /devises/reevaluations/:id/attestation-etat',
+    controleur: 'devises/devises.controller.ts',
+    decorateur: "@Post('reevaluations/:id/attestation-etat')",
+    page: 'DevisesPage.tsx',
+    appel: "if (aAttester.geste === 'ATTESTER') await api.post(chemin, { motif: aAttester.motif.trim() });",
+  },
+  {
+    route: 'DELETE /devises/reevaluations/:id/attestation-etat',
+    controleur: 'devises/devises.controller.ts',
+    decorateur: "@Delete('reevaluations/:id/attestation-etat')",
+    page: 'DevisesPage.tsx',
+    appel: 'else await api.delete(chemin, { motif: aAttester.motif.trim() });',
+  },
+  {
     route: 'DELETE /facturation/:id',
     controleur: 'facturation/facturation.controller.ts',
     decorateur: "@Delete(':id')",

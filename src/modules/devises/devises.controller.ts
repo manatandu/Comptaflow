@@ -14,6 +14,7 @@ import {
   DeclarerVentilationDisponibilitesDto,
   ExtournerReevaluationDto,
   ModifierDeviseDto,
+  MotifAttestationEtatDto,
   PoserCoursDto,
   ReevaluerDto,
   RetirerContrePassationManuelleDto,
@@ -182,6 +183,27 @@ export class DevisesController {
     @Body() body: RetirerContrePassationManuelleDto,
   ) {
     return this.devises.retirerContrePassationManuelle(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * ATTESTER L'ÉTAT DE L'ÉCART (vérification finale d'A5 bis) · le cabinet
+   * répond par écrit de l'état des comptes de l'écart ; les refus de la règle
+   * d'état deviennent des avertissements pour cette réévaluation. Une
+   * décision de validation, réservée au comptable, comme la déclaration ;
+   * son retrait aussi, avec son motif.
+   */
+  @Post('reevaluations/:id/attestation-etat')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async attesterEtatDeLEcart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: MotifAttestationEtatDto) {
+    return this.devises.attesterEtatDeLEcart(user.tenantId, user.userId, id, body.motif);
+  }
+
+  @Delete('reevaluations/:id/attestation-etat')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async retirerAttestationEtatDeLEcart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: MotifAttestationEtatDto) {
+    return this.devises.retirerAttestationEtatDeLEcart(user.tenantId, user.userId, id, body.motif);
   }
 
   /**

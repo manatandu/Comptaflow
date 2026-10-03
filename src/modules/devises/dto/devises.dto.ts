@@ -124,6 +124,18 @@ export class DeclarerContrePassationManuelleDto {
 }
 
 /** Le retrait d'une déclaration · son motif, gardé dans la trace (quatrième tour, m3). */
+/**
+ * L'attestation de l'état de l'écart et son retrait (vérification finale
+ * d'A5 bis) · le motif seul, de 10 à 500 caractères (`MOTIF_ATTESTATION_MIN`,
+ * `MOTIF_ATTESTATION_MAX` du service, qui le revérifie) ; l'auteur et la date
+ * sont posés par le serveur, jamais reçus.
+ */
+export class MotifAttestationEtatDto {
+  @IsString()
+  @Length(10, 500, { message: "Le motif de l'attestation compte de 10 à 500 caractères" })
+  motif!: string;
+}
+
 export class RetirerContrePassationManuelleDto {
   @IsString()
   @Length(3, 500)

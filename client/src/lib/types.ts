@@ -2146,6 +2146,14 @@ export interface Reevaluation {
   contrePassationDeclaree?: { id: string; numeroPiece: number | null; date: string } | null;
   motifContrePassationDeclaree?: string | null;
   contrePassationDeclareeLe?: string | null;
+  /**
+   * L'état de l'écart ATTESTÉ par le cabinet (vérification finale d'A5 bis) ·
+   * motif, date et auteur posés par le serveur ; les refus de la règle d'état
+   * deviennent des avertissements pour cette réévaluation.
+   */
+  etatAtteste?: boolean;
+  motifAttestation?: string | null;
+  etatAttesteLe?: string | null;
 }
 
 /** Les écritures qui peuvent être la contre-passation manuelle d'une réévaluation (proposition du serveur). */
@@ -2169,6 +2177,8 @@ export interface CandidatesContrePassationManuelle {
    * `null` · rien de manuel, la contre-passation par le module convient.
    */
   motifHorsModule: string | null;
+  /** L'état est attesté · les écritures exactes se proposent, `motifHorsModule` dit l'état lu. */
+  etatAtteste?: boolean;
 }
 
 /** Une banque ou caisse dont l'écart passé sans devise ne se relit pas (relecture adverse d'A5 bis, B1). */

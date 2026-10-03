@@ -905,3 +905,94 @@ describe('troisième tour, mineur 3 · les traces des contre-passations annulée
     expect(r.ids.size).toBe(PLAFOND_REEVALUATIONS_EXAMINEES);
   });
 });
+
+/**
+ * VÉRIFICATION FINALE · L'ÉTAT DE L'ÉCART ATTESTÉ. Le cabinet répond par
+ * écrit de l'état des comptes de l'écart (AUDCIF art. 69 ; SYCEBNL art. 16,
+ * 2)) · les refus de la règle d'état deviennent des avertissements pour cette
+ * réévaluation. Trois refus restent · la banque, dont l'écart est réalisé
+ * (AUDCIF art. 57, B-I) ; la seconde contre-passation par le module ; la
+ * déclaration d'une inscription en négatif (art. 20, al. 2).
+ */
+describe('vérification finale · l’état de l’écart attesté', () => {
+  const ATTESTEE = { etatAtteste: true, motifAttestation: 'Écart repris de l’ancien logiciel, rapproché le 15/01', etatAttesteLe: new Date('2027-01-20') };
+  const IMPORT_NET: EcritureFaite = { id: 'import', exercice: N1, numeroPiece: 1, estGenereeParCloture: true, lignes: [l('c-4111', '41110000', 2_000_000, 0)] };
+
+  it('un refus de la règle d’état devient un AVERTISSEMENT · une OD partielle sur le 4791 (300 000), attestée · la contre-passation passe, l’avertissement chiffré dans la réponse', async () => {
+    const partielle: EcritureFaite = { ...OD, id: 'part', numeroPiece: 9, lignes: [l('c-4791', '47910000', 300_000, 0), l('c-4111', '41110000', 0, 300_000)] };
+    const sans = monter({ ecritures: [...BASE_N, AN_N1, partielle] });
+    await expect(sans.svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/ne se contre-passe pas en l'état/);
+    const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1, partielle], reeval: ATTESTEE });
+    const r = (await svc.extourner('t', 'u', 'r1', 'e27')) as unknown as { avertissement: string | null };
+    expect(creer).toHaveBeenCalled();
+    expect(r.avertissement).toMatch(/État de l'écart attesté par le cabinet le 2027-01-20 \(« Écart repris de l’ancien logiciel, rapproché le 15\/01 »\)/);
+    expect(r.avertissement).toMatch(/Corrigez la pièce n° 9 du 2027-01-01/);
+  });
+
+  it('RESTE REFUSÉE · l’ouverture qui omet l’écart l’a déjà sorti des comptes · le contre-passer l’inverserait une seconde fois, attestée ou non', async () => {
+    const { svc, creer } = monter({ ecritures: [...BASE_N, IMPORT_NET], reeval: ATTESTEE });
+    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/il n'est plus en place[\s\S]*Rétablissez l'écart/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('la déclaration d’une OD exacte que l’état ne lit pas contre-passée (X2 sans rétablissement), attestée · déclarée, avec l’avertissement', async () => {
+    const cp: EcritureFaite = { id: 'cp', exercice: N1, numeroPiece: 3, lignes: [l('c-4791', '47910000', 500_000, 0), l('c-4111', '41110000', 0, 500_000)] };
+    const { svc, update } = monter({ ecritures: [...BASE_N, IMPORT_NET, cp], reeval: ATTESTEE });
+    const r = await svc.declarerContrePassationManuelle('t', 'u', 'r1', 'cp', 'CP à la main');
+    expect(update).toHaveBeenCalled();
+    expect(r.avertissement).toMatch(/État de l'écart attesté[\s\S]*ne se déclare pas/);
+  });
+
+  it('RESTE REFUSÉE · la seconde contre-passation par le module (l’OD de N+1 a déjà inversé l’écart), attestée ou non', async () => {
+    const { svc, creer } = monter({ reeval: ATTESTEE });
+    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/déjà contre-passé à la main/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('RESTE REFUSÉE · la déclaration d’une inscription en négatif, attestée ou non', async () => {
+    const FAUX: EcritureFaite = { id: 'faux', exercice: N1, numeroPiece: 3, correction: { numeroPiece: 4 }, lignes: [l('c-4111', '41110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
+    const NEGATIF: EcritureFaite = {
+      id: 'neg',
+      exercice: N1,
+      numeroPiece: 4,
+      corrige: { id: 'faux', numeroPiece: 3 },
+      lignes: [l('c-4111', '41110000', -500_000, 0), l('c-4791', '47910000', 0, -500_000)],
+    };
+    const { svc, update } = monter({ ecritures: [...BASE_N, AN_N1, FAUX, NEGATIF], reeval: ATTESTEE });
+    await expect(svc.declarerContrePassationManuelle('t', 'u', 'r1', 'neg', 'CP passée à la main')).rejects.toThrow(/est une inscription en négatif/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('RESTE REFUSÉE · B-I, la banque seule · son écart est réalisé (AUDCIF art. 57), rien à contre-passer, attestée ou non', async () => {
+    const BANQUE = [l('c-5211', '52110000', 100_000, 0), l('c-776', '77600000', 0, 100_000)];
+    const { svc, creer } = monter({ reeval: { ...ATTESTEE, ecritureEcarts: { lignes: BANQUE } } });
+    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/ne porte que des disponibilités[\s\S]*AUDCIF art\. 57/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('attester · motif de 10 à 500 caractères ; l’auteur et la date posés par le SERVEUR, par un `update` unitaire filtré sur l’état libre', async () => {
+    const court = monter();
+    await expect(court.svc.attesterEtatDeLEcart('t', 'u', 'r1', 'court')).rejects.toThrow(/de 10 à 500 caractères/);
+    await expect(court.svc.attesterEtatDeLEcart('t', 'u', 'r1', 'x'.repeat(501))).rejects.toThrow(/de 10 à 500 caractères/);
+    expect(court.update).not.toHaveBeenCalled();
+    const { svc, update } = monter();
+    await svc.attesterEtatDeLEcart('t', 'comptable-1', 'r1', '  Écart repris de l’ancien logiciel  ');
+    const appel = update.mock.calls[0][0] as { where: Record<string, unknown>; data: Record<string, unknown> };
+    expect(appel.where).toMatchObject({ id: 'r1', tenantId: 't', annuleeLe: null, etatAtteste: false });
+    expect(appel.data).toMatchObject({ etatAtteste: true, motifAttestation: 'Écart repris de l’ancien logiciel', etatAttestePar: 'comptable-1' });
+    expect(appel.data.etatAttesteLe).toBeInstanceOf(Date);
+  });
+
+  it('déjà attestée · 409 ; retirer · motif exigé, trace gardée ; refusé si une contre-passation a été passée sous l’attestation', async () => {
+    await expect(monter({ reeval: ATTESTEE }).svc.attesterEtatDeLEcart('t', 'u', 'r1', 'une seconde fois')).rejects.toThrow(/déjà attesté/);
+    const libre = monter({ reeval: ATTESTEE });
+    await libre.svc.retirerAttestationEtatDeLEcart('t', 'u', 'r1', 'Rapprochement refait');
+    const appel = libre.update.mock.calls[0][0] as { where: Record<string, unknown>; data: { retraitsAttestation: Array<Record<string, unknown>> } };
+    expect(appel.where).toMatchObject({ id: 'r1', etatAtteste: true });
+    expect(appel.data).toMatchObject({ etatAtteste: false, motifAttestation: null, etatAttesteLe: null, etatAttestePar: null });
+    expect(appel.data.retraitsAttestation[0]).toMatchObject({ motifAttestation: ATTESTEE.motifAttestation, motif: 'Rapprochement refait', par: 'u' });
+    const appuyee = monter({ reeval: { ...ATTESTEE, ecritureExtourne: { numeroPiece: 9, createdAt: new Date('2027-01-21') } } });
+    await expect(appuyee.svc.retirerAttestationEtatDeLEcart('t', 'u', 'r1', 'Rapprochement refait')).rejects.toThrow(/pièce n° 9\) a été passée sous cette attestation/);
+    expect(appuyee.update).not.toHaveBeenCalled();
+  });
+});

@@ -15,6 +15,7 @@ import { ProvisionChangeOuverture } from '../components/ProvisionChangeOuverture
 import { PortailModale } from '../components/PortailModale';
 import { MOTIF_ANNULATION_MAX, motifRefusMotifAnnulation } from '../lib/motif-annulation';
 import { ecouterEchap } from '../lib/echap';
+import { AVERTISSEMENT_ATTESTATION, MOTIF_ATTESTATION_MAX, motifRefusAttestation } from '../lib/attestation-etat';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -258,6 +259,18 @@ export function DevisesPage() {
     }
   };
 
+  // ÉCHAP FERME LA MODALE DU MOTIF (vérification finale d'A5 bis, m5), comme
+  // celle de la déclaration · la couche la plus haute consomme la touche
+  // (`ecouterEchap`, audit final F177).
+  const annulationOuverte = aAnnuler !== null;
+  useEffect(() => {
+    if (!annulationOuverte) return;
+    return ecouterEchap(() => {
+      setAAnnuler(null);
+      return true;
+    });
+  }, [annulationOuverte]);
+
   const extourner = async (id: string, exerciceSuivantId: string, integrale: boolean) => {
     setErreur(null);
     try {
@@ -307,6 +320,63 @@ export function DevisesPage() {
       setErreurVentilation(e instanceof ApiError ? e.message : 'Déclaration impossible');
     } finally {
       setEnvoiVentilation(false);
+    }
+  };
+
+  // ÉCHAP FERME LA VENTILATION (m5) · pendant l'envoi elle ne ferme rien,
+  // la réponse du serveur reste à lire.
+  const ventilationOuverte = aVentiler !== null;
+  useEffect(() => {
+    if (!ventilationOuverte) return;
+    return ecouterEchap(() => {
+      if (!envoiVentilation) setAVentiler(null);
+      return true;
+    });
+  }, [ventilationOuverte, envoiVentilation]);
+
+  /**
+   * ATTESTER L'ÉTAT DE L'ÉCART (vérification finale d'A5 bis) · le cabinet
+   * répond par écrit de l'état des comptes de l'écart ; les refus de la règle
+   * d'état deviennent des avertissements pour cette réévaluation. Motif de
+   * 10 à 500 caractères ; auteur et date posés par le serveur. Réservé à qui
+   * valide (`peutValider`), comme la déclaration ; le retrait aussi.
+   */
+  const [aAttester, setAAttester] = useState<{ reevaluation: Reevaluation; motif: string; geste: 'ATTESTER' | 'RETIRER' } | null>(null);
+  const [erreurAttestation, setErreurAttestation] = useState<string | null>(null);
+  const [envoiAttestation, setEnvoiAttestation] = useState(false);
+  const attestationOuverte = aAttester !== null;
+  useEffect(() => {
+    if (!attestationOuverte) return;
+    return ecouterEchap(() => {
+      if (!envoiAttestation) setAAttester(null);
+      return true;
+    });
+  }, [attestationOuverte, envoiAttestation]);
+  const envoyerAttestation = async () => {
+    if (!aAttester) return;
+    const refus = motifRefusAttestation(aAttester.motif, aAttester.geste);
+    if (refus) {
+      setErreurAttestation(refus);
+      return;
+    }
+    setErreurAttestation(null);
+    setEnvoiAttestation(true);
+    try {
+      const chemin = `/devises/reevaluations/${aAttester.reevaluation.id}/attestation-etat`;
+      if (aAttester.geste === 'ATTESTER') await api.post(chemin, { motif: aAttester.motif.trim() });
+      else await api.delete(chemin, { motif: aAttester.motif.trim() });
+      const geste = aAttester.geste;
+      setAAttester(null);
+      setInfo(
+        geste === 'ATTESTER'
+          ? "État de l'écart attesté · les refus de la règle d'état seront dits en avertissement pour cette réévaluation."
+          : "Attestation retirée · la règle d'état s'applique de nouveau à cette réévaluation.",
+      );
+      await charger();
+    } catch (e) {
+      setErreurAttestation(e instanceof ApiError ? e.message : 'Attestation impossible');
+    } finally {
+      setEnvoiAttestation(false);
     }
   };
 
@@ -884,6 +954,23 @@ export function DevisesPage() {
                           Ventilation déclarée · {r.ventilationDisponibilitesSource}
                         </span>
                       )}
+                      {!r.annuleeLe && r.etatAtteste && (
+                        <span className="block text-warning" title={r.motifAttestation ?? undefined}>
+                          État de l'écart attesté{r.etatAttesteLe ? ` le ${jour(r.etatAttesteLe)}` : ''} · {r.motifAttestation ?? ''}
+                        </span>
+                      )}
+                      {peutValider && !r.annuleeLe && r.ecritureEcarts && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setErreurAttestation(null);
+                            setAAttester({ reevaluation: r, motif: '', geste: r.etatAtteste ? 'RETIRER' : 'ATTESTER' });
+                          }}
+                          className="ml-2 text-sel hover:underline"
+                        >
+                          {r.etatAtteste ? "Retirer l'attestation" : "Attester l'état de l'écart"}
+                        </button>
+                      )}
                       {peutValider && !r.annuleeLe && (
                         <button
                           type="button"
@@ -987,6 +1074,77 @@ export function DevisesPage() {
                     {TITRE_GESTE[aAnnuler.geste]}
                   </button>
                   <button type="button" onClick={() => setAAnnuler(null)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+      {aAttester && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void envoyerAttestation();
+              }}
+              role="dialog"
+              aria-modal="true"
+              className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  {aAttester.geste === 'ATTESTER' ? "Attester l'état de l'écart" : "Retirer l'attestation"} du {jour(aAttester.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Attestation de l'état de l'écart"
+                    texte="La règle d'état refuse ce qu'elle ne sait pas lire dans les comptes de l'écart : un écart antérieur traité hors du module, une ouverture reprise d'un autre logiciel. L'entité détermine, sous sa responsabilité, ses procédures : le cabinet atteste par écrit que l'état est justifié. Le retrait est refusé tant qu'une contre-passation, une déclaration ou une réévaluation postérieure a été passée sous l'attestation."
+                    source="AUDCIF art. 69 ; SYCEBNL art. 16, 2) ; AUDCIF art. 57 ; art. 20, al. 2"
+                  />
+                </span>
+                <button
+                  type="button"
+                  disabled={envoiAttestation}
+                  onClick={() => setAAttester(null)}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                {erreurAttestation && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurAttestation}
+                  </div>
+                )}
+                {aAttester.geste === 'ATTESTER' && (
+                  <div className="mb-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2">{AVERTISSEMENT_ATTESTATION}</div>
+                )}
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={aAttester.motif}
+                    onChange={(e) => setAAttester({ ...aAttester, motif: e.target.value })}
+                    maxLength={MOTIF_ATTESTATION_MAX}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[70px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={envoiAttestation || motifRefusAttestation(aAttester.motif, aAttester.geste) !== null}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    {aAttester.geste === 'ATTESTER' ? 'Attester' : "Retirer l'attestation"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={envoiAttestation}
+                    onClick={() => setAAttester(null)}
+                    className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5"
+                  >
                     Fermer
                   </button>
                 </div>
