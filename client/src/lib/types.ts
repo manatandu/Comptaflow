@@ -1021,6 +1021,10 @@ export interface Immobilisation {
   statut: StatutImmobilisation;
   dateSortie: string | null;
   prixCession: number | null;
+  /** Ligne A14 · nature et pièce de la sortie, nulles avant elle. */
+  natureSortie?: import('./nature-sortie').NatureSortie | null;
+  referencePieceSortie?: string | null;
+  datePieceSortie?: string | null;
   dotations: DotationAmortissement[];
   /**
    * Dépréciations · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du

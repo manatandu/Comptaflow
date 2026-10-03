@@ -28,6 +28,7 @@ import {
   NatureReductionSubvention,
   ModeAmortissement,
   NatureLocationAcquisition,
+  NatureSortieImmobilisation,
   PeriodiciteLoyer,
   SensDepreciation,
   TypeComposant,
@@ -561,7 +562,32 @@ export class SortirImmobilisationDto {
   @IsString()
   @MaxLength(1000)
   sourceMaterielRecupere?: string;
+
+  /**
+   * Ligne A14 · la NATURE de la sortie, liste fermée lue aux textes
+   * (nature-sortie.ts), et la PIÈCE qui la justifie (AUDCIF art. 17, 3° et
+   * 5°). Exigées à la route ; la cohérence avec le type est jugée par
+   * `motifRefusNatureSortie`.
+   */
+  @IsEnum(NatureSortieImmobilisation)
+  natureSortie!: NatureSortieImmobilisation;
+
+  @IsString()
+  @MaxLength(120)
+  referencePieceSortie!: string;
+
+  @IsDateString()
+  datePieceSortie!: string;
 }
+
+/**
+ * La sortie telle que les gestes INTERNES l'appellent · le renouvellement d'un
+ * composant et la levée d'une option portent leur propre pièce, l'échange
+ * déclare sa nature sans pièce distincte. La route, elle, exige les trois
+ * champs (SortirImmobilisationDto).
+ */
+export type SortieImmobilisation = Omit<SortirImmobilisationDto, 'natureSortie' | 'referencePieceSortie' | 'datePieceSortie'> &
+  Partial<Pick<SortirImmobilisationDto, 'natureSortie' | 'referencePieceSortie' | 'datePieceSortie'>>;
 
 /**
  * RECLASSEMENT · le changement d'utilisation du ch. 10 § 2.4.
