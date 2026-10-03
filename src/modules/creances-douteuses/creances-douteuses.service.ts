@@ -1431,7 +1431,7 @@ export class CreancesDouteusesService {
    * CES ÉCRITURES N'ONT AUCUNE LIGNE 443 (règles 5 et 6 de
    * `creances-douteuses.ts`) · le lettrage du 416 n'est lu par aucun calcul de
    * TVA, à la différence du compte d'origine, dont la ligne de reclassement ne
-   * se lettre jamais avec la facture (`lettrage/ligne-de-reclassement.ts`).
+   * se lettre pas avec une facture taxée (443, `lettrage/ligne-de-reclassement.ts`).
    *
    * `null` quand la créance n'est pas éteinte ; sinon l'issue, posée ou non,
    * avec son motif · rien n'est lettré pour une créance DÉCLARÉE à l'ouverture

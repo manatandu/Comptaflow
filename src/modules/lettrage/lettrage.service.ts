@@ -5,7 +5,11 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
 import { referentielDuDossier } from '../reglements/compte-ecart-change';
-import { lignesReclasseesDuCompte, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
+import {
+  lignesReclasseesDuCompte,
+  lignesTaxeesDuCompte,
+  refuserLignesDuCompteClientReclasse,
+} from './ligne-de-reclassement';
 
 const EPSILON = 0.005;
 
@@ -552,10 +556,11 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(nouvelles, { compteId: groupe.compteId, tenantId, nombre: ligneIds.length });
-        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds);
         // Les lignes DÉJÀ du groupe comptent aussi · le compléter pose la
         // lettre sur toutes, et en change le statut.
         const dejaDuGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId }, select: { id: true } });
+        // A7 ter, B3 · le groupe complété ne réunit pas un reclassement et une facture taxée.
+        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds, dejaDuGroupe.map((l) => l.id));
         await refuserSiLignesFigees(tx, tenantId, [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
 
         await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettrageId } });
@@ -914,8 +919,6 @@ export class LettrageService {
    * lui renvoie.
    */
   private async calculerPropositions(tenantId: string, compteId: string) {
-    const LIMITE_LIGNES_SUBSET_SUM = 25;
-    const LIMITE_LIGNES_PARTITION = 16;
 
     // `lettrageId: null` et non `lettre: null` : une ligne déjà rattachée à un
     // groupe PARTIEL ne porte pas de lettre mais ne doit pas être réappariée
@@ -933,11 +936,45 @@ export class LettrageService {
     // proposée · le lettrage automatique la poserait, et le pré-lettrage
     // proposerait un groupe que sa confirmation refuserait.
     const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
-    // A7 ter, B3 · la ligne du compte client d'un reclassement en créance
-    // douteuse n'est jamais proposée · la paire facture-reclassement, de même
-    // montant, rendait la TVA exigible (`ligne-de-reclassement.ts`).
+    // A7 ter, B3 et mineur 6 · la ligne du compte client d'un reclassement en
+    // créance douteuse n'est jamais proposée AVEC une pièce qui porte de la
+    // TVA facturée (443) · la paire facture-reclassement, de même montant,
+    // rendait la TVA exigible (`ligne-de-reclassement.ts`). Sans TVA facturée,
+    // la paire se propose comme une autre.
     const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
-    const nonLettrees = candidates.filter((l) => !figees.has(l.id) && !reclassees.has(l.id));
+    const taxees = reclassees.size > 0 ? await lignesTaxeesDuCompte(this.prisma, tenantId, compteId) : new Set<string>();
+    const nonLettrees = candidates.filter((l) => !figees.has(l.id));
+
+    // A7 ter, B3 et mineur 6 · DEUX PASSES DE RECHERCHE quand le compte porte
+    // la ligne d'un reclassement · d'abord sans elle, puis, sur ce qui reste,
+    // avec elle mais SANS les pièces taxées. Un groupe proposé ne réunit donc
+    // jamais un reclassement et une facture qui porte de la TVA facturée, et
+    // la facture taxée reste appariable au vrai règlement · filtrer après coup
+    // perdait la paire facture-règlement, prise d'abord avec le reclassement.
+    if (reclassees.size === 0) {
+      const { parPiece, parMontant } = this.apparier(nonLettrees);
+      return { parPiece, parMontant, lignes: nonLettrees };
+    }
+    const sansReclassement = this.apparier(nonLettrees.filter((l) => !reclassees.has(l.id)));
+    const prises = new Set([...sansReclassement.parPiece, ...sansReclassement.parMontant].flat());
+    const avecReclassement = this.apparier(nonLettrees.filter((l) => !prises.has(l.id) && !taxees.has(l.id)));
+    return {
+      parPiece: [...sansReclassement.parPiece, ...avecReclassement.parPiece],
+      parMontant: [...sansReclassement.parMontant, ...avecReclassement.parMontant],
+      lignes: nonLettrees,
+    };
+  }
+
+  /**
+   * LES QUATRE PASSES sur un jeu de lignes non lettrées · référence de pièce,
+   * paires exactes, N pour 1, N pour M. Tout groupe rendu est soldé.
+   */
+  private apparier(nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null } }>): {
+    parPiece: string[][];
+    parMontant: string[][];
+  } {
+    const LIMITE_LIGNES_SUBSET_SUM = 25;
+    const LIMITE_LIGNES_PARTITION = 16;
 
     // Ce qui compte pour le lettrage est l'EFFET NET d'une ligne sur le
     // compte, pas la colonne dans laquelle elle est écrite. Sur toutes les
@@ -1017,7 +1054,7 @@ export class LettrageService {
       creditsRestants = creditsRestants.filter((c) => !partition.credits.includes(c.id));
     }
 
-    return { parPiece: parPiece.groupes, parMontant: groupes, lignes: nonLettrees };
+    return { parPiece: parPiece.groupes, parMontant: groupes };
   }
 
   /**

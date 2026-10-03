@@ -30,10 +30,19 @@ interface Ligne {
     journal: { code: string };
     exercice: { statut: 'OUVERT' };
     creanceDouteuseReclassement: { compteCreanceId: string; annuleeLe: Date | null } | null;
+    /** Mineur 6 · les comptes des lignes de l'écriture (une TVA facturée au 443). */
+    lignes: Array<{ compte: { numero: string } }>;
   };
 }
 
-const ligne = (id: string, compteId: string, debit: number, credit: number, reclassement: Ligne['ecriture']['creanceDouteuseReclassement'] = null): Ligne => ({
+const ligne = (
+  id: string,
+  compteId: string,
+  debit: number,
+  credit: number,
+  reclassement: Ligne['ecriture']['creanceDouteuseReclassement'] = null,
+  comptesDeLaPiece: string[] = [],
+): Ligne => ({
   id,
   compteId,
   debit,
@@ -51,6 +60,7 @@ const ligne = (id: string, compteId: string, debit: number, credit: number, recl
     journal: { code: 'OD' },
     exercice: { statut: 'OUVERT' },
     creanceDouteuseReclassement: reclassement,
+    lignes: comptesDeLaPiece.map((numero) => ({ compte: { numero } })),
   },
 });
 
@@ -66,6 +76,9 @@ function monter(lignes: Ligne[]) {
       if (where?.lettre === null && l.lettre !== null) return false;
       if (where?.lettre?.not === null && l.lettre === null) return false;
       if (where?.ecriture?.tenantId && l.ecriture.tenantId !== where.ecriture.tenantId) return false;
+      // Mineur 6 · la doublure honore « l'écriture porte une ligne du 443 ».
+      const prefixe = where?.ecriture?.lignes?.some?.compte?.numero?.startsWith;
+      if (prefixe && !l.ecriture.lignes.some((x) => x.compte.numero.startsWith(prefixe))) return false;
       const lien = where?.ecriture?.creanceDouteuseReclassement?.is;
       if (lien) {
         const r = l.ecriture.creanceDouteuseReclassement;
@@ -102,12 +115,14 @@ function monter(lignes: Ligne[]) {
   return { service: new LettrageService(prisma as PrismaService), prisma, groupes, lignes };
 }
 
-// La facture (D 411), le reclassement (C 411 de la créance en vigueur), et un
-// autre règlement de même montant, ordinaire.
-const facture = () => ligne('fac', '411', 1_160_000, 0);
+// La facture (D 411, avec sa TVA facturée au 44310000), le reclassement (C 411
+// de la créance en vigueur), et un autre règlement de même montant, ordinaire.
+const facture = () => ligne('fac', '411', 1_160_000, 0, null, ['41110001', '70610000', '44310000']);
+// Mineur 6 · la facture d'une association exonérée, sans TVA facturée.
+const factureSansTva = () => ligne('fac', '411', 1_160_000, 0, null, ['41110001', '70610000']);
 const reclassement = (annuleeLe: Date | null = null) => ligne('rcl', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe });
 
-describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du lettrage', () => {
+describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du lettrage d’une facture TAXÉE', () => {
   it('le lettrage automatique n’apparie plus la facture et le reclassement de même montant', async () => {
     const { service, groupes } = monter([facture(), reclassement()]);
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
@@ -137,6 +152,30 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     await expect(
       s2.confirmerPreLettrage('t1', '411', 'u1', [{ ligneIds: ['fac', 'rcl'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
     ).rejects.toThrow(/ligne A7 bis/);
+  });
+
+  // MINEUR 6 · SEULEMENT AVEC UNE TVA FACTURÉE · une facture sans 443 n'a
+  // aucune TVA que le lettrage rendrait exigible · la lettrer avec son
+  // reclassement solde le compte du client, le refuser bloquait un geste juste.
+  it('mineur 6 · sans TVA facturée, la facture et son reclassement se lettrent, à la main comme en automatique', async () => {
+    const auto = monter([factureSansTva(), reclassement()]);
+    await auto.service.lettrageAutomatique('t1', '411', 'u1');
+    expect(auto.groupes).toHaveLength(1);
+    expect(auto.groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_MONTANT);
+    const manuel = monter([factureSansTva(), reclassement()]);
+    await expect(manuel.service.lettrerManuel('t1', '411', ['fac', 'rcl'], 'u1')).resolves.toBeDefined();
+    expect(manuel.groupes).toHaveLength(1);
+  });
+
+  it('mineur 6 · la TVA se lit sur la pièce de l’AUTRE ligne · un règlement non taxé avec le reclassement passe, la facture taxée complétée refuse', async () => {
+    const { service, groupes } = monter([facture(), reclassement(), ligne('avr', '411', 1_160_000, 0)]);
+    // Le reclassement avec une pièce sans 443 (une avance remboursée) · rien à refuser.
+    await service.lettrerManuel('t1', '411', ['avr', 'rcl'], 'u1');
+    expect(groupes).toHaveLength(1);
+    const partiel = monter([facture(), reclassement(), ligne('acp', '411', 0, 100_000)]);
+    await partiel.service.lettrerManuel('t1', '411', ['rcl', 'acp'], 'u1', { autoriserPartiel: true });
+    // Compléter le groupe du reclassement par la facture taxée refuse · les lignes déjà du groupe comptent.
+    await expect(partiel.service.completer('t1', partiel.groupes[0].id, ['fac'])).rejects.toThrow(MOTIF_LETTRAGE_RECLASSEMENT);
   });
 
   it('un reclassement ANNULÉ ne retient plus rien · sa ligne se lettre comme une autre', async () => {

@@ -910,10 +910,10 @@ export function CreancesDouteusesPage() {
                         <>
                           <span />
                           <span className="flex items-center gap-1.5 text-text-dim">
-                            Ne lettrez pas la facture avec le reclassement
+                            Ne lettrez pas la facture avec le reclassement si elle porte de la TVA facturée
                             <Aide
                               titre="Reclassement et lettrage"
-                              texte="Le reclassement passe D 416 / C compte du client et ne lettre pas ce compte ; il n'exige aucun lettrage. Ne lettrez pas la facture avec la pièce du reclassement : le calcul de la TVA lirait ce lettrage comme un encaissement, et la TVA d'une prestation de services, exigible à l'encaissement du prix, deviendrait exigible sans qu'aucun prix ne soit perçu."
+                              texte="Le reclassement passe D 416 / C compte du client et ne lettre pas ce compte ; il n'exige aucun lettrage. Une facture qui porte de la TVA facturée (443) ne se lettre pas avec la pièce du reclassement : le calcul de la TVA lirait ce lettrage comme un encaissement, et la TVA d'une prestation de services, exigible à l'encaissement du prix, deviendrait exigible sans qu'aucun prix ne soit perçu. Le lettrage le refuse. Une facture sans TVA facturée se lettre avec son reclassement, et solde le compte du client."
                               source="O.-L. n° 10/001, art. 25, 2° ; décret n° 011/42, art. 57"
                             />
                           </span>
