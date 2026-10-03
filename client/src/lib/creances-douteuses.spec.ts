@@ -59,6 +59,15 @@ describe('créances douteuses · écran (ligne A7)', () => {
   });
 });
 
+describe('créances douteuses · E2 à l’écran', () => {
+  it('la récupération de la TVA se demande (case décochée), proposée par le serveur, et la déclaration du mois suivant est dite', () => {
+    expect(page).toContain('recupererTva: false,');
+    expect(page).toContain('/tva-origine`');
+    expect(page).toContain('déclaration du mois SUIVANT la constatation');
+    expect(page).toContain('décret n° 011/42, art. 126 et 127');
+  });
+});
+
 describe('créances douteuses · E1 à l’écran', () => {
   it('la bulle d’aide de la revue dit que la base est le TTC inscrit au 416', () => {
     expect(page).toContain('Base de la dépréciation · le montant TTC inscrit au 416');

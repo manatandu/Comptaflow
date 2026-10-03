@@ -71,6 +71,13 @@ export const LISTES_DE_COMPTES: Readonly<Record<string, RegimeListeDeComptes>> =
       "débit du compte 416 »), seule racine admise par le serveur, et le reclassement en est souvent le premier mouvement · les " +
       'créances proposées sont celles que la balance montre débitrices, chacune déjà utilisée.',
   },
+  '/creances-douteuses/:id/tva-origine': {
+    regime: 'texte',
+    motif:
+      "La TVA récupérée d'une créance irrécouvrable se débite au 443 de la vente d'origine (fiche du compte 70, « le compte 443 " +
+      'est débité des taxes facturées des retours sur ventes » ; O.-L. n° 10/001, art. 52), seule racine admise par le serveur · ' +
+      'les 443 de détail réellement semés, sans supposer de subdivision.',
+  },
   '/affectation-resultat/exercice/:exerciceId': {
     regime: 'texte',
     motif:

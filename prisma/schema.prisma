@@ -1178,6 +1178,7 @@ model Compte {
   creancesDouteusesSource       CreanceDouteuse[]            @relation("CreanceDouteuseSource")
   creancesDouteuses416          CreanceDouteuse[]            @relation("CreanceDouteuse416")
   creancesDouteuses491          CreanceDouteuse[]            @relation("CreanceDouteuse491")
+  mouvementsCreancesTva         MouvementCreanceDouteuse[]   @relation("MouvementCreanceDouteuseTva")
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
@@ -9008,9 +9009,21 @@ model MouvementCreanceDouteuse {
 
   type    TypeMouvementCreanceDouteuse
   date    DateTime                     @db.Date
+  /// Le montant TTC sorti du 416.
   montant Decimal                      @db.Decimal(18, 2)
   motif   String
   pieces  Json
+
+  /// PERTE AVEC RÉCUPÉRATION DE LA TVA (E2 · O.-L. n° 10/001, art. 52 ;
+  /// décret n° 011/42, art. 126 et 127) · la TVA récupérée au 443 choisi, la
+  /// TVA facturée que portait la créance (borne du prorata), et le duplicata
+  /// surchargé envoyé au client, exigé. Nuls sans récupération.
+  tvaRecuperee       Decimal?  @db.Decimal(18, 2)
+  tvaFactureeCreance Decimal?  @db.Decimal(18, 2)
+  compteTvaId        String?
+  compteTva          Compte?   @relation("MouvementCreanceDouteuseTva", fields: [compteTvaId], references: [id], onDelete: Restrict)
+  duplicataReference String?
+  duplicataDateEnvoi DateTime? @db.Date
 
   ecritureId String   @unique
   ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)

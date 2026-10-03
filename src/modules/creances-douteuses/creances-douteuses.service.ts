@@ -30,6 +30,9 @@ import {
   motifRefusAnnulationRevue,
   motifRefusDeclaration,
   motifRefusMouvement,
+  motifRefusRecuperationTva,
+  plafondTvaRecuperable,
+  ventilationPerte,
   motifRefusReclassement,
   motifRefusRevue,
   piecesLisibles,
@@ -156,7 +159,7 @@ export class CreancesDouteusesService {
   private async regime(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
+      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true, assujettiTva: true },
     });
   }
 
@@ -816,7 +819,7 @@ export class CreancesDouteusesService {
     type: TypeMouvementCreanceDouteuse,
     dto: PerteCreanceDto | RecouvrementCreanceDto,
   ) {
-    const [c, ex, journal, { referentiel }] = await Promise.all([
+    const [c, ex, journal, { referentiel, assujettiTva }] = await Promise.all([
       this.creance(tenantId, id),
       this.exercice(tenantId, dto.exerciceId),
       this.journal(tenantId, dto.journalId),
@@ -862,16 +865,47 @@ export class CreancesDouteusesService {
     if (motif) throw new BadRequestException(motif);
 
     const montant = centimes(dto.montant);
+    // E2 · LA TVA D'UNE CRÉANCE IRRÉCOUVRABLE, sur demande seulement, sous les
+    // conditions de l'art. 52 et de l'art. 127 (`motifRefusRecuperationTva`) ·
+    // jamais d'office ; sans elle, la perte passe au TTC entier.
+    const recup = type === TypeMouvementCreanceDouteuse.PERTE ? (dto as PerteCreanceDto).recuperationTva : undefined;
+    let compteTva: { id: string } | null = null;
+    let ventilation: { horsTaxe: number; tva: number } | null = null;
+    if (recup) {
+      const k = await this.compteParId(tenantId, recup.compteTvaId);
+      const refusTva = motifRefusRecuperationTva({
+        assujetti: assujettiTva,
+        montantSorti: montant,
+        montantCreance: n(c.montant),
+        tvaRecuperee: recup.tvaRecuperee,
+        tvaFactureeCreance: recup.tvaFactureeCreance,
+        numeroCompteTva: k.numero,
+        compteTvaEstDetail: k.typeCompte === TypeCompteDetailTotal.DETAIL,
+        duplicataReference: recup.duplicataReference,
+        duplicataDateEnvoi: recup.duplicataDateEnvoi,
+        datePerte: jour(date),
+      });
+      if (refusTva) throw new BadRequestException(refusTva);
+      compteTva = { id: k.id };
+      ventilation = ventilationPerte(montant, recup.tvaRecuperee);
+    }
     const debit = type === TypeMouvementCreanceDouteuse.PERTE ? comptePerte!.id : journal.compteTresorerieId!;
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: ex.id,
       journalId: journal.id,
       date: jour(date),
       libelle: `${type === TypeMouvementCreanceDouteuse.PERTE ? 'Perte sur créance irrécouvrable' : 'Recouvrement de créance douteuse'} · ${c.compteCreance.numero} ${c.compteCreance.intitule}`.slice(0, 190),
-      lignes: [
-        { compteId: debit, debit: montant, credit: 0 },
-        { compteId: c.compte416.id, debit: 0, credit: montant },
-      ],
+      lignes:
+        ventilation && compteTva
+          ? [
+              { compteId: debit, debit: ventilation.horsTaxe, credit: 0 },
+              { compteId: compteTva.id, debit: ventilation.tva, credit: 0 },
+              { compteId: c.compte416.id, debit: 0, credit: montant },
+            ]
+          : [
+              { compteId: debit, debit: montant, credit: 0 },
+              { compteId: c.compte416.id, debit: 0, credit: montant },
+            ],
     });
     try {
       const ligne = await transactionJournalisee(this.prisma, (tx) =>
@@ -886,15 +920,88 @@ export class CreancesDouteusesService {
             motif: dto.motif.trim(),
             pieces: pieces as unknown as Prisma.InputJsonValue,
             ecritureId: ecriture.id,
+            ...(recup && ventilation && compteTva
+              ? {
+                  tvaRecuperee: ventilation.tva,
+                  tvaFactureeCreance: centimes(recup.tvaFactureeCreance),
+                  compteTvaId: compteTva.id,
+                  duplicataReference: recup.duplicataReference.trim(),
+                  duplicataDateEnvoi: new Date(recup.duplicataDateEnvoi.slice(0, 10)),
+                }
+              : {}),
             createdBy: userId,
           },
         }),
       );
-      return { ...ligne, montant: n(ligne.montant) };
+      return {
+        ...ligne,
+        montant: n(ligne.montant),
+        tvaRecuperee: ligne.tvaRecuperee == null ? null : n(ligne.tvaRecuperee),
+        tvaFactureeCreance: ligne.tvaFactureeCreance == null ? null : n(ligne.tvaFactureeCreance),
+      };
     } catch (err) {
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
       throw err;
     }
+  }
+
+  /**
+   * LA TVA FACTURÉE DE LA VENTE D'ORIGINE, PROPOSÉE · jamais devinée (E2).
+   * Lue par le LETTRAGE du compte du client · la ligne du reclassement lettrée
+   * avec les factures, et les lignes du 443 de ces factures. Un seul 443
+   * proposé ; plusieurs, ou aucun lettrage, rien n'est proposé et la raison
+   * est dite. La liste des 443 de détail du plan est servie à côté.
+   */
+  async tvaOrigine(tenantId: string, id: string) {
+    const c = await this.creance(tenantId, id);
+    const [regime, comptes443] = await Promise.all([
+      this.regime(tenantId),
+      this.prisma.compte.findMany({
+        where: { tenantId, numero: { startsWith: '443' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+        select: { id: true, numero: true, intitule: true },
+        orderBy: { numero: 'asc' },
+        take: 50,
+      }),
+    ]);
+    const rendu = (proposition: { compteTvaId: string; numero: string; tvaFactureeCreance: number } | null, raison: string | null) => ({
+      assujetti: regime.assujettiTva,
+      comptes443,
+      proposition,
+      raison,
+    });
+    if (!c.ecritureReclassementId) return rendu(null, 'Créance déclarée à l’ouverture · aucune facture d’origine connue, la TVA se déclare.');
+    const reclassement = await this.prisma.ligneEcriture.findFirst({
+      where: { ecritureId: c.ecritureReclassementId, compteId: c.compteCreance.id, ecriture: { tenantId } },
+      select: { lettrageId: true },
+    });
+    if (!reclassement?.lettrageId) {
+      return rendu(null, 'Le reclassement n’est pas lettré avec les factures du client · la TVA facturée ne se lit pas, déclarez-la.');
+    }
+    const factures = await this.prisma.ligneEcriture.findMany({
+      where: { lettrageId: reclassement.lettrageId, compteId: c.compteCreance.id, debit: { gt: 0 }, ecriture: { tenantId } },
+      select: { ecritureId: true, debit: true },
+      take: 200,
+    });
+    const tva = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId: { in: factures.map((f) => f.ecritureId) }, compte: { tenantId, numero: { startsWith: '443' } }, ecriture: { tenantId } },
+      select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } },
+      take: 500,
+    });
+    const parCompte = new Map<string, { numero: string; montant: number }>();
+    for (const l of tva) {
+      const k = parCompte.get(l.compteId) ?? { numero: l.compte.numero, montant: 0 };
+      k.montant += n(l.credit) - n(l.debit);
+      parCompte.set(l.compteId, k);
+    }
+    if (parCompte.size !== 1) {
+      return rendu(null, parCompte.size === 0 ? 'Les factures lettrées ne portent aucune TVA facturée.' : 'Les factures lettrées portent plusieurs comptes de TVA · choisissez.');
+    }
+    const [[compteTvaId, k]] = [...parCompte.entries()];
+    const ttcFactures = factures.reduce((s, f) => s + n(f.debit), 0);
+    // La TVA des factures, ramenée à la créance reclassée quand celle-ci n'en
+    // reprend qu'une part (même prorata que la borne de la récupération).
+    const tvaFacturee = ttcFactures > 0 ? plafondTvaRecuperable(k.montant, Math.min(n(c.montant), ttcFactures), ttcFactures) : 0;
+    return rendu({ compteTvaId, numero: k.numero, tvaFactureeCreance: tvaFacturee }, null);
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable. */

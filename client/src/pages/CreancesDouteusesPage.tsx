@@ -73,6 +73,12 @@ interface Liste {
   creances: CreanceDouteuse[];
   rapprochement: { provisoire: boolean; solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
 }
+interface TvaOrigine {
+  assujetti: boolean;
+  comptes443: { id: string; numero: string; intitule: string }[];
+  proposition: { compteTvaId: string; numero: string; tvaFactureeCreance: number } | null;
+  raison: string | null;
+}
 interface PropositionRevue {
   depreciationEnPlace: number;
   resteALaCloture: number;
@@ -92,6 +98,13 @@ interface Formulaire {
   montant: string;
   depreciationOuverture: string;
   source: string;
+  // E2 · la récupération de la TVA d'une créance irrécouvrable, sur demande.
+  recupererTva: boolean;
+  compteTvaId: string;
+  tvaFacturee: string;
+  tvaRecuperee: string;
+  duplicataReference: string;
+  duplicataDate: string;
   motif: string;
   pieces: PieceSaisie[];
 }
@@ -116,6 +129,7 @@ export function CreancesDouteusesPage() {
   const [journaux, setJournaux] = useState<Journal[] | null>(null);
   const [comptes, setComptes] = useState<ComptesFormulaire | null>(null);
   const [comptes651, setComptes651] = useState<Compte[] | null>(null);
+  const [tvaOrigine, setTvaOrigine] = useState<TvaOrigine | null>(null);
   const [form, setForm] = useState<Formulaire | null>(null);
   const [proposition, setProposition] = useState<PropositionRevue | null>(null);
   const [erreurForm, setErreurForm] = useState<string | null>(null);
@@ -157,6 +171,12 @@ export function CreancesDouteusesPage() {
       montant: geste === 'perte' || geste === 'recouvrement' ? String(creance?.resteALaCloture ?? '') : '',
       depreciationOuverture: '',
       source: '',
+      recupererTva: false,
+      compteTvaId: '',
+      tvaFacturee: '',
+      tvaRecuperee: '',
+      duplicataReference: '',
+      duplicataDate: '',
       motif: '',
       pieces: [{ nature: '', reference: '', date: '' }],
     });
@@ -166,6 +186,23 @@ export function CreancesDouteusesPage() {
     }
     if (geste === 'revue' && creance) {
       api.get<PropositionRevue>(`/creances-douteuses/${creance.id}/revue?exerciceId=${encodeURIComponent(exerciceId)}`).then(setProposition, (e) => setErreurForm(messageDe(e)));
+    }
+    if (geste === 'perte' && creance) {
+      setTvaOrigine(null);
+      api.get<TvaOrigine>(`/creances-douteuses/${creance.id}/tva-origine`).then(
+        (t) => {
+          setTvaOrigine(t);
+          // La proposition lue par le lettrage préremplit, jamais elle ne coche.
+          setForm((f) =>
+            f && t.proposition
+              ? { ...f, compteTvaId: t.proposition.compteTvaId, tvaFacturee: String(t.proposition.tvaFactureeCreance) }
+              : f && t.comptes443.length === 1
+                ? { ...f, compteTvaId: t.comptes443[0].id }
+                : f,
+          );
+        },
+        (e) => setErreurForm(messageDe(e)),
+      );
     }
     if (geste === 'perte' && !creance?.comptePertePropose) {
       api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(
@@ -230,11 +267,25 @@ export function CreancesDouteusesPage() {
       } else if (form.geste === 'revue') {
         await api.post(`/creances-douteuses/${form.creance!.id}/revue`, { ...commun, depreciationNecessaire: necessaire });
       } else if (form.geste === 'perte') {
+        const tva = form.recupererTva ? montantSaisi(form.tvaRecuperee) : null;
+        const facturee = form.recupererTva ? montantSaisi(form.tvaFacturee) : null;
+        if (form.recupererTva && (tva == null || facturee == null)) {
+          throw new Error('Saisissez la TVA facturée et la TVA récupérée · un champ vide n’est pas zéro.');
+        }
         await api.post(`/creances-douteuses/${form.creance!.id}/perte`, {
           ...commun,
           date: form.date,
           montant: valeur,
           comptePerteId: form.comptePerteId || undefined,
+          recuperationTva: form.recupererTva
+            ? {
+                compteTvaId: form.compteTvaId,
+                tvaRecuperee: tva,
+                tvaFactureeCreance: facturee,
+                duplicataReference: form.duplicataReference,
+                duplicataDateEnvoi: form.duplicataDate,
+              }
+            : undefined,
         });
       } else {
         await api.post(`/creances-douteuses/${form.creance!.id}/recouvrement`, { ...commun, date: form.date, montant: valeur });
@@ -533,6 +584,59 @@ export function CreancesDouteusesPage() {
                         <>
                           <span />
                           <span className="text-text-dim">{motifListe651Vide(comptes651)}</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {form.geste === 'perte' && (
+                    <>
+                      <span />
+                      <label className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={form.recupererTva} onChange={(e) => champ('recupererTva', e.target.checked)} />
+                        Récupérer la TVA de la créance
+                        <Aide
+                          titre="TVA d'une créance irrécouvrable"
+                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. La récupération s'inscrit dans la déclaration du mois SUIVANT la constatation."
+                          source="O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127"
+                        />
+                      </label>
+                      {form.recupererTva && (
+                        <>
+                          {tvaOrigine && !tvaOrigine.assujetti && (
+                            <>
+                              <span />
+                              <span className="text-rouge">Le dossier n'est pas déclaré assujetti à la TVA · la récupération sera refusée.</span>
+                            </>
+                          )}
+                          {tvaOrigine?.raison && (
+                            <>
+                              <span />
+                              <span className="text-text-dim">{tvaOrigine.raison}</span>
+                            </>
+                          )}
+                          <label className="text-right">Compte 443 :</label>
+                          <select required value={form.compteTvaId} onChange={(e) => champ('compteTvaId', e.target.value)} className="border border-border-dark px-2 py-1">
+                            <option value="">Choisir</option>
+                            {(tvaOrigine?.comptes443 ?? []).map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.numero} · {c.intitule}
+                              </option>
+                            ))}
+                          </select>
+                          {tvaOrigine && tvaOrigine.comptes443.length === 0 && (
+                            <>
+                              <span />
+                              <span className="text-text-dim">Aucun compte 443 de détail au plan · ouvrez-le dans Plan comptable.</span>
+                            </>
+                          )}
+                          <label className="text-right">TVA facturée (créance) :</label>
+                          <input required inputMode="decimal" value={form.tvaFacturee} onChange={(e) => champ('tvaFacturee', e.target.value)} className="border border-border-dark px-2 py-1" />
+                          <label className="text-right">TVA récupérée :</label>
+                          <input required inputMode="decimal" value={form.tvaRecuperee} onChange={(e) => champ('tvaRecuperee', e.target.value)} className="border border-border-dark px-2 py-1" />
+                          <label className="text-right">Duplicata, référence :</label>
+                          <input required maxLength={200} value={form.duplicataReference} onChange={(e) => champ('duplicataReference', e.target.value)} className="border border-border-dark px-2 py-1" />
+                          <label className="text-right">Duplicata, envoyé le :</label>
+                          <input type="date" required value={form.duplicataDate} onChange={(e) => champ('duplicataDate', e.target.value)} className="border border-border-dark px-2 py-1" />
                         </>
                       )}
                     </>

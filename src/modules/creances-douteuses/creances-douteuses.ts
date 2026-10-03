@@ -331,6 +331,99 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
 }
 
 /**
+ * LA TVA D'UNE CRÉANCE IRRÉCOUVRABLE (E2, décision de Manasse du 2026-10-03,
+ * « réfère-toi à la loi »).
+ *  - O.-L. n° 10/001, art. 52 · la TVA « acquittée à l'occasion des ventes ou
+ *    des services qui [...] restent impayés peut être récupérée par voie
+ *    d'imputation sur l'impôt dû pour les opérations faites ultérieurement » ;
+ *    « lorsque la créance est réellement et définitivement irrécouvrable, la
+ *    rectification de la facture consiste en l'envoi d'un duplicata de la
+ *    facture initiale ».
+ *  - Décret n° 011/42, art. 126 · inscrite « dans les déductions afférentes à
+ *    la déclaration du ou des mois suivants celui de la constatation [...] de
+ *    non-paiement ».
+ *  - Décret n° 011/42, art. 127 · duplicata surchargé de la mention « FACTURE
+ *    DEMEUREE IMPAYEE POUR LA SOMME DE ... PRIX HORS TVA ET POUR LA SOMME DE
+ *    ... TVA CORRESPONDANTE QUI NE PEUT FAIRE L'OBJET D'UNE DEDUCTION » ; « La
+ *    preuve de la créance irrécouvrable incombe à l'assujetti ».
+ *  - AUDCIF, fiche du compte 70 · « le compte 443 est débité des taxes
+ *    facturées des retours sur ventes », par le crédit du 41.
+ * D'où l'écriture · D 651 pour le hors taxe, D 443 pour la TVA récupérée, C 416
+ * pour le TTC sorti. JAMAIS D'OFFICE · sans ces conditions, la perte reste
+ * D 651 / C 416 pour le TTC entier.
+ */
+export interface EntreeRecuperationTva {
+  assujetti: boolean;
+  /** Le montant TTC sorti du 416 par la perte. */
+  montantSorti: number;
+  /** Le montant de la créance reclassée ou déclarée. */
+  montantCreance: number;
+  tvaRecuperee: number;
+  /** La TVA facturée que portait la créance entière. */
+  tvaFactureeCreance: number | null | undefined;
+  numeroCompteTva: string | null;
+  compteTvaEstDetail: boolean;
+  duplicataReference: string | null | undefined;
+  duplicataDateEnvoi: string | null | undefined;
+  /** Date de la perte, AAAA-MM-JJ. */
+  datePerte: string;
+}
+
+/** La TVA récupérable au plus · le prorata de la TVA facturée sur la part sortie. */
+export function plafondTvaRecuperable(tvaFactureeCreance: number, montantSorti: number, montantCreance: number): number {
+  if (!(montantCreance > 0)) return 0;
+  return centimes((tvaFactureeCreance * montantSorti) / montantCreance);
+}
+
+/** La ventilation de la perte · hors taxe au 651 et TVA au 443, leur somme égale au TTC sorti au centime. */
+export function ventilationPerte(montantSorti: number, tvaRecuperee: number): { horsTaxe: number; tva: number } {
+  const tva = centimes(tvaRecuperee);
+  return { horsTaxe: centimes(centimes(montantSorti) - tva), tva };
+}
+
+export function motifRefusRecuperationTva(e: EntreeRecuperationTva): string | null {
+  if (!e.assujetti) {
+    return (
+      "Le dossier n'est pas déclaré assujetti à la TVA (Paramètres du dossier) · il n'a pas acquitté de TVA à récupérer " +
+      '(O.-L. n° 10/001, art. 52). La perte passe au TTC entier.'
+    );
+  }
+  if (!e.numeroCompteTva || !e.numeroCompteTva.startsWith('443') || !e.compteTvaEstDetail) {
+    return (
+      'Choisissez le compte de TVA facturée de la vente d’origine, un compte de détail du 443 · la fiche du compte 70 débite le ' +
+      '443 « des taxes facturées des retours sur ventes ».'
+    );
+  }
+  const facturee = e.tvaFactureeCreance;
+  if (facturee == null || !(facturee > 0) || facturee >= e.montantCreance) {
+    return 'Déclarez la TVA facturée que portait la créance · positive, et inférieure à la créance taxe comprise.';
+  }
+  if (!(e.tvaRecuperee > 0)) return 'La TVA récupérée doit être positive.';
+  const plafond = plafondTvaRecuperable(facturee, e.montantSorti, e.montantCreance);
+  if (centimes(e.tvaRecuperee) > plafond + 0.005) {
+    return (
+      `La TVA récupérée (${centimes(e.tvaRecuperee).toFixed(2)}) dépasse le prorata de la TVA facturée sur la part perdue ` +
+      `(${plafond.toFixed(2)}) · seule la TVA de la créance demeurée impayée se récupère (art. 52).`
+    );
+  }
+  if (!e.duplicataReference || e.duplicataReference.trim().length === 0 || !e.duplicataDateEnvoi) {
+    return (
+      'Le duplicata surchargé envoyé au client est exigé, avec sa référence et sa date d’envoi · « la rectification de la facture ' +
+      'consiste en l’envoi d’un duplicata de la facture initiale » (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127, mention ' +
+      '« FACTURE DEMEUREE IMPAYEE »).'
+    );
+  }
+  if (e.duplicataDateEnvoi.slice(0, 10) > e.datePerte.slice(0, 10)) {
+    return 'Le duplicata doit avoir été envoyé au plus tard le jour de la perte · c’est lui qui rectifie la facture.';
+  }
+  const v = ventilationPerte(e.montantSorti, e.tvaRecuperee);
+  if (!(v.horsTaxe > 0) || centimes(v.horsTaxe + v.tva) !== centimes(e.montantSorti)) {
+    return 'Le hors taxe et la TVA doivent faire, au centime, le montant TTC sorti du 416.';
+  }
+  return null;
+}
+
+/**
  * LA DÉPRÉCIATION EN PLACE D'UNE CRÉANCE avant une date · la dépréciation
  * DÉCLARÉE à l'ouverture d'un dossier repris (si la déclaration est datée au
  * plus tard ce jour) plus les écarts des revues antérieures du module.

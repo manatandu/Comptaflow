@@ -654,8 +654,17 @@ revue, même annulée, ne se retire plus. (E1, décision de Manasse du 2026-10-0
 LA BASE EST LE TTC INSCRIT AU 416 · la fiche du 49 compare à la « valeur
 comptable », que la fiche du 41 inscrit taxe comprise (crédit de la classe 7 hors
 taxes ET du 443) ; la seule mention « hors TVA » du corpus (Titre VIII ch. 15
-§ 1.3.1) vise l'ABANDON de créance. NON TRANCHÉ · TVA d'une créance irrécouvrable
-(O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127) · la perte passe au TTC.
+§ 1.3.1) vise l'ABANDON de créance. (E2) LA TVA D'UNE CRÉANCE IRRÉCOUVRABLE SE
+RÉCUPÈRE AU GESTE DE PERTE, sur demande · D 651 hors taxe, D 443 TVA (fiche du compte
+70, « débité des taxes facturées des retours »), C 416 TTC, au centime. Conditions,
+chacune refusée par son motif (`motifRefusRecuperationTva`) · dossier déclaré
+assujetti, 443 de détail choisi (proposé par le LETTRAGE du 411 avec les factures,
+`tvaOrigine`, jamais deviné ; au SYCEBNL, les 443 réellement semés), TVA au plus le
+PRORATA de la TVA facturée sur la part perdue, DUPLICATA SURCHARGÉ envoyé (référence
+et date, au plus tard la perte · O.-L. n° 10/001, art. 52 ; décret n° 011/42,
+art. 127). Sans elles, la perte passe au TTC entier ; rien d'office. La récupération
+s'inscrit dans la déclaration du mois SUIVANT (art. 126), dit à l'écran · la ligne du
+443 ne porte pas de taux, la déclaration ne la reprend pas d'elle-même.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

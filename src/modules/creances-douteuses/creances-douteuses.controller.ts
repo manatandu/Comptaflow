@@ -40,6 +40,12 @@ export class CreancesDouteusesController {
     return this.service.comptes(user.tenantId, exerciceId);
   }
 
+  /** E2 · la TVA facturée de la vente d'origine, proposée par le lettrage, et les 443 de détail du plan. */
+  @Get(':id/tva-origine')
+  tvaOrigine(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.tvaOrigine(user.tenantId, id);
+  }
+
   @Get(':id/revue')
   propositionRevue(
     @CurrentUser() user: AuthenticatedUser,

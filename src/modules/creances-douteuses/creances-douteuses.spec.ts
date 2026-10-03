@@ -24,6 +24,9 @@ import {
   motifRefusDeclaration,
   motifRefusMouvement,
   motifRefusReclassement,
+  motifRefusRecuperationTva,
+  plafondTvaRecuperable,
+  ventilationPerte,
   motifRefusRevue,
   piecesLisibles,
   resteDeLaCreance,
@@ -725,5 +728,142 @@ describe('créances douteuses · E1, la base est le TTC inscrit au 416 (décisio
   it('une vente de 1 000 000 HT et 160 000 de TVA se déprécie jusqu’au TTC de 1 160 000, jamais au-delà', () => {
     expect(motifRefusRevue({ ...revue, necessaire: 1_160_000 })).toBeNull();
     expect(motifRefusRevue({ ...revue, necessaire: 1_160_000.01 })).toContain('jamais plus que la créance');
+  });
+});
+
+describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127)', () => {
+  const base = {
+    assujetti: true,
+    montantSorti: 1_160_000,
+    montantCreance: 1_160_000,
+    tvaRecuperee: 160_000,
+    tvaFactureeCreance: 160_000,
+    numeroCompteTva: '44310000',
+    compteTvaEstDetail: true,
+    duplicataReference: 'DUP-2026-14',
+    duplicataDateEnvoi: '2026-12-15',
+    datePerte: '2026-12-20',
+  };
+
+  it('passe, et chaque condition manquante est refusée par un motif nommé', () => {
+    expect(motifRefusRecuperationTva(base)).toBeNull();
+    expect(motifRefusRecuperationTva({ ...base, assujetti: false })).toContain('pas déclaré assujetti');
+    expect(motifRefusRecuperationTva({ ...base, numeroCompteTva: '44520000' })).toContain('443');
+    expect(motifRefusRecuperationTva({ ...base, compteTvaEstDetail: false })).toContain('443');
+    expect(motifRefusRecuperationTva({ ...base, tvaFactureeCreance: null })).toContain('TVA facturée');
+    expect(motifRefusRecuperationTva({ ...base, duplicataReference: ' ' })).toContain('duplicata surchargé');
+    expect(motifRefusRecuperationTva({ ...base, duplicataDateEnvoi: null })).toContain('duplicata surchargé');
+    expect(motifRefusRecuperationTva({ ...base, duplicataDateEnvoi: '2026-12-21' })).toContain('au plus tard le jour de la perte');
+  });
+
+  it('au plus le prorata de la TVA facturée sur la part perdue', () => {
+    // Perte de la moitié de la créance · au plus la moitié de la TVA.
+    expect(plafondTvaRecuperable(160_000, 580_000, 1_160_000)).toBe(80_000);
+    expect(motifRefusRecuperationTva({ ...base, montantSorti: 580_000, tvaRecuperee: 80_000 })).toBeNull();
+    expect(motifRefusRecuperationTva({ ...base, montantSorti: 580_000, tvaRecuperee: 80_000.01 })).toContain('prorata');
+  });
+
+  it('hors taxe et TVA font le TTC sorti au centime', () => {
+    expect(ventilationPerte(1_160_000, 160_000)).toEqual({ horsTaxe: 1_000_000, tva: 160_000 });
+    const v = ventilationPerte(333.33, 45.98);
+    expect(Math.round((v.horsTaxe + v.tva) * 100)).toBe(33333);
+  });
+
+  function monterE2(assujettiTva: boolean, lettrageId: string | null = 'let-1') {
+    let rang = 0;
+    const creer = jest.fn().mockImplementation(() => Promise.resolve({ id: `ecr-${++rang}` }));
+    const plan: Record<string, { id: string; numero: string; typeCompte: TypeCompteDetailTotal }> = {
+      c6511: { id: 'c6511', numero: '65110000', typeCompte: TypeCompteDetailTotal.DETAIL },
+      c4431: { id: 'c4431', numero: '44310000', typeCompte: TypeCompteDetailTotal.DETAIL },
+    };
+    const prisma: any = {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: 'NORMAL', assujettiTva }) },
+      verrouCreancesDouteuses: { deleteMany: jest.fn().mockResolvedValue({}), create: jest.fn().mockResolvedValue({ id: 'v' }), findFirst: jest.fn() },
+      exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex-26', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: StatutExercice.OUVERT }) },
+      journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od', code: 'OD', type: TypeJournal.GENERAL, compteTresorerieId: null }) },
+      compte: {
+        findFirst: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(where.id ? plan[where.id] ?? null : Object.values(plan).find((c) => c.numero.startsWith(where.numero.startsWith)) ?? null),
+        ),
+        findMany: jest.fn().mockResolvedValue([{ id: 'c4431', numero: '44310000', intitule: 'TVA facturée sur ventes' }]),
+      },
+      ligneEcriture: {
+        findFirst: jest.fn().mockResolvedValue({ lettrageId }),
+        findMany: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(
+            where.lettrageId
+              ? [{ ecritureId: 'fac-1', debit: 1_160_000 }]
+              : [{ compteId: 'c4431', debit: 0, credit: 160_000, compte: { numero: '44310000' } }],
+          ),
+        ),
+      },
+      creanceDouteuse: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'cd-1',
+          compteCreance: { id: 'cli', numero: '41110001', intitule: 'Kasa', tiersCompte: null },
+          compte416: { id: 'c4162', numero: '41620000', intitule: '4162' },
+          compte491: { id: 'c4912', numero: '49120000', intitule: '4912' },
+          dateReclassement: new Date('2026-11-15'),
+          montant: 1_160_000,
+          declareeOuverture: false,
+          depreciationOuverture: 0,
+          ecritureReclassementId: 'ecr-r',
+          ajustements: [],
+          mouvements: [],
+        }),
+      },
+      mouvementCreanceDouteuse: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'mv', ...data })) },
+      $transaction: (f: (tx: unknown) => unknown) => f(prisma),
+    };
+    const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation: jest.fn() } as any);
+    return { service, creer, prisma };
+  }
+  const dto = {
+    exerciceId: 'ex-26',
+    journalId: 'od',
+    date: '2026-12-20',
+    montant: 1_160_000,
+    motif: 'Irrécouvrable',
+    pieces: [{ nature: 'PV de carence', reference: 'H-12' }],
+    recuperationTva: { compteTvaId: 'c4431', tvaRecuperee: 160_000, tvaFactureeCreance: 160_000, duplicataReference: 'DUP-14', duplicataDateEnvoi: '2026-12-15' },
+  };
+
+  it('la perte avec récupération passe D 651 hors taxe, D 443 TVA, C 416 TTC, et garde le duplicata', async () => {
+    const { service, creer, prisma } = monterE2(true);
+    await service.perte('t', 'u', 'cd-1', dto);
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c6511', debit: 1_000_000, credit: 0 },
+      { compteId: 'c4431', debit: 160_000, credit: 0 },
+      { compteId: 'c4162', debit: 0, credit: 1_160_000 },
+    ]);
+    expect(prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data).toMatchObject({
+      tvaRecuperee: 160_000,
+      compteTvaId: 'c4431',
+      duplicataReference: 'DUP-14',
+      duplicataDateEnvoi: new Date('2026-12-15'),
+    });
+  });
+
+  it('un dossier non assujetti est refusé avant toute écriture ; sans demande, la perte passe au TTC entier', async () => {
+    const non = monterE2(false);
+    await expect(non.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow('pas déclaré assujetti');
+    expect(non.creer).not.toHaveBeenCalled();
+    const { recuperationTva: _r, ...sansRecup } = dto;
+    await non.service.perte('t', 'u', 'cd-1', sansRecup);
+    expect(non.creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c6511', debit: 1_160_000, credit: 0 },
+      { compteId: 'c4162', debit: 0, credit: 1_160_000 },
+    ]);
+  });
+
+  it('la TVA d’origine se propose par le lettrage du 411, jamais devinée sans lui', async () => {
+    const { service } = monterE2(true);
+    expect(await service.tvaOrigine('t', 'cd-1')).toMatchObject({
+      assujetti: true,
+      proposition: { compteTvaId: 'c4431', numero: '44310000', tvaFactureeCreance: 160_000 },
+      raison: null,
+    });
+    const sans = monterE2(true, null);
+    expect(await sans.service.tvaOrigine('t', 'cd-1')).toMatchObject({ proposition: null, raison: expect.stringContaining('pas lettré') });
   });
 });

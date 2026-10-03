@@ -85,6 +85,25 @@ export class RevoirDepreciationDto extends MotifEtPiecesDto {
   depreciationNecessaire!: number;
 }
 
+/** La TVA d'une créance irrécouvrable, récupérée sur duplicata (décret n° 011/42, art. 127). */
+export class RecuperationTvaDto {
+  @IsUUID('4')
+  compteTvaId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  tvaRecuperee!: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  tvaFactureeCreance!: number;
+
+  @IsString()
+  @MaxLength(200)
+  duplicataReference!: string;
+
+  @IsDateString()
+  duplicataDateEnvoi!: string;
+}
+
 /** La perte sur créance irrécouvrable (fiche du compte 65). */
 export class PerteCreanceDto extends MotifEtPiecesDto {
   @IsUUID('4')
@@ -103,7 +122,14 @@ export class PerteCreanceDto extends MotifEtPiecesDto {
   @IsOptional()
   @IsUUID('4')
   comptePerteId?: string;
+
+  /** E2 · la récupération de la TVA (O.-L. n° 10/001, art. 52) · absente, la perte passe au TTC entier. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RecuperationTvaDto)
+  recuperationTva?: RecuperationTvaDto;
 }
+
 
 /** L'encaissement d'une créance reclassée · D trésorerie / C 416. */
 export class RecouvrementCreanceDto extends MotifEtPiecesDto {
