@@ -1,9 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { EditionInventaireImprimee } from '../components/EditionsInventaire';
-import { cheminEdition, jourImprime, LIBELLE_DECISION_ECART, LIBELLE_SENS_ECART, quantiteImprimee } from './editions-inventaire';
+import {
+  cheminEdition,
+  jourImprime,
+  LIBELLE_DECISION_ECART,
+  LIBELLE_SENS_ECART,
+  lignesPvCaisse,
+  quantiteImprimee,
+  tableCaisses,
+  tableCoupures,
+  tableEcarts,
+  tableFichesVierges,
+  tableReleve,
+  tableTotauxParCompte,
+} from './editions-inventaire';
+import { montant } from './montants';
 import type { CampagneEdition, EditionFichesVierges, EditionPvCaisse, EditionPvInventaire } from './types';
 
 /**
@@ -17,6 +28,10 @@ import type { CampagneEdition, EditionFichesVierges, EditionPvCaisse, EditionPvI
  * (ligne A10). (4) Une signature préremplie. (5) L'impression de la fenêtre
  * entière au lieu de l'édition · `avec-edition` n'est posé que pendant
  * qu'une édition est préparée, et l'édition est un enfant direct.
+ *
+ * Les cellules sont relues telles qu'elles seront imprimées, construites par
+ * `editions-inventaire.ts` · le composant ne fait que les poser, et le spec
+ * ne monte pas React (`specs-sans-react.spec.ts`).
  */
 
 const CAMPAGNE: CampagneEdition = {
@@ -35,12 +50,6 @@ const SC = {
   inventoriants: [{ nom: 'Kabila', fonction: 'Magasinier' }],
   temoins: [{ nom: 'Mutombo', fonction: null }],
 };
-
-const rendu = (e: Parameters<typeof EditionInventaireImprimee>[0]['edition']) =>
-  renderToStaticMarkup(createElement(EditionInventaireImprimee, { edition: e }));
-
-/** Le texte des cellules d'un rendu, dans l'ordre. */
-const cellules = (html: string) => [...html.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1].replace(/<[^>]+>/g, ''));
 
 describe('chemins, libellés et formats', () => {
   it('les trois routes de lecture, sous-commission encodée', () => {
@@ -90,16 +99,13 @@ describe('fiches de comptage vierges', () => {
   };
 
   it('chaque ligne porte désignation, compte, lieu, unité, puis trois cases VIDES', () => {
-    const html = rendu(e);
-    expect(cellules(html)).toEqual([
-      '1', 'Bureau', '24410000 · Mobilier', 'B2 · Direction', 'unité', '', '', '',
-      '2', 'Riz', '31100000 · Marchandises', 'Lieu non renseigné', '·', '', '', '',
-    ]);
-    expect(html).toContain('Toutes les sous-commissions · 2 fiches');
-    expect(html).toContain('Inventoriants · Kabila, Magasinier');
-    expect(html).toContain('Témoins · Mutombo');
-    // Seule imprimée · la fenêtre ne s'imprime pas avec elle.
-    expect(html.startsWith('<div class="impression-seul')).toBe(true);
+    expect(tableFichesVierges(e.sections[0], e.colonnesARemplir)).toEqual({
+      colonnes: ['N°', 'Désignation', 'Compte', 'Lieu', 'Unité', 'Quantité comptée', "Valeur d'inventaire", 'Pièce de référence'],
+      lignes: [
+        ['1', 'Bureau', '24410000 · Mobilier', 'B2 · Direction', 'unité', '', '', ''],
+        ['2', 'Riz', '31100000 · Marchandises', 'Lieu non renseigné', '·', '', '', ''],
+      ],
+    });
   });
 });
 
@@ -112,48 +118,71 @@ describe('procès-verbal d’inventaire physique', () => {
     sousCommissions: [SC],
     releve: [
       { designation: 'Riz', compte: '31100000 · Marchandises', lieu: 'Magasin', unite: 'sac', quantite: null, valeur: null, piece: null, sousCommission: 'Magasin' },
+      { designation: 'Bureau', compte: '24410000 · Mobilier', lieu: 'B2', unite: 'unité', quantite: 1, valeur: 1150000, piece: 'FA-31', sousCommission: null },
     ],
-    totauxParCompte: [{ compte: '31100000 · Marchandises', nombreFiches: 1, valeurInventaire: null, nonValorisees: 1 }],
+    totauxParCompte: [
+      { compte: '24410000 · Mobilier', nombreFiches: 1, valeurInventaire: 1150000, nonValorisees: 0 },
+      { compte: '31100000 · Marchandises', nombreFiches: 1, valeurInventaire: null, nonValorisees: 1 },
+    ],
     rapprochee: true,
     ecarts: [
       {
-        compte: '31100000 · Marchandises',
-        valeurInventaire: 900,
-        soldeComptable: 1000,
-        ecart: -100,
+        compte: '24410000 · Mobilier',
+        valeurInventaire: 1150000,
+        soldeComptable: 1200000,
+        ecart: -50000,
         sens: 'MANQUANT',
         nombreFiches: 1,
         rapprocheLe: '2027-01-05T00:00:00.000Z',
         decision: 'A_REDRESSER',
-        responsable: 'Magasinier',
+        responsable: 'Intendant',
         explication: null,
         arbitreLe: null,
       },
     ],
-    caisses: [],
+    caisses: [
+      {
+        pvId: 'pv1',
+        caisse: '57110000 · Caisse siège',
+        dateComptage: '2027-01-10T00:00:00.000Z',
+        heureComptage: '08:30',
+        sousCommission: 'Magasin',
+        unite: 'USD',
+        especesComptees: 1400,
+        soldeComptable: 1500,
+        ecart: -100,
+      },
+    ],
     signataires: { inventoriants: [{ nom: 'Kabila', fonction: 'Magasinier', sousCommission: 'Magasin' }], temoins: [] },
-    mentions: ['Procès-verbal non établi dans OmegaX · document de travail.', '1 fiche sans quantité comptée.'],
+    mentions: ['Procès-verbal non établi dans OmegaX · document de travail.'],
   };
 
-  it('null s’imprime « · », le total d’un compte non valorisé le dit, l’écart a son sens et sa décision', () => {
-    const html = rendu(e);
-    const c = cellules(html);
-    expect(c.slice(0, 8)).toEqual(['Riz', '31100000 · Marchandises', 'Magasin', 'sac', '·', '·', '·', 'Magasin']);
-    expect(c).toContain('1 fiche(s) non valorisée(s)');
-    expect(c).toContain('Manquant');
-    expect(c).toContain('À redresser');
-    expect(html).toContain('Procès-verbal non établi');
-    for (const m of e.mentions) expect(html).toContain(m);
-    // Aucun « 0,00 » dans une ligne qui n'a rien de compté.
-    expect(c.slice(0, 8)).not.toContain('0,00');
-    // Le témoin manquant se dit, la signature reste une case vide.
-    expect(html).toContain('Aucun enregistré.');
-    expect(html).toContain('<div class="flex-1 h-7 border-b border-black"></div>');
+  it('null s’imprime « · », jamais « 0,00 » · le reste passe par lib/montants.ts', () => {
+    expect(tableReleve(e).lignes).toEqual([
+      ['Riz', '31100000 · Marchandises', 'Magasin', 'sac', '·', '·', '·', 'Magasin'],
+      ['Bureau', '24410000 · Mobilier', 'B2', 'unité', '1', montant(1150000), 'FA-31', '·'],
+    ]);
+  });
+
+  it('le total d’un compte non valorisé dit son manque au lieu d’un chiffre', () => {
+    expect(tableTotauxParCompte(e).lignes).toEqual([
+      ['24410000 · Mobilier', '1', montant(1150000)],
+      ['31100000 · Marchandises', '1', '1 fiche(s) non valorisée(s)'],
+    ]);
+  });
+
+  it('l’écart a son sens et sa décision en mots, la caisse son unité', () => {
+    expect(tableEcarts(e).lignes).toEqual([
+      ['24410000 · Mobilier', montant(1150000), montant(1200000), montant(-50000), 'Manquant', 'À redresser', 'Intendant', '·'],
+    ]);
+    expect(tableCaisses(e).lignes).toEqual([
+      ['57110000 · Caisse siège', '10/01/2027 à 08:30', 'Magasin', `${montant(1400)} USD`, `${montant(1500)} USD`, `${montant(-100)} USD`],
+    ]);
   });
 });
 
 describe('procès-verbal de comptage de caisse', () => {
-  const e: EditionPvCaisse = {
+  const base: EditionPvCaisse = {
     nature: 'PROCES_VERBAL_CAISSE',
     titre: 'Procès-verbal de comptage de caisse',
     campagne: CAMPAGNE,
@@ -164,43 +193,64 @@ describe('procès-verbal de comptage de caisse', () => {
     heureComptage: '08:30',
     unite: null,
     modeComparaison: 'FRANCS',
-    especesComptees: 140000,
-    soldeComptable: 150000,
-    ecart: -10000,
+    especesComptees: 519000,
+    soldeComptable: 520000,
+    ecart: -1000,
     reconstitution: {
       dateCloture: '2026-12-31T00:00:00.000Z',
-      soldeALaCloture: 100000,
+      soldeALaCloture: 500000,
       mouvementsValeurAvantCloture: 0,
-      encaissementsPosterieurs: 80000,
-      decaissementsPosterieurs: 30000,
-      mouvementsPosterieurs: 3,
-      especesReconstitueesALaCloture: 90000,
+      encaissementsPosterieurs: 30000,
+      decaissementsPosterieurs: 10000,
+      mouvementsPosterieurs: 2,
+      especesReconstitueesALaCloture: 499000,
     },
     compteApresLaCloture: true,
     reconstitutionManquante: false,
-    coupures: [],
-    totalCoupures: null,
+    coupures: [
+      { valeurUnitaire: 20000, nombre: 25, total: 500000 },
+      { valeurUnitaire: 1000, nombre: 19, total: 19000 },
+    ],
+    totalCoupures: 519000,
     attestation: null,
     observations: null,
     etabli: { le: '2027-01-10T00:00:00.000Z', par: 'chef@cabinet.cd' },
     mentions: ['Mention écrite par le serveur, reprise telle quelle.'],
   };
 
-  it('reprend les chiffres et les mentions servis, sans rien recomposer', () => {
-    const html = rendu(e);
-    expect(html).toContain('Mention écrite par le serveur, reprise telle quelle.');
-    const c = cellules(html);
-    expect(c[0]).toBe('Solde à la clôture du 31/12/2026');
-    expect(c).toContain('Espèces reconstituées à la clôture');
-    expect(html).toContain('Aucune attestation enregistrée');
-    expect(html).toContain('manquant');
-    expect(html).not.toContain('Ventilation par coupure');
+  it('compté après la clôture · la reconstitution figée, dans l’ordre de l’écran', () => {
+    expect(lignesPvCaisse(base)).toEqual([
+      ['Solde à la clôture du 31/12/2026', montant(500000)],
+      ['+ Encaissements jusqu’au comptage (2 ligne(s) au total)', montant(30000)],
+      ['− Paiements jusqu’au comptage', montant(10000)],
+      ['Solde au livre-journal au jour du comptage', montant(520000)],
+      ['Espèces comptées', montant(519000)],
+      ['Espèces reconstituées à la clôture', montant(499000)],
+      ['Écart', `${montant(-1000)} · manquant`],
+    ]);
+    expect(tableCoupures(base)?.lignes).toEqual([
+      [montant(20000), '25', montant(500000)],
+      [montant(1000), '19', montant(19000)],
+      ['Total', '', montant(519000)],
+    ]);
   });
 
-  const source = readFileSync(join(__dirname, '../components/EditionsInventaire.tsx'), 'utf8');
-  it('l’édition n’importe ni le calcul des mentions ni un formatage de montant à elle', () => {
-    expect(source).toContain("from '../lib/montants'");
-    expect(source).not.toMatch(/mentionsDuPv|toFixed\(/);
+  it('compté à la clôture, sans coupures · ni reconstitution ni tableau de coupures', () => {
+    const e = { ...base, reconstitution: null, compteApresLaCloture: false, coupures: [], totalCoupures: null, ecart: 0, unite: 'USD' };
+    expect(lignesPvCaisse(e)).toEqual([
+      ['Solde au livre-journal au jour du comptage', `${montant(520000)} USD`],
+      ['Espèces comptées', `${montant(519000)} USD`],
+      ['Écart', `${montant(0)} USD · aucun écart`],
+    ]);
+    expect(tableCoupures(e)).toBeNull();
+  });
+
+  it('le composant pose les mentions servies et ne recalcule rien', () => {
+    const source = readFileSync(join(__dirname, '../components/EditionsInventaire.tsx'), 'utf8');
+    expect(source).toContain('<Mentions mentions={e.mentions} />');
+    expect(source).not.toMatch(/mentionsDuPv|toFixed\(|toLocaleString\(/);
+    // Les signatures restent des cases blanches · aucun nom n'y est écrit.
+    expect(source).toContain('<div className="flex-1 h-7 border-b border-black" />');
   });
 });
 
@@ -212,12 +262,14 @@ describe('la fenêtre Inventaire imprime l’édition, et elle seule', () => {
     expect(page).toMatch(/\{edition && <EditionInventaireImprimee edition=\{edition\} \/>\}/);
     // L'en-tête porte l'exercice DE LA CAMPAGNE, pas celui du sélecteur.
     expect(page).toContain('exercice={edition?.campagne.exercice}');
+    const composant = readFileSync(join(__dirname, '../components/EditionsInventaire.tsx'), 'utf8');
+    expect(composant).toContain('<div className="impression-seul edition-inventaire');
   });
 
   it('les éditions sont des lectures · leurs boutons ne sont pas sous `peutEcrire`', () => {
     // Le bloc des deux boutons, découpé par ses balises (structure, jamais une
-    // distance) · il ne lit pas `peutEcrire`, et rien au-dessus ne l'enferme
-    // dans un `{peutEcrire && (` (son parent direct est l'en-tête de la campagne).
+    // distance) · il ne lit pas `peutEcrire`, et le bloc qui le précède est
+    // refermé (son parent direct est l'en-tête de la campagne).
     const debut = page.indexOf('<div className="flex gap-1.5 items-center">');
     expect(debut).toBeGreaterThan(-1);
     let profondeur = 0;
@@ -233,9 +285,7 @@ describe('la fenêtre Inventaire imprime l’édition, et elle seule', () => {
     expect(bloc).toContain("nature: 'FICHES_DE_COMPTAGE', campagneId: detail.id }");
     expect(bloc).toContain("nature: 'PROCES_VERBAL_INVENTAIRE', campagneId: detail.id }");
     expect(bloc).not.toContain('peutEcrire');
-    // Le bloc suit immédiatement le titre de la campagne, hors de tout `{peutEcrire && (`.
-    const precedent = page.slice(0, debut).trimEnd();
-    expect(precedent.endsWith('</div>')).toBe(true);
+    expect(page.slice(0, debut).trimEnd().endsWith('</div>')).toBe(true);
     expect(page).toContain("cheminEdition({ nature: 'PROCES_VERBAL_CAISSE', pvId })");
     expect(page).toContain("cheminEdition({ nature: 'FICHES_DE_COMPTAGE', campagneId: detail.id, sousCommissionId })");
   });
