@@ -3095,11 +3095,17 @@ export class DevisesService {
         where: { tenantId, exerciceId: precedent.id, annuleeLe: null },
         select: {
           ...SELECTION_REEVALUATION_RELUE,
-          ecritureExtourne: { select: { lignes: { select: { compte: { select: { numero: true } } } } } },
+          ecritureExtourne: { select: { exerciceId: true, lignes: { select: { compte: { select: { numero: true } } } } } },
         },
       });
+      // Inversée DANS l'exercice qui suit, et là seulement · une
+      // contre-passation passée plus loin (avant M1) laisse l'écart sur la
+      // banque pendant tout cet exercice ; le portillon la refuse, et le
+      // calcul ne la tient pas pour faite.
       const inverseeParLAncienneContrePassation =
-        reeval?.ecritureExtourne?.lignes.some((l) => estDisponibilite(l.compte.numero)) ?? false;
+        (reeval?.ecritureExtourne?.exerciceId === courant.id &&
+          reeval.ecritureExtourne.lignes.some((l) => estDisponibilite(l.compte.numero))) ||
+        false;
       if (reeval?.ecritureEcarts && !inverseeParLAncienneContrePassation) {
         const ecarts = await this.ecartsDeDisponibilitesDe(tenantId, reeval);
         if (ecarts === null) {

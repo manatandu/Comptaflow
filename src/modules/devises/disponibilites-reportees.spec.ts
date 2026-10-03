@@ -310,6 +310,15 @@ describe('A5 bis · la caisse en devise part de sa valeur de clôture précéden
     expect(caisse(r)).toMatchObject({ valeurComptable: 2_800_000, ecart: -400_000 });
   });
 
+  it('M1 · une ancienne contre-passation passée plus loin que l’exercice qui suit · la caisse n’y est pas revenue au coût, l’écart est reporté', async () => {
+    const { svc } = monter({
+      lignes: [caisseN, ouvertureN1()],
+      reeval: { exerciceId: 'e26', extourneInverseLaCaisse: true, contrePasseeDans: 'e28' },
+    });
+    const r = await svc.calculer('t', { exerciceId: 'e27' });
+    expect(caisse(r)).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+  });
+
   it('ouverture saisie par le cabinet (pas un report d’OmegaX) · elle porte sa propre valeur, rien n’est ajouté', async () => {
     const { svc } = monter({
       lignes: [caisseN, { ...ouvertureN1('SAISIE'), debit: 2_500_000 }],
