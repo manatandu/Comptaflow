@@ -738,12 +738,30 @@ liste des comptes clients tronquée le dit et se restreint au début du numéro 
 d'abord, total et `tronque`. (M6) un rapprochement non calculé sur liste tronquée se
 dit, jamais lu comme un écart nul. (M7) le reclassement se borne au plus petit solde
 du client sur TOUS les exercices qui finissent au plus tôt avec le sien. À l'écran ·
-boutons alignés sur le serveur (reclasser, déclarer, recouvrer, retirer à
-`peutEcrire` ; revue, perte, annulations à `peutValider`), modales en dialogue
-(Échap par `ecouterEchap`, focus au premier champ, fermeture tenue pendant l'envoi),
-réponses périmées jetées par jeton, comptes de l'annonce de la revue SERVIS
+boutons alignés sur le serveur (reclasser, déclarer, recouvrer, retirer une créance à
+`peutEcrire` ; revue, perte, annulations et retrait d'un MOUVEMENT à `peutValider`,
+la route du retrait d'un mouvement sous `@ReserveAuComptable()`, A7 ter m7), modales
+en dialogue (Échap par `ecouterEchap`, focus au premier champ, fermeture tenue pendant
+l'envoi), réponses périmées jetées par jeton, comptes de l'annonce de la revue SERVIS
 (`propositionRevue.comptes`, le 491 de la créance), date bornée à l'exercice, montant
-prérempli au centime (`montantPourChamp`).
+prérempli au centime (`montantPourChamp`). A7 TER (relecture de production, 2026-10-03).
+(B1) l'à-nouveau PROVISOIRE n'arrête jamais la chaîne et n'entre dans aucun solde ;
+sans à-nouveau qui fait foi, la clôture précédente reconstituée, dite provisoire, et
+les messages ne proposent jamais de relancer le report (le module ne le lit pas) ·
+« clôturez l'exercice précédent ou passez un bilan d'ouverture ». (B2) la créance
+ÉTEINTE lettre ses lignes 416 (origine `MODULE`, que seul le module défait ; un groupe
+d'une autre origine jamais), seules les lignes OUVERTES à la ré-extinction ; figé par
+une clôture, le groupe RESTE et l'annulation s'inscrit en négatif en le tolérant
+(`groupeTolere` de `motifLignesTenues` et `inscrireEnNegatifPourAnnulation`), au
+brouillard refus nommé (valider puis annuler) ; le retrait d'un mouvement défait et
+supprime dans UNE transaction (`lettrageTolere`). (B3) la ligne du reclassement ne se
+lettre pas avec une pièce qui porte de la TVA FACTURÉE (443, les deux plans), et avec
+elle seulement · lettrage automatique en deux passes. Position en devise jugée NETTE
+par compte et par devise ; part du 491 « hors module » lue sur l'EXERCICE seul ; 416
+hors du Règlement des tiers (« Recouvrement » du module), avertissement au règlement
+d'un compte d'origine, `COMPTE_CREANCE_RECLASSEE_CREDITEUR` hors de
+`TIERS_SOLDE_INVERSE` ; impayé d'adhérent (4131, 4133) sous l'encaissement admis avec
+avertissement (question D7 du suivi).
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
