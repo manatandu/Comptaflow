@@ -144,6 +144,9 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       if (!correspond(l.exerciceId, e.exerciceId)) return false;
       if (!correspond(l.date, e.date)) return false;
       if (e.estGenereeParCloture === true && !(l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE')) return false;
+      // Les lectures « hors à-nouveau » (quatrième tour, `manuellesSurLEcart`) · l'ouverture n'en est pas.
+      if (e.estGenereeParCloture === false && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE')) return false;
+      if (e.estANouveauProvisoire === false && l.ouverture === 'PROVISOIRE') return false;
       return true;
     });
   };
@@ -798,9 +801,26 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
     { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 100_000 },
   ];
   const report: Ligne = { ...creanceN, exerciceId: 'e27', date: N1.dateDebut, ouverture: 'DEFINITIF' };
+  /**
+   * L'écart de conversion reporté par l'à-nouveau · le 4791 s'ouvre créditeur
+   * de l'écart non contre-passé (quatrième tour · la contre-passation lit
+   * l'ouverture avant de passer, `manuellesSurLEcart`).
+   */
+  const ecartOuvert = (exerciceId: string, dateDebut: Date, credit: number): Ligne => ({
+    compteId: 'c-4791',
+    numero: '47910000',
+    deviseId: null,
+    debit: 0,
+    credit,
+    montantDevise: null,
+    exerciceId,
+    date: dateDebut,
+    ouverture: 'DEFINITIF',
+  });
+  const ecart479N1 = ecartOuvert('e27', N1.dateDebut, 100_000);
 
   it('non contre-passée · refus nommé, avec son issue, rien écrit', async () => {
-    const { svc, creer } = monter({ lignes: [creanceN, report], reeval: { exerciceId: 'e26', lignesEcarts: ecartsN }, cours: 2150 });
+    const { svc, creer } = monter({ lignes: [creanceN, report, ecart479N1], reeval: { exerciceId: 'e26', lignesEcarts: ecartsN }, cours: 2150 });
     await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(
       /Passez la contre-passation de la réévaluation du 2026-12-31/,
     );
@@ -809,7 +829,7 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
 
   it('contre-passée · la réévaluation de N+1 passe, sur l’écart depuis le coût historique (150 000, le 479 de N étant soldé)', async () => {
     const { svc, creer } = monter({
-      lignes: [creanceN, report],
+      lignes: [creanceN, report, ecart479N1],
       reeval: { exerciceId: 'e26', lignesEcarts: ecartsN, contrePassee: true },
       cours: 2150,
     });
@@ -819,13 +839,13 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
   });
 
   it('B3 · le refus nomme le report au premier jour non clôturé quand la première période est close (art. 22, 4°)', async () => {
-    const { svc } = monter({ lignes: [creanceN, report], reeval: { exerciceId: 'e26', lignesEcarts: ecartsN }, cours: 2150 });
+    const { svc } = monter({ lignes: [creanceN, report, ecart479N1], reeval: { exerciceId: 'e26', lignesEcarts: ecartsN }, cours: 2150 });
     await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(/premier jour non clôturé.*AUDCIF art\. 22, 4°/);
   });
 
   it('M1 · contre-passée dans un exercice plus lointain · refus nommé, l’issue (annuler la contre-passation) dite, rien écrit', async () => {
     const { svc, creer } = monter({
-      lignes: [creanceN, report],
+      lignes: [creanceN, report, ecart479N1],
       reeval: { exerciceId: 'e26', lignesEcarts: ecartsN, contrePassee: true, contrePasseeDans: 'e28' },
       cours: 2150,
     });
@@ -850,7 +870,13 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
       { compteId: 'c-4111', numero: '41110000', debit: 500_000, credit: 0 },
       { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 500_000 },
     ];
-    const lignes: Ligne[] = [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }];
+    const lignes: Ligne[] = [
+      creanceN,
+      report,
+      { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' },
+      ecartOuvert('e27', N1.dateDebut, 500_000),
+      ecartOuvert('e28', N2.dateDebut, 500_000),
+    ];
 
     it('non contre-passée · N+2 refusé, la cible (cet exercice) nommée, rien écrit', async () => {
       const { svc, creer } = monter({ exercices, lignes, reeval: { exerciceId: 'e26', lignesEcarts: ecarts500 }, cours: 2600 });
@@ -918,7 +944,13 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
     const monterS11 = () =>
       monter({
         exercices,
-        lignes: [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }],
+        lignes: [
+          creanceN,
+          report,
+          { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' },
+          ecartOuvert('e27', N1.dateDebut, 500_000),
+          ecartOuvert('e28', N2.dateDebut, 900_000),
+        ],
         reevals: [
           { exerciceId: 'e26', lignesEcarts: ecartsN },
           { exerciceId: 'e27', lignesEcarts: ecartsN1, dateReevaluation: N1.dateFin, contrePassee: true, contrePasseeDans: 'e28' },
@@ -949,7 +981,13 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
     it('N contre-passée À LA MAIN dans N+2 et déclarée · N+2 passe sans rien repasser · 411 à 2 600 000 et 479 à −600 000', async () => {
       const { svc, creer } = monter({
         exercices,
-        lignes: [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }],
+        lignes: [
+          creanceN,
+          report,
+          { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' },
+          ecartOuvert('e27', N1.dateDebut, 500_000),
+          ecartOuvert('e28', N2.dateDebut, 900_000),
+        ],
         reevals: [
           { exerciceId: 'e26', lignesEcarts: ecartsN, declareeDans: 'e28' },
           { exerciceId: 'e27', lignesEcarts: ecartsN1, dateReevaluation: N1.dateFin, contrePassee: true, contrePasseeDans: 'e28' },
@@ -965,7 +1003,7 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
     it('déclarée hors de sa place (N+2 alors que N+1 est ouvert) · le portillon de N+1 la nomme, l’issue est de retirer la déclaration', async () => {
       const { svc } = monter({
         exercices: [N, N1, N2],
-        lignes: [creanceN, report],
+        lignes: [creanceN, report, ecart479N1],
         reevals: [{ exerciceId: 'e26', lignesEcarts: ecartsN, declareeDans: 'e28' }],
         cours: 2400,
       });
@@ -1025,7 +1063,7 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
   });
 
   it('une réévaluation qui ne portait que des disponibilités n’a rien à contre-passer · ne bloque pas', async () => {
-    const { svc, creer } = monter({ lignes: [creanceN, report], reeval: { exerciceId: 'e26' }, cours: 2150 });
+    const { svc, creer } = monter({ lignes: [creanceN, report, ecart479N1], reeval: { exerciceId: 'e26' }, cours: 2150 });
     await svc.reevaluer('t', 'u', { exerciceId: 'e27' });
     expect(creer).toHaveBeenCalled();
   });

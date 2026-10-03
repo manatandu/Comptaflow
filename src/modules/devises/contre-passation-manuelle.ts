@@ -67,12 +67,30 @@ export function libelleMontantsAContrePasser(montants: MontantAContrePasser[]): 
 }
 
 /**
+ * Le libellé des montants de l'ÉCART lui-même, dans son sens · « 41110000 au
+ * débit de 500000.00, 47910000 au crédit de 500000.00 ». Sert à nommer l'OD
+ * qui RÉTABLIT un écart qu'un bilan d'ouverture a omis (quatrième tour, m1).
+ */
+export function libelleMontantsDeLEcart(montants: MontantAContrePasser[]): string {
+  return montants.map((m) => `${m.compteNumero} au ${m.netCentimes > 0 ? 'débit' : 'crédit'} de ${enFrancs(m.netCentimes)}`).join(', ');
+}
+
+/**
  * L'écriture désignée inverse-t-elle EXACTEMENT chaque compte de l'écart de
- * conversion ? `null` si oui, sinon le refus, compte par compte. La somme
- * des lignes de l'écriture sur le compte doit valoir l'opposé du net de
- * l'écart, au centime · ni plus (elle déplacerait autre chose sur le même
- * compte, que la réévaluation suivante ne saurait pas lire), ni moins (une
- * part de l'écart resterait en place, et serait repassée).
+ * conversion ? `null` si oui, sinon le refus, compte par compte.
+ *
+ * L'INVERSION SE PORTE DU CÔTÉ OPPOSÉ, EN MONTANTS POSITIFS (quatrième tour,
+ * BLOQUANT 1). Comparer des nets par compte laissait passer une INSCRIPTION
+ * EN NÉGATIF · « 4111 au débit de −500 000 » vaut un crédit de 500 000 au
+ * net, et la correction d'une OD passée dans le mauvais sens se déclarait
+ * comme la contre-passation, que l'OD fautive et son négatif ne font pas
+ * (411 à 2 900 000 au lieu de 2 400 000). Une contre-passation est
+ * l'écriture inverse, « 411 · 4781 » pour une perte, « 4791 · 411 » pour un
+ * gain (Guide, Partie 2 ch. 22, Application 84) · sur chaque compte de
+ * l'écart, aucune ligne négative, rien du côté de l'écart, et du côté opposé
+ * exactement son montant · ni plus (elle déplacerait autre chose sur le
+ * même compte, que la réévaluation suivante ne saurait pas lire), ni moins
+ * (une part de l'écart resterait en place, et serait repassée).
  */
 export function motifRefusInversion(attendus: MontantAContrePasser[], lignesDeLEcriture: LigneAContrePasser[]): string | null {
   if (attendus.length === 0) {
@@ -80,20 +98,34 @@ export function motifRefusInversion(attendus: MontantAContrePasser[], lignesDeLE
   }
   const ecarts: string[] = [];
   for (const a of attendus) {
-    const net = lignesDeLEcriture
-      .filter((l) => l.compteId === a.compteId)
-      .reduce((t, l) => t + centimes(Number(l.debit)) - centimes(Number(l.credit)), 0);
-    if (net === -a.netCentimes) continue;
-    const attendu = `${a.netCentimes > 0 ? 'crédit' : 'débit'} de ${enFrancs(a.netCentimes)}`;
-    const lu = net === 0 ? 'rien' : `${net > 0 ? 'débit' : 'crédit'} de ${enFrancs(net)}`;
-    ecarts.push(`${a.compteNumero} · attendu ${attendu}, l'écriture porte ${lu}`);
+    const surLeCompte = lignesDeLEcriture.filter((l) => l.compteId === a.compteId);
+    if (surLeCompte.some((l) => Number(l.debit) < 0 || Number(l.credit) < 0)) {
+      ecarts.push(`${a.compteNumero} · montants négatifs (inscription en négatif) · une correction annule une écriture, elle ne contre-passe pas un écart`);
+      continue;
+    }
+    const debits = surLeCompte.reduce((t, l) => t + centimes(Number(l.debit)), 0);
+    const credits = surLeCompte.reduce((t, l) => t + centimes(Number(l.credit)), 0);
+    // L'écart au débit (perte sur une dette, gain sur une créance) se
+    // contre-passe au crédit, et inversement.
+    const oppose = a.netCentimes > 0 ? credits : debits;
+    const memeCote = a.netCentimes > 0 ? debits : credits;
+    const sensOppose = a.netCentimes > 0 ? 'crédit' : 'débit';
+    const sensEcart = a.netCentimes > 0 ? 'débit' : 'crédit';
+    if (oppose === Math.abs(a.netCentimes) && memeCote === 0) continue;
+    const lu = oppose === 0 ? 'rien' : `${sensOppose} de ${enFrancs(oppose)}`;
+    ecarts.push(
+      `${a.compteNumero} · attendu ${sensOppose} de ${enFrancs(a.netCentimes)}, l'écriture porte ${lu}` +
+        (memeCote !== 0 ? `, et un ${sensEcart} de ${enFrancs(memeCote)}` : ''),
+    );
   }
   if (ecarts.length === 0) return null;
   return (
     "L'écriture désignée n'inverse pas exactement l'écart de conversion de cette réévaluation · " +
     `${ecarts.join(' ; ')}. Une contre-passation partielle laisserait une part de l'écart en place, que la réévaluation ` +
     "suivante repasserait ; une contre-passation qui déborde déplacerait autre chose sur le même compte. Désignez l'écriture " +
-    'qui contre-passe chacun de ces comptes au centime, ou passez la contre-passation par le module (Devises, « Contre-passer »).'
+    'qui contre-passe chacun de ces comptes au centime, du côté opposé et en montants positifs. Une écriture qui contre-passe ' +
+    "plusieurs réévaluations à la fois, ou une part seulement de l'écart, ne se déclare pas · corrigez-la par inscription en " +
+    "négatif (AUDCIF art. 20, al. 2), puis contre-passez chaque réévaluation séparément."
   );
 }
 

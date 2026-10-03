@@ -46,6 +46,12 @@ export interface DisponibiliteContrePassee {
    * repasser. Sans lui (les seules disponibilités), rien (mineur 1).
    */
   aRepasser: boolean;
+  /**
+   * L'OD manuelle déclarée porte AUSSI d'autres gestes (lignes sur des comptes
+   * étrangers à l'écart) · son inscription en négatif les annule avec elle,
+   * il faudra les repasser (quatrième tour, m5).
+   */
+  autresGestes: boolean;
 }
 
 /**
@@ -109,7 +115,7 @@ export async function contrePassationsDeDisponibilites(
   for (const r of reevaluations.slice(0, PLAFOND_REEVALUATIONS_EXAMINEES)) {
     const ecarts = enLignes(r.ecritureEcarts?.lignes ?? []);
     const aRepasser = partagerLignesDEcarts(ecarts).aContrePasser.length > 0;
-    const commun = { dateReevaluation: r.dateReevaluation, exerciceReevaluationClos: r.exercice.statut === 'CLOTURE', aRepasser };
+    const commun = { dateReevaluation: r.dateReevaluation, exerciceReevaluationClos: r.exercice.statut === 'CLOTURE', aRepasser, autresGestes: false };
     const x = r.ecritureExtourne;
     if (x && x.exerciceId === p.exerciceId) {
       for (const l of x.lignes) {
@@ -146,6 +152,7 @@ export async function contrePassationsDeDisponibilites(
           montant: Math.round(surLeCompte.reduce((t, l) => t + l.debit - l.credit, 0) * 100) / 100,
           exception: null,
           manuelle: true,
+          autresGestes: lignes.some((l) => !ecarts.some((x) => x.compteId === l.compteId)),
         });
       }
     }

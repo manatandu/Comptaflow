@@ -4437,6 +4437,9 @@ export class ControlesService {
         const close = anciennes.some((e) => e.exerciceContrePassationClos);
         const manuelles = contrePassees.elements.filter((e) => e.manuelle);
         const manuelleOuverte = manuelles.some((e) => !e.exerciceContrePassationClos);
+        // L'OD groupée (quatrième tour, m5) · son négatif annule aussi les
+        // autres gestes qu'elle portait, à repasser.
+        const groupee = manuelles.some((e) => !e.exerciceContrePassationClos && e.autresGestes);
         const manuelleClose = manuelles.some((e) => e.exerciceContrePassationClos);
         const parException = contrePassees.elements.some((e) => e.exception !== null);
         anomalies.push({
@@ -4462,7 +4465,10 @@ export class ControlesService {
             (manuelleOuverte
               ? "Contre-passation manuelle déclarée, dans un exercice encore ouvert · retirez la déclaration (Devises, « Retirer la " +
                 "déclaration »), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, corrigez l'écriture " +
-                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers. '
+                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers' +
+                (groupee
+                  ? " ; l'écriture portait d'autres gestes, que son inscription en négatif annule avec elle · repassez-les. "
+                  : '. ')
               : '') +
             (manuelleClose
               ? "Contre-passation manuelle déclarée, dans un exercice clôturé · elle ne se corrige plus ; toute régularisation est à décider par le cabinet. "

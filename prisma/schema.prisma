@@ -3462,6 +3462,10 @@ model Reevaluation {
   motifContrePassationDeclaree String?
   contrePassationDeclareeLe    DateTime?
   contrePassationDeclareePar   String?
+  // LES DÉCLARATIONS RETIRÉES (quatrième tour, m3) · [{ ecritureId,
+  // numeroPiece, motifDeclaration, declareeLe, declareePar, motif, par, le }],
+  // le motif du retrait exigé, jamais effacé.
+  retraitsContrePassationDeclaree Json?
 
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·

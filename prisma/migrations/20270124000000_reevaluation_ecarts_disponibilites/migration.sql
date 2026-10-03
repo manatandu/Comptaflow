@@ -25,3 +25,5 @@ ALTER TABLE "reevaluations" ADD COLUMN "contrePassationDeclareeLe" TIMESTAMP(3);
 ALTER TABLE "reevaluations" ADD COLUMN "contrePassationDeclareePar" TEXT;
 CREATE UNIQUE INDEX "reevaluations_contrePassationDeclareeId_key" ON "reevaluations"("contrePassationDeclareeId");
 ALTER TABLE "reevaluations" ADD CONSTRAINT "reevaluations_contrePassationDeclareeId_fkey" FOREIGN KEY ("contrePassationDeclareeId") REFERENCES "ecritures"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- Quatrième tour · la trace des déclarations retirées, avec le motif du retrait.
+ALTER TABLE "reevaluations" ADD COLUMN "retraitsContrePassationDeclaree" JSONB;

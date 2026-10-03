@@ -16,6 +16,7 @@ import {
   ModifierDeviseDto,
   PoserCoursDto,
   ReevaluerDto,
+  RetirerContrePassationManuelleDto,
 } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
@@ -175,8 +176,12 @@ export class DevisesController {
   @Delete('reevaluations/:id/contre-passation-manuelle')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @ReserveAuComptable()
-  async retirerContrePassationManuelle(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.devises.retirerContrePassationManuelle(user.tenantId, id);
+  async retirerContrePassationManuelle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: RetirerContrePassationManuelleDto,
+  ) {
+    return this.devises.retirerContrePassationManuelle(user.tenantId, user.userId, id, body.motif);
   }
 
   /**

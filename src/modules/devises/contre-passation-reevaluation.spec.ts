@@ -119,7 +119,12 @@ function monter(
             .find((x) => x.dateDebut.getTime() > apres && (a.where.statut === undefined || x.statut === a.where.statut)) ?? null
         );
       }),
+      // Ce que le cabinet a passé à la main sur l'écart (quatrième tour,
+      // `manuellesSurLEcart`) · aucune fenêtre lue ici, rien de manuel ; la
+      // règle a son propre spec (`contre-passation-manuelle.spec.ts`).
+      findMany: jest.fn().mockResolvedValue([]),
     },
+    tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od' }) },
     verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
   };

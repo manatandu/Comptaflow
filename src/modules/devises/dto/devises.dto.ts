@@ -123,6 +123,13 @@ export class DeclarerContrePassationManuelleDto {
   motif!: string;
 }
 
+/** Le retrait d'une déclaration · son motif, gardé dans la trace (quatrième tour, m3). */
+export class RetirerContrePassationManuelleDto {
+  @IsString()
+  @Length(3, 500)
+  motif!: string;
+}
+
 /**
  * Provision pour pertes de change existant à l'ouverture, déclarée par le
  * cabinet (ligne A5, décision de Manasse du 2026-10-02). Le compte, le
