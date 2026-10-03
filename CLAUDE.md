@@ -161,6 +161,20 @@ Le travail va sur **`main`** · c'est cette branche qui déclenche les
 déploiements. Pas de branche de fonctionnalité sauf demande explicite. Pas de
 pull request sauf demande explicite.
 
+**RIEN NE SE PERD À UNE COUPURE** (décision de Manasse du 2026-10-03). Une
+limite d'utilisation ou un conteneur reclamé coupait des agents au milieu, et
+la ligne repartait de zéro. Trois règles. (1) L'agent qui construit committe
+à CHAQUE étape finie (une correction, un test au vert), jamais un seul paquet
+à la fin. (2) Il pousse aussitôt sur une branche de SAUVEGARDE
+`travail/<ligne>` (par exemple `travail/a7`), seule exception à la règle
+ci-dessus · aucun workflow ne la déploie (les `on: push` sont bornés à
+`main`), elle ne porte aucune demande de tirage et se supprime une fois la
+ligne intégrée sur `main`. (3) Il tient à la racine de sa copie une fiche
+`AVANCEMENT-<ligne>.md` · fait, reste, décisions prises avec leur article,
+commandes de vérification · committée avec le travail et retirée à
+l'intégration. L'agent qui reprend après une coupure part de la branche et de
+la fiche, jamais de zéro.
+
 Les workflows de `.github/workflows/` sont indépendants : aucun n'attend
 qu'un autre ait réussi. Un push sur `main` en déclenche plusieurs à la fois,
 le déploiement du serveur seulement s'il touche ses chemins ; les autres
@@ -3841,4 +3855,14 @@ que Manasse ne les active pas (`settings-hooks.EXEMPLE.json`).
 fichier, lancement d'une suite) prend le modèle le plus léger disponible ; un
 modèle dont la limite d'utilisation est atteinte n'est pas demandé. Aucun agent
 de `.claude/agents/` ne fige son modèle dans son en-tête. Au plus trois agents
-à la fois, une ligne à la fois.
+à la fois.
+
+**Deux lignes à la fois, deux tours de relecture** (décision de Manasse du
+2026-10-03, pour aller plus vite sans perdre la rigueur). Deux lignes de la
+liste avancent ensemble quand elles sont de FAMILLES différentes (fichiers
+disjoints, dépendances de la liste respectées), chacune dans sa copie et sur
+sa branche de sauvegarde ; leurs intégrations sur `main` se font l'une après
+l'autre, chacune avec le bloc du § 3 et les tests navigateur. La relecture
+s'arrête au DEUXIÈME tour · au-delà, seul un BLOQUANT (montant faussé en
+silence, geste juste refusé sans issue, dossier enfermé) fait reprendre la
+ligne, le reste va aux « Relevés en attente » de la liste.
