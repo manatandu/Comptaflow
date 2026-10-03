@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { motifHorsReevaluation } from './perimetre-reevaluation';
+import { motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -738,7 +738,18 @@ export class DevisesService {
       // AUDCIF Titre VIII ch. 22 · seuls créances, dettes et disponibilités
       // prennent le cours de clôture ; le reste garde le cours du jour de
       // l'opération, et c'est dit plutôt que tu.
-      const motif = motifHorsReevaluation(p.numero, tenant.referentiel);
+      // UNE POSITION DÉNOUÉE NE SE RÉÉVALUE PAS (ligne A6). Soldée dans sa
+      // devise, elle n'existe plus · ce qui reste en francs sur une créance
+      // ou une dette est l'écart de change RÉALISÉ à son règlement (AUDCIF
+      // art. 55, ch. 22 § 2.3, au 656 / 756 ou 676 / 776), jamais une perte
+      // probable ou un gain latent (art. 54, 478 / 479). La réévaluer posait
+      // le réalisé au 478 ou 479, le provisionnait (A5), puis l'extourne de
+      // l'ouverture le rouvrait · il se dit et se passe par le lettrage
+      // (« Écart de change »). Une disponibilité, elle, garde la conversion
+      // de l'art. 57, dont l'écart est déjà réalisé.
+      const motif =
+        motifHorsReevaluation(p.numero, tenant.referentiel) ??
+        (estDisponibilite(p.numero) ? null : motifPositionDenouee(p.montantDevise, p.valeurComptable));
       if (motif) {
         positionsNonReevaluees.push({
           numero: p.numero,

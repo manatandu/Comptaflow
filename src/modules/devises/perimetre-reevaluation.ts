@@ -64,3 +64,21 @@ export function motifHorsReevaluation(numero: string, referentiel: Referentiel):
   if (/^1/.test(numero)) return 'fonds propres · ni créance ni dette (AUDCIF Titre VIII ch. 22 § 2.2)';
   return "compte de gestion · flux converti au cours du jour de l'opération";
 }
+
+/**
+ * UNE POSITION SOLDÉE DANS SA DEVISE EST DÉNOUÉE (ligne A6) · elle ne
+ * « subsiste » plus à l'inventaire (ch. 22 § 2.2), et le reste en francs d'une
+ * créance ou d'une dette est l'écart de change RÉALISÉ à son règlement
+ * (AUDCIF art. 55, ch. 22 § 2.3), pas un écart de conversion (art. 54). Le
+ * réévaluer le poserait au 478 ou 479 et le provisionnerait. `null` tant que
+ * la devise n'est pas soldée. Ne vaut pas pour une disponibilité (art. 57),
+ * que l'appelant écarte.
+ */
+export function motifPositionDenouee(montantDevise: number, valeurComptable: number): string | null {
+  if (Math.abs(montantDevise) >= 0.005 || Math.abs(valeurComptable) < 0.005) return null;
+  const reste = Math.round(Math.abs(valeurComptable) * 100) / 100;
+  return (
+    `position dénouée · soldée dans sa devise, il reste ${reste.toFixed(2)} en francs, écart de change RÉALISÉ au ` +
+    'règlement (AUDCIF art. 55), jamais un écart de conversion · passez-le depuis le lettrage (« Écart de change »)'
+  );
+}

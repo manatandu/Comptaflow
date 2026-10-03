@@ -553,15 +553,20 @@ compris · dit « provisoire, non validé », la réserve joue sur lui.
 DEVISE au cours du jour, exigé, jamais deviné ; plus que le dû EN DEVISE refusé (le
 dû en francs ne borne plus · un cours qui monte était refusé). Le tiers est soldé au
 COÛT HISTORIQUE avec le montant en devise, la trésorerie au payé, l'écart sur SA
-ligne · commercial (40, 41) au 656 ou 756, financier (16, 27) au 676 ou 776. UN
-NUMÉRO, DEUX PLANS · le SYCEBNL n'ouvre ni 656 ni 756 et réserve 676 et 776 au change
-financier (fiches 67, 75, 77) · AUCUN compte donné pour le commercial, le cabinet
-CHOISIT sous le 65 (hors 659) ou le 75 (hors 759), refus nommé sinon. Partiel au
-prorata de la devise, factures les plus anciennes d'abord. Un groupe de lettrage
-soldé en devise et non en francs · l'écart est PROPOSÉ (`GET
-/comptes/:compteId/lettrage/:id/ecart-change`), passé au seul clic (`POST /reglements/ecart-change`,
-qui rejoue le calcul), jamais au journal de trésorerie. Anomalie signalée · l'art. 53
-dit « charges financières » là où § 2.3 et la fiche 656 disent exploitation.
+ligne · commercial (40, 41) au 656 ou 756, financier (emprunts, 27) au 676 ou 776.
+UN NUMÉRO, DEUX PLANS · les emprunts sont au 16 du SYSCOHADA, au 18 du SYCEBNL dont
+le 16 est un FONDS (`natureDuCompte` prend le référentiel) ; le SYCEBNL n'ouvre ni 656
+ni 756 et réserve 676 et 776 au change financier (fiches 67, 75, 77) · AUCUN compte
+donné pour le commercial, le cabinet CHOISIT sous le 65 (hors 659) ou le 75 (hors
+759), refus nommé sinon. Partiel au prorata de la devise, factures les plus
+anciennes d'abord. Un groupe de lettrage soldé en devise et non en francs ·
+l'écart est PROPOSÉ (`GET /comptes/:compteId/lettrage/:id/ecart-change`), passé au
+seul clic (`POST /reglements/ecart-change`, qui rejoue le calcul), jamais au journal
+de trésorerie. AVEC A5 · une position SOLDÉE DANS SA DEVISE ne se réévalue plus
+(`motifPositionDenouee`) · son reste en francs est du RÉALISÉ, il passait au 478 ou
+479 et se provisionnait ; elle sort des positions et sa provision se reprend. Anomalie
+signalée · l'art. 53 dit « charges financières » là où § 2.3 et la fiche 656 disent
+exploitation.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

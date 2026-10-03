@@ -627,7 +627,7 @@ export class LettrageService {
     // d'encaissement ou de règlement »).
     const derniere = lignes.reduce((d, l) => (l.ecriture.date > d.ecriture.date ? l : d), lignes[0]!);
     const referentiel = await referentielDuDossier(this.prisma, tenantId);
-    const nature = natureDuCompte(groupe.compte.numero);
+    const nature = natureDuCompte(groupe.compte.numero, referentiel);
     const prescrits = comptesPrescrits(referentiel, nature);
     const numeroPrescrit =
       prescrits.perte === null || change.ecart === 0 ? null : change.ecart > 0 ? prescrits.perte : prescrits.gain;

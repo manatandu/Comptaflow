@@ -12,7 +12,13 @@ import { motifHorsReevaluation, seReevalueALaCloture } from './perimetre-reevalu
  * (section 4) prennent le cours de clôture. Le moteur réévaluait toute ligne
  * en devise : un 24 en USD recevait un écart au 478 ou 479.
  */
-function service(referentiel: Referentiel, numero: string) {
+type LigneEnDevise = { debit: number; credit: number; montantDevise: number };
+
+function service(
+  referentiel: Referentiel,
+  numero: string,
+  lignes: LigneEnDevise[] = [{ debit: 2_800_000, credit: 0, montantDevise: 1000 }],
+) {
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel }) },
     exercice: {
@@ -27,17 +33,15 @@ function service(referentiel: Referentiel, numero: string) {
     },
     ligneEcriture: {
       aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 } }),
-      findMany: jest.fn().mockResolvedValue([
-        {
+      findMany: jest.fn().mockResolvedValue(
+        lignes.map((l) => ({
           compteId: 'c1',
           deviseId: 'd1',
-          debit: 2_800_000,
-          credit: 0,
-          montantDevise: 1000,
+          ...l,
           compte: { id: 'c1', numero, intitule: 'Compte' },
           devise: { id: 'd1', code: 'USD' },
-        },
-      ]),
+        })),
+      ),
     },
     reevaluation: { findMany: jest.fn().mockResolvedValue([]), },
     provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
@@ -98,5 +102,67 @@ describe('réévaluation · le périmètre du ch. 22', () => {
     }
     expect(seReevalueALaCloture('17100000', Referentiel.SYSCOHADA)).toBe(true);
     expect(seReevalueALaCloture('17100000', Referentiel.SYCEBNL)).toBe(false);
+  });
+});
+
+/**
+ * UNE POSITION DÉNOUÉE NE SE RÉÉVALUE PAS (ligne A6). Le jeu du séminaire
+ * CPCC · dette fournisseur de 1 160 USD à 1 680 (1 948 800), réglée en entier
+ * à 1 800 (2 088 000) par une pièce SANS ligne d'écart · solde en devise nul,
+ * 139 200 restent au débit du 401, perte RÉALISÉE (art. 55). Réévaluée, elle
+ * passait au 478 contre le 401 pour 139 200 et se provisionnait (A5), puis
+ * l'extourne de l'ouverture la rouvrait. Ce qui casserait en silence · la
+ * position remise dans les positions, l'écriture restant équilibrée.
+ */
+describe('réévaluation · une position dénouée dans sa devise', () => {
+  const regleeSansEcart: LigneEnDevise[] = [
+    { debit: 0, credit: 1_948_800, montantDevise: 1160 },
+    { debit: 2_088_000, credit: 0, montantDevise: 1160 },
+  ];
+
+  it('soldée en devise, reste en francs · hors réévaluation, motif « réalisé » nommé, aux deux référentiels', async () => {
+    for (const ref of [Referentiel.SYSCOHADA, Referentiel.SYCEBNL]) {
+      const r = await service(ref, '40110000', regleeSansEcart).calculer('t1', { exerciceId: 'ex1' });
+      expect(r.positions).toHaveLength(0);
+      expect(r.perteLatente).toBe(0);
+      expect(r.gainLatent).toBe(0);
+      expect(r.provision).toBe(0);
+      expect(r.positionsNonReevaluees).toEqual([
+        expect.objectContaining({ numero: '40110000', montantDevise: 0, motif: expect.stringContaining('139200.00') }),
+      ]);
+      expect(r.positionsNonReevaluees[0].motif).toMatch(/RÉALISÉ.*art\. 55/);
+    }
+  });
+
+  it('réglée au coût historique (A6) · rien ne reste, rien n’est dit', async () => {
+    const r = await service(Referentiel.SYSCOHADA, '40110000', [
+      { debit: 0, credit: 1_948_800, montantDevise: 1160 },
+      { debit: 1_948_800, credit: 0, montantDevise: 1160 },
+    ]).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positions).toHaveLength(0);
+    expect(r.positionsNonReevaluees).toEqual([]);
+  });
+
+  it('réglée en partie au coût historique (A6) · le reste se réévalue sur sa seule valeur d’origine', async () => {
+    // 600 USD réglés au coût historique de 1 008 000 · 560 USD restent à
+    // 940 800 (560 × 1 680), réévalués au cours de clôture de 2 500.
+    const r = await service(Referentiel.SYSCOHADA, '40110000', [
+      { debit: 0, credit: 1_948_800, montantDevise: 1160 },
+      { debit: 1_008_000, credit: 0, montantDevise: 600 },
+    ]).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positions).toHaveLength(1);
+    expect(r.positions[0].montantDevise).toBe(-560);
+    expect(r.positions[0].valeurComptable).toBe(-940_800);
+    expect(r.positions[0].ecart).toBe(-(560 * 2500 - 940_800));
+  });
+
+  it('une disponibilité soldée en devise garde sa conversion (art. 57), déjà réalisée', async () => {
+    const r = await service(Referentiel.SYSCOHADA, '52110000', [
+      { debit: 1_680_000, credit: 0, montantDevise: 1000 },
+      { debit: 0, credit: 1_800_000, montantDevise: 1000 },
+    ]).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positionsNonReevaluees).toEqual([]);
+    expect(r.positions).toHaveLength(1);
+    expect(r.positions[0].estTresorerie).toBe(true);
   });
 });

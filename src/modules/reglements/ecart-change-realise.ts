@@ -56,13 +56,20 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
 /**
  * LA NATURE D'UNE CRÉANCE OU D'UNE DETTE se lit sur son compte, jamais
  * devinée au-delà de ce que le texte range. 40 et 41 (fournisseurs, clients)
- * sont les dettes et créances COMMERCIALES du § 2.3 ; 16 (emprunts) et 27
- * (prêts) les opérations FINANCIÈRES qu'il cite (« emprunt bancaire en
- * devise »). Tout autre compte · `null`, la nature reste au cabinet.
+ * sont les dettes et créances COMMERCIALES du § 2.3, aux deux plans. Les
+ * opérations FINANCIÈRES qu'il cite (« emprunt bancaire en devise ») sont les
+ * emprunts et les prêts · UN NUMÉRO, DEUX PLANS · les emprunts sont au 16 du
+ * SYSCOHADA (Titre VII, « COMPTE 16 : Emprunts et dettes assimilées ») et au
+ * 18 du SYCEBNL (« 18 EMPRUNTS ET DETTES ASSIMILÉES », Partie 2 ch. 2), dont
+ * le 16 est « FONDS AFFECTÉS » · un fonds de projet lu en emprunt aurait mis
+ * son écart au 676. Les prêts sont au 27 des deux plans (« AUTRES
+ * IMMOBILISATIONS FINANCIÈRES »). Tout autre compte · `null`, la nature reste
+ * au cabinet.
  */
-export function natureDuCompte(numero: string): NatureCreanceDette | null {
+export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
   if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  if (numero.startsWith('16') || numero.startsWith('27')) return 'FINANCIERE';
+  const emprunts = referentiel === 'SYSCOHADA' ? '16' : '18';
+  if (numero.startsWith(emprunts) || numero.startsWith('27')) return 'FINANCIERE';
   return null;
 }
 

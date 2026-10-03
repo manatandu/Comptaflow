@@ -349,7 +349,7 @@ export class ReglementsService {
         : await compteDeLEcart(this.prisma, {
             tenantId,
             referentiel,
-            nature: natureDuCompte(numero),
+            nature: natureDuCompte(numero, referentiel),
             ecart: ecart > 0 ? 'PERTE' : 'GAIN',
             choisiId: r.compteEcartChangeId,
           });
@@ -385,10 +385,11 @@ export class ReglementsService {
           "il se passe au journal des opérations diverses.",
       );
     }
+    const referentiel = await referentielDuDossier(this.prisma, tenantId);
     const compteEcart = await compteDeLEcart(this.prisma, {
       tenantId,
-      referentiel: await referentielDuDossier(this.prisma, tenantId),
-      nature: natureDuCompte(proposition.compteNumero),
+      referentiel,
+      nature: natureDuCompte(proposition.compteNumero, referentiel),
       ecart: proposition.ecart > 0 ? 'PERTE' : 'GAIN',
       choisiId: dto.compteEcartChangeId,
     });

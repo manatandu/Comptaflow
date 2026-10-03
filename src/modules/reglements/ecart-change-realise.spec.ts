@@ -61,12 +61,28 @@ describe('les comptes que le texte donne', () => {
     expect('motif' in commercial && commercial.motif).toBe(MOTIF_SYCEBNL_SANS_COMPTE);
   });
 
-  it('la nature se lit sur le compte · 40 et 41 commerciaux, 16 et 27 financiers, le reste au cabinet', () => {
-    expect(natureDuCompte('40110000')).toBe('COMMERCIALE');
-    expect(natureDuCompte('41110000')).toBe('COMMERCIALE');
-    expect(natureDuCompte('16200000')).toBe('FINANCIERE');
-    expect(natureDuCompte('27100000')).toBe('FINANCIERE');
-    expect(natureDuCompte('47100000')).toBeNull();
+  it('la nature se lit sur le compte · 40 et 41 commerciaux, emprunts et prêts financiers, le reste au cabinet', () => {
+    for (const r of ['SYSCOHADA', 'SYCEBNL'] as const) {
+      expect(natureDuCompte('40110000', r)).toBe('COMMERCIALE');
+      expect(natureDuCompte('41110000', r)).toBe('COMMERCIALE');
+      expect(natureDuCompte('27100000', r)).toBe('FINANCIERE');
+      expect(natureDuCompte('47100000', r)).toBeNull();
+    }
+    expect(natureDuCompte('16200000', 'SYSCOHADA')).toBe('FINANCIERE');
+    expect(natureDuCompte('18200000', 'SYCEBNL')).toBe('FINANCIERE');
+  });
+
+  // UN NUMÉRO, DEUX PLANS · le 16 du SYCEBNL est « FONDS AFFECTÉS », ses
+  // emprunts sont au 18 ; le 18 du SYSCOHADA porte les comptes de liaison.
+  // Lu en emprunt, un fonds de projet aurait mis son écart au 676.
+  it('le 16 du SYCEBNL est un fonds, le 18 du SYSCOHADA une liaison · ni l’un ni l’autre n’est un emprunt', () => {
+    expect(natureDuCompte('16200000', 'SYCEBNL')).toBeNull();
+    expect(natureDuCompte('18400000', 'SYSCOHADA')).toBeNull();
+    const sycebnl = new Map(PLAN_COMPTES_SYCEBNL.map((c) => [c.numero, c.intitule]));
+    expect(sycebnl.get('16')).toMatch(/fonds affect/i);
+    expect(sycebnl.get('18')).toMatch(/emprunts/i);
+    const syscohada = new Map(PLAN_COMPTES_SYSCOHADA.map((c) => [c.numero, c.intitule]));
+    expect(syscohada.get('16')).toMatch(/emprunts/i);
   });
 
   // Un numéro, deux plans · ce qu'on affirme du plan se vérifie contre les
