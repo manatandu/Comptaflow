@@ -411,7 +411,7 @@ describe('BLOQUANT 1 · une inscription en négatif n’est pas une contre-passa
   it('déclaré quand même · refusé, la correction nommée', async () => {
     const { svc, update } = monter({ ecritures });
     await expect(svc.declarerContrePassationManuelle('t', 'u', 'r1', 'neg', 'CP passée à la main')).rejects.toThrow(
-      /la pièce n° 4 du 2027-01-01 est une inscription en négatif \(correction de la pièce n° 3\)/,
+      /La pièce n° 4 du 2027-01-01 est une inscription en négatif \(correction de la pièce n° 3\)/,
     );
     expect(update).not.toHaveBeenCalled();
   });

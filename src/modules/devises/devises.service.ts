@@ -1289,7 +1289,9 @@ export class DevisesService {
     }
     for (const m of manquantes) {
       if (m.manuelles) {
-        messages.push(`La réévaluation du ${m.jour} n'est pas contre-passée (${m.periode}) · ${m.manuelles}`);
+        messages.push(
+          `La réévaluation du ${m.jour} n'est pas contre-passée (${m.periode}) · ${m.manuelles.charAt(0).toLowerCase()}${m.manuelles.slice(1)}`,
+        );
         continue;
       }
       messages.push(
@@ -2107,14 +2109,16 @@ export class DevisesService {
     });
     if (!ecriture) throw new NotFoundException('Écriture introuvable pour ce dossier');
     const piece = `la pièce n° ${ecriture.numeroPiece ?? '·'} du ${jour(ecriture.date)}`;
+    // En tête d'un message, la majuscule.
+    const Piece = piece.charAt(0).toUpperCase() + piece.slice(1);
     if (ecriture.estGenereeParCloture || ecriture.estANouveauProvisoire || ecriture.estSoldeDesComptesDeGestion) {
       throw new BadRequestException(
-        `${piece} est engendrée par la clôture ou l'à-nouveau · elle reporte des soldes, elle ne contre-passe rien. Désignez l'écriture qui a contre-passé l'écart.`,
+        `${Piece} est engendrée par la clôture ou l'à-nouveau · elle reporte des soldes, elle ne contre-passe rien. Désignez l'écriture qui a contre-passé l'écart.`,
       );
     }
     if (ecriture.correction) {
       throw new BadRequestException(
-        `${piece} est neutralisée par son inscription en négatif (pièce n° ${ecriture.correction.numeroPiece ?? '·'}) · elle ne contre-passe plus rien.`,
+        `${Piece} est neutralisée par son inscription en négatif (pièce n° ${ecriture.correction.numeroPiece ?? '·'}) · elle ne contre-passe plus rien.`,
       );
     }
     // UNE INSCRIPTION EN NÉGATIF N'EST PAS UNE CONTRE-PASSATION (quatrième
@@ -2124,22 +2128,22 @@ export class DevisesService {
     // 2 900 000 au lieu de 2 400 000).
     if (ecriture.corrigeEcritureId) {
       throw new BadRequestException(
-        `${piece} est une inscription en négatif (correction de la pièce n° ${ecriture.corrigeEcriture?.numeroPiece ?? '·'}) · ` +
+        `${Piece} est une inscription en négatif (correction de la pièce n° ${ecriture.corrigeEcriture?.numeroPiece ?? '·'}) · ` +
           "elle annule une écriture, elle ne contre-passe pas un écart. Désignez l'écriture qui contre-passe l'écart, ou contre-passez par le module.",
       );
     }
     if (ecriture.reevaluationContrePassationDeclaree) {
-      throw new ConflictException(`${piece} est déjà déclarée comme la contre-passation d'une autre réévaluation.`);
+      throw new ConflictException(`${Piece} est déjà déclarée comme la contre-passation d'une autre réévaluation.`);
     }
     if (ecriture.reevaluationEcarts || ecriture.reevaluationProvision || ecriture.reevaluationExtourne) {
       throw new ConflictException(
-        `${piece} est une écriture d'une réévaluation (écarts, provision ou contre-passation du module) · elle n'est pas une contre-passation faite à la main.`,
+        `${Piece} est une écriture d'une réévaluation (écarts, provision ou contre-passation du module) · elle n'est pas une contre-passation faite à la main.`,
       );
     }
     if (!(await this.contrePassationASaPlace(tenantId, reeval.exercice, ecriture.exercice, null))) {
       const cible = await this.cibleDeContrePassation(tenantId, reeval.exercice.dateFin);
       throw new BadRequestException(
-        `${piece} n'est pas à la place de la contre-passation de la réévaluation du ${jour(reeval.dateReevaluation)} · elle se passe à ` +
+        `${Piece} n'est pas à la place de la contre-passation de la réévaluation du ${jour(reeval.dateReevaluation)} · elle se passe à ` +
           "l'ouverture du premier exercice ouvert qui suit la réévaluation" +
           (cible ? `, celui du ${jour(cible.dateDebut)} au ${jour(cible.dateFin)},` : '') +
           ' ou dans un exercice clôturé entre les deux. Ailleurs, l’écart de conversion aurait vécu pendant un exercice ouvert, que sa ' +
@@ -2186,7 +2190,7 @@ export class DevisesService {
         throw new ConflictException('La contre-passation de cette réévaluation a changé entre-temps · relancez le geste.');
       }
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException(`${piece} vient d'être déclarée comme la contre-passation d'une autre réévaluation.`);
+        throw new ConflictException(`${Piece} vient d'être déclarée comme la contre-passation d'une autre réévaluation.`);
       }
       throw e;
     }
