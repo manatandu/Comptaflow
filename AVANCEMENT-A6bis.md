@@ -44,6 +44,16 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   un exercice clôturé, ne fausse rien, aucun geste). Tests · lettrage (six),
   module (onze, dont la reproduction du report déséquilibré, la clôture, le
   provisoire et le câblage du contrôle).
+- M4 · `ordreDeReglement` · factures par date, puis identifiant de LIGNE, au
+  passage (`coutHistoriqueRegle`), à l'écran (`ecartEstime`, `ReglementsPage`
+  envoie l'identifiant) et à la liste des échéances (`orderBy` complété).
+  Écart à la consigne écrit · « ordre de `ligneIds` » n'est gardé nulle part,
+  D4 ne pourrait pas le rejouer (M1) ; l'identifiant de ligne, si.
+- M1 · D4 lit le coût historique par la règle d'A6 (`coutsHistoriquesSuccessifs`,
+  règlements successifs, la part qui épuise une facture prend ses francs
+  restants) ; des règlements qui dépassent les factures en devise sont
+  écartés et comptés.
+- M2 · D4 · une écriture de clôture ou d'à-nouveau n'est jamais un règlement.
 
 ## Reste
 

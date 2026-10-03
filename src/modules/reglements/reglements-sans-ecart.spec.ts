@@ -80,6 +80,60 @@ describe('les règlements en devise qui ont soldé le tiers au payé', () => {
     expect((await reglementsSansEcart(prisma, p)).nonReconnaissables).toBe(1);
   });
 
+  // A6 bis, M1 · deux factures à 1 600 et 1 800, un règlement A6 de 1 000 USD
+  // qui éteint la plus ancienne au coût historique (1 600 000) · lu au cours
+  // MOYEN (1 700), il passait pour 100 000 d'écart non constaté. La règle
+  // d'A6 rejouée ne signale rien ; un règlement au payé l'est, contre le
+  // bon coût.
+  it('factures à des cours différents · le coût historique se lit par la règle d’A6, jamais au cours moyen', async () => {
+    const a6 = monter([
+      ligne('f', 'L', 0, 1_600_000, 1000, '2026-03-01'),
+      ligne('f', 'L', 0, 1_800_000, 1000, '2026-04-01'),
+      ligne('r', 'L', 1_600_000, 0, 1000, '2026-05-15'),
+    ]);
+    expect(await reglementsSansEcart(a6.prisma, p)).toEqual({ elements: [], tronque: false, nonReconnaissables: 0 });
+    const auPaye = monter([
+      ligne('f', 'L', 0, 1_600_000, 1000, '2026-03-01'),
+      ligne('f', 'L', 0, 1_800_000, 1000, '2026-04-01'),
+      ligne('r', 'L', 1_750_000, 0, 1000, '2026-05-15'),
+    ]);
+    expect((await reglementsSansEcart(auPaye.prisma, p)).elements).toEqual([
+      expect.objectContaining({ francsPortes: 1_750_000, francsHistoriques: 1_600_000, ecart: 150_000 }),
+    ]);
+  });
+
+  it('deux règlements successifs · le second reprend où le premier s’est arrêté', async () => {
+    const { prisma } = monter([
+      ligne('f', 'L', 0, 1_600_000, 1000, '2026-03-01'),
+      ligne('f', 'L', 0, 1_800_000, 1000, '2026-04-01'),
+      ligne('r', 'L', 1_600_000, 0, 1000, '2026-05-15'),
+      ligne('s', 'L', 900_000, 0, 500, '2026-06-15'),
+    ]);
+    // Le second éteint 500 USD de la facture à 1 800 · 900 000, au coût · rien.
+    expect((await reglementsSansEcart(prisma, p)).elements).toEqual([]);
+  });
+
+  // A6 bis, M2 · l'écriture d'à-nouveau porte aussi les lignes du 52 et du
+  // 57 · sa ligne du tiers passait pour un règlement, et la facture reportée
+  // en N+1 n'était plus reconnue. Elle est la facture, jamais un règlement.
+  it('une ligne d’à-nouveau (clôture ou provisoire) n’est jamais un règlement · la facture reportée est reconnue', async () => {
+    for (const drapeau of [{ estGenereeParCloture: true }, { estANouveauProvisoire: true }]) {
+      const report = ligne('ran', 'L', 0, 1_948_800, 1160, '2027-01-01', '40110000', true);
+      Object.assign(report.ecriture, drapeau);
+      const { prisma } = monter([report, ligne('r', 'L', 1_050_000, 0, 600, '2027-02-15')]);
+      expect(await reglementsSansEcart(prisma, p)).toEqual({
+        elements: [expect.objectContaining({ francsHistoriques: 1_008_000, ecart: 42_000 })],
+        tronque: false,
+        nonReconnaissables: 0,
+      });
+    }
+  });
+
+  it('des règlements qui dépassent les factures dans leur devise · écartés et comptés, rien n’est conclu', async () => {
+    const { prisma } = monter([ligne('f', 'L', 0, 1_948_800, 1160, '2026-04-10'), ligne('r', 'L', 2_100_000, 0, 1200, '2026-05-15')]);
+    expect(await reglementsSansEcart(prisma, p)).toEqual({ elements: [], tronque: false, nonReconnaissables: 1 });
+  });
+
   it('un partiel soldé dans sa devise relève du refus de la clôture (D3), pas de ce signalement', async () => {
     const { prisma } = monter([
       ligne('f', 'L', 0, 1_948_800, 1160, '2026-04-10'),

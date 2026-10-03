@@ -14,6 +14,7 @@ import {
   compteAdmisPourEcart,
   libelleEcartRealise,
   coursEtFrancsDuReglement,
+  coutsHistoriquesSuccessifs,
 } from './ecart-change-realise';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -246,6 +247,30 @@ describe('le coût historique de ce qui est réglé (AUDCIF art. 55)', () => {
     expect(coutHistoriqueRegle([recente, vieille], 150)).toBe(245000);
   });
 
+  // A6 bis, M4 · deux factures du MÊME jour à des cours différents · l'ordre
+  // ne dépend plus de celui où la base les rend · l'identifiant de ligne
+  // départage, au serveur comme à l'écran (même cas au spec du client).
+  it('deux factures du même jour · départagées par l’identifiant de ligne, quel que soit l’ordre reçu', () => {
+    const a = { id: 'a', francs: 160000, montantDevise: 100, date: new Date('2026-03-10') };
+    const b = { id: 'b', francs: 170000, montantDevise: 100, date: new Date('2026-03-10') };
+    expect(coutHistoriqueRegle([b, a], 100)).toBe(160000);
+    expect(coutHistoriqueRegle([a, b], 100)).toBe(160000);
+    expect(coutHistoriqueRegle([b, a], 150)).toBe(245000);
+  });
+
+  // A6 bis, M1 · la règle rejouée sur des règlements successifs (le
+  // signalement D4 la relit après coup) · chacun reprend où le précédent
+  // s'est arrêté, et la part qui épuise une facture prend ce qui reste de
+  // ses francs, au centime.
+  it('règlements successifs · le premier rend coutHistoriqueRegle, la facture entamée s’épuise au centime', () => {
+    const f = { id: 'f', francs: 1000.01, montantDevise: 3, date: new Date('2026-01-10') };
+    const g = { id: 'g', francs: 340000, montantDevise: 200, date: new Date('2026-03-10') };
+    const couts = coutsHistoriquesSuccessifs([g, f], [1, 2, 100]);
+    expect(couts[0]).toBe(coutHistoriqueRegle([g, f], 1));
+    expect(Math.round((couts[0]! + couts[1]!) * 100) / 100).toBe(1000.01);
+    expect(couts[2]).toBe(170000);
+  });
+
   it('l’écart est signé · positif pour une perte, dans les deux sens de règlement', () => {
     expect(ecartSigne('FOURNISSEUR', 1008000, 1050000)).toBe(42000);
     expect(ecartSigne('CLIENT', 1008000, 1050000)).toBe(-42000);
@@ -334,7 +359,7 @@ describe('l’écart d’un groupe de lettrage soldé dans sa devise', () => {
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
-function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
+function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus: unknown[] = []) {
   const date = new Date('2026-05-15');
   const ecriture = { exerciceId: 'ex', date, journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
   const lignes = [
@@ -345,6 +370,7 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
     { id: 'ff', compteId: 'c402', debit: 0, credit: 500, deviseId: null, montantDevise: null, lettrageId: null, compte: { numero: '40120000', intitule: 'Francs', lettrable: true }, ecriture },
     { id: 'fe', compteId: 'c401', debit: 0, credit: 1000, deviseId: null, montantDevise: null, lettrageId: null, compte: { numero: '40110000', intitule: 'NZUZI', lettrable: true }, ecriture },
   ];
+  (lignes as unknown[]).push(...lignesEnPlus);
   const comptes = [
     { id: 'c656', numero: '65600000', typeCompte: 'DETAIL', estActif: true },
     { id: 'c756', numero: '75600000', typeCompte: 'DETAIL', estActif: true },
@@ -469,6 +495,28 @@ describe('enregistrer un règlement en devise', () => {
       service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 1160.01, coursReglement: 1750 }] }),
     ).rejects.toThrow(/dépasse le dû en devise/);
     expect(creer).not.toHaveBeenCalled();
+  });
+
+  // A6 bis, M4 · deux factures du même jour, rendues par la base dans
+  // l'ordre b, a et choisies dans cet ordre · le passage éteint d'abord la
+  // facture de plus petit identifiant de ligne, comme l'écran l'a estimé.
+  it('deux factures du même jour · le passage suit l’identifiant de ligne, jamais l’ordre reçu', async () => {
+    const ecriture = { exerciceId: 'ex', date: new Date('2026-03-10'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
+    const compte = { numero: '40110000', intitule: 'NZUZI', lettrable: true };
+    const { service, creer } = monter('SYSCOHADA', [
+      { id: 'jb', compteId: 'c401', debit: 0, credit: 170000, deviseId: 'usd', montantDevise: 100, lettrageId: null, compte, ecriture },
+      { id: 'ja', compteId: 'c401', debit: 0, credit: 160000, deviseId: 'usd', montantDevise: 100, lettrageId: null, compte, ecriture },
+    ]);
+    await service.enregistrer('t', 'u', {
+      ...base,
+      sens: 'FOURNISSEUR',
+      reglements: [{ compteId: 'c401', ligneIds: ['jb', 'ja'], montantDevise: 100, coursReglement: 1750 }],
+    });
+    expect(resume(creer.mock.calls[0][2].lignes)).toEqual([
+      ['c401', 160000, 0],
+      ['c656', 15000, 0],
+      ['c571', 0, 175000],
+    ]);
   });
 
   it('sans le cours du jour, refus nommé · jamais un cours deviné', async () => {

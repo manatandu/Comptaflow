@@ -71,7 +71,10 @@ export class ReglementsService {
         compte: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true, code: true } } } } } },
         devise: { select: { code: true } },
       },
-      orderBy: [{ compteId: 'asc' }, { ecriture: { date: 'asc' } }],
+      // Les factures du même jour se rangent par leur identifiant de ligne ·
+      // l'ordre que le règlement en devise suit pour éteindre les plus
+      // anciennes d'abord (`ordreDeReglement`, A6 bis, M4), et l'écran avec.
+      orderBy: [{ compteId: 'asc' }, { ecriture: { date: 'asc' } }, { id: 'asc' }],
     });
 
     const retenues = lignes

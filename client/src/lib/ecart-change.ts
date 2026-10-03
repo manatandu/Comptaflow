@@ -68,6 +68,17 @@ export function libelleEcartRealise(ecart: number): string {
 }
 
 /**
+ * L'ORDRE DE RÈGLEMENT · les plus anciennes d'abord, et deux factures du même
+ * jour par leur identifiant de ligne, comme au serveur (`ordreDeReglement`,
+ * A6 bis, M4) · sans quoi deux factures du jour à des cours différents
+ * donnaient à l'écran un autre écart que la pièce.
+ */
+export function ordreDeReglement<T extends { id: string; date: string }>(a: T, b: T): number {
+  const parDate = Date.parse(a.date) - Date.parse(b.date);
+  return parDate || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+/**
  * L'ÉCART ESTIMÉ d'un règlement en devise, signé (positif = perte) · le coût
  * historique de ce qui est réglé, factures les plus anciennes d'abord, la
  * dernière au prorata de sa devise, contre les francs payés. Sert à l'écran à
@@ -75,11 +86,11 @@ export function libelleEcartRealise(ecart: number): string {
  */
 export function ecartEstime(p: {
   sens: 'FOURNISSEUR' | 'CLIENT';
-  factures: Array<{ francs: number; montantDevise: number; date: string }>;
+  factures: Array<{ id: string; francs: number; montantDevise: number; date: string }>;
   montantDevise: number;
   francsPayes: number;
 }): number {
-  const ordonnees = [...p.factures].sort((a, b) => a.date.localeCompare(b.date));
+  const ordonnees = [...p.factures].sort(ordreDeReglement);
   let reste = p.montantDevise;
   let historique = 0;
   for (const f of ordonnees) {

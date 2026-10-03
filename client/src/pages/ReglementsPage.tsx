@@ -202,7 +202,7 @@ export function ReglementsPage() {
       sens,
       factures: g.lignes
         .filter((l) => cochees.has(l.id) && l.montantDevise)
-        .map((l) => ({ francs: l.montant, montantDevise: l.montantDevise!, date: l.date })),
+        .map((l) => ({ id: l.id, francs: l.montant, montantDevise: l.montantDevise!, date: l.date })),
       montantDevise: nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g),
       francsPayes: francsDuGroupe(g, deviseId),
     });
