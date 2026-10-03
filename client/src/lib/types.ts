@@ -4107,6 +4107,135 @@ export interface ProcesVerbalCaisse {
   observations: string | null;
 }
 
+/**
+ * LES ÉDITIONS DE L'INVENTAIRE (ligne A19) · servies au CONTENU par le serveur
+ * (`src/modules/inventaire/editions-inventaire.ts`), l'écran ne fait que les
+ * mettre en page. Montants en nombres, null quand rien n'est compté ou
+ * valorisé, jamais zéro.
+ */
+export interface CampagneEdition {
+  id: string;
+  libelle: string;
+  dateInventaire: string;
+  statut: CampagneInventaire['statut'];
+  instructions: string | null;
+  exercice: { dateDebut: string; dateFin: string; dateArreteComptes: string | null };
+}
+
+export interface MembreEdition {
+  nom: string;
+  fonction: string | null;
+}
+
+export interface SousCommissionEdition {
+  id: string;
+  nom: string;
+  perimetre: string | null;
+  inventoriants: MembreEdition[];
+  temoins: MembreEdition[];
+}
+
+/** GET /inventaire/:id/editions/fiches-de-comptage */
+export interface EditionFichesVierges {
+  nature: 'FICHES_DE_COMPTAGE';
+  titre: string;
+  campagne: CampagneEdition;
+  perimetre: string;
+  colonnesARemplir: string[];
+  sections: {
+    sousCommission: SousCommissionEdition | null;
+    lignes: { ficheId: string; designation: string; compte: string; lieu: string; unite: string | null }[];
+  }[];
+  nombreFiches: number;
+  dejaComptees: number;
+}
+
+/** GET /inventaire/:id/editions/proces-verbal */
+export interface EditionPvInventaire {
+  nature: 'PROCES_VERBAL_INVENTAIRE';
+  titre: string;
+  campagne: CampagneEdition;
+  etabli: { le: string; par: string } | null;
+  sousCommissions: SousCommissionEdition[];
+  releve: {
+    designation: string;
+    compte: string;
+    lieu: string;
+    unite: string | null;
+    quantite: number | null;
+    valeur: number | null;
+    piece: string | null;
+    sousCommission: string | null;
+  }[];
+  totauxParCompte: { compte: string; nombreFiches: number; valeurInventaire: number | null; nonValorisees: number }[];
+  rapprochee: boolean;
+  ecarts: {
+    compte: string;
+    valeurInventaire: number;
+    soldeComptable: number;
+    ecart: number;
+    sens: 'MANQUANT' | 'EXCEDENT' | 'SANS_ECART';
+    nombreFiches: number;
+    rapprocheLe: string;
+    decision: EcartInventaire['decision'];
+    responsable: string | null;
+    explication: string | null;
+    arbitreLe: string | null;
+  }[];
+  caisses: {
+    pvId: string;
+    caisse: string;
+    dateComptage: string;
+    heureComptage: string | null;
+    sousCommission: string;
+    unite: string | null;
+    especesComptees: number;
+    soldeComptable: number;
+    ecart: number;
+  }[];
+  signataires: {
+    inventoriants: (MembreEdition & { sousCommission: string })[];
+    temoins: (MembreEdition & { sousCommission: string })[];
+  };
+  mentions: string[];
+}
+
+/** GET /inventaire/pv-caisse/:pvId/edition */
+export interface EditionPvCaisse {
+  nature: 'PROCES_VERBAL_CAISSE';
+  titre: string;
+  campagne: CampagneEdition;
+  pvId: string;
+  caisse: string;
+  sousCommission: SousCommissionEdition;
+  dateComptage: string;
+  heureComptage: string | null;
+  unite: string | null;
+  modeComparaison: ProcesVerbalCaisse['modeComparaison'];
+  especesComptees: number;
+  soldeComptable: number;
+  ecart: number;
+  reconstitution: {
+    dateCloture: string;
+    soldeALaCloture: number;
+    mouvementsValeurAvantCloture: number | null;
+    encaissementsPosterieurs: number;
+    decaissementsPosterieurs: number;
+    mouvementsPosterieurs: number | null;
+    especesReconstitueesALaCloture: number | null;
+  } | null;
+  compteApresLaCloture: boolean;
+  reconstitutionManquante: boolean;
+  coupures: { valeurUnitaire: number; nombre: number; total: number }[];
+  totalCoupures: number | null;
+  attestation: { le: string; par: string | null } | null;
+  observations: string | null;
+  etabli: { le: string; par: string };
+  mentions: string[];
+}
+
+export type EditionInventaire = EditionFichesVierges | EditionPvInventaire | EditionPvCaisse;
+
 /** GET /inventaire/pv-caisse/:pvId/mouvements · lignes telles que le PV les a lues. */
 export type MouvementsReconstitutionCaisse =
   | { applicable: false; motif: string }
