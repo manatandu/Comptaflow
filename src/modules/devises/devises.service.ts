@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
+import { groupesDenoues, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -698,11 +698,59 @@ export class DevisesService {
       },
     });
 
+    // LES GROUPES PARTIELS DÉNOUÉS DANS LEUR DEVISE sortent de la position,
+    // quel que soit le reste du compte (ligne A6, `groupesDenoues`) · leur
+    // reste en francs est du RÉALISÉ, proposé au lettrage, jamais un écart de
+    // conversion. Lus sur TOUTES leurs lignes à la date, francs compris.
+    const idsGroupes = [
+      ...new Set(lignes.filter((l) => l.lettrageId && !estDisponibilite(l.compte.numero)).map((l) => l.lettrageId!)),
+    ];
+    const denoues = idsGroupes.length
+      ? groupesDenoues(
+          (
+            await this.prisma.ligneEcriture.findMany({
+              where: { lettrageId: { in: idsGroupes }, ecriture: { tenantId, date: { lte: date } } },
+              select: {
+                lettrageId: true,
+                debit: true,
+                credit: true,
+                deviseId: true,
+                montantDevise: true,
+                lettrage: { select: { code: true } },
+              },
+            })
+          ).map((l) => ({
+            lettrageId: l.lettrageId!,
+            code: l.lettrage?.code ?? '',
+            debit: Number(l.debit),
+            credit: Number(l.credit),
+            deviseId: l.deviseId,
+            montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+          })),
+        )
+      : new Map<string, { code: string; ecart: number }>();
+    const groupesSignales = new Set<string>();
+    const positionsNonReevaluees: RapportReevaluation['positionsNonReevaluees'] = [];
+
     // Agrégation par (compte, devise) : c'est la position nette qui se
     // réévalue, pas chaque ligne prise isolément.
     const positions = new Map<string, PositionDevise>();
     for (const l of lignes) {
       if (!l.devise) continue;
+      const denoue = l.lettrageId ? denoues.get(l.lettrageId) : undefined;
+      if (denoue) {
+        if (!groupesSignales.has(l.lettrageId!)) {
+          groupesSignales.add(l.lettrageId!);
+          positionsNonReevaluees.push({
+            numero: l.compte.numero,
+            intitule: l.compte.intitule,
+            deviseCode: l.devise.code,
+            montantDevise: 0,
+            motif: `lettrage ${denoue.code.toLowerCase()} · ${motifPositionDenouee(0, denoue.ecart) ?? 'position dénouée'}`,
+          });
+        }
+        continue;
+      }
       const cle = `${l.compteId}|${l.deviseId}`;
       const acc =
         positions.get(cle) ??
@@ -732,7 +780,6 @@ export class DevisesService {
 
     const coursManquants = new Set<string>();
     const resultat: PositionDevise[] = [];
-    const positionsNonReevaluees: RapportReevaluation['positionsNonReevaluees'] = [];
     for (const p of positions.values()) {
       if (Math.abs(p.montantDevise) < 0.005 && Math.abs(p.valeurComptable) < 0.005) continue;
       // AUDCIF Titre VIII ch. 22 · seuls créances, dettes et disponibilités

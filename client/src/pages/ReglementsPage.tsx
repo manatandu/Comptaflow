@@ -9,7 +9,7 @@ import { OrdresVirement } from '../components/OrdresVirement';
 import { lignesDepuisSelection, rappelerLot, type LotVirement } from '../lib/lots-virement';
 import { montant as fmt } from '../lib/montants';
 import { coursPropose, devisesEtrangeres, type DeviseDuDossier } from '../lib/ligne-en-devise';
-import { comptesProposablesEcart, corpsReglementEnDevise, nombreSaisi } from '../lib/ecart-change';
+import { comptesProposablesEcart, corpsReglementEnDevise, ecartEstime, libelleEcartRealise, natureDuCompte, nombreSaisi, type Referentiel } from '../lib/ecart-change';
 import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 type Sens = 'FOURNISSEUR' | 'CLIENT';
@@ -65,11 +65,17 @@ export function ReglementsPage() {
   // devise et le cours coté proposé.
   const [montantsDevise, setMontantsDevise] = useState<Record<string, string>>({});
   const [coursSaisis, setCoursSaisis] = useState<Record<string, string>>({});
+  // Le débit RÉEL en francs, s'il est saisi · le cours s'en déduit au serveur.
+  const [francsSaisis, setFrancsSaisis] = useState<Record<string, string>>({});
   const [comptesEcart, setComptesEcart] = useState<Record<string, string>>({});
   const [tresorerieEnDevise, setTresorerieEnDevise] = useState(false);
+  // La devise du moyen de paiement se DÉCLARE · jamais prise sur la facture.
+  const [deviseTresorerieId, setDeviseTresorerieId] = useState('');
   const [devises, setDevises] = useState<DeviseDuDossier[]>([]);
+  const [erreurDevises, setErreurDevises] = useState<string | null>(null);
   const [comptesEcartLus, setComptesEcartLus] = useState<Compte[] | null>(null);
-  const auSycebnl = utilisateur?.tenant?.referentiel === 'SYCEBNL';
+  const [erreurComptesEcart, setErreurComptesEcart] = useState<string | null>(null);
+  const referentiel: Referentiel = utilisateur?.tenant?.referentiel === 'SYCEBNL' ? 'SYCEBNL' : 'SYSCOHADA';
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -97,22 +103,34 @@ export function ReglementsPage() {
       .catch(() => setJournaux([]));
   }, []);
 
+  // Un échec de lecture SE DIT, avec son motif (§ 9 ter) · une liste de
+  // devises vide sur un échec ferait croire qu'aucun cours n'est coté.
   useEffect(() => {
     api
       .get<DeviseDuDossier[]>('/devises')
-      .then((ds) => setDevises(devisesEtrangeres(ds)))
-      .catch(() => setDevises([]));
+      .then((ds) => {
+        setDevises(devisesEtrangeres(ds));
+        setErreurDevises(null);
+      })
+      .catch((err) => setErreurDevises(`Devises non lues · ${err instanceof ApiError ? err.message : 'erreur inconnue'}`));
   }, []);
 
-  // Au SYCEBNL, le texte ne donne aucun compte pour l'écart d'une créance ou
-  // d'une dette commerciale · le cabinet choisit le sien, sous le 65 ou le 75.
+  // Les comptes où l'écart peut aller (lib/ecart-change.ts, la table du
+  // serveur) · au SYCEBNL commercial le cabinet choisit, le texte n'en
+  // donnant aucun ; au SYSCOHADA, un sous-compte du 656 ou du 756 au lieu du
+  // compte prescrit.
   useEffect(() => {
-    if (!auSycebnl) return;
     api
       .get<Compte[]>(`/comptes?actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`)
-      .then((cs) => setComptesEcartLus(comptesProposablesEcart(cs, null)))
-      .catch(() => setComptesEcartLus(null));
-  }, [auSycebnl]);
+      .then((cs) => {
+        setComptesEcartLus(comptesProposablesEcart(cs, { referentiel, nature: null, sens: null }));
+        setErreurComptesEcart(null);
+      })
+      .catch((err) => {
+        setComptesEcartLus(null);
+        setErreurComptesEcart(`Comptes d'écart de change non lus · ${err instanceof ApiError ? err.message : 'erreur inconnue'}`);
+      });
+  }, [referentiel]);
 
   const charger = async () => {
     if (!exerciceCourant) return;
@@ -128,6 +146,7 @@ export function ReglementsPage() {
       setReferences({});
       setMontantsDevise({});
       setCoursSaisis({});
+      setFrancsSaisis({});
       setComptesEcart({});
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de lire les échéances');
@@ -166,13 +185,28 @@ export function ReglementsPage() {
   /** Le cours retenu · celui saisi, sinon le dernier coté au plus tard à la date du règlement. */
   const coursDuGroupe = (g: GroupeTiers, deviseId: string) =>
     coursSaisis[g.compteId] ?? (coursPropose(devises.find((d) => d.id === deviseId), dateReglement)?.cours.toString() ?? '');
+  /** Les francs payés · le débit réel saisi, sinon la contrevaleur au cours. */
+  const francsDuGroupe = (g: GroupeTiers, deviseId: string) => {
+    const saisis = nombreSaisi(francsSaisis[g.compteId]);
+    if (saisis !== null) return saisis;
+    const cours = nombreSaisi(coursDuGroupe(g, deviseId)) ?? 0;
+    const enDevise = nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g);
+    return Math.round(enDevise * cours * 100) / 100;
+  };
+  /** L'écart estimé (positif = perte), pour proposer le 65 OU le 75 · le serveur le refait. */
+  const ecartDuGroupe = (g: GroupeTiers, deviseId: string) =>
+    ecartEstime({
+      sens,
+      factures: g.lignes
+        .filter((l) => cochees.has(l.id) && l.montantDevise)
+        .map((l) => ({ francs: l.montant, montantDevise: l.montantDevise!, date: l.date })),
+      montantDevise: nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g),
+      francsPayes: francsDuGroupe(g, deviseId),
+    });
+  const devisesDuLot = [...new Map(aRegler.flatMap((g) => (deviseDuGroupe(g) ? [deviseDuGroupe(g)!] : [])).map((d) => [d.id, d])).values()];
   const total = aRegler.reduce((s, g) => {
     const devise = deviseDuGroupe(g);
-    if (devise) {
-      const cours = nombreSaisi(coursDuGroupe(g, devise.id)) ?? 0;
-      const enDevise = nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g);
-      return s + Math.round(enDevise * cours * 100) / 100;
-    }
+    if (devise) return s + francsDuGroupe(g, devise.id);
     const saisi = montants[g.compteId];
     return s + (saisi ? Number(saisi.replace(',', '.')) || 0 : duParCompte.get(g.compteId) ?? 0);
   }, 0);
@@ -201,7 +235,8 @@ export function ReglementsPage() {
         compteId: g.compteId,
         ligneIds,
         montantDevise: montantsDevise[g.compteId],
-        cours: coursDuGroupe(g, devise.id),
+        cours: nombreSaisi(francsSaisis[g.compteId]) !== null && coursSaisis[g.compteId] === undefined ? '' : coursDuGroupe(g, devise.id),
+        montantFrancs: francsSaisis[g.compteId],
         compteEcartChangeId: comptesEcart[g.compteId],
         reference: references[g.compteId],
       });
@@ -210,6 +245,16 @@ export function ReglementsPage() {
         return;
       }
       corps.push(r.corps);
+    }
+    const enDeviseCoche = tresorerieEnDevise && devisesDuLot.length > 0;
+    if (enDeviseCoche && devisesDuLot.length > 1) {
+      setErreur(`Le lot porte plusieurs devises (${devisesDuLot.map((d) => d.code).join(', ')}) · un moyen de paiement en devise n'en tient qu'une.`);
+      return;
+    }
+    const deviseMoyen = deviseTresorerieId || (devisesDuLot.length === 1 ? devisesDuLot[0].id : '');
+    if (enDeviseCoche && !deviseMoyen) {
+      setErreur('Précisez la devise du moyen de paiement.');
+      return;
     }
     setEnvoi(true);
     try {
@@ -225,18 +270,18 @@ export function ReglementsPage() {
           exerciceId: exerciceCourant.id,
           journalId,
           date: dateReglement,
-          ...(tresorerieEnDevise && aRegler.some((g) => deviseDuGroupe(g)) ? { tresorerieEnDevise: true } : {}),
+          ...(enDeviseCoche ? { tresorerieEnDevise: true, deviseTresorerieId: deviseMoyen } : {}),
           reglements: corps,
         },
       );
       const partiels = r.reglements.filter((x) => x.partiel).length;
       const ecarts = r.reglements
         .filter((x) => x.ecartChange !== undefined && x.ecartChange !== 0)
-        .map((x) => `${x.compte} · ${x.ecartChange! > 0 ? 'perte' : 'gain'} de change de ${fmt(Math.abs(x.ecartChange!))}`);
+        .map((x) => `${x.compte} · ${libelleEcartRealise(x.ecartChange!).toLowerCase()} de ${fmt(Math.abs(x.ecartChange!))}`);
       setInfo(
         `${r.reglements.length} règlement(s) passé(s) au brouillard et lettré(s)` +
           (partiels ? `, dont ${partiels} partiel(s) en lettrage partiel.` : '.') +
-          (ecarts.length ? ` Écart de change réalisé · ${ecarts.join(' ; ')}.` : '') +
+          (ecarts.length ? ` ${ecarts.join(' ; ')}.` : '') +
           (r.ordre ? ` Ordre de virement n° ${r.ordre.numero} préparé, en attente d'impression.` : ''),
       );
       await charger();
@@ -359,6 +404,24 @@ export function ReglementsPage() {
                 Moyen de paiement en devise
               </label>
             )}
+            {tresorerieEnDevise && devisesDuLot.length > 0 && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-text-dim">Devise du moyen de paiement</span>
+                <select
+                  aria-label="Devise du moyen de paiement"
+                  value={deviseTresorerieId || (devisesDuLot.length === 1 ? devisesDuLot[0].id : '')}
+                  onChange={(e) => setDeviseTresorerieId(e.target.value)}
+                  className="border border-border px-2 py-[3px] bg-surface"
+                >
+                  <option value="">·</option>
+                  {devises.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {sens === 'FOURNISSEUR' && ordresServis && (
               <label className="flex items-center gap-1.5 pb-[3px]">
                 <input type="checkbox" checked={avecOrdre} onChange={(e) => setAvecOrdre(e.target.checked)} />
@@ -410,6 +473,14 @@ export function ReglementsPage() {
       </div>
 
       {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
+      {aRegler.some((g) => deviseDuGroupe(g)) &&
+        [erreurDevises, erreurComptesEcart]
+          .filter((e): e is string => e !== null)
+          .map((e) => (
+            <div key={e} className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+              {e}
+            </div>
+          ))}
       {constatsLot.length > 0 && (
         <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2 space-y-0.5">
           {constatsLot.map((c) => (
@@ -444,7 +515,20 @@ export function ReglementsPage() {
               const du = duParCompte.get(g.compteId) ?? 0;
               const devise = du > 0 ? deviseDuGroupe(g) : null;
               const coursCote = devise ? coursPropose(devises.find((d) => d.id === devise.id), dateReglement) : null;
-              const motifSansCompte = auSycebnl ? motifAucunCompteRetenu(comptesEcartLus, "d'autres charges (65) ou d'autres produits (75)") : null;
+              const nature = natureDuCompte(g.numero, referentiel);
+              const ecartEstimeG = devise ? ecartDuGroupe(g, devise.id) : 0;
+              const sensEcart = ecartEstimeG > 0 ? 'PERTE' : ecartEstimeG < 0 ? 'GAIN' : null;
+              const proposables =
+                comptesEcartLus === null || sensEcart === null
+                  ? null
+                  : comptesProposablesEcart(comptesEcartLus, { referentiel, nature, sens: sensEcart });
+              // Le texte donne-t-il le compte ? Sinon le choix est EXIGÉ.
+              const sansComptePrescrit = nature === null || (referentiel === 'SYCEBNL' && nature === 'COMMERCIALE');
+              const prescrit = nature === 'FINANCIERE' ? (sensEcart === 'GAIN' ? '776' : '676') : sensEcart === 'GAIN' ? '756' : '656';
+              const motifSansCompte =
+                sansComptePrescrit && sensEcart !== null
+                  ? motifAucunCompteRetenu(proposables, sensEcart === 'PERTE' ? "d'autres charges (65)" : "d'autres produits (75)")
+                  : null;
               return (
                 <tbody key={g.compteId}>
                   <tr className="bg-[var(--a-50)]">
@@ -474,21 +558,39 @@ export function ReglementsPage() {
                                 title={coursCote ? `Dernier cours coté le ${new Date(coursCote.date).toLocaleDateString('fr-FR')}` : 'Aucun cours coté à cette date · saisissez-le'}
                                 className="w-[90px] border border-border px-1.5 py-[1px] text-right"
                               />
-                              {auSycebnl && (
+                              <span className="text-text-dim">ou payé en francs</span>
+                              <input
+                                aria-label="Montant payé en francs"
+                                inputMode="decimal"
+                                value={francsSaisis[g.compteId] ?? ''}
+                                onChange={(e) => setFrancsSaisis((m) => ({ ...m, [g.compteId]: e.target.value }))}
+                                title="Le débit réel de la banque · le cours s'en déduit"
+                                className="w-[110px] border border-border px-1.5 py-[1px] text-right"
+                              />
+                              {sensEcart !== null && proposables !== null && (sansComptePrescrit || proposables.length > 0) && (
                                 <select
                                   aria-label="Compte d'écart de change"
                                   value={comptesEcart[g.compteId] ?? ''}
                                   onChange={(e) => setComptesEcart((c) => ({ ...c, [g.compteId]: e.target.value }))}
-                                  title="Le SYCEBNL ne donne aucun compte pour l'écart de change d'une créance ou d'une dette commerciale · choisissez le vôtre, sous le 65 pour une perte, sous le 75 pour un gain"
+                                  title={
+                                    sansComptePrescrit
+                                      ? "Le texte ne donne aucun compte pour cet écart de change · choisissez le vôtre"
+                                      : `Par défaut, le compte que le texte donne (${prescrit}) · ou l'un de ses sous-comptes`
+                                  }
                                   className="border border-border px-1 py-[1px] bg-surface max-w-[200px]"
                                 >
-                                  <option value="">Compte d'écart de change…</option>
-                                  {(comptesEcartLus ?? []).map((c) => (
+                                  <option value="">{sansComptePrescrit ? "Compte d'écart de change…" : `Compte ${prescrit} (par défaut)`}</option>
+                                  {proposables.map((c) => (
                                     <option key={c.id} value={c.id}>
                                       {c.numero} · {c.intitule}
                                     </option>
                                   ))}
                                 </select>
+                              )}
+                              {sensEcart !== null && (
+                                <span className={sensEcart === 'PERTE' ? 'text-danger' : 'text-positive'}>
+                                  {libelleEcartRealise(ecartEstimeG)} (estimation) · {fmt(Math.abs(ecartEstimeG))}
+                                </span>
                               )}
                               {motifSansCompte && <span className="text-warning">{motifSansCompte}</span>}
                             </>

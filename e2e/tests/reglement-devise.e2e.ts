@@ -68,7 +68,7 @@ test('SYSCOHADA · une dette en dollars réglée à un cours plus haut · perte 
   await page.getByLabel('Montant réglé en USD').fill('600');
   await expect(page.getByLabel('Cours du jour du règlement')).toHaveValue('1750');
   await page.getByRole('button', { name: /Enregistrer 1 règlement/ }).click();
-  await expect(page.getByText(/perte de change de 42/)).toBeVisible();
+  await expect(page.getByText(/perte de change réalisée de 42/)).toBeVisible();
 
   const lire = async () => (await appelApi<{ ecritures: Ecriture[] }>(page, 'GET', `/ecritures?exerciceId=${exercice.id}`)).ecritures;
   const reglement = (await lire()).find((e) => e.libelle.startsWith('Règlement'))!;
@@ -108,17 +108,20 @@ test('SYSCOHADA · une dette en dollars réglée à un cours plus haut · perte 
   await page.goto(`/#/comptes/${fournisseur.id}/lettrage`);
   await page.getByRole('button', { name: 'Écart de change', exact: true }).click();
   const panneau = page.getByLabel('Écart de change proposé');
-  await expect(panneau.getByText(/Perte de change réalisé de 123/)).toBeVisible();
-  await expect(panneau.getByText('65600000 · ')).toBeVisible();
-  expect((await lire()).some((e) => e.libelle.startsWith('Perte de change réalisé'))).toBe(false);
+  await expect(panneau.getByText(/Perte de change réalisée de 123/)).toBeVisible();
+  await expect(panneau.getByLabel("Compte d'écart de change")).toContainText('65600000');
+  expect((await lire()).some((e) => e.libelle.startsWith('Perte de change réalisée'))).toBe(false);
   await panneau.getByLabel('Journal de l\'écart de change').selectOption({ index: 1 });
   await panneau.getByRole('button', { name: 'Passer l\'écart' }).click();
-  await expect(page.getByText(/passé au 65600000 · lettrage A soldé/)).toBeVisible();
+  await expect(page.getByText(/passée au 65600000, lettrage A soldé/)).toBeVisible();
 
-  const ecart = (await lire()).find((e) => e.libelle.startsWith('Perte de change réalisé'))!;
+  const ecart = (await lire()).find((e) => e.libelle.startsWith('Perte de change réalisée'))!;
   expect(resume(ecart)).toEqual([
     ['40110000', 0, 123_200],
     ['65600000', 123_200, 0],
   ]);
+  // Le groupe soldé porte le réalisé TOTAL · 42 000 au règlement, 123 200 au dénouement.
+  const apres = await appelApi<{ lettrages: Array<{ statut: string; ecartChange: number | null }> }>(page, 'GET', `/comptes/${fournisseur.id}/lettrage`);
+  expect(apres.lettrages.find((g) => g.statut === 'SOLDE')?.ecartChange).toBe(165_200);
   expect(pannes).toEqual([]);
 });

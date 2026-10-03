@@ -52,7 +52,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position soldée dans sa devise n'est plus réévaluée (son reste en francs est réalisé, jamais un 478 / 479 provisionné) |
+| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position ou un groupe partiel soldé dans sa devise n'est plus réévalué, et l'écart déjà repris par une réévaluation est refusé ; relecture adverse reprise (trésorerie en devise déclarée, comptes admis sur une table, débit réel en francs, réalisé total au groupe) ; questions à Manasse · bornes 65 / 75 du SYCEBNL, blocage de la réévaluation, anciens règlements partiels, retrait d'une réévaluation passée |
 
 ## À faire, dans l'ordre
 

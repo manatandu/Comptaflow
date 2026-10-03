@@ -419,7 +419,7 @@ describe('Écart de change proposé au lettrage', () => {
     p.compte.findFirst = jest.fn().mockImplementation(async (args: any) => {
       if (!args?.where?.numero) return compteDuTiers(args);
       return args.where.numero === '65600000' && referentiel === 'SYSCOHADA'
-        ? { id: 'c656', numero: '65600000', intitule: 'Pertes de change' }
+        ? { id: 'c656', numero: '65600000', intitule: 'Pertes de change', typeCompte: 'DETAIL', estActif: true }
         : null;
     });
     return monte;
@@ -428,7 +428,7 @@ describe('Écart de change proposé au lettrage', () => {
   it('soldé en devise et non en francs · le lettrage plein est refusé en NOMMANT l’écart réalisé', async () => {
     const { service: s } = avecProposition('SYSCOHADA');
     await expect(s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1')).rejects.toThrow(
-      /soldées dans leur devise mais pas en francs · l'écart de 123200.00 est une perte de change réalisé/,
+      /soldées dans leur devise mais pas en francs · l'écart de 123200.00 est une perte de change réalisée/,
     );
   });
 
@@ -441,6 +441,22 @@ describe('Écart de change proposé au lettrage', () => {
     // Une proposition n'écrit rien · le groupe reste partiel.
     expect(groupes[0].statut).toBe('PARTIEL');
     expect(lignes).toHaveLength(3);
+  });
+
+  // Mineur 2 · un 656 en sommeil n'est pas proposé comme s'il pouvait recevoir
+  // l'écart · l'écran offre ses sous-comptes, le motif le dit.
+  it('SYSCOHADA · le 656 en sommeil n’est pas proposé, et le motif renvoie à ses sous-comptes', async () => {
+    const monte = avecProposition('SYSCOHADA');
+    const { service: s, groupes } = monte;
+    const p0 = (s as unknown as { prisma: { compte: { findFirst: jest.Mock } } }).prisma.compte;
+    const avant = p0.findFirst.getMockImplementation()!;
+    p0.findFirst.mockImplementation(async (args: any) =>
+      args?.where?.numero === '65600000' ? { id: 'c656', numero: '65600000', intitule: 'Pertes', typeCompte: 'DETAIL', estActif: false } : avant(args),
+    );
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1', { autoriserPartiel: true });
+    const p = await s.propositionEcartChange('t1', groupes[0].id);
+    expect(p).toMatchObject({ comptePrescrit: null, numeroPrescrit: '65600000' });
+    expect(p.motif).toMatch(/65600000 que le texte donne est en sommeil · choisissez l'un de ses sous-comptes/);
   });
 
   it('NZUZI · le même dénouement côté client est un gain, proposé au 756', async () => {
@@ -476,6 +492,33 @@ describe('Écart de change proposé au lettrage', () => {
     ]);
     await s.lettrerManuel('t1', 'c1', ['f', 'r'], 'u1', { ecartChangeRealise: 81200 });
     expect(groupes[0].ecartChange).toBe(81200);
+  });
+
+  // Mineur 4 · le groupe soldé dit le réalisé TOTAL. 600 USD réglés au coût
+  // historique (42 000 sur la ligne du règlement, hors du tiers), puis le
+  // solde de 560 USD payé à 1 900 et l'écart proposé de 123 200 passé · le
+  // groupe soldé porte 165 200, jamais les seuls 123 200 du dernier geste.
+  it('règlement partiel puis écart passé · le groupe soldé porte 42 000 + 123 200', async () => {
+    const { service: s, groupes } = service([
+      ligne('f', 0, 1948800, { deviseId: 'usd', montantDevise: 1160 }),
+      ligne('r1', 1008000, 0, { deviseId: 'usd', montantDevise: 600 }),
+      ligne('r2', 1064000, 0, { deviseId: 'usd', montantDevise: 560 }),
+      ligne('e', 0, 123200),
+    ]);
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1'], 'u1', { autoriserPartiel: true, ecartChangeRealise: 42000 });
+    // Partiel · « réalisé à ce jour », gardé par le groupe.
+    expect(groupes[0].ecartChange).toBe(42000);
+    await s.completer('t1', groupes[0].id, ['r2']);
+    expect(groupes[0].ecartChange).toBe(42000);
+    const r = await s.completer('t1', groupes[0].id, ['e']);
+    expect(r.statut).toBe('SOLDE');
+    expect(groupes[0].ecartChange).toBe(165200);
+  });
+
+  it('sans règlement en devise, la règle d’origine · rien tant que le groupe n’est pas soldé', () => {
+    expect(LettrageService.ecartCumule(null, null, false)).toBeNull();
+    expect(LettrageService.ecartCumule(null, 123200, true)).toBe(123200);
+    expect(LettrageService.ecartCumule(42000, 123200, true)).toBe(165200);
   });
 });
 

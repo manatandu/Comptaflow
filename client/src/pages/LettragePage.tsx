@@ -13,7 +13,7 @@ import { Aide } from '../components/chrome/Aide';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
 import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
-import { comptesProposablesEcart } from '../lib/ecart-change';
+import { comptesProposablesEcart, libelleEcartRealise, type NatureCreanceDette } from '../lib/ecart-change';
 
 /**
  * L'écart de change PROPOSÉ d'un groupe soldé dans sa devise et non en francs
@@ -30,6 +30,7 @@ interface PropositionEcartChange {
   devise?: string | null;
   date?: string;
   exerciceId?: string;
+  nature?: NatureCreanceDette | null;
   comptePrescrit?: { id: string; numero: string; intitule: string } | null;
   numeroPrescrit?: string | null;
   motif: string | null;
@@ -84,7 +85,8 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // Toute action de lettrage est réservée au comptable et à l'administrateur
   // (`@Roles` du contrôleur). La lecture seule interroge le compte et voit les
   // groupes posés, leur origine et leur verrou, sans les boutons qui écrivent.
-  const { peutEcrire } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
+  const referentiel = utilisateur?.tenant?.referentiel === 'SYCEBNL' ? 'SYCEBNL' : 'SYSCOHADA';
   // Fenêtre ouverte SANS compte (menu Traitement) : le compte choisi vit en
   // état local, le sélecteur change alors le contenu de CETTE fenêtre au
   // lieu d'en ouvrir une seconde. Ouverte depuis le plan comptable, chaque
@@ -272,7 +274,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         ...(compteEcart ? { compteEcartChangeId: compteEcart } : {}),
       });
       setEcart(null);
-      return `${r.ecart > 0 ? 'Perte' : 'Gain'} de change de ${montant(Math.abs(r.ecart))} passé au ${r.compte} · lettrage ${r.lettre} ${r.statut === 'SOLDE' ? 'soldé' : 'complété'}.`;
+      return `${libelleEcartRealise(r.ecart)} de ${montant(Math.abs(r.ecart))} · passé${r.ecart > 0 ? 'e' : ''} au ${r.compte}, lettrage ${r.lettre} soldé.`;
     });
 
   const lancerPreLettrage = async () => {
@@ -718,7 +720,16 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               <span className="text-[11px]">{g.statut === 'SOLDE' ? 'Soldé' : 'Partiel'}</span>
               <span className="font-mono text-right">{g.statut === 'SOLDE' ? '·' : montant(g.solde)}</span>
               <span className="text-[11px] text-text-dim">{LIBELLE_ORIGINE[g.origine]}</span>
-              <span className="font-mono text-right text-[11px]" title={g.ecartChange === null ? "Aucune ligne en devise, ou position non dénouée en devise · ce n'est pas zéro" : undefined}>
+              <span
+                className="font-mono text-right text-[11px]"
+                title={
+                  g.ecartChange === null
+                    ? "Aucune ligne en devise, ou position non dénouée en devise · ce n'est pas zéro"
+                    : g.statut === 'SOLDE'
+                      ? 'Écart de change réalisé TOTAL du lettrage · celui des règlements en devise et celui passé au dénouement'
+                      : "Écart de change réalisé à ce jour · celui des règlements en devise déjà passés, le reste se mesure au dénouement"
+                }
+              >
                 {g.ecartChange === null ? '·' : montant(g.ecartChange)}
               </span>
               <span className="text-[11px] text-text-dim">
@@ -771,31 +782,32 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           ) : (
             <>
               <div>
-                {ecart.sens === 'PERTE' ? 'Perte' : 'Gain'} de change réalisé de <span className="font-semibold">{montant(Math.abs(ecart.ecart))}</span>
+                {libelleEcartRealise(ecart.ecart)} de <span className="font-semibold">{montant(Math.abs(ecart.ecart))}</span>
                 {ecart.devise ? ` sur une position en ${ecart.devise}` : ''} · {ecart.sens === 'PERTE' ? 'débit' : 'crédit'} du compte d'écart, {ecart.sens === 'PERTE' ? 'crédit' : 'débit'} du {ecart.compteNumero}.
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-0.5">
                   <span className="text-text-dim">Compte d'écart</span>
-                  {ecart.comptePrescrit ? (
-                    <span className="py-[3px]">
-                      {ecart.comptePrescrit.numero} · {ecart.comptePrescrit.intitule}
-                    </span>
-                  ) : (
-                    <select
-                      aria-label="Compte d'écart de change"
-                      value={compteEcart}
-                      onChange={(e) => setCompteEcart(e.target.value)}
-                      className="border border-border px-2 py-[3px] bg-surface"
-                    >
-                      <option value="">Choisir…</option>
-                      {comptesProposablesEcart(comptes, ecart.sens ?? null).map((c) => (
+                  {/* Le compte que le texte donne est le choix par défaut ; ses
+                      sous-comptes restent offerts (un 656 subdivisé). Sans
+                      compte donné, le choix est exigé. */}
+                  <select
+                    aria-label="Compte d'écart de change"
+                    value={compteEcart}
+                    onChange={(e) => setCompteEcart(e.target.value)}
+                    className="border border-border px-2 py-[3px] bg-surface"
+                  >
+                    <option value="">
+                      {ecart.comptePrescrit ? `${ecart.comptePrescrit.numero} · ${ecart.comptePrescrit.intitule}` : 'Choisir…'}
+                    </option>
+                    {comptesProposablesEcart(comptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif), { referentiel, nature: ecart.nature ?? null, sens: ecart.sens ?? null })
+                      .filter((c) => c.id !== ecart.comptePrescrit?.id)
+                      .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.numero} · {c.intitule}
                         </option>
                       ))}
-                    </select>
-                  )}
+                  </select>
                 </label>
                 <label className="flex flex-col gap-0.5">
                   <span className="text-text-dim">Journal</span>
@@ -829,7 +841,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 </button>
               </div>
               {ecart.motif && <div className="text-warning">{ecart.motif}</div>}
-              {!ecart.comptePrescrit && comptesProposablesEcart(comptes, ecart.sens ?? null).length === 0 && (
+              {!ecart.comptePrescrit && comptesProposablesEcart(comptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif), { referentiel, nature: ecart.nature ?? null, sens: ecart.sens ?? null }).length === 0 && (
                 <div className="text-warning">
                   {motifAucunCompteRetenu([], ecart.sens === 'PERTE' ? "d'autres charges (65)" : "d'autres produits (75)")}
                 </div>

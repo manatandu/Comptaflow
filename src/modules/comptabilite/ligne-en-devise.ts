@@ -54,6 +54,15 @@ export function contrevaleur(montantDevise: number, cours: number): number {
 }
 
 /**
+ * La contrevaleur PORTÉE s'accorde-t-elle au montant en devise et au cours ?
+ * Un centime, plus la part d'arrondi du cours à six décimales · la règle de
+ * toute ligne en devise, servie aussi au règlement en devise (ligne A6).
+ */
+export function contrevaleurAdmise(montantDevise: number, cours: number, francs: number): boolean {
+  return Math.abs(contrevaleur(montantDevise, cours) - francs) <= TOLERANCE + montantDevise * DEMI_UNITE_DU_COURS;
+}
+
+/**
  * Le motif du refus d'une ligne, ou `null` · `devise` est la devise du
  * dossier que nomme la ligne (`undefined` si elle n'en est pas une).
  */
@@ -74,7 +83,7 @@ export function motifRefusLigneEnDevise(l: LigneDevise, devise: { code: string }
   if (c !== null) {
     if (!Number.isFinite(Number(c)) || Number(c) <= 0) return `Le cours de la ligne en ${devise.code} doit être positif.`;
     const attendu = contrevaleur(Number(m), Number(c));
-    if (Math.abs(attendu - francs) > TOLERANCE + Number(m) * DEMI_UNITE_DU_COURS) {
+    if (!contrevaleurAdmise(Number(m), Number(c), francs)) {
       return (
         `${Number(m)} ${devise.code} au cours de ${Number(c)} font ${attendu} ${MONNAIE_DE_TENUE}, ` +
         `et la ligne porte ${francs}. Le montant d'une ligne en devise est sa contrevaleur au cours appliqué (AUDCIF art. 52).`

@@ -55,21 +55,31 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
 
 /**
  * LA NATURE D'UNE CRÉANCE OU D'UNE DETTE se lit sur son compte, jamais
- * devinée au-delà de ce que le texte range. 40 et 41 (fournisseurs, clients)
- * sont les dettes et créances COMMERCIALES du § 2.3, aux deux plans. Les
- * opérations FINANCIÈRES qu'il cite (« emprunt bancaire en devise ») sont les
- * emprunts et les prêts · UN NUMÉRO, DEUX PLANS · les emprunts sont au 16 du
- * SYSCOHADA (Titre VII, « COMPTE 16 : Emprunts et dettes assimilées ») et au
- * 18 du SYCEBNL (« 18 EMPRUNTS ET DETTES ASSIMILÉES », Partie 2 ch. 2), dont
- * le 16 est « FONDS AFFECTÉS » · un fonds de projet lu en emprunt aurait mis
- * son écart au 676. Les prêts sont au 27 des deux plans (« AUTRES
- * IMMOBILISATIONS FINANCIÈRES »). Tout autre compte · `null`, la nature reste
- * au cabinet.
+ * devinée au-delà de ce que le texte range.
+ *
+ *  · COMMERCIALES · 40 et 41 (fournisseurs, clients), aux deux plans (§ 2.3,
+ *    « Créances et dettes commerciales »).
+ *  · FINANCIÈRES · les emprunts (§ 2.3, « emprunt bancaire en devise ») ·
+ *    UN NUMÉRO, DEUX PLANS · au 16 du SYSCOHADA (Titre VII, « COMPTE 16 :
+ *    Emprunts et dettes assimilées ») et au 18 du SYCEBNL (« 18 EMPRUNTS ET
+ *    DETTES ASSIMILÉES », Partie 2 ch. 2), dont le 16 est « FONDS
+ *    AFFECTÉS » · un fonds de projet lu en emprunt aurait mis son écart au
+ *    676. Les dettes de location acquisition, au 17 du SYSCOHADA, que le
+ *    bilan range au poste DB parmi les « DETTES FINANCIÈRES ET RESSOURCES
+ *    ASSIMILÉES » (Titre IX, poste DD), et au 187 du SYCEBNL, sous son 18
+ *    (« 187 Dettes de location-acquisition ») ; le 17 du SYCEBNL est « FONDS
+ *    REPORTÉS ». Les prêts, au 27 des deux plans (« AUTRES IMMOBILISATIONS
+ *    FINANCIÈRES »). Les fournisseurs d'investissements, au 481 des deux
+ *    plans · le ch. 22 § 1.1 dit de l'immobilisation payée à terme en devise
+ *    que « la différence constitue une charge ou un produit financier (perte
+ *    ou gain de change) ».
+ *  · Tout autre compte · `null`, la nature reste au cabinet, dans les seuls
+ *    comptes de change (`racinesAdmises`).
  */
 export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
   if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  const emprunts = referentiel === 'SYSCOHADA' ? '16' : '18';
-  if (numero.startsWith(emprunts) || numero.startsWith('27')) return 'FINANCIERE';
+  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '481'] : ['18', '27', '481'];
+  if (financieres.some((r) => numero.startsWith(r))) return 'FINANCIERE';
   return null;
 }
 
@@ -107,13 +117,55 @@ export const MOTIF_SYCEBNL_SANS_COMPTE =
   "son plan n'ouvre ni 656 ni 756, et ses fiches des comptes 67 et 77 réservent le 676 et le 776 aux opérations " +
   "à caractère financier. Choisissez le sous-compte de votre dossier, sous le 65 pour une perte, sous le 75 pour un gain.";
 
+/** Une racine admise, et ce qu'elle exclut. */
+export interface RacineAdmise {
+  racine: string;
+  sauf?: string;
+}
+
 /**
- * LE COMPTE CHOISI par le cabinet, quand il en choisit un. Il doit être de la
- * racine que le texte donne · le 656 ou le 756 (et leurs subdivisions) au
- * SYSCOHADA commercial, le 676 ou le 776 au financier ; au SYCEBNL
- * commercial, un compte du 65 (hors 659, provisions) pour une perte, du 75
- * (hors 759, reprises) pour un gain, jamais le 676 ni le 776. `null` si
- * admis.
+ * LES RACINES OÙ L'ÉCART PEUT ALLER, une seule table pour le serveur et
+ * l'écran (`client/src/lib/ecart-change.ts` la recopie, et les deux specs
+ * jouent les mêmes cas) :
+ *
+ *  · nature FINANCIÈRE · 676 ou 776, aux deux plans ;
+ *  · nature COMMERCIALE · 656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'en
+ *    donne aucun, le 65 hors 659 ou le 75 hors 759 (question ouverte à
+ *    Manasse, lecture de l'exclusion de la fiche du 75 et de la note 19 des
+ *    projets) ;
+ *  · nature NON LUE · les seuls comptes de change que le plan connaît · 656
+ *    ou 676, 756 ou 776 au SYSCOHADA ; le 65 (hors 659) ou le 676, le 75
+ *    (hors 759) ou le 776 au SYCEBNL. Jamais une classe entière · un 601
+ *    passait pour un compte de change.
+ */
+export function racinesAdmises(
+  referentiel: Referentiel,
+  nature: NatureCreanceDette | null,
+  ecart: 'PERTE' | 'GAIN',
+): RacineAdmise[] {
+  const perte = ecart === 'PERTE';
+  const financier: RacineAdmise = { racine: perte ? '676' : '776' };
+  const commercial: RacineAdmise =
+    referentiel === 'SYSCOHADA'
+      ? { racine: perte ? '656' : '756' }
+      : perte
+        ? { racine: '65', sauf: '659' }
+        : { racine: '75', sauf: '759' };
+  if (nature === 'FINANCIERE') return [financier];
+  if (nature === 'COMMERCIALE') return [commercial];
+  return [commercial, financier];
+}
+
+export function compteAdmisPourEcart(racines: RacineAdmise[], numero: string): boolean {
+  return racines.some((r) => numero.startsWith(r.racine) && !(r.sauf && numero.startsWith(r.sauf)));
+}
+
+const lesRacines = (racines: RacineAdmise[]) =>
+  racines.map((r) => (r.sauf ? `le ${r.racine} (hors ${r.sauf})` : `le ${r.racine}`)).join(' ou ');
+
+/**
+ * LE COMPTE CHOISI par le cabinet, quand il en choisit un · dans
+ * `racinesAdmises`, sous-comptes compris. `null` si admis.
  */
 export function motifRefusCompteEcart(params: {
   referentiel: Referentiel;
@@ -122,32 +174,115 @@ export function motifRefusCompteEcart(params: {
   numero: string;
 }): string | null {
   const { referentiel, nature, ecart, numero } = params;
+  const racines = racinesAdmises(referentiel, nature, ecart);
+  if (compteAdmisPourEcart(racines, numero)) return null;
   const lEcart = ecart === 'PERTE' ? 'Une perte' : 'Un gain';
-  const prescrits = comptesPrescrits(referentiel, nature);
-  if (prescrits.perte !== null) {
-    const racine = (ecart === 'PERTE' ? prescrits.perte : prescrits.gain).slice(0, 3);
-    if (numero.startsWith(racine)) return null;
-    const objet = nature === 'FINANCIERE' ? 'sur une opération financière' : 'sur une créance ou une dette commerciale';
-    return `${lEcart} de change ${objet} se passe au ${racine} (AUDCIF, Titre VIII ch. 22 § 2.3) · le compte ${numero} n'en est pas.`;
-  }
-  if (nature === null) {
-    // Nature non lue · le cabinet tranche, dans la seule classe de l'écart.
-    const classe = ecart === 'PERTE' ? '6' : '7';
-    return numero.startsWith(classe) ? null : `${lEcart} de change se passe en classe ${classe} · le compte ${numero} n'en est pas.`;
-  }
-  // SYCEBNL, créance ou dette commerciale.
-  if (numero.startsWith('676') || numero.startsWith('776')) {
+  if (referentiel === 'SYCEBNL' && nature === 'COMMERCIALE' && (numero.startsWith('676') || numero.startsWith('776'))) {
     return (
       `Le ${numero.slice(0, 3)} est réservé par le SYCEBNL aux opérations à caractère financier (fiches des comptes 67 et 77) · ` +
       "l'écart d'une créance ou d'une dette commerciale va au sous-compte du dossier, sous le 65 ou le 75."
     );
   }
-  if (ecart === 'PERTE') {
-    if (numero.startsWith('65') && !numero.startsWith('659')) return null;
-    return `Une perte de change commerciale va sous le 65 (autres charges), hors 659 · le compte ${numero} n'en est pas.`;
+  const objet =
+    nature === 'FINANCIERE'
+      ? ' sur une opération financière'
+      : nature === 'COMMERCIALE'
+        ? ' sur une créance ou une dette commerciale'
+        : '';
+  return `${lEcart} de change${objet} se passe sous ${lesRacines(racines)} (AUDCIF, Titre VIII ch. 22 § 2.3) · le compte ${numero} n'en est pas.`;
+}
+
+/** LE LIBELLÉ de l'écart, un seul, accordé · « Perte de change réalisée », « Gain de change réalisé ». */
+export function libelleEcartRealise(ecart: number): string {
+  return ecart > 0 ? 'Perte de change réalisée' : 'Gain de change réalisé';
+}
+
+/**
+ * LE COURS ET LES FRANCS D'UN RÈGLEMENT EN DEVISE · même règle que toute
+ * ligne en devise (`comptabilite/ligne-en-devise.ts`, AUDCIF art. 52) · le
+ * cours saisi donne la contrevaleur ; le débit réel saisi en francs prime, et
+ * le cours s'en déduit à six décimales ; les deux saisis doivent s'accorder à
+ * la tolérance près. Ni l'un ni l'autre · refus, jamais un cours deviné.
+ */
+export function coursEtFrancsDuReglement(p: {
+  montantDevise: number;
+  cours?: number;
+  francs?: number;
+  tolerance: (montantDevise: number, cours: number, francs: number) => boolean;
+}): { cours: number; francs: number } | { motif: string } {
+  if (p.cours === undefined && p.francs === undefined) {
+    return {
+      motif:
+        "les factures sont en devise · le cours du jour du règlement, ou le montant réellement payé en francs, est exigé, l'écart de change réalisé " +
+        'se mesurant contre lui (AUDCIF art. 55).',
+    };
   }
-  if (numero.startsWith('75') && !numero.startsWith('759')) return null;
-  return `Un gain de change commercial va sous le 75 (autres produits), hors 759 · le compte ${numero} n'en est pas.`;
+  if (p.francs === undefined) return { cours: p.cours!, francs: Math.round(p.montantDevise * p.cours! * 100) / 100 };
+  const francs = Math.round(p.francs * 100) / 100;
+  if (p.cours === undefined) return { cours: Math.round((francs / p.montantDevise) * 1e6) / 1e6, francs };
+  if (!p.tolerance(p.montantDevise, p.cours, francs)) {
+    const attendu = Math.round(p.montantDevise * p.cours * 100) / 100;
+    return {
+      motif:
+        `${p.montantDevise.toFixed(2)} au cours de ${p.cours} font ${attendu.toFixed(2)} en francs, et le montant saisi est ${francs.toFixed(2)} · ` +
+        'saisissez le seul montant payé, le cours s’en déduit (AUDCIF art. 52).',
+    };
+  }
+  return { cours: p.cours, francs };
+}
+
+/**
+ * LA TRÉSORERIE EN DEVISE (« Moyen de paiement en devise ») porte la devise
+ * de la banque ou de la caisse, jamais celle de la facture par défaut · une
+ * banque en USD qui paie une facture en EUR, ou un lot USD et EUR, aurait
+ * marqué le 52 d'une devise qu'il ne tient pas, et la conversion des
+ * disponibilités à la clôture (AUDCIF art. 57) l'aurait fausse. Refus ·
+ * case cochée sans devise de trésorerie déclarée, lot à plusieurs devises ou
+ * portant des factures en francs, devise déclarée autre que celle des
+ * factures, RIB du journal tenu dans une autre devise ; et, case décochée, un
+ * RIB tenu dans la devise des factures (le 52 recevrait des francs seuls).
+ * `null` si admis.
+ */
+export function motifRefusTresorerieEnDevise(p: {
+  tresorerieEnDevise: boolean;
+  /** Devise de chaque règlement du lot, `null` pour un règlement en francs. */
+  devisesDuLot: Array<{ id: string; code: string } | null>;
+  deviseTresorerie: { id: string; code: string } | null;
+  /** `RibBanque.devise` du journal, code ISO, ou `null` s'il n'est pas renseigné. */
+  deviseRib: string | null;
+  monnaieDeTenue: string;
+  journalCode: string;
+}): string | null {
+  const enDevise = p.devisesDuLot.filter((d): d is { id: string; code: string } => d !== null);
+  const codesLot = [...new Set(enDevise.map((d) => d.code))];
+  const rib = p.deviseRib ? p.deviseRib.trim().toUpperCase() : null;
+  const ribEtranger = rib !== null && rib !== p.monnaieDeTenue ? rib : null;
+  if (!p.tresorerieEnDevise) {
+    if (ribEtranger && enDevise.length > 0) {
+      return (
+        `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} · cochez « Moyen de paiement en devise », sans quoi le ` +
+        'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57).'
+      );
+    }
+    return null;
+  }
+  if (enDevise.length === 0 || enDevise.length !== p.devisesDuLot.length) {
+    return 'Un moyen de paiement en devise ne règle que des factures en devise · réglez les factures en francs dans une autre pièce.';
+  }
+  if (codesLot.length > 1) {
+    return `Le lot porte plusieurs devises (${codesLot.join(', ')}) · un moyen de paiement en devise n'en tient qu'une, une saisie par devise.`;
+  }
+  if (!p.deviseTresorerie) return 'Précisez la devise du moyen de paiement.';
+  if (p.deviseTresorerie.id !== enDevise[0]!.id) {
+    return (
+      `Le moyen de paiement est en ${p.deviseTresorerie.code} et les factures en ${codesLot[0]} · OmegaX ne passe pas un ` +
+      "règlement d'une devise dans une autre."
+    );
+  }
+  if (rib !== null && rib !== p.deviseTresorerie.code.toUpperCase()) {
+    return `Le RIB du journal ${p.journalCode} est tenu en ${rib}, et non en ${p.deviseTresorerie.code} · choisissez le journal du compte en ${p.deviseTresorerie.code}.`;
+  }
+  return null;
 }
 
 /** Une facture en devise, telle que le règlement la lit. */
@@ -239,7 +374,7 @@ export function lignesDuReglementEnDevise(p: {
     libelle: p.libelle,
     ...(p.tresorerieEnDevise ? { deviseId: p.deviseId, montantDevise: p.montantDevise, coursApplique: p.coursReglement } : {}),
   };
-  const libelleEcart = `${ecart > 0 ? 'Perte' : 'Gain'} de change · ${p.libelle}`.slice(0, 190);
+  const libelleEcart = `${libelleEcartRealise(ecart)} · ${p.libelle}`.slice(0, 190);
   const ligneEcart =
     ecart === 0
       ? null

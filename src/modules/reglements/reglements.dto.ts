@@ -49,7 +49,8 @@ export class ReglementTiersDto {
 
   /**
    * Cours du JOUR DU RÈGLEMENT · exigé dès que les factures sont en devise,
-   * l'écart réalisé se mesurant contre lui (AUDCIF art. 55). Jamais deviné.
+   * sauf si le montant payé en francs (`montant`) est saisi, le cours s'en
+   * déduisant alors (AUDCIF art. 52). Jamais deviné.
    */
   @FacultatifNonNul('Le cours du règlement est un nombre positif · omettez-le pour des factures en francs.')
   @IsNumber({ maxDecimalPlaces: 6 })
@@ -102,6 +103,15 @@ export class EnregistrerReglementsDto {
   @FacultatifNonNul('Omettez « trésorerie en devise » ou passez false.')
   @IsBoolean()
   tresorerieEnDevise?: boolean;
+
+  /**
+   * La devise du moyen de paiement, DÉCLARÉE avec « trésorerie en devise » ·
+   * jamais déduite de la facture (reglements/ecart-change-realise.ts,
+   * `motifRefusTresorerieEnDevise`).
+   */
+  @FacultatifNonNul('Omettez la devise du moyen de paiement pour un règlement en francs.')
+  @IsUUID('4')
+  deviseTresorerieId?: string;
 }
 
 /**

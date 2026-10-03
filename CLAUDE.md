@@ -550,23 +550,29 @@ compris · dit « provisoire, non validé », la réserve joue sur lui.
 
 **Écart de change RÉALISÉ (ligne A6, 2026-10-02).** AUDCIF art. 55, Titre VIII ch. 22
 § 2.3 (`reglements/ecart-change-realise.ts`). Une facture en devise se RÈGLE DANS SA
-DEVISE au cours du jour, exigé, jamais deviné ; plus que le dû EN DEVISE refusé (le
-dû en francs ne borne plus · un cours qui monte était refusé). Le tiers est soldé au
-COÛT HISTORIQUE avec le montant en devise, la trésorerie au payé, l'écart sur SA
-ligne · commercial (40, 41) au 656 ou 756, financier (emprunts, 27) au 676 ou 776.
-UN NUMÉRO, DEUX PLANS · les emprunts sont au 16 du SYSCOHADA, au 18 du SYCEBNL dont
-le 16 est un FONDS (`natureDuCompte` prend le référentiel) ; le SYCEBNL n'ouvre ni 656
-ni 756 et réserve 676 et 776 au change financier (fiches 67, 75, 77) · AUCUN compte
-donné pour le commercial, le cabinet CHOISIT sous le 65 (hors 659) ou le 75 (hors
-759), refus nommé sinon. Partiel au prorata de la devise, factures les plus
-anciennes d'abord. Un groupe de lettrage soldé en devise et non en francs ·
-l'écart est PROPOSÉ (`GET /comptes/:compteId/lettrage/:id/ecart-change`), passé au
-seul clic (`POST /reglements/ecart-change`, qui rejoue le calcul), jamais au journal
-de trésorerie. AVEC A5 · une position SOLDÉE DANS SA DEVISE ne se réévalue plus
-(`motifPositionDenouee`) · son reste en francs est du RÉALISÉ, il passait au 478 ou
-479 et se provisionnait ; elle sort des positions et sa provision se reprend. Anomalie
-signalée · l'art. 53 dit « charges financières » là où § 2.3 et la fiche 656 disent
-exploitation.
+DEVISE, au cours du jour OU au débit réel en francs (le cours s'en déduit, règle de
+`ligne-en-devise.ts`), jamais deviné ; plus que le dû EN DEVISE refusé. Le tiers est
+soldé au COÛT HISTORIQUE avec le montant en devise, la trésorerie au payé, l'écart sur
+SA ligne (« Perte de change réalisée », « Gain de change réalisé ») · commercial (40,
+41) au 656 ou 756, financier (emprunts, location acquisition, 27, 481) au 676 ou 776.
+UN NUMÉRO, DEUX PLANS · emprunts au 16 et 17 du SYSCOHADA, au 18 (dont 187) du SYCEBNL,
+dont le 16 et le 17 sont des FONDS ; le SYCEBNL n'ouvre ni 656 ni 756 · le cabinet
+CHOISIT sous le 65 (hors 659) ou le 75 (hors 759), bornes en question chez Manasse.
+Comptes admis par UNE table (`racinesAdmises`, rejouée par le spec client) · nature non
+lue, les seuls comptes de change, jamais une classe ; compte prescrit de détail et
+actif, sinon ses sous-comptes offerts. LA TRÉSORERIE EN DEVISE SE DÉCLARE
+(`deviseTresorerieId`) · lot à plusieurs devises, devise autre que les factures ou RIB
+du journal dans une autre devise refusés (art. 57). Partiel au prorata de la devise ;
+le groupe GARDE le réalisé du règlement, et soldé il porte le TOTAL
+(`LettrageService.ecartCumule`). Groupe soldé en devise et non en francs · écart
+PROPOSÉ au lettrage, passé au seul clic (`POST /reglements/ecart-change`, calcul rejoué),
+au plus tôt à la date du dénouement, dans son exercice, hors trésorerie, groupe SOLDÉ
+ou pièce retirée (409). AVEC A5 · une position ou un groupe partiel SOLDÉ DANS SA
+DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel que soit le
+reste du compte ; et l'écart est refusé (409) si la réévaluation de l'exercice a déjà
+repris ces lignes (`motifReevaluationDejaPassee`, lu sur son écriture), aucun geste ne
+retirant une réévaluation passée. Anomalie signalée · l'art. 53 dit « charges
+financières » là où § 2.3 et la fiche 656 disent exploitation.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

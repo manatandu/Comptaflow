@@ -296,6 +296,23 @@ export class LettrageService {
   }
 
   /**
+   * LE RÉALISÉ DU GROUPE, CUMULÉ (ligne A6). Un règlement en devise solde le
+   * tiers au coût historique et porte SON écart sur sa propre ligne, hors du
+   * compte du tiers · les lignes du groupe ne le montrent pas, il est donc
+   * GARDÉ par le groupe dès le règlement, partiel compris (« réalisé à ce
+   * jour »). Au passage à SOLDE, l'écart que portent encore les lignes en
+   * devise (un solde passé à un autre cours, ou l'écart proposé puis passé)
+   * s'y AJOUTE · le groupe soldé dit le réalisé TOTAL, 42 000 + 123 200 au
+   * jeu du séminaire, jamais le seul dernier. Sans réalisé gardé, la règle
+   * d'origine · `null` tant que le groupe n'est pas soldé.
+   */
+  static ecartCumule(dejaRealise: number | null, auDenouement: number | null, soldeNul: boolean): number | null {
+    if (!soldeNul) return dejaRealise;
+    if (dejaRealise === null) return auDenouement;
+    return Math.round((dejaRealise + (auDenouement ?? 0)) * 100) / 100;
+  }
+
+  /**
    * ÉCART DE CHANGE RÉALISÉ · « le lettrage facilite, pour les opérations en
    * monnaies étrangères dénouées, le calcul des différences de change
    * réalisées » (CPCC, ch. 6).
@@ -390,7 +407,7 @@ export class LettrageService {
         origine: params.origine,
         createdBy: params.userId,
         soldeAt: soldeNul ? new Date() : null,
-        ecartChange: soldeNul ? (params.ecartChangeRealise ?? this.ecartChangeRealise(lignes)) : null,
+        ecartChange: LettrageService.ecartCumule(params.ecartChangeRealise ?? null, soldeNul ? this.ecartChangeRealise(lignes) : null, soldeNul),
       },
     });
     const { count } = await tx.ligneEcriture.updateMany({
@@ -477,7 +494,7 @@ export class LettrageService {
           if (change !== null) {
             throw new BadRequestException(
               `Les lignes sélectionnées sont soldées dans leur devise mais pas en francs · l'écart de ${Math.abs(change.ecart).toFixed(2)} ` +
-                `est un${change.ecart > 0 ? 'e perte' : ' gain'} de change réalisé (AUDCIF art. 55). Lettrez en partiel, puis passez ` +
+                `est ${change.ecart > 0 ? 'une perte de change réalisée' : 'un gain de change réalisé'} (AUDCIF art. 55). Lettrez en partiel, puis passez ` +
                 "l'écart proposé sur le groupe (« Écart de change »).",
             );
           }
@@ -553,7 +570,11 @@ export class LettrageService {
             statut: soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL,
             solde: soldeNul ? 0 : solde,
             soldeAt: soldeNul ? new Date() : null,
-            ecartChange: soldeNul ? this.ecartChangeRealise(toutes) : null,
+            ecartChange: LettrageService.ecartCumule(
+              groupe.ecartChange === null ? null : Number(groupe.ecartChange),
+              soldeNul ? this.ecartChangeRealise(toutes) : null,
+              soldeNul,
+            ),
           },
         });
         if (soldeNul) {
@@ -631,17 +652,23 @@ export class LettrageService {
     const prescrits = comptesPrescrits(referentiel, nature);
     const numeroPrescrit =
       prescrits.perte === null || change.ecart === 0 ? null : change.ecart > 0 ? prescrits.perte : prescrits.gain;
-    const comptePrescrit = numeroPrescrit
+    // Le compte prescrit n'est rendu que s'il peut recevoir l'écart · de
+    // DÉTAIL et ACTIF (relecture adverse, mineur 2) ; sinon l'écran offre ses
+    // sous-comptes, et le serveur refusera le compte en sommeil.
+    const lu = numeroPrescrit
       ? await this.prisma.compte.findFirst({
           where: { tenantId, numero: numeroPrescrit },
-          select: { id: true, numero: true, intitule: true },
+          select: { id: true, numero: true, intitule: true, typeCompte: true, estActif: true },
         })
       : null;
+    const comptePrescrit =
+      lu && lu.typeCompte === 'DETAIL' && lu.estActif !== false ? { id: lu.id, numero: lu.numero, intitule: lu.intitule } : null;
     return {
       ...base,
       ecart: change.ecart,
       sens: change.ecart > 0 ? ('PERTE' as const) : ('GAIN' as const),
       devise: lignes.find((l) => l.deviseId === change.deviseId)?.devise?.code ?? null,
+      deviseId: change.deviseId,
       date: derniere.ecriture.date,
       exerciceId: derniere.ecriture.exerciceId,
       nature,
@@ -651,7 +678,9 @@ export class LettrageService {
         prescrits.perte === null
           ? prescrits.motif
           : comptePrescrit === null && numeroPrescrit !== null
-            ? `Le compte ${numeroPrescrit} que le texte donne n'est pas ouvert dans le plan du dossier.`
+            ? lu
+              ? `Le compte ${numeroPrescrit} que le texte donne ${lu.typeCompte === 'DETAIL' ? 'est en sommeil' : 'est un compte de regroupement'} · choisissez l'un de ses sous-comptes de détail.`
+              : `Le compte ${numeroPrescrit} que le texte donne n'est pas ouvert dans le plan du dossier · ouvrez-le, ou un sous-compte, dans Plan comptable.`
             : null,
     };
   }

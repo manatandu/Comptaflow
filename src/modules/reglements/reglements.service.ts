@@ -1,20 +1,25 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TypeJournal } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { StatutLettrage, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
 import { refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { EnregistrerReglementsDto, PasserEcartChangeDto, type ReglementTiersDto } from './reglements.dto';
-import { contrevaleur } from '../comptabilite/ligne-en-devise';
+import { contrevaleurAdmise } from '../comptabilite/ligne-en-devise';
+import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import {
+  coursEtFrancsDuReglement,
   coutHistoriqueRegle,
   ecartSigne,
+  libelleEcartRealise,
+  motifRefusTresorerieEnDevise,
   lignesDuReglementEnDevise,
   lignesEcartDuGroupe,
   natureDuCompte,
   type Referentiel,
 } from './ecart-change-realise';
 import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
+import { motifReevaluationDejaPassee } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
@@ -202,6 +207,36 @@ export class ReglementsService {
       prepares.push({ r: p.r, compte: p.compte, du: p.du, montant: enDevise.francsPayes, enDevise });
     }
 
+    // LA DEVISE DU MOYEN DE PAIEMENT (ligne A6) · déclarée, jamais prise sur
+    // la facture, et confrontée au lot et au RIB du journal avant la
+    // première pièce (`motifRefusTresorerieEnDevise`).
+    const lotEnDevise = prepares.some((x) => x.enDevise !== null);
+    if (dto.tresorerieEnDevise === true || dto.deviseTresorerieId !== undefined || lotEnDevise) {
+      const idsDevises = [
+        ...new Set([...prepares.flatMap((x) => (x.enDevise ? [x.enDevise.deviseId] : [])), ...(dto.deviseTresorerieId ? [dto.deviseTresorerieId] : [])]),
+      ];
+      const devisesLues = idsDevises.length
+        ? await this.prisma.devise.findMany({ where: { tenantId, id: { in: idsDevises } }, select: { id: true, code: true } })
+        : [];
+      const code = (id: string) => devisesLues.find((d) => d.id === id)?.code ?? '?';
+      if (dto.deviseTresorerieId !== undefined && !devisesLues.some((d) => d.id === dto.deviseTresorerieId)) {
+        throw new NotFoundException('Devise du moyen de paiement introuvable pour ce dossier.');
+      }
+      if (dto.deviseTresorerieId !== undefined && dto.tresorerieEnDevise !== true) {
+        throw new BadRequestException('Une devise de moyen de paiement ne se déclare qu’avec « Moyen de paiement en devise ».');
+      }
+      const rib = await this.prisma.ribBanque.findFirst({ where: { tenantId, journalId: journal.id }, select: { devise: true } });
+      const motif = motifRefusTresorerieEnDevise({
+        tresorerieEnDevise: dto.tresorerieEnDevise === true,
+        devisesDuLot: prepares.map((x) => (x.enDevise ? { id: x.enDevise.deviseId, code: code(x.enDevise.deviseId) } : null)),
+        deviseTresorerie: dto.deviseTresorerieId ? { id: dto.deviseTresorerieId, code: code(dto.deviseTresorerieId) } : null,
+        deviseRib: rib?.devise ?? null,
+        monnaieDeTenue: MONNAIE_DE_TENUE,
+        journalCode: journal.code,
+      });
+      if (motif) throw new BadRequestException(motif);
+    }
+
     // Le lettrage vient APRÈS la pièce · une facture figée par une clôture
     // (exercice/gel-cloture.ts) le ferait refuser une fois la pièce passée.
     // Vérifiée ici, avec le reste, avant la première écriture.
@@ -257,8 +292,10 @@ export class ReglementsService {
         lettre = await this.lettrage.lettrerManuel(tenantId, r.compteId, [...r.ligneIds, ligneTiers.id], userId, {
           autoriserPartiel: partiel,
           // Le tiers est soldé au coût historique · l'écart réalisé est sur
-          // sa propre ligne, hors du compte du tiers, et le groupe le garde.
-          ...(enDevise && !partiel ? { ecartChangeRealise: enDevise.ecart } : {}),
+          // sa propre ligne, hors du compte du tiers, et le groupe le garde,
+          // partiel compris · le solde passé ensuite s'y AJOUTE, et le groupe
+          // soldé porte le réalisé TOTAL (42 000 + 123 200 au séminaire).
+          ...(enDevise ? { ecartChangeRealise: enDevise.ecart } : {}),
         });
       } catch (e) {
         await this.ecritures.retirerCompensation(tenantId, ecriture.id);
@@ -320,12 +357,6 @@ export class ReglementsService {
         `${numero} · un avoir en devise ne se règle pas ici · lettrez-le avec sa facture depuis Interrogation et lettrage.`,
       );
     }
-    if (r.coursReglement === undefined) {
-      throw new BadRequestException(
-        `${numero} · les factures sont en devise · le cours du jour du règlement est exigé, l'écart de change réalisé ` +
-          'se mesurant contre lui (AUDCIF art. 55).',
-      );
-    }
     const duDevise = Math.round(factures.reduce((s, f) => s + f.montantDevise, 0) * 100) / 100;
     const montantDevise = r.montantDevise ?? duDevise;
     if (Math.round(montantDevise * 100) > Math.round(duDevise * 100)) {
@@ -334,13 +365,16 @@ export class ReglementsService {
           `(${duDevise.toFixed(2)}) · l'excédent est une avance ou un trop-perçu, à comptabiliser à part.`,
       );
     }
-    const francsPayes = contrevaleur(montantDevise, r.coursReglement);
-    if (r.montant !== undefined && Math.abs(r.montant - francsPayes) > 0.01) {
-      throw new BadRequestException(
-        `${numero} · ${montantDevise.toFixed(2)} au cours de ${r.coursReglement} font ${francsPayes.toFixed(2)} en francs, ` +
-          `et le montant saisi est ${r.montant.toFixed(2)}.`,
-      );
-    }
+    // Le débit RÉEL saisi en francs prime, le cours s'en déduit · même règle
+    // que toute ligne en devise (comptabilite/ligne-en-devise.ts).
+    const lu = coursEtFrancsDuReglement({
+      montantDevise,
+      cours: r.coursReglement,
+      francs: r.montant,
+      tolerance: contrevaleurAdmise,
+    });
+    if ('motif' in lu) throw new BadRequestException(`${numero} · ${lu.motif}`);
+    const francsPayes = lu.francs;
     const historique = coutHistoriqueRegle(factures, montantDevise);
     const ecart = ecartSigne(sens, historique, francsPayes);
     const compteEcart =
@@ -356,7 +390,7 @@ export class ReglementsService {
     return {
       deviseId: [...devises][0]!,
       montantDevise,
-      coursReglement: r.coursReglement,
+      coursReglement: lu.cours,
       francsPayes,
       historique,
       ecart,
@@ -377,6 +411,22 @@ export class ReglementsService {
     if (proposition.ecart === null || proposition.ecart === 0) {
       throw new BadRequestException(proposition.motif ?? "Ce lettrage n'a aucun écart de change à passer.");
     }
+    // LA DATE ET L'EXERCICE DU DÉNOUEMENT (ch. 22 § 2.3, « à la date
+    // d'encaissement ou de règlement ») · l'écart appartient à l'exercice où
+    // la position s'est dénouée, et ne se constate pas avant elle. Passé
+    // ailleurs, le résultat d'un exercice porterait la perte d'un autre.
+    if (dto.exerciceId !== proposition.exerciceId) {
+      throw new BadRequestException(
+        `L'écart de change de ce lettrage s'est réalisé dans l'exercice de son dernier règlement · passez-le dans cet exercice (AUDCIF, Titre VIII ch. 22 § 2.3).`,
+      );
+    }
+    const dateDenouement = new Date(proposition.date!).toISOString().slice(0, 10);
+    if (dto.date.slice(0, 10) < dateDenouement) {
+      throw new BadRequestException(
+        `L'écart de change se constate à la date du règlement qui dénoue la position, le ${dateDenouement}, ou après · ` +
+          `pas le ${dto.date.slice(0, 10)} (AUDCIF, Titre VIII ch. 22 § 2.3).`,
+      );
+    }
     const journal = await this.prisma.journal.findFirst({ where: { id: dto.journalId, tenantId } });
     if (!journal) throw new NotFoundException('Journal introuvable pour ce dossier.');
     if (journal.type === TypeJournal.TRESORERIE) {
@@ -393,7 +443,18 @@ export class ReglementsService {
       ecart: proposition.ecart > 0 ? 'PERTE' : 'GAIN',
       choisiId: dto.compteEcartChangeId,
     });
-    const libelle = `${proposition.ecart > 0 ? 'Perte' : 'Gain'} de change réalisé · ${proposition.compteNumero} ${proposition.code}`;
+    // PAS DEUX FOIS LA MÊME PERTE (relecture adverse B1) · une réévaluation
+    // qui a déjà lu ces lignes les a portées au 478 ou 479 et en provision.
+    const dejaReevalue = await motifReevaluationDejaPassee(this.prisma, {
+      tenantId,
+      exerciceId: proposition.exerciceId!,
+      compteId: proposition.compteId,
+      compteNumero: proposition.compteNumero,
+      deviseId: proposition.deviseId!,
+      denouement: new Date(proposition.date!),
+    });
+    if (dejaReevalue) throw new ConflictException(dejaReevalue);
+    const libelle = `${libelleEcartRealise(proposition.ecart)} · ${proposition.compteNumero} ${proposition.code}`;
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
@@ -407,13 +468,31 @@ export class ReglementsService {
       }),
     });
     const ligneTiers = ecriture.lignes.find((l) => l.compteId === proposition.compteId)!;
+    let lettre: Awaited<ReturnType<LettrageService['completer']>>;
     try {
-      const lettre = await this.lettrage.completer(tenantId, dto.lettrageId, [ligneTiers.id]);
-      return { ecritureId: ecriture.id, ecart: proposition.ecart, compte: compteEcart.numero, lettre: lettre.lettre, statut: lettre.statut };
+      lettre = await this.lettrage.completer(tenantId, dto.lettrageId, [ligneTiers.id]);
     } catch (e) {
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
       throw e;
     }
+    // L'ÉCART SOLDE LE GROUPE, OU IL N'EST PAS PASSÉ · un groupe resté
+    // partiel (une ligne ajoutée ou retirée entre la proposition et le clic)
+    // garderait un écart passé sur une position qui n'est plus celle mesurée.
+    if (lettre.statut !== StatutLettrage.SOLDE) {
+      // Le groupe reprend son reste SANS la ligne retirée, dans la même
+      // transaction que le retrait de la pièce.
+      await this.ecritures.retirerCompensation(tenantId, ecriture.id, async (tx) => {
+        await tx.ligneEcriture.updateMany({ where: { ecritureId: ecriture.id }, data: { lettrageId: null } });
+        const restes = await tx.ligneEcriture.findMany({ where: { lettrageId: dto.lettrageId }, select: { debit: true, credit: true } });
+        const reste = Math.round(restes.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0) * 100) / 100;
+        await tx.lettrage.updateMany({ where: { id: dto.lettrageId, tenantId }, data: { solde: reste } });
+      });
+      throw new ConflictException(
+        `Le lettrage ${proposition.code} n'est pas soldé par cet écart (reste ${Number(lettre.solde).toFixed(2)}) · ` +
+          "il a changé depuis la proposition. Relisez l'écart proposé.",
+      );
+    }
+    return { ecritureId: ecriture.id, ecart: proposition.ecart, compte: compteEcart.numero, lettre: lettre.lettre, statut: lettre.statut };
   }
 }
 

@@ -1,4 +1,5 @@
 import { Referentiel } from '@prisma/client';
+import { ecartDuGroupe } from '../reglements/ecart-change-realise';
 
 /**
  * CE QUI SE RÉÉVALUE À LA CLÔTURE, ET CE QUI NE SE RÉÉVALUE JAMAIS.
@@ -81,4 +82,55 @@ export function motifPositionDenouee(montantDevise: number, valeurComptable: num
     `position dénouée · soldée dans sa devise, il reste ${reste.toFixed(2)} en francs, écart de change RÉALISÉ au ` +
     'règlement (AUDCIF art. 55), jamais un écart de conversion · passez-le depuis le lettrage (« Écart de change »)'
   );
+}
+
+/** Une ligne d'un groupe de lettrage, telle que la réévaluation la relit. */
+export interface LigneDeGroupe {
+  lettrageId: string;
+  code: string;
+  debit: number;
+  credit: number;
+  deviseId: string | null;
+  montantDevise: number | null;
+}
+
+/**
+ * LES GROUPES DE LETTRAGE DÉNOUÉS DANS LEUR DEVISE (ligne A6, relecture
+ * adverse B1) · un groupe PARTIEL dont les lignes sont soldées en devise et
+ * pas en francs attend l'écart proposé au lettrage. Ses lignes ne portent pas
+ * `lettre` (posée au seul passage à SOLDE), et la réévaluation les lisait ·
+ * sur un 401 qui porte aussi une facture ouverte, la position entière n'était
+ * pas nulle en devise, `motifPositionDenouee` ne jouait pas, et le réalisé
+ * passait au 478 et en provision, puis une seconde fois au 656 quand l'écart
+ * proposé était passé. Rendus par identifiant, avec leur code et leur écart
+ * signé (positif = perte), quel que soit le reste du compte.
+ */
+export function groupesDenoues(lignes: LigneDeGroupe[]): Map<string, { code: string; ecart: number }> {
+  const parGroupe = new Map<string, LigneDeGroupe[]>();
+  for (const l of lignes) parGroupe.set(l.lettrageId, [...(parGroupe.get(l.lettrageId) ?? []), l]);
+  const denoues = new Map<string, { code: string; ecart: number }>();
+  for (const [id, ls] of parGroupe) {
+    const change = ecartDuGroupe(ls);
+    if (change !== null) denoues.set(id, { code: ls[0]!.code, ecart: change.ecart });
+  }
+  return denoues;
+}
+
+/**
+ * LA POSITION D'UN COMPTE DANS UNE DEVISE, comme `DevisesService.calculer`
+ * l'agrège · le montant en devise prend le SENS de sa ligne (débit moins
+ * crédit), la valeur comptable le solde en francs des seules lignes en devise.
+ */
+export function positionDesLignes(lignes: Array<{ debit: number; credit: number; montantDevise: number | null }>): {
+  montantDevise: number;
+  valeurComptable: number;
+} {
+  let montantDevise = 0;
+  let valeurComptable = 0;
+  for (const l of lignes) {
+    const sens = l.debit - l.credit >= 0 ? 1 : -1;
+    montantDevise += sens * (l.montantDevise ?? 0);
+    valeurComptable += l.debit - l.credit;
+  }
+  return { montantDevise, valeurComptable };
 }

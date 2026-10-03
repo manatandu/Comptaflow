@@ -166,3 +166,71 @@ describe('réévaluation · une position dénouée dans sa devise', () => {
     expect(r.positions[0].estTresorerie).toBe(true);
   });
 });
+
+/**
+ * RELECTURE ADVERSE B1 · LE CAS MIXTE. Sur le 401, SYSCOHADA · facture A de
+ * 1 160 USD à 1 680 (1 948 800) ; 600 USD réglés par l'écran au coût
+ * historique (1 008 000, 656 de 42 000 sur sa ligne) ; le solde de 560 USD
+ * payé à 1 900 (1 064 000) ajouté à la main au groupe, resté PARTIEL avec
+ * 123 200 à passer ; facture B de 500 USD à 1 700 (850 000), ouverte ;
+ * clôture à 1 850. La position entière n'est pas nulle en devise (500 USD),
+ * `motifPositionDenouee` ne jouait pas, et la réévaluation passait 198 200
+ * au 478 et en provision, au lieu des 75 000 de la seule facture B · le 656
+ * de 123 200 passé ensuite comptait la perte deux fois.
+ */
+describe('réévaluation · un groupe partiel dénoué sur un compte qui porte d’autres positions', () => {
+  const ligne = (debit: number, credit: number, montantDevise: number, lettrageId: string | null) => ({
+    compteId: 'c401',
+    deviseId: 'd1',
+    debit,
+    credit,
+    montantDevise,
+    lettrageId,
+    compte: { id: 'c401', numero: '40110000', intitule: 'NZUZI' },
+    devise: { id: 'd1', code: 'USD' },
+  });
+  const lignes = [
+    ligne(0, 1_948_800, 1160, 'L'),
+    ligne(1_008_000, 0, 600, 'L'),
+    ligne(1_064_000, 0, 560, 'L'),
+    ligne(0, 850_000, 500, null),
+  ];
+
+  function monter() {
+    const findMany = jest.fn(async ({ where }: { where: { lettrageId?: { in: string[] } } }) =>
+      where.lettrageId
+        ? lignes
+            .filter((l) => l.lettrageId && where.lettrageId!.in.includes(l.lettrageId))
+            .map((l) => ({ ...l, lettrage: { code: 'A' } }))
+        : lignes,
+    );
+    const prisma = {
+      tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA }) },
+      exercice: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'ex1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: 'OUVERT' }),
+      },
+      ligneEcriture: { aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 } }), findMany },
+      reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
+      provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
+      verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
+      ecriture: { count: jest.fn().mockResolvedValue(1) },
+      coursDevise: { findFirst: jest.fn().mockResolvedValue({ cours: 1850 }) },
+    };
+    return new DevisesService(prisma as unknown as PrismaService, {} as EcritureService);
+  }
+
+  it('seule la facture B se réévalue · 75 000 de perte latente, pas 198 200', async () => {
+    const r = await monter().calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positions).toHaveLength(1);
+    expect(r.positions[0]).toMatchObject({ montantDevise: -500, valeurComptable: -850_000, ecart: -75_000 });
+    expect(r.perteLatente).toBe(75_000);
+  });
+
+  it('le groupe dénoué est NOMMÉ, avec son réalisé à passer', async () => {
+    const r = await monter().calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positionsNonReevaluees).toEqual([
+      expect.objectContaining({ numero: '40110000', deviseCode: 'USD', montantDevise: 0, motif: expect.stringMatching(/^lettrage a · position dénouée.*123200\.00/) }),
+    ]);
+  });
+});
