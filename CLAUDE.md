@@ -593,7 +593,10 @@ passé AVERTISSENT, sans refuser (`avertissementExtourneManquante`), quand une l
 choisie ou du groupe vient d'une écriture d'À-NOUVEAU, que la réévaluation de
 l'exercice qui PRÉCÈDE IMMÉDIATEMENT n'a pas été contre-passée, et qu'elle a réellement
 porté cette devise sur le compte. Aucun geste ne retire une réévaluation passée · le refus le dit et nomme la
-décision attendue de Manasse. Des
+décision attendue de Manasse. D4 · un
+ancien règlement partiel qui a soldé le tiers AU PAYÉ, sans ligne d'écart, est signalé
+en INFORMATION (`REGLEMENT_DEVISE_SANS_ECART`, exercice ouvert, reconnaissable dans un
+lettrage partiel seulement), jamais retraité · art. 20, al. 2 et 3. Des
 francs sans montant en devise sont refusés ; un lot de virements ne rappelle pas une
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.

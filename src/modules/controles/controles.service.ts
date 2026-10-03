@@ -41,6 +41,7 @@ import { formeApplicable } from '../tenant/forme-applicable';
 import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilisations/comptes-du-bien';
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
+import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -4071,6 +4072,47 @@ export class ControlesService {
             "Rapprochement en cours · dépointez la ligne. Rapprochement clos · l'administrateur rouvre le dernier rapprochement clos du compte, " +
             'motif à l\'appui, puis la ligne se dépointe ; un rapprochement plus ancien ne se rouvre pas, les suivants partent de son solde de relevé.',
           occurrences,
+        });
+      }
+    }
+
+    // --- 31. Règlement en devise qui a soldé le tiers au payé, sans écart ---
+    //
+    // Décision D4 (2026-10-03, « réfère-toi à la loi ») · INFORMATION, jamais
+    // un retraitement. AUDCIF art. 55 · l'écart réalisé « est constaté » à la
+    // date du règlement ; art. 20, al. 2 · l'erreur de l'exercice en cours se
+    // corrige « exclusivement par inscription en négatif des éléments
+    // erronés ; l'enregistrement exact est ensuite opéré » ; al. 3 · celle
+    // d'un exercice antérieur, si significative, par le report à nouveau. Un
+    // EXERCICE OUVERT seulement · c'est là que l'inscription en négatif vaut.
+    // Reconnaissable dans un lettrage partiel seulement (`reglementsSansEcart`).
+    if (ex.statut !== StatutExercice.CLOTURE) {
+      const sansEcart = await reglementsSansEcart(this.prisma, { tenantId, exerciceId, referentiel: tenant.referentiel });
+      if (sansEcart.elements.length > 0 || sansEcart.tronque) {
+        anomalies.push({
+          code: 'REGLEMENT_DEVISE_SANS_ECART',
+          gravite: 'INFORMATION',
+          libelle: 'Règlement en devise qui a soldé le tiers au payé, sans écart de change',
+          consequence:
+            "La ligne du tiers porte les francs du jour au lieu du coût historique de ce qu'elle règle · l'écart de change réalisé " +
+            "sur la part réglée n'est pas constaté (AUDCIF art. 55), il reste mêlé au tiers et se lirait en écart de conversion à la clôture.",
+          action:
+            "Corrigez la pièce par inscription en négatif, puis passez le règlement exact depuis Règlement des tiers, qui solde le tiers " +
+            "au coût historique et porte l'écart sur sa ligne (AUDCIF art. 20, al. 2). Rien n'est corrigé d'office.",
+          occurrences: [
+            // Lecture bornée · la liste le DIT, sans prétendre à un total qu'elle n'a pas lu.
+            ...(sansEcart.tronque
+              ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LIGNES_EXAMINEES} lignes de lettrages partiels lues · d'autres règlements peuvent exister.` }]
+              : []),
+            ...sansEcart.elements.map((e) => ({
+            reference: `${e.compteNumero} · ${e.piece}`,
+            detail:
+              `${e.montantDevise} en devise portés ${e.francsPortes.toFixed(2)} au tiers contre ${e.francsHistoriques.toFixed(2)} au coût historique · ` +
+              `${e.ecart > 0 ? 'perte' : 'gain'} de change non constaté${e.ecart > 0 ? 'e' : ''}`,
+            date: e.date.toISOString().slice(0, 10),
+            montant: e.ecart,
+            })),
+          ],
         });
       }
     }
