@@ -52,13 +52,17 @@ import {
 import {
   comptesBancairesSansRapprochement,
   estCompteBancaireARapprocher,
+  estCompteDeVirementInterne,
   journauxEnRetardDeClotureInformatique,
   premiereEcheanceDepassee,
   releveCouvreLaCloture,
   sourceClotureInformatique,
   sourceFicheCompte52,
+  sourceFicheCompte58,
   texteEnVigueurPourLExercice,
+  virementsInternesNonSoldes,
   type CompteBancaireMouvemente,
+  type CompteDeVirementInterne,
   type EtatRapprochementCompte,
   type JournalEcrit,
 } from './banque-et-cloture-informatique';
@@ -1184,6 +1188,7 @@ export class ControlesService {
       journauxEcrits: Map<string, JournalEcrit>;
       comptesBancaires: Map<string, CompteBancaireMouvemente>;
       contrePassationsAnnuleesTronquees?: boolean;
+      virementsInternes: Map<string, CompteDeVirementInterne>;
     },
     maintenant: number,
   ): Promise<AnomalieControle[]> {
@@ -1325,6 +1330,36 @@ export class ControlesService {
         });
       }
     }
+
+    // --- 36. Virements internes 585 et 588 non soldés à la clôture (A17) ----
+    //
+    // Fiche du compte 58 des DEUX plans (`banque-et-cloture-informatique.ts`)
+    // · lu au passage des écritures, aucune requête de plus.
+    const nonSoldes = virementsInternesNonSoldes([...parcours.virementsInternes.values()], ex.dateFin, aujourdhui);
+    if (nonSoldes.length > 0) {
+      const montres = nonSoldes.slice(0, PLAFOND_OCCURRENCES);
+      anomalies.push({
+        code: 'VIREMENT_INTERNE_NON_SOLDE_A_LA_CLOTURE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Compte de virements internes non soldé à la clôture',
+        consequence:
+          // Citation MOT POUR MOT de la fiche du dossier · l'AUDCIF écrit « En
+          // tout état de cause, ces comptes », le SYCEBNL sans la virgule.
+          '« Ce sont des comptes de passage utiles à la comptabilisation d\'opérations internes à l\'entité. [...] En tout ' +
+          (referentiel === 'SYSCOHADA' ? 'état de cause, ces comptes' : 'état de cause ces comptes') +
+          ' doivent être soldés au terme de leur utilisation » ; « Il importe de s\'assurer que les ' +
+          'comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l\'exercice » (' +
+          sourceFicheCompte58(referentiel) +
+          "). Un solde restant est la moitié d'un virement entre deux comptes de trésorerie dont l'autre moitié manque ou " +
+          "a été imputée ailleurs · un compte de trésorerie du bilan peut en être faux d'autant.",
+        action:
+          'À solder avant l’arrêté des comptes · rapprochez, dans le grand livre du compte, chaque sortie de fonds de son ' +
+          'entrée dans l’autre journal de trésorerie (relevés bancaires, procès-verbaux de caisse), puis passez la moitié ' +
+          'manquante ou corrigez l’imputation erronée. Une pièce au brouillard qui le solde reste à valider.',
+        occurrences: montres,
+        ...(nonSoldes.length > montres.length ? { nombre: nonSoldes.length } : {}),
+      });
+    }
     return anomalies;
   }
 
@@ -1369,6 +1404,8 @@ export class ControlesService {
     const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
     // Ligne A6 bis, B2 · une ligne de l'exercice dans un groupe de lettrage.
     let lettrageVu = false;
+    // Ligne A17 · les soldes des 585 et 588, relevés au même passage.
+    const virementsInternes = new Map<string, CompteDeVirementInterne>();
     // Une contre-passation ANNULÉE (A5 bis, M1) et son négatif ne portent
     // plus la liaison · la trace gardée sur la réévaluation les nomme (second
     // tour, m3), sans quoi une ancienne contre-passation qui inversait la
@@ -1434,6 +1471,21 @@ export class ControlesService {
                 vu.derniereLigne = e.date;
               }
             }
+          }
+          if (estCompteDeVirementInterne(n)) {
+            // En CENTIMES, comme la banque · deux soldes, le livre-journal
+            // (validées seules, art. 22, 2°) et tout ce qui est saisi.
+            const centimes = Math.round(Number(l.debit) * 100) - Math.round(Number(l.credit) * 100);
+            const v = virementsInternes.get(l.compte.id) ?? {
+              compteId: l.compte.id,
+              numero: n,
+              intitule: l.compte.intitule,
+              soldeLivreJournalCentimes: 0,
+              soldeToutesLignesCentimes: 0,
+            };
+            if (e.statut === StatutEcriture.VALIDEE) v.soldeLivreJournalCentimes += centimes;
+            v.soldeToutesLignesCentimes += centimes;
+            virementsInternes.set(l.compte.id, v);
           }
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
@@ -1548,6 +1600,7 @@ export class ControlesService {
       // pourrait passer pour une opération de banque · le contrôle 32 le DIT
       // (troisième tour, mineur 3).
       contrePassationsAnnuleesTronquees: tracesAnnulees.tronque,
+      virementsInternes,
       // Le solde a été tenu en centimes · il repart ici en francs.
       comptesBancaires: new Map(
         [...comptesBancaires].map(([id, c]) => [id, { ...c, soldeCloture: c.soldeCloture / 100 }]),

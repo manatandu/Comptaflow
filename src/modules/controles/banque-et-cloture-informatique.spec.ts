@@ -14,8 +14,12 @@ import {
   premiereEcheanceDepassee,
   sourceClotureInformatique,
   sourceFicheCompte52,
+  sourceFicheCompte58,
+  estCompteDeVirementInterne,
+  virementsInternesNonSoldes,
   texteEnVigueurPourLExercice,
   type CompteBancaireMouvemente,
+  type CompteDeVirementInterne,
   type EtatRapprochementCompte,
 } from './banque-et-cloture-informatique';
 
@@ -284,6 +288,7 @@ function ecriture(
     ecartsDeReevaluation?: boolean;
     /** Inscription en négatif de l'écriture d'écarts d'une réévaluation annulée. */
     negatifDEcarts?: boolean;
+    statut?: 'VALIDEE' | 'BROUILLARD';
   } = {},
 ) {
   return {
@@ -292,7 +297,7 @@ function ecriture(
     libelle: 'Opération',
     reference: 'PJ',
     numeroPiece: 1,
-    statut: 'VALIDEE',
+    statut: autres.statut ?? 'VALIDEE',
     createdAt: D('2026-05-10'),
     createdBy: 'u1',
     valideeBy: 'u2',
@@ -708,5 +713,158 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
     const m = monter({});
     expect(await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD')).toBeUndefined();
     expect(m.cloture.findMany).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LIGNE A17 · virements internes 585 et 588 non soldés à la clôture
+// ---------------------------------------------------------------------------
+
+describe('virements internes · racines 585 et 588, aux deux plans (fiche du compte 58)', () => {
+  it('lit les 585 et 588 des deux semis, jamais les régies et accréditifs du SYSCOHADA', () => {
+    const detail58 = (plan: typeof PLAN_COMPTES_SYCEBNL) =>
+      plan.filter((c) => c.numero.startsWith('58') && c.typeCompte !== TypeCompteDetailTotal.TOTAL);
+    // SYCEBNL · le 58 n'a que 585 et 588.
+    expect(detail58(PLAN_COMPTES_SYCEBNL).map((c) => c.numero)).toEqual(['58500000', '58800000']);
+    expect(detail58(PLAN_COMPTES_SYCEBNL).every((c) => estCompteDeVirementInterne(c.numero))).toBe(true);
+    // SYSCOHADA · un numéro, deux contenus · 581 et 582 se régularisent, ils
+    // ne se soldent pas à la clôture.
+    const syscohada = detail58(PLAN_COMPTES_SYSCOHADA);
+    expect(syscohada.filter((c) => estCompteDeVirementInterne(c.numero)).map((c) => c.numero)).toEqual(['58500000', '58800000']);
+    const ecartes = syscohada.filter((c) => !estCompteDeVirementInterne(c.numero)).map((c) => c.numero);
+    expect(ecartes.length).toBeGreaterThan(0);
+    for (const n of ecartes) expect(n.startsWith('581') || n.startsWith('582')).toBe(true);
+  });
+
+  it('chaque référentiel cite SA fiche', () => {
+    expect(sourceFicheCompte58(Referentiel.SYCEBNL)).toBe('SYCEBNL, Partie 2 ch. 3, compte 58');
+    expect(sourceFicheCompte58(Referentiel.SYSCOHADA)).toBe('AUDCIF, Titre VII, compte 58');
+  });
+});
+
+describe('virements internes · la règle pure', () => {
+  const v = (numero: string, lj: number, tout = lj): CompteDeVirementInterne => ({
+    compteId: `c-${numero}`,
+    numero,
+    intitule: `Compte ${numero}`,
+    soldeLivreJournalCentimes: lj,
+    soldeToutesLignesCentimes: tout,
+  });
+
+  it('se tait jusqu’au jour de clôture compris (§ 10 bis), parle le lendemain', () => {
+    expect(virementsInternesNonSoldes([v('58500000', 100_000)], D('2026-12-31'), D('2026-12-31'))).toEqual([]);
+    expect(virementsInternesNonSoldes([v('58500000', 100_000)], D('2026-12-31'), D('2027-01-01'))).toHaveLength(1);
+  });
+
+  it('un compte soldé au centime ne parle pas ; un 581 jamais', () => {
+    expect(virementsInternesNonSoldes([v('58500000', 0), v('58100000', 5_000)], D('2026-12-31'), D('2027-01-15'))).toEqual([]);
+  });
+
+  it('nomme le compte, le sens et le montant au livre-journal', () => {
+    const r = virementsInternesNonSoldes([v('58800000', -25_050), v('58500000', 100_000)], D('2026-12-31'), D('2027-01-15'));
+    expect(r.map((x) => x.reference)).toEqual(['58500000 Compte 58500000', '58800000 Compte 58800000']);
+    expect(r[0].montant).toBe(1000);
+    expect(r[0].detail).toMatch(/^solde débiteur de 1\s000,00 au livre-journal au 2026-12-31$/);
+    expect(r[1].montant).toBe(-250.5);
+    expect(r[1].detail).toMatch(/^solde créditeur de 250,50 au livre-journal/);
+  });
+
+  it('le brouillard ne se lit jamais comme validé · les deux soldes sont dits', () => {
+    // Soldé par une pièce au brouillard · non soldé au livre-journal.
+    const [a] = virementsInternesNonSoldes([v('58500000', 100_000, 0)], D('2026-12-31'), D('2027-01-15'));
+    expect(a.montant).toBe(1000);
+    expect(a.detail).toContain('nul en comptant le brouillard, la pièce qui le solde reste à valider');
+    // Soldé au livre-journal, mais une pièce au brouillard le rouvre.
+    const [b] = virementsInternesNonSoldes([v('58500000', 0, 30_000)], D('2026-12-31'), D('2027-01-15'));
+    expect(b.montant).toBe(0);
+    expect(b.detail).toMatch(/^solde nul au livre-journal au 2026-12-31 · débiteur de 300,00 en comptant le brouillard/);
+  });
+});
+
+describe('la batterie de contrôles · câblage de la ligne A17', () => {
+  let maintenant: jest.SpyInstance;
+  const le = (jour: string) => maintenant.mockReturnValue(new Date(`${jour}T12:00:00.000Z`).getTime());
+  beforeEach(() => {
+    maintenant = jest.spyOn(Date, 'now');
+  });
+  afterEach(() => maintenant.mockRestore());
+
+  const anomalie = async (m: ReturnType<typeof monter>, code: string) =>
+    (await m.svc.analyser('t', 'ex')).anomalies.find((a) => a.code === code);
+  const CODE = 'VIREMENT_INTERNE_NON_SOLDE_A_LA_CLOTURE';
+
+  // Sortie de la banque vers le 585 · l'entrée en caisse n'a jamais été passée.
+  const demiVirement = () => [
+    ecriture('e1', 'jBQ', 'BQ', [ligne('1', '58500000', 1000), ligne('2', '52110000', 0, 1000)], { date: '2026-12-20' }),
+  ];
+
+  for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA]) {
+    it(`${referentiel} · signale le 585 non soldé, avec SA fiche`, async () => {
+      le('2027-01-15');
+      const a = await anomalie(monter({ referentiel, ecritures: demiVirement() }), CODE);
+      expect(a?.gravite).toBe('AVERTISSEMENT');
+      expect(a?.libelle).toBe('Compte de virements internes non soldé à la clôture');
+      expect(a?.consequence).toContain(sourceFicheCompte58(referentiel));
+      expect(a?.consequence).toContain('« Il importe de s\'assurer que les comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l\'exercice »');
+      // Citation mot pour mot · la virgule est dans l'AUDCIF, pas dans le SYCEBNL.
+      expect(a?.consequence).toContain(
+        referentiel === Referentiel.SYSCOHADA ? 'En tout état de cause, ces comptes doivent' : 'En tout état de cause ces comptes doivent',
+      );
+      expect(a?.occurrences).toEqual([
+        { reference: '58500000 Compte 58500000', detail: expect.stringContaining('solde débiteur de 1'), montant: 1000 },
+      ]);
+      expect(`${a?.libelle} ${a?.consequence} ${a?.action}`).not.toMatch(/retard/i);
+    });
+  }
+
+  it('se tait quand la caisse a reçu l’autre moitié, validée', async () => {
+    le('2027-01-15');
+    const m = monter({
+      ecritures: [
+        ...demiVirement(),
+        ecriture('e2', 'jCA', 'CA', [ligne('3', '57110000', 1000), ligne('4', '58500000', 0, 1000)], { date: '2026-12-21' }),
+      ],
+    });
+    expect(await anomalie(m, CODE)).toBeUndefined();
+  });
+
+  it('parle quand l’autre moitié est au brouillard, et le dit', async () => {
+    le('2027-01-15');
+    const m = monter({
+      ecritures: [
+        ...demiVirement(),
+        ecriture('e2', 'jCA', 'CA', [ligne('3', '57110000', 1000), ligne('4', '58500000', 0, 1000)], {
+          date: '2026-12-21',
+          statut: 'BROUILLARD',
+        }),
+      ],
+    });
+    const a = await anomalie(m, CODE);
+    expect(a?.occurrences[0].montant).toBe(1000);
+    expect(a?.occurrences[0].detail).toContain('la pièce qui le solde reste à valider');
+  });
+
+  it('l’à-nouveau d’un 585 resté ouvert se signale aussi dans N+1', async () => {
+    le('2028-01-15');
+    const m = monter({
+      dateDebut: '2027-01-01',
+      dateFin: '2027-12-31',
+      ecritures: [
+        ecriture('an', 'jAN', 'AN', [ligne('1', '58500000', 1000), ligne('2', '13100000', 0, 1000)], { date: '2027-01-01' }),
+      ],
+    });
+    expect((await anomalie(m, CODE))?.occurrences.map((o) => o.reference)).toEqual(['58500000 Compte 58500000']);
+  });
+
+  it('avant le lendemain de la clôture, ou hors du texte, rien', async () => {
+    le('2026-12-31');
+    expect(await anomalie(monter({ ecritures: demiVirement() }), CODE)).toBeUndefined();
+    le('2024-01-15');
+    expect(
+      await anomalie(
+        monter({ referentiel: Referentiel.SYCEBNL, dateDebut: '2023-01-01', dateFin: '2023-12-31', ecritures: demiVirement() }),
+        CODE,
+      ),
+    ).toBeUndefined();
   });
 });

@@ -349,3 +349,115 @@ export function journauxEnRetardDeClotureInformatique(
   }
   return enRetard;
 }
+
+// ---------------------------------------------------------------------------
+// Virements internes (585, 588) non soldés à la clôture · ligne A17
+// ---------------------------------------------------------------------------
+
+/**
+ * LIGNE A17 · relevé CPCC C14. Un CONTRÔLE, jamais un refus.
+ *
+ * ## Les textes, lus
+ *
+ * SYCEBNL, Partie 2 ch. 3, COMPTE 58 « Virements internes » · subdivisions
+ * « 585 Virements de fonds ; 588 Autres virements internes ». Commentaires ·
+ * « Ce sont des comptes de passage utiles à la comptabilisation d'opérations
+ * internes à l'entité. [...] En tout état de cause ces comptes doivent être
+ * soldés au terme de leur utilisation. » Éléments de contrôle · « Il importe
+ * de s'assurer que les comptes 585 et 588 relatifs aux virements internes
+ * sont soldés à la fin de l'exercice. »
+ *
+ * AUDCIF, Titre VII, COMPTE 58 « Régies d'avances, accréditifs et virements
+ * internes » · les MÊMES phrases sur les 585 et 588 (« doivent être soldés au
+ * terme de leur utilisation » ; « soldés à la fin de l'exercice »). Le
+ * contrôle vaut donc aux DEUX référentiels, par le texte de chacun, et non au
+ * seul SYCEBNL que nommait la ligne du suivi · cloisonner le ferait taire
+ * chez une société que sa propre fiche oblige de même.
+ *
+ * UN NUMÉRO, DEUX CONTENUS · le 58 du SYSCOHADA porte aussi les 581 (régies
+ * d'avance) et 582 (accréditifs), qu'aucune phrase ne fait solder à la
+ * clôture (ils se régularisent, « crédité lors de la régularisation des
+ * avances et du règlement définitif des accréditifs ») ; le 58 du SYCEBNL n'a
+ * que 585 et 588. Le contrôle ne lit donc que les racines 585 et 588, aux
+ * deux plans, jamais la division 58 entière.
+ *
+ * « doivent être soldés » · une obligation, AVERTISSEMENT, comme le compte 52
+ * de la même famille. C'est un ÉTAT à la clôture, jamais un retard · il ne
+ * parle qu'au lendemain de la fin de l'exercice (avant, la contrepartie d'un
+ * virement en cours peut encore être datée de l'exercice, et le signaler
+ * fabriquerait une anomalie, § 10 bis), et sous la même borne d'entrée en
+ * vigueur que les contrôles de la ligne A13.
+ *
+ * ## Le solde lu
+ *
+ * Sur les lignes de l'exercice, à-nouveau compris, en CENTIMES · la clôture
+ * annuelle ne solde que les classes 6 à 8, un 585 n'a donc ni colonne de
+ * clôture ni report hors de l'à-nouveau. DEUX soldes, jamais l'un pour
+ * l'autre · celui du LIVRE-JOURNAL (écritures validées, AUDCIF art. 22, 2°),
+ * qui est celui des états, et celui qui compte AUSSI le brouillard et
+ * l'à-nouveau provisoire. Un virement soldé par une pièce encore au
+ * brouillard n'est pas soldé au livre-journal ; un virement dont la seconde
+ * moitié n'a pas même été saisie ne l'est nulle part. Le compte est signalé
+ * dès que l'un des deux n'est pas nul, et le détail dit les deux.
+ */
+
+/** Un compte de virement interne à solder à la clôture · racines 585 et 588, aux deux plans. */
+export function estCompteDeVirementInterne(numero: string): boolean {
+  return numero.startsWith('585') || numero.startsWith('588');
+}
+
+/** La fiche du compte 58 que le dossier lit. */
+export function sourceFicheCompte58(referentiel: Referentiel): string {
+  return referentiel === Referentiel.SYCEBNL ? 'SYCEBNL, Partie 2 ch. 3, compte 58' : 'AUDCIF, Titre VII, compte 58';
+}
+
+export interface CompteDeVirementInterne {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  /** Débit moins crédit des lignes VALIDÉES de l'exercice, en centimes. */
+  soldeLivreJournalCentimes: number;
+  /** Débit moins crédit de toutes les lignes de l'exercice, brouillard et à-nouveau provisoire compris, en centimes. */
+  soldeToutesLignesCentimes: number;
+}
+
+export interface VirementInterneNonSolde {
+  reference: string;
+  detail: string;
+  /** Solde au livre-journal, débit positif, en francs. */
+  montant: number;
+}
+
+const enFrancs = (centimes: number) =>
+  (Math.abs(centimes) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const decrireSolde = (centimes: number) =>
+  centimes === 0 ? 'nul' : `${centimes > 0 ? 'débiteur' : 'créditeur'} de ${enFrancs(centimes)}`;
+
+/**
+ * Les comptes 585 et 588 non soldés à la clôture, par numéro. Le contrôle ne
+ * parle qu'au lendemain de la clôture · avant, rend une liste vide.
+ */
+export function virementsInternesNonSoldes(
+  comptes: CompteDeVirementInterne[],
+  dateFin: Date,
+  aujourdhui: Date,
+): VirementInterneNonSolde[] {
+  if (!echeanceDepassee(dateFin, aujourdhui)) return [];
+  return comptes
+    .filter((c) => estCompteDeVirementInterne(c.numero))
+    .filter((c) => c.soldeLivreJournalCentimes !== 0 || c.soldeToutesLignesCentimes !== 0)
+    .sort((a, b) => a.numero.localeCompare(b.numero))
+    .map((c) => {
+      const lj = c.soldeLivreJournalCentimes;
+      const tout = c.soldeToutesLignesCentimes;
+      let detail = `solde ${decrireSolde(lj)} au livre-journal au ${iso(dateFin)}`;
+      if (tout !== lj) {
+        // Le brouillard ne se lit jamais comme validé · il se dit à côté.
+        detail +=
+          tout === 0
+            ? ' · nul en comptant le brouillard, la pièce qui le solde reste à valider'
+            : ` · ${decrireSolde(tout)} en comptant le brouillard et l'à-nouveau provisoire`;
+      }
+      return { reference: `${c.numero} ${c.intitule}`, detail, montant: lj / 100 };
+    });
+}
