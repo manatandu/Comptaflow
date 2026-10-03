@@ -38,7 +38,9 @@ grappe jetable `/tmp/pg-a7ter-55445` (port 55445), serveur jetable port 8195 (`s
 - [x] m-d · règlement borné au solde net du compte d'origine ; constat en AVERTISSEMENT. Scénario d (deux
   référentiels), clôture de N comprise
 - [x] relevés sans code (m-e, m-f, corpus) écrits au suivi ; ligne A7 bis précisée
-- [ ] fusion de `origin/main`, puis bloc du § 3 des deux côtés
+- [x] fusion de `origin/main` (e66231e, suivi seul), puis bloc du § 3 des deux côtés · serveur `tsc` vert,
+  `npx jest --maxWorkers=2` 714 suites, 10 005 tests, `npm run build` vert ; client `tsc` vert, 208 fichiers,
+  1 699 tests, construction verte ; e2e typé
 
 ## Second tour · scénarios réels et soldes
 
