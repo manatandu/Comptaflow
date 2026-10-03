@@ -1,3 +1,4 @@
+import { ecartsRealisesNonConstates, motifClotureEcartsNonConstates } from '../reglements/ecarts-non-constates';
 import {
   BadRequestException,
   ConflictException,
@@ -811,6 +812,13 @@ export class ExerciceService {
           "de clôturer : la clôture ne lit que le livre-journal, et ce qui reste en brouillard serait perdu du résultat.",
       );
     }
+
+    // L'ÉCART DE CHANGE RÉALISÉ SE CONSTATE DANS SON EXERCICE (décision D3 ·
+    // AUDCIF art. 55) · un lettrage dénoué dans sa devise dont l'écart n'est
+    // pas passé laisserait le tiers au bilan d'un reste en francs qui n'est
+    // plus une créance ni une dette, et le résultat sans sa perte ou son gain.
+    const enSouffrance = motifClotureEcartsNonConstates(await ecartsRealisesNonConstates(this.prisma, { tenantId, exerciceId }));
+    if (enSouffrance) throw new BadRequestException(enSouffrance);
 
     return avecRetrySerialisable(
       this.prisma,

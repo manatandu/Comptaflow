@@ -128,6 +128,8 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
     },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     ecriture: { count: jest.fn().mockResolvedValue(0) },
+    // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const journalService = { prochainNumeroPiece: jest.fn().mockResolvedValue(50) };

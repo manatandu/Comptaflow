@@ -575,7 +575,10 @@ PROPOSÉ au lettrage, passé au seul clic (`POST /reglements/ecart-change`, calc
 au plus tôt à la date du dénouement, dans son exercice, hors trésorerie, groupe SOLDÉ
 ou pièce retirée (409). AVEC A5 · une position ou un groupe partiel SOLDÉ DANS SA
 DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel que soit le
-reste du compte, lu sur ses lignes de l'EXERCICE ; et l'écart est refusé (409) si la
+reste du compte, lu sur ses lignes de l'EXERCICE ; D3 · c'est la CLÔTURE qui refuse
+tant qu'un lettrage dénoué dans l'exercice porte un réalisé non passé (art. 55,
+`ecartsRealisesNonConstates`, groupes, comptes, montants et issue nommés) ; et l'écart
+est refusé (409) si la
 réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
 le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL QU'IL ÉTAIT,
 toutes devises, avec et sans le groupe · écritures datées et SAISIES avant elle, sauf
