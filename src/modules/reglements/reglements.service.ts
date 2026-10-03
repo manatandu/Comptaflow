@@ -23,7 +23,10 @@ import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
 import { avertissementExtourneManquante, issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
+  avertissementCreanceReclassee,
   estEcheanceAReglerSur,
+  motifHorsEcheance,
+  motifReglementAuDelaDuNet,
   lignesDuReglement,
   montantDu,
   motifRefusMontant,
@@ -142,11 +145,16 @@ export class ReglementsService {
       })
       .filter((l) => l.montant > 0 && (!limite || l.echeance.getTime() <= limite.getTime()));
 
+    // A7 ter, mineur 1 · le compte d'une créance reclassée en vigueur se dit
+    // AVANT le règlement · « Recouvrement » dans le module, s'il s'agit d'elle.
+    const reclassees =
+      sens === 'CLIENT' ? await this.creancesReclasseesDesComptes(tenantId, [...new Set(aRegler.map((l) => l.compteId))]) : [];
     type Groupe = {
       compteId: string;
       numero: string;
       intitule: string;
       tiers: string | null;
+      creanceReclassee: { compte416: string; date: string } | null;
       lignes: typeof retenues;
       /** Lignes d'à-nouveau PROVISOIRE écartées (m6) · attendre la clôture de l'exercice précédent. */
       aNouveauProvisoireEcartees: number;
@@ -154,11 +162,13 @@ export class ReglementsService {
     const parCompte = new Map<string, Groupe>();
     const groupeDe = (c: (typeof lignes)[number]['compte']) => {
       if (!parCompte.has(c.id)) {
+        const r = reclassees.find((x) => x.compteId === c.id);
         parCompte.set(c.id, {
           compteId: c.id,
           numero: c.numero,
           intitule: c.intitule,
           tiers: c.tiersCompte ? `${c.tiersCompte.tiers.code} · ${c.tiersCompte.tiers.nom}` : null,
+          creanceReclassee: r ? { compte416: r.compte416, date: r.date } : null,
           lignes: [],
           aNouveauProvisoireEcartees: ecartees.get(c.id) ?? 0,
         });
@@ -174,6 +184,28 @@ export class ReglementsService {
       else if (ecartees.has(l.compteId)) groupeDe(l.compte);
     }
     return [...parCompte.values()];
+  }
+
+  /**
+   * Les comptes clients qui portent une créance reclassée au 416 EN VIGUEUR
+   * (non annulée), la plus récente par compte · lus par l'index du compte
+   * d'origine (migration 20270125000000).
+   */
+  private async creancesReclasseesDesComptes(tenantId: string, comptes: string[]) {
+    if (comptes.length === 0) return [];
+    const creances = await this.prisma.creanceDouteuse.findMany({
+      where: { tenantId, annuleeLe: null, compteCreanceId: { in: comptes } },
+      select: { compteCreanceId: true, dateReclassement: true, compte416: { select: { numero: true } } },
+      orderBy: { dateReclassement: 'desc' },
+    });
+    const vus = new Set<string>();
+    const rendues: Array<{ compteId: string; compte416: string; date: string }> = [];
+    for (const c of creances) {
+      if (vus.has(c.compteCreanceId)) continue;
+      vus.add(c.compteCreanceId);
+      rendues.push({ compteId: c.compteCreanceId, compte416: c.compte416.numero, date: c.dateReclassement.toISOString().slice(0, 10) });
+    }
+    return rendues;
   }
 
   /**
@@ -254,7 +286,7 @@ export class ReglementsService {
           throw new BadRequestException('Toutes les factures d\'un règlement doivent être sur le compte du tiers réglé.');
         }
         if (!estEcheanceAReglerSur(l.compte.numero, dto.sens)) {
-          throw new BadRequestException(`Le compte ${l.compte.numero} ne porte pas d'échéance à régler dans ce sens.`);
+          throw new BadRequestException(motifHorsEcheance(l.compte.numero));
         }
         if (l.lettrageId) {
           throw new BadRequestException(`Une facture du compte ${l.compte.numero} est déjà lettrée · elle n'est plus due.`);
@@ -355,6 +387,22 @@ export class ReglementsService {
     // lue a porté son écart au 478 et en provision ; le 656 du règlement
     // recompterait la perte. Refus avant la première pièce.
     const avertissements: string[] = [...avertissementsPaires];
+    // A7 ter, mineur 1 · le compte d'une créance reclassée en vigueur se dit ·
+    // son encaissement est le « Recouvrement » du module. Second tour, m-d ·
+    // le règlement se BORNE au solde net du compte (toutes ses lignes de
+    // l'exercice), refus nommé au-delà, avant la première pièce.
+    for (const c of dto.sens === 'CLIENT' ? await this.creancesReclasseesDesComptes(tenantId, idsComptes) : []) {
+      const x = prepares.find((p) => p.r.compteId === c.compteId);
+      if (!x) continue;
+      const s = await this.prisma.ligneEcriture.aggregate({
+        where: { compteId: c.compteId, ecriture: { tenantId, exerciceId: dto.exerciceId } },
+        _sum: { debit: true, credit: true },
+      });
+      const net = Number(s._sum.debit ?? 0) - Number(s._sum.credit ?? 0);
+      const refus = motifReglementAuDelaDuNet(x.compte.numero, c.compte416, c.date, net, x.montant);
+      if (refus) throw new BadRequestException(refus);
+      avertissements.push(avertissementCreanceReclassee(x.compte.numero, c.compte416, c.date));
+    }
     for (const x of prepares) {
       if (!x.enDevise) continue;
       if (x.enDevise.avertissement) avertissements.push(x.enDevise.avertissement);

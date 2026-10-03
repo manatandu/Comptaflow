@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   NatureCreanceDouteuse,
+  OrigineLettrage,
   Prisma,
   Referentiel,
   StatutEcriture,
@@ -19,19 +20,28 @@ import {
   EcritureService,
 } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
+import { LettrageService } from '../lettrage/lettrage.service';
+import { lignesFigees } from '../exercice/gel-cloture';
 import {
   COMPTES_CREANCES_DOUTEUSES,
   RACINES_CREANCE_SOURCE,
+  avertissementMethodeCotisations,
   centimes,
   compte416Propose,
   compte491,
   comptePertePropose,
   ecartDeDepreciation,
   enPlaceAvant,
+  INFORMATION_BORNE_RECONSTITUEE,
+  informationLettrageMaintenu,
+  motifLettrageFigeAuBrouillard,
+  motifLignesANouveauADesigner,
   motifRefusAnnulationMouvement,
   motifRefusAnnulationRevue,
   motifRefusAnnulationReclassement,
+  motifNonRetirable,
   motifRefus491,
+  motifRefusCotisationsEncaissement,
   motifResteNegatif,
   resteFinalDeLaCreance,
   mouvementsSansRevue,
@@ -48,6 +58,7 @@ import {
   AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
+  Lettrer416Dto,
   PerteCreanceDto,
   PieceJustificativeDto,
   ReclasserCreanceDto,
@@ -61,6 +72,11 @@ const jour = (d: Date) => d.toISOString().slice(0, 10);
 /** Borne de la liste servie · au-delà, la liste le dit (`tronque`). */
 export const PLAFOND_CREANCES_LISTEES = 500;
 const PLAFOND_COMPTES_CANDIDATS = 1000;
+/**
+ * m5 · borne des listes de 416 et de 491 de détail · au-delà, la liste le dit
+ * (`tronque`, `total`, § 8 bis) · un plan n'en ouvre d'ordinaire que deux.
+ */
+export const PLAFOND_COMPTES_416_491 = 200;
 
 /**
  * L'échéance du verrou des gestes · une borne de REPRISE d'un processus tombé
@@ -71,8 +87,26 @@ export const ECHEANCE_VERROU_CREANCES_MS = 15 * 60 * 1000;
 export const MOTIF_VERROU_CREANCES =
   'Une opération sur les créances douteuses est en cours sur ce dossier · réessayez après sa fin.';
 
-/** L'à-nouveau d'un exercice · bilan d'ouverture importé ou report, quel qu'en soit le statut. */
-const A_NOUVEAU = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } as const;
+/**
+ * L'À-NOUVEAU QUI FAIT FOI d'un exercice · bilan d'ouverture importé ou report
+ * de la clôture, quel qu'en soit le statut. L'À-NOUVEAU PROVISOIRE d'OmegaX
+ * (`estANouveauProvisoire`) n'en est PAS un (ligne A7 ter, B1) · il est
+ * calculé sur le seul livre-journal de l'exercice précédent, sans son
+ * brouillard (point 11), et lu comme solde il valait zéro pour une facture
+ * passée au brouillard le 10 décembre · le reclassement du 31 décembre était
+ * refusé « au-delà de ce que le client doit au plus tard enregistré
+ * (0.00) ». Même parti que la provision pour pertes de change (ligne A5,
+ * `DevisesService.ouverturesDe`) · seul l'à-nouveau provisoire cède la place
+ * à la clôture précédente, reconstituée brouillard compris.
+ */
+const A_NOUVEAU = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false, estANouveauProvisoire: false } as const;
+
+/**
+ * JAMAIS L'À-NOUVEAU PROVISOIRE DANS UN SOLDE (B1) · la chaîne lit déjà
+ * l'exercice précédent qu'il recopie ; le compter en plus porterait le report
+ * DEUX fois.
+ */
+const HORS_REPORT_PROVISOIRE = { estANouveauProvisoire: false } as const;
 
 const INCLURE_CREANCE = {
   compteCreance: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } } },
@@ -96,6 +130,43 @@ const INCLURE_CREANCE = {
 type Creance = Prisma.CreanceDouteuseGetPayload<{ include: typeof INCLURE_CREANCE }>;
 
 /**
+ * La lecture de la LISTE · ce qui décide aussi du retrait (m6), servi à
+ * l'écran · tous les actes, annulés compris (`_count`), l'exercice de la
+ * créance, l'écriture du reclassement et ses lignes.
+ */
+const INCLURE_LISTE = {
+  ...INCLURE_CREANCE,
+  _count: { select: { ajustements: true, mouvements: true } },
+  exercice: { select: { statut: true } },
+  ecritureReclassement: { select: { statut: true, lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } } } },
+} satisfies Prisma.CreanceDouteuseInclude;
+
+type CreanceListee = Prisma.CreanceDouteuseGetPayload<{ include: typeof INCLURE_LISTE }>;
+
+/**
+ * m6 · LE VERDICT DU RETRAIT, servi · la règle de `retirerCreance`
+ * (`motifNonRetirable`), jamais recalculée à l'écran. Une lecture incomplète
+ * ne rend jamais « retirable ».
+ */
+function estRetirable(c: CreanceListee): boolean {
+  if (!c._count || !c.exercice) return false;
+  const e = c.ecritureReclassement;
+  return (
+    motifNonRetirable({
+      revuesTotal: c._count.ajustements,
+      mouvementsTotal: c._count.mouvements,
+      exerciceClos: c.exercice.statut === StatutExercice.CLOTURE,
+      ecriture: e
+        ? {
+            statut: e.statut === StatutEcriture.BROUILLARD ? 'BROUILLARD' : 'VALIDEE',
+            tenue: motifLignesTenues(e.lignes, 'le reclassement', 'retirer') !== null,
+          }
+        : null,
+    }) === null
+  );
+}
+
+/**
  * CRÉANCES DOUTEUSES OU LITIGIEUSES · la règle est dans `creances-douteuses.ts`
  * ; ici, la lecture des comptes, des créances et de leurs revues, puis
  * l'écriture, retenue par sa ligne (`detenteurs-ecriture.ts`).
@@ -112,6 +183,7 @@ export class CreancesDouteusesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
+    private readonly lettrage: LettrageService,
   ) {}
 
   /**
@@ -211,7 +283,7 @@ export class CreancesDouteusesService {
   private async regime(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
+      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true, methodeCotisations: true },
     });
   }
 
@@ -250,17 +322,25 @@ export class CreancesDouteusesService {
     return c;
   }
 
+  /** Un à-nouveau qui fait foi · jamais l'à-nouveau provisoire (B1). */
   private async aUnANouveau(tenantId: string, exerciceId: string) {
     return (await this.prisma.ecriture.count({ where: { tenantId, exerciceId, ...A_NOUVEAU } })) > 0;
   }
 
+  /** L'exercice porte-t-il un à-nouveau PROVISOIRE · seulement pour le dire dans un message. */
+  private async aUnReportProvisoire(tenantId: string, exerciceId: string) {
+    return (await this.prisma.ecriture.count({ where: { tenantId, exerciceId, estANouveauProvisoire: true } })) > 0;
+  }
+
   /**
    * LES EXERCICES DONT LES ÉCRITURES FONT LE SOLDE (relecture adverse, M2) ·
-   * l'exercice lui-même, et, tant qu'il n'a pas d'à-nouveau, l'exercice qui le
-   * précède, récursivement · le report RECONSTITUÉ de la clôture précédente,
-   * comme `lireComptesDuReport` le calcule, et DIT provisoire. Sans lui, une
+   * l'exercice lui-même, et, tant qu'il n'a pas d'à-nouveau QUI FAIT FOI,
+   * l'exercice qui le précède, récursivement · le report RECONSTITUÉ de la
+   * clôture précédente, brouillard compris, et DIT provisoire. Sans lui, une
    * créance de N-1 lue dans N sans à-nouveau valait zéro, et le rapprochement
    * fabriquait un écart qui n'existe pas (§ 10 bis, cinquième défaut).
+   * L'à-nouveau PROVISOIRE n'arrête pas la chaîne (B1) · et `solde` ne le lit
+   * jamais, sans quoi le report serait compté deux fois.
    */
   private async chaine(tenantId: string, ex: { id: string; dateDebut: Date }) {
     const ids = [ex.id];
@@ -281,10 +361,16 @@ export class CreancesDouteusesService {
     return { ids, provisoire };
   }
 
-  /** Solde (débit moins crédit) sur la chaîne d'exercices, jusqu'à une date comprise, brouillard compris. */
+  /**
+   * Solde (débit moins crédit) sur la chaîne d'exercices, jusqu'à une date
+   * comprise, brouillard compris, à-nouveau PROVISOIRE exclu (B1).
+   */
   private async solde(tenantId: string, compte: Prisma.CompteWhereInput, ids: string[], au: Date) {
     const s = await this.prisma.ligneEcriture.aggregate({
-      where: { compte: { tenantId, ...compte }, ecriture: { tenantId, exerciceId: { in: ids }, date: { lte: au } } },
+      where: {
+        compte: { tenantId, ...compte },
+        ecriture: { tenantId, exerciceId: { in: ids }, date: { lte: au }, ...HORS_REPORT_PROVISOIRE },
+      },
       _sum: { debit: true, credit: true },
     });
     return centimes(n(s._sum.debit) - n(s._sum.credit));
@@ -313,6 +399,27 @@ export class CreancesDouteusesService {
   /** B-α · ce qui reste après TOUS les mouvements non annulés, quelle que soit leur date. */
   private resteFinal(c: Creance) {
     return resteFinalDeLaCreance(n(c.montant), c.mouvements.map((m) => ({ montant: n(m.montant) })));
+  }
+
+  /**
+   * LE SOLDE RECONSTITUÉ SE DIT, avec son issue (relecture adverse, M2 ; A7
+   * ter, B1 et mineur 3). Le module ne lit JAMAIS le report à-nouveau
+   * provisoire (`HORS_REPORT_PROVISOIRE`) · le relancer ne change rien à ce
+   * solde, et le message ne le propose plus. Les deux seules issues · clôturer
+   * l'exercice précédent (son report fait foi) ou passer un bilan d'ouverture.
+   */
+  private async motifSoldeReconstitue(tenantId: string, exerciceId: string, suite: string) {
+    if (await this.aUnReportProvisoire(tenantId, exerciceId)) {
+      return (
+        " Ce solde est reconstitué depuis l'exercice précédent, brouillard compris · l'à-nouveau de cet exercice n'est qu'un " +
+        "report PROVISOIRE, que ce module ne lit jamais. Clôturez l'exercice précédent ou passez un bilan d'ouverture, " +
+        `vérifiez le montant, puis ${suite}.`
+      );
+    }
+    return (
+      " Ce solde est le report RECONSTITUÉ de l'exercice précédent, l'à-nouveau de cet exercice n'étant pas encore passé · " +
+      `clôturez l'exercice précédent ou passez un bilan d'ouverture, puis ${suite}.`
+    );
   }
 
   /**
@@ -367,13 +474,14 @@ export class CreancesDouteusesService {
     if (filtre && !/^\d{1,13}$/.test(filtre)) {
       throw new BadRequestException('Le début de numéro se tape en chiffres (de 1 à 13).');
     }
-    const [{ referentiel }, ex] = await Promise.all([this.regime(tenantId), this.exercice(tenantId, exerciceId)]);
+    const [{ referentiel, methodeCotisations }, ex] = await Promise.all([this.regime(tenantId), this.exercice(tenantId, exerciceId)]);
     const { ids, provisoire } = await this.chaine(tenantId, ex);
     const racines = RACINES_CREANCE_SOURCE[referentiel];
     const groupes = await this.prisma.ligneEcriture.groupBy({
       by: ['compteId'],
       where: {
-        ecriture: { tenantId, exerciceId: { in: ids } },
+        // B1 · la chaîne lit déjà l'exercice que l'à-nouveau provisoire recopie.
+        ecriture: { tenantId, exerciceId: { in: ids }, ...HORS_REPORT_PROVISOIRE },
         compte: {
           tenantId,
           typeCompte: TypeCompteDetailTotal.DETAIL,
@@ -388,26 +496,21 @@ export class CreancesDouteusesService {
     const debiteurs = groupes
       .map((g) => ({ compteId: g.compteId, solde: centimes(n(g._sum?.debit) - n(g._sum?.credit)) }))
       .filter((g) => g.solde > 0.005);
-    const [comptesCreances, comptes416, comptes491] = await Promise.all([
+    const ou416 = { tenantId, numero: { startsWith: COMPTES_CREANCES_DOUTEUSES.creances416 }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true };
+    // m5 · les 491 de détail, que l'écran filtre par la racine de la nature.
+    const ou491 = { tenantId, numero: { startsWith: '491' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true };
+    const [comptesCreances, comptes416, comptes491, total416, total491] = await Promise.all([
       this.prisma.compte.findMany({
         where: { tenantId, id: { in: debiteurs.map((d) => d.compteId) } },
         select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } },
         orderBy: { numero: 'asc' },
         take: PLAFOND_COMPTES_CANDIDATS,
       }),
-      this.prisma.compte.findMany({
-        where: { tenantId, numero: { startsWith: COMPTES_CREANCES_DOUTEUSES.creances416 }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
-        select: { id: true, numero: true, intitule: true },
-        orderBy: { numero: 'asc' },
-        take: 50,
-      }),
-      // m5 · les 491 de détail, que l'écran filtre par la racine de la nature.
-      this.prisma.compte.findMany({
-        where: { tenantId, numero: { startsWith: '491' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
-        select: { id: true, numero: true, intitule: true },
-        orderBy: { numero: 'asc' },
-        take: 50,
-      }),
+      this.prisma.compte.findMany({ where: { ...ou416, tenantId }, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
+      this.prisma.compte.findMany({ where: { ...ou491, tenantId }, select: { id: true, numero: true, intitule: true }, orderBy: { numero: 'asc' }, take: PLAFOND_COMPTES_416_491 }),
+      // m5 · une liste bornée dit son total (§ 8 bis), jamais une coupe muette.
+      this.prisma.compte.count({ where: { ...ou416, tenantId } }),
+      this.prisma.compte.count({ where: { ...ou491, tenantId } }),
     ]);
     const soldes = new Map(debiteurs.map((d) => [d.compteId, d.solde]));
     return {
@@ -423,22 +526,34 @@ export class CreancesDouteusesService {
           LITIGIEUSE: compte416Propose(referentiel, NatureCreanceDouteuse.LITIGIEUSE, c.numero),
           DOUTEUSE: compte416Propose(referentiel, NatureCreanceDouteuse.DOUTEUSE, c.numero),
         },
+        // m9 · servis, jamais recalculés à l'écran · le refus que le geste
+        // opposera (cotisations à l'encaissement), ou l'avertissement.
+        refusCotisations: motifRefusCotisationsEncaissement(referentiel, c.numero, methodeCotisations ?? null),
+        avertissementCotisations: avertissementMethodeCotisations(referentiel, c.numero, methodeCotisations ?? null),
       })),
       tronque: groupes.length > PLAFOND_COMPTES_CANDIDATS,
       plafond: PLAFOND_COMPTES_CANDIDATS,
       filtreNumero: filtre || null,
       comptes416,
       comptes491,
+      listes416491: {
+        plafond: PLAFOND_COMPTES_416_491,
+        total416,
+        tronque416: total416 > comptes416.length,
+        total491,
+        tronque491: total491 > comptes491.length,
+      },
     };
   }
 
   /**
    * LA LISTE DE L'EXERCICE · chaque créance reclassée ou déclarée au plus
    * tard à sa clôture, avec le reste au 416, la dépréciation en place à
-   * l'ouverture et à la clôture, sa revue, ses mouvements, et si une revue
-   * est À FAIRE (elle changerait quelque chose). Le rapprochement confronte
-   * les totaux du module aux soldes du 416 et du 491, lus sur le report
-   * reconstitué tant que l'à-nouveau manque, et le dit.
+   * l'ouverture et à la clôture, sa revue, ses mouvements, si une revue est À
+   * FAIRE (elle changerait quelque chose), et si elle se RETIRE (m6, servi).
+   * Le rapprochement confronte les totaux du module aux soldes du 416 et du
+   * 491, lus sur le report reconstitué tant que l'à-nouveau qui fait foi
+   * manque, et le dit.
    */
   async lister(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
@@ -449,7 +564,7 @@ export class CreancesDouteusesService {
       // anciennes qui ne sont pas montrées, et `tronque` et `total` le disent.
       this.prisma.creanceDouteuse.findMany({
         where: { tenantId, dateReclassement: { lte: ex.dateFin }, annuleeLe: null },
-        include: INCLURE_CREANCE,
+        include: INCLURE_LISTE,
         orderBy: [{ dateReclassement: 'desc' }, { id: 'desc' }],
         take: PLAFOND_CREANCES_LISTEES,
       }),
@@ -472,24 +587,12 @@ export class CreancesDouteusesService {
     ]);
     const creances = lignes.map((c) => ({
       ...this.presenter(c, ex, regime.referentiel),
+      retirable: estRetirable(c),
       revuesAnnulees: annulees.filter((a) => a.creanceId === c.id).map((a) => ({ id: a.id, annuleeLe: a.annuleeLe, motif: a.motifAnnulation })),
       mouvementsAnnules: mouvementsAnnules
         .filter((m) => m.creanceId === c.id)
         .map((m) => ({ id: m.id, type: m.type, date: m.date, montant: n(m.montant), annuleeLe: m.annuleeLe, motif: m.motifAnnulation })),
     }));
-    const { ids, provisoire } = await this.chaine(tenantId, ex);
-    // LE 491 DU MODULE SEUL (seconde relecture, M-b) · les comptes que ses
-    // créances déprécient. Un 491 qui porte d'autres dépréciations (créance
-    // dépréciée hors module, autre nature) fabriquait un écart qui n'est pas
-    // celui du module.
-    const comptes491 = [...new Set(lignes.map((c) => c.compte491Id))];
-    // m4 · LE 416 DU MODULE SEUL, comme le 491 · une créance reclassée à la
-    // main sur un autre 416 fabriquait un écart qui n'est pas celui du module.
-    const comptes416 = [...new Set(lignes.map((c) => c.compte416Id))];
-    const [solde416, solde491] = await Promise.all([
-      comptes416.length > 0 ? this.solde(tenantId, { id: { in: comptes416 } }, ids, ex.dateFin) : Promise.resolve(0),
-      comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
-    ]);
     return {
       exercice: { id: ex.id, dateDebut: ex.dateDebut, dateFin: ex.dateFin, statut: ex.statut },
       systemeMinimal: !!motifRefusDepreciationSmt(regime),
@@ -500,20 +603,107 @@ export class CreancesDouteusesService {
         mouvements: { total: totalMouvementsAnnules, tronque: totalMouvementsAnnules > mouvementsAnnules.length },
       },
       creances,
-      rapprochement:
-        total > lignes.length
-          ? null
-          : {
-              // Lu sur le report reconstitué de l'exercice précédent tant que
-              // l'à-nouveau n'est pas passé · provisoire, et l'écran le dit.
-              provisoire,
-              solde416,
-              resteModule: centimes(creances.reduce((s, c) => s + c.resteALaCloture, 0)),
-              // Le 491 est créditeur · rendu en positif pour se comparer.
-              solde491: centimes(-solde491),
-              depreciationModule: centimes(creances.reduce((s, c) => s + c.depreciationALaCloture, 0)),
-            },
+      // m10 · CALCULÉ PAR AGRÉGAT, sur toutes les créances, quelle que soit la
+      // tranche montrée · les créances éteintes des exercices clos gonflaient
+      // le total, et le rapprochement restait `null` pour toujours.
+      rapprochement: await this.rapprochementDuModule(tenantId, ex),
     };
+  }
+
+  /**
+   * LE RAPPROCHEMENT DU MODULE AVEC LE 416 ET LE 491 (m10 ; M-b, m4, m8) ·
+   * mêmes nombres que la somme des lignes de la liste, pris par agrégat sur
+   * toutes les créances en vigueur reclassées au plus tard à la clôture ·
+   *  · reste au 416 = montants reclassés ou déclarés, moins les pertes et
+   *    recouvrements non annulés datés au plus tard la clôture ;
+   *  · dépréciation à la clôture = dépréciations déclarées à une ouverture au
+   *    plus tard celle-ci, plus les écarts des revues non annulées des
+   *    exercices clos au plus tard avec celui-ci (la revue de l'exercice porte
+   *    l'en-place à la dépréciation nécessaire, `enPlaceAvant`).
+   * Les soldes se lisent sur les SEULS 416 et 491 des créances du module. Le
+   * 491 partagé avec des dépréciations passées hors du module (m8) en dit la
+   * part · lignes de la chaîne qui ne sont ni un à-nouveau, ni une revue du
+   * module, ni l'inscription en négatif d'une revue · l'écart n'est plus nu.
+   */
+  private async rapprochementDuModule(tenantId: string, ex: { id: string; dateDebut: Date; dateFin: Date }) {
+    const enVigueur = { dateReclassement: { lte: ex.dateFin }, annuleeLe: null };
+    const base = { tenantId, ...enVigueur };
+    const [montants, declarees, mouvements, ecarts, par416, par491, chaine] = await Promise.all([
+      this.prisma.creanceDouteuse.aggregate({ where: { ...base, tenantId }, _sum: { montant: true } }),
+      this.prisma.creanceDouteuse.aggregate({
+        where: { ...base, tenantId, declareeOuverture: true, dateReclassement: { lte: ex.dateDebut } },
+        _sum: { depreciationOuverture: true },
+      }),
+      this.prisma.mouvementCreanceDouteuse.aggregate({
+        where: { tenantId, annuleeLe: null, date: { lte: ex.dateFin }, creance: enVigueur },
+        _sum: { montant: true },
+      }),
+      this.prisma.ajustementCreanceDouteuse.aggregate({
+        where: { tenantId, annuleeLe: null, exercice: { dateFin: { lte: ex.dateFin } }, creance: enVigueur },
+        _sum: { ecart: true },
+      }),
+      this.prisma.creanceDouteuse.groupBy({ by: ['compte416Id'], where: { ...base, tenantId }, orderBy: { compte416Id: 'asc' } }),
+      this.prisma.creanceDouteuse.groupBy({ by: ['compte491Id'], where: { ...base, tenantId }, orderBy: { compte491Id: 'asc' } }),
+      this.chaine(tenantId, ex),
+    ]);
+    const { ids, provisoire } = chaine;
+    const comptes416 = par416.map((g) => g.compte416Id);
+    const comptes491 = par491.map((g) => g.compte491Id);
+    const [solde416, solde491, horsModule491, reportProvisoire] = await Promise.all([
+      comptes416.length > 0 ? this.solde(tenantId, { id: { in: comptes416 } }, ids, ex.dateFin) : Promise.resolve(0),
+      comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
+      comptes491.length > 0 ? this.horsModule491(tenantId, comptes491, ex) : Promise.resolve(0),
+      // B1 · l'écran dit pourquoi les soldes sont provisoires · à-nouveau
+      // absent, ou report provisoire, que le module ne lit jamais.
+      provisoire ? this.aUnReportProvisoire(tenantId, ex.id) : Promise.resolve(false),
+    ]);
+    return {
+      // Lu sur le report reconstitué de l'exercice précédent tant que
+      // l'à-nouveau qui fait foi n'est pas passé · provisoire, et l'écran le
+      // dit (B1 · un report provisoire n'en tient pas lieu).
+      provisoire,
+      reportProvisoire,
+      solde416,
+      resteModule: centimes(n(montants._sum.montant) - n(mouvements._sum.montant)),
+      // Le 491 est créditeur · rendu en positif pour se comparer.
+      solde491: centimes(-solde491),
+      depreciationModule: centimes(n(declarees._sum.depreciationOuverture) + n(ecarts._sum.ecart)),
+      // m8 · la part du 491 passée HORS du module dans la chaîne, en positif.
+      horsModule491,
+    };
+  }
+
+  /**
+   * m8 · LES DÉPRÉCIATIONS PASSÉES HORS DU MODULE sur ses 491 · les lignes DE
+   * L'EXERCICE jusqu'à sa clôture qui ne sont ni un à-nouveau (il porte des
+   * soldes, module et hors module mêlés), ni l'écriture d'une revue du module,
+   * ni l'inscription en négatif d'une telle écriture. Rendu crédit moins débit.
+   *
+   * A7 TER, MINEUR 5 · L'EXERCICE SEUL, jamais la chaîne. Sans à-nouveau qui
+   * fait foi, les exercices précédents de la chaîne tiennent lieu d'à-nouveau ·
+   * une dépréciation passée à la main en N-1 est le solde d'ouverture que la
+   * déclaration couvre (`depreciationOuverture`). Lue aussi « hors module »,
+   * elle comptait DEUX fois · 400 000 au 491, 400 000 déclarés, 400 000 hors
+   * module, et un reste de -400 000 à l'écran. Avec un à-nouveau, elle est
+   * dans l'à-nouveau, que ce calcul écarte déjà · même règle des deux côtés.
+   */
+  private async horsModule491(tenantId: string, comptes491: string[], ex: { id: string; dateFin: Date }) {
+    const s = await this.prisma.ligneEcriture.aggregate({
+      where: {
+        compteId: { in: comptes491 },
+        ecriture: {
+          tenantId,
+          exerciceId: ex.id,
+          date: { lte: ex.dateFin },
+          estGenereeParCloture: false,
+          ...HORS_REPORT_PROVISOIRE,
+          ajustementCreanceDouteuse: { is: null },
+          NOT: { corrigeEcriture: { is: { ajustementCreanceDouteuse: { isNot: null } } } },
+        },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    return centimes(n(s._sum.credit) - n(s._sum.debit));
   }
 
   private presenter(c: Creance, ex: { id: string; dateDebut: Date; dateFin: Date }, referentiel: Referentiel) {
@@ -587,7 +777,7 @@ export class CreancesDouteusesService {
   }
 
   private async reclasserSousVerrou(tenantId: string, userId: string, dto: ReclasserCreanceDto) {
-    const [{ referentiel }, ex, journal, source] = await Promise.all([
+    const [{ referentiel, methodeCotisations }, ex, journal, source] = await Promise.all([
       this.regime(tenantId),
       this.exercice(tenantId, dto.exerciceId),
       this.journal(tenantId, dto.journalId),
@@ -606,9 +796,7 @@ export class CreancesDouteusesService {
     const [soldeDebiteur, soldeDernier, enDevise, c491] = await Promise.all([
       this.solde(tenantId, { id: source.id }, ids, date),
       this.soldeAuPlusTard(tenantId, source.id, ex, ids),
-      this.prisma.ligneEcriture.count({
-        where: { compteId: source.id, deviseId: { not: null }, lettre: null, ecriture: { tenantId, exerciceId: { in: ids } } },
-      }),
+      this.positionEnDeviseOuverte(tenantId, [source.id], ids, null),
       this.compte491Choisi(tenantId, dto.nature, dto.compte491Id),
     ]);
     let motif = motifRefusReclassement({
@@ -621,19 +809,19 @@ export class CreancesDouteusesService {
       montant: dto.montant,
       soldeDebiteur,
       soldeDernier,
-      ligneEnDevise: enDevise > 0,
+      positionEnDevise: enDevise,
       motif: dto.motif,
       pieces,
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
       dateDansExercice: date >= ex.dateDebut && date <= ex.dateFin,
       journalGeneral: journal.type === TypeJournal.GENERAL,
+      // m9 · SYCEBNL, cadre conceptuel § 5.4.2.1.
+      methodeCotisations: methodeCotisations ?? null,
     });
-    // Le solde lu sans à-nouveau est le report reconstitué · le refus le dit,
-    // avec l'issue (relecture adverse, M2).
+    // Le solde lu sans à-nouveau qui fait foi est le report reconstitué · le
+    // refus le dit, avec l'issue (relecture adverse, M2 ; A7 ter, B1).
     if (motif && provisoire && motif.includes('dépasse ce que le client doit')) {
-      motif +=
-        " Ce solde est le report RECONSTITUÉ de l'exercice précédent, l'à-nouveau de cet exercice n'étant pas encore passé · " +
-        "passez l'à-nouveau (ou le bilan d'ouverture), puis reprenez le reclassement.";
+      motif += await this.motifSoldeReconstitue(tenantId, ex.id, 'reprenez le reclassement');
     }
     if (motif) throw new BadRequestException(motif);
 
@@ -674,7 +862,8 @@ export class CreancesDouteusesService {
           },
         }),
       );
-      return { ...ligne, montant: n(ligne.montant) };
+      // m9 · méthode des cotisations non déclarée · un avertissement, jamais un refus.
+      return { ...ligne, montant: n(ligne.montant), avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null) };
     } catch (err) {
       // Une ligne refusée ne laisse pas son écriture au journal.
       await this.compenser(tenantId, ecriture.id);
@@ -693,7 +882,7 @@ export class CreancesDouteusesService {
   }
 
   private async declarerSousVerrou(tenantId: string, userId: string, dto: DeclarerCreanceOuvertureDto) {
-    const [{ referentiel }, ex, source, c416] = await Promise.all([
+    const [{ referentiel, methodeCotisations }, ex, source, c416] = await Promise.all([
       this.regime(tenantId),
       this.exercice(tenantId, dto.exerciceId),
       this.compteParId(tenantId, dto.compteCreanceId),
@@ -701,14 +890,15 @@ export class CreancesDouteusesService {
     ]);
     const c491 = await this.compte491Choisi(tenantId, dto.nature, dto.compte491Id);
     const date = ex.dateDebut;
-    const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
-    const [an416, an491, existe, dejaPorte] = await Promise.all([
-      this.prisma.ligneEcriture.aggregate({ where: { compteId: c416.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
-      this.prisma.ligneEcriture.aggregate({ where: { compteId: c491.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
-      this.aUnANouveau(tenantId, ex.id),
+    const { ids } = await this.chaine(tenantId, ex);
+    const [ouverture, dejaPorte, enDevise] = await Promise.all([
+      this.soldesALOuverture(tenantId, ex, c416.id, c491.id),
       this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
+      // m4 · une créance en devise non réglée, sur le compte du client ou le
+      // 416, à l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas.
+      this.positionEnDeviseOuverte(tenantId, [source.id, c416.id], ids, ex.dateDebut),
     ]);
-    const motif = motifRefusDeclaration({
+    let motif = motifRefusDeclaration({
       referentiel,
       nature: dto.nature,
       numeroSource: source.numero,
@@ -719,12 +909,20 @@ export class CreancesDouteusesService {
       source: dto.source,
       dateDebutExercice: true,
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
-      aNouveau: existe,
-      aNouveau416: centimes(n(an416._sum.debit) - n(an416._sum.credit)),
+      aNouveau: ouverture.existe,
+      aNouveau416: ouverture.solde416,
       dejaDeclare416: dejaPorte.sur416,
-      aNouveau491: centimes(n(an491._sum.credit) - n(an491._sum.debit)),
+      aNouveau491: ouverture.solde491,
       dejaDeclare491: dejaPorte.sur491,
+      sourceEstDetail: source.typeCompte === TypeCompteDetailTotal.DETAIL,
+      comptesEnSommeil: [source, c416, c491].filter((k) => 'estActif' in k && k.estActif === false).map((k) => k.numero),
+      positionEnDevise: enDevise,
+      methodeCotisations: methodeCotisations ?? null,
     });
+    // B1 · une borne lue sur le report reconstitué se dit, avec son issue.
+    if (motif && ouverture.reconstitue && motif.includes('dépasse')) {
+      motif += await this.motifSoldeReconstitue(tenantId, ex.id, 'reprenez la déclaration');
+    }
     if (motif) throw new BadRequestException(motif);
     const ligne = await transactionJournalisee(this.prisma, (tx) =>
       tx.creanceDouteuse.create({
@@ -746,7 +944,100 @@ export class CreancesDouteusesService {
         },
       }),
     );
-    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture) };
+    // Mineur 4 · la borne lue sur le report reconstitué se SERT et se dit ·
+    // jamais présentée comme sûre.
+    return {
+      ...ligne,
+      montant: n(ligne.montant),
+      depreciationOuverture: n(ligne.depreciationOuverture),
+      borneProvisoire: ouverture.reconstitue,
+      ...(ouverture.reconstitue ? { information: INFORMATION_BORNE_RECONSTITUEE } : {}),
+      // Mineur 8 · méthode non déclarée, ou impayé d'adhérent sous l'encaissement · dit, jamais bloqué.
+      avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null),
+    };
+  }
+
+  /**
+   * A7 TER, MINEUR 2 · LA POSITION NETTE EN DEVISE, par compte et par devise,
+   * sur la chaîne (`chaine`), à-nouveau provisoire exclu · somme des montants
+   * en devise des lignes au débit, et des lignes inscrites en négatif au
+   * crédit, moins celle des lignes au crédit, et des négatifs au débit (le
+   * montant en devise se garde SANS SIGNE, le sens de la ligne le donne,
+   * `lignesEnNegatif`). Une facture en dollars de N réglée en N+1 sur sa
+   * ligne d'à-nouveau provisoire laisse en N une ligne non lettrée et une
+   * position NULLE · la simple présence d'une ligne non lettrée refusait à
+   * tort le reclassement d'une créance en francs. `true` dès qu'une devise
+   * d'un compte n'est pas soldée au centime.
+   */
+  private async positionEnDeviseOuverte(tenantId: string, comptes: string[], ids: string[], au: Date | null): Promise<boolean> {
+    const date = au ? { date: { lte: au } } : {};
+    const [debits, credits] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: [{ debit: { gt: 0 } }, { credit: { lt: 0 } }],
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: [{ credit: { gt: 0 } }, { debit: { lt: 0 } }],
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true },
+      }),
+    ]);
+    const net = new Map<string, number>();
+    for (const g of debits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) + n(g._sum.montantDevise));
+    for (const g of credits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) - n(g._sum.montantDevise));
+    return [...net.values()].some((v) => Math.abs(v) >= 0.005);
+  }
+
+  /**
+   * LA BORNE DE LA DÉCLARATION D'OUVERTURE (relecture adverse, M3 ; A7 ter,
+   * B1) · l'à-nouveau QUI FAIT FOI du 416 (débit net) et du 491 (crédit net).
+   * Sans lui, le report RECONSTITUÉ de la clôture précédente, brouillard
+   * compris, à la veille de l'ouverture · comme toute lecture du module
+   * (M2), et jamais l'à-nouveau PROVISOIRE, calculé sur le seul livre-journal
+   * · il ignorait le brouillard de l'exercice précédent, et une créance
+   * passée au 416 au brouillard se déclarait refusée, ou une sortie au
+   * brouillard laissait déclarer ce qui n'y était plus. Sans à-nouveau ni
+   * exercice précédent, aucune borne · la déclaration est refusée.
+   */
+  private async soldesALOuverture(tenantId: string, ex: { id: string; dateDebut: Date }, compte416Id: string, compte491Id: string) {
+    if (await this.aUnANouveau(tenantId, ex.id)) {
+      const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
+      const [an416, an491] = await Promise.all([
+        this.prisma.ligneEcriture.aggregate({ where: { compteId: compte416Id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
+        this.prisma.ligneEcriture.aggregate({ where: { compteId: compte491Id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
+      ]);
+      return {
+        existe: true,
+        reconstitue: false,
+        solde416: centimes(n(an416._sum.debit) - n(an416._sum.credit)),
+        solde491: centimes(n(an491._sum.credit) - n(an491._sum.debit)),
+      };
+    }
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateFin: { lt: ex.dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateDebut: true },
+    });
+    if (!precedent) return { existe: false, reconstitue: false, solde416: 0, solde491: 0 };
+    const { ids } = await this.chaine(tenantId, precedent);
+    const veille = new Date(ex.dateDebut.getTime() - 24 * 60 * 60 * 1000);
+    const [s416, s491] = await Promise.all([
+      this.solde(tenantId, { id: compte416Id }, ids, veille),
+      this.solde(tenantId, { id: compte491Id }, ids, veille),
+    ]);
+    // Le 491 est créditeur · rendu en positif, comme l'à-nouveau.
+    return { existe: true, reconstitue: true, solde416: s416, solde491: centimes(-s491) };
   }
 
   /**
@@ -1080,6 +1371,9 @@ export class CreancesDouteusesService {
       journalAttendu,
       numeroPerte: comptePerte?.numero ?? null,
       numeroPerteEstDetail: comptePerte?.estDetail ?? false,
+      // m3 · au SYCEBNL, le 651 du débiteur (fiche du compte 65).
+      referentiel,
+      numeroSource: c.compteCreance.numero,
     });
     if (motif) throw new BadRequestException(motif);
 
@@ -1102,8 +1396,9 @@ export class CreancesDouteusesService {
       libelle: `${type === TypeMouvementCreanceDouteuse.PERTE ? 'Perte sur créance irrécouvrable' : 'Recouvrement de créance douteuse'} · ${c.compteCreance.numero} ${c.compteCreance.intitule}`.slice(0, 190),
       lignes,
     });
+    let ligne: Awaited<ReturnType<typeof this.prisma.mouvementCreanceDouteuse.create>>;
     try {
-      const ligne = await transactionJournalisee(this.prisma, (tx) =>
+      ligne = await transactionJournalisee(this.prisma, (tx) =>
         tx.mouvementCreanceDouteuse.create({
           data: {
             tenantId,
@@ -1119,11 +1414,274 @@ export class CreancesDouteusesService {
           },
         }),
       );
-      return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
       await this.compenser(tenantId, ecriture.id);
       throw err;
     }
+    // B2 · la créance éteinte se lettre au 416 · le geste a réussi, l'issue
+    // du lettrage se DIT, jamais ne le défait.
+    const lettrage416 = await this.lettrerSiEteinteSansEchec(tenantId, userId, c.id);
+    return { ...ligne, montant: n(ligne.montant), lettrage416 };
+  }
+
+  /**
+   * LA CRÉANCE ÉTEINTE SE LETTRE AU 416 (ligne A7 ter, B2) · quand ses pertes
+   * et recouvrements non annulés soldent son reclassement (reste nul), ses
+   * lignes 416 · le débit du reclassement, le crédit de chaque mouvement ·
+   * forment un groupe soldé, posé par le service de lettrage, et le 416 ne
+   * garde plus de ligne ouverte (report Détail, balance âgée, contrôle
+   * d'ancienneté). Reconnues par leur LIAISON, une par écriture.
+   *
+   * CES ÉCRITURES N'ONT AUCUNE LIGNE 443 (règles 5 et 6 de
+   * `creances-douteuses.ts`) · le lettrage du 416 n'est lu par aucun calcul de
+   * TVA, à la différence du compte d'origine, dont la ligne de reclassement ne
+   * se lettre jamais (`lettrage/ligne-de-reclassement.ts`, règle d'A7).
+   *
+   * `null` quand la créance n'est pas éteinte ; sinon l'issue, posée ou non,
+   * avec son motif · rien n'est lettré pour une créance DÉCLARÉE à l'ouverture
+   * (son montant est dans l'à-nouveau, sans ligne à elle), ni à travers deux
+   * exercices (passé la clôture, la ligne du reclassement se lettre sur son
+   * report à-nouveau, mode Détail, que la liaison ne désigne pas).
+   */
+  private async lettrerSiEteinte(
+    tenantId: string,
+    userId: string,
+    creanceId: string,
+  ): Promise<{ pose: true; code: string } | { pose: false; motif: string; aDesigner?: true } | null> {
+    const c = await this.creance(tenantId, creanceId);
+    if (Math.abs(this.resteFinal(c)) >= 0.005) return null;
+    if (c.mouvements.some((m) => !m.ecritureId)) {
+      return { pose: false, motif: "Créance éteinte · un de ses mouvements n'a plus d'écriture, rien n'est lettré." };
+    }
+    // L'exercice du DERNIER mouvement · celui qui éteint la créance.
+    const exerciceId = c.mouvements.at(-1)?.exerciceId ?? c.exerciceId;
+    const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
+    if ('motif' in lues) return { pose: false, motif: lues.motif };
+    if (lues.ouvertes.length === 0) return { pose: false, motif: `Créance éteinte · ses lignes du ${c.compte416.numero} sont déjà lettrées.` };
+    // RÉ-EXTINCTION (mineur 7) · seules les lignes ENCORE OUVERTES se lettrent ·
+    // un groupe figé reste en place (B2b), et l'annulation inscrite en négatif
+    // à côté de lui se lettre avec le geste qui éteint de nouveau la créance.
+    // Second tour, B-1 · si elles ne soldent pas seules, le reste est à
+    // l'à-nouveau · le cabinet le DÉSIGNE (« Lettrer au 416 »), jamais un
+    // lettrage manuel conseillé, qu'une clôture de période figerait.
+    const somme = lues.ouvertes.reduce((t, l) => t + l.net, 0);
+    if (lues.ouvertes.length < 2 || Math.abs(somme) >= 0.005) {
+      return { pose: false, aDesigner: true, motif: motifLignesANouveauADesigner(c.compte416.numero) };
+    }
+    const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, lues.ouvertes.map((l) => l.id), userId);
+    return 'code' in r ? { pose: true, code: r.code } : { pose: false, motif: `Créance éteinte · ${r.motif}` };
+  }
+
+  /**
+   * LES LIGNES OUVERTES DE LA CRÉANCE AU 416 DANS UN EXERCICE · reconnues par
+   * leur LIAISON (`ecrituresDeLaCreance`), une par écriture, non lettrées, de
+   * l'exercice demandé. Jamais une ligne d'à-nouveau (le cabinet la désigne).
+   */
+  private async lignesOuvertesDeLaCreance(
+    tenantId: string,
+    c: { id: string; ecritureReclassementId: string | null; compte416Id: string; compte416: { numero: string } },
+    exerciceId: string,
+  ): Promise<{ ouvertes: Array<{ id: string; net: number }> } | { motif: string }> {
+    const ecritureIds = await this.ecrituresDeLaCreance(tenantId, c);
+    if (ecritureIds.length === 0) return { ouvertes: [] };
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId: { in: ecritureIds }, compteId: c.compte416Id, ecriture: { tenantId } },
+      select: { id: true, ecritureId: true, lettrageId: true, debit: true, credit: true, ecriture: { select: { exerciceId: true } } },
+    });
+    if (lignes.length !== ecritureIds.length || new Set(lignes.map((l) => l.ecritureId)).size !== ecritureIds.length) {
+      return { motif: `Créance éteinte · ses lignes du ${c.compte416.numero} ne se retrouvent pas une par écriture, rien n'est lettré.` };
+    }
+    return {
+      ouvertes: lignes
+        .filter((l) => l.lettrageId === null && l.ecriture.exerciceId === exerciceId)
+        .map((l) => ({ id: l.id, net: n(l.debit) - n(l.credit) })),
+    };
+  }
+
+  /**
+   * Second tour d'A7 ter, B-1 · CE QUE « LETTRER AU 416 » MONTRE · les lignes
+   * ouvertes de la créance dans l'exercice, et les lignes d'À-NOUVEAU ouvertes
+   * du même 416, que le cabinet désigne. Une seule ligne d'à-nouveau qui solde
+   * le tout est PROPOSÉE, jamais posée d'office.
+   */
+  async propositionLettrage416(tenantId: string, id: string, exerciceId: string) {
+    const c = await this.creance(tenantId, id);
+    await this.exercice(tenantId, exerciceId);
+    const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
+    if ('motif' in lues) throw new BadRequestException(lues.motif);
+    const aNouveaux = await this.prisma.ligneEcriture.findMany({
+      where: { compteId: c.compte416Id, lettrageId: null, ecriture: { tenantId, exerciceId, ...A_NOUVEAU } },
+      select: { id: true, debit: true, credit: true, libelle: true, ecriture: { select: { date: true, numeroPiece: true } } },
+      orderBy: { id: 'asc' },
+      take: PLAFOND_COMPTES_416_491,
+    });
+    const reste = centimes(-lues.ouvertes.reduce((t, l) => t + l.net, 0));
+    const seules = aNouveaux.filter((l) => Math.abs(centimes(n(l.debit) - n(l.credit)) - reste) < 0.005);
+    return {
+      eteinte: Math.abs(this.resteFinal(c)) < 0.005,
+      compte416: c.compte416.numero,
+      ouvertes: lues.ouvertes.length,
+      // Ce que l'à-nouveau doit apporter pour que le groupe solde.
+      aApporter: reste,
+      aNouveaux: aNouveaux.map((l) => ({
+        id: l.id,
+        date: jour(l.ecriture.date),
+        numeroPiece: l.ecriture.numeroPiece,
+        libelle: l.libelle,
+        montant: centimes(n(l.debit) - n(l.credit)),
+      })),
+      tronque: aNouveaux.length === PLAFOND_COMPTES_416_491,
+      propose: seules.length === 1 ? [seules[0].id] : [],
+    };
+  }
+
+  /**
+   * Second tour d'A7 ter, B-1 · « LETTRER AU 416 » · le module pose LUI-MÊME
+   * le groupe (origine `MODULE`) des lignes ouvertes de la créance dans
+   * l'exercice et des lignes d'à-nouveau que le cabinet désigne. Chaque ligne
+   * désignée est une ligne d'à-nouveau qui fait foi (jamais le report
+   * provisoire, remplacé à la clôture), ouverte, de ce 416 et de cet exercice ;
+   * le groupe se pose SOLDÉ ou pas du tout (`lettrerLignesDuModule`).
+   */
+  lettrer416(tenantId: string, userId: string, id: string, dto: Lettrer416Dto) {
+    return this.sousVerrou(tenantId, 'LETTRAGE AU 416', async () => {
+      const c = await this.creance(tenantId, id);
+      if (Math.abs(this.resteFinal(c)) >= 0.005) {
+        throw new BadRequestException(
+          `La créance n'est pas éteinte (reste ${centimes(this.resteFinal(c)).toFixed(2)} au ${c.compte416.numero}) · ses lignes se lettrent quand perte et recouvrements l'ont soldée.`,
+        );
+      }
+      await this.exercice(tenantId, dto.exerciceId);
+      const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, dto.exerciceId);
+      if ('motif' in lues) throw new BadRequestException(lues.motif);
+      const designees = [...new Set(dto.ligneIds)];
+      if (designees.length > 0) {
+        const trouvees = await this.prisma.ligneEcriture.findMany({
+          where: { id: { in: designees }, ecriture: { tenantId } },
+          select: {
+            id: true,
+            compteId: true,
+            lettrageId: true,
+            ecriture: { select: { exerciceId: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true, estANouveauProvisoire: true } },
+          },
+        });
+        const refusee = designees.find((ligneId) => {
+          const l = trouvees.find((x) => x.id === ligneId);
+          return (
+            !l ||
+            l.compteId !== c.compte416Id ||
+            l.lettrageId !== null ||
+            l.ecriture.exerciceId !== dto.exerciceId ||
+            !l.ecriture.estGenereeParCloture ||
+            l.ecriture.estSoldeDesComptesDeGestion ||
+            l.ecriture.estANouveauProvisoire
+          );
+        });
+        if (refusee) {
+          throw new BadRequestException(
+            `Une ligne désignée n'est pas une ligne d'à-nouveau ouverte du ${c.compte416.numero} dans cet exercice · seules ` +
+              "les lignes du report de la clôture précédente ou du bilan d'ouverture se désignent (jamais le report provisoire, " +
+              'remplacé à la clôture).',
+          );
+        }
+      }
+      // Troisième passage, m2 · au moins UNE ligne de la créance elle-même ·
+      // deux lignes d'à-nouveau désignées seules (d'autres créances du même 416)
+      // ne sont pas le lettrage de CETTE créance.
+      if (lues.ouvertes.length === 0) {
+        throw new BadRequestException(`Rien à lettrer · les lignes de la créance au ${c.compte416.numero} sont déjà lettrées dans cet exercice.`);
+      }
+      const ligneIds = [...lues.ouvertes.map((l) => l.id), ...designees];
+      if (ligneIds.length < 2) {
+        throw new BadRequestException(
+          `Une seule ligne de la créance au ${c.compte416.numero} · désignez la ligne d'à-nouveau qui la solde.`,
+        );
+      }
+      const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, ligneIds, userId);
+      if ('motif' in r) throw new BadRequestException(r.motif);
+      return { pose: true as const, code: r.code };
+    });
+  }
+
+  /**
+   * LES ÉCRITURES DE LA CRÉANCE AU 416, reconnues par leur LIAISON · le
+   * reclassement, chaque mouvement dont l'écriture existe encore (annulé
+   * compris · inscrit en négatif, il garde son écriture), et l'inscription en
+   * négatif de chacune (`corrigeEcritureId`). Jamais par le compte ni le
+   * libellé · un 416 porte aussi les autres créances du dossier.
+   */
+  private async ecrituresDeLaCreance(tenantId: string, c: { id: string; ecritureReclassementId: string | null }): Promise<string[]> {
+    const mouvements = await this.prisma.mouvementCreanceDouteuse.findMany({
+      where: { tenantId, creanceId: c.id, ecritureId: { not: null } },
+      select: { ecritureId: true },
+      orderBy: { date: 'asc' },
+    });
+    const origines = [c.ecritureReclassementId, ...mouvements.map((m) => m.ecritureId)].filter((x): x is string => !!x);
+    if (origines.length === 0) return [];
+    const negatifs = await this.prisma.ecriture.findMany({
+      where: { tenantId, corrigeEcritureId: { in: origines } },
+      select: { id: true },
+    });
+    return [...new Set([...origines, ...negatifs.map((e) => e.id)])];
+  }
+
+  /** Un échec inattendu du lettrage est consigné et DIT, jamais tu, et ne défait pas le geste. */
+  private async lettrerSiEteinteSansEchec(tenantId: string, userId: string, creanceId: string) {
+    try {
+      return await this.lettrerSiEteinte(tenantId, userId, creanceId);
+    } catch (err) {
+      this.journalServeur.error(
+        `Lettrage des lignes 416 de la créance ${creanceId} du dossier ${tenantId} non posé`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      return {
+        pose: false as const,
+        motif: "Créance éteinte · le lettrage de ses lignes du 416 n'a pas pu se poser · relancez-le par « Lettrer au 416 » dans cette fenêtre.",
+      };
+    }
+  }
+
+  /**
+   * LE GROUPE QUI TIENT la ligne 416 d'une écriture de la créance, s'il en est
+   * un qui ne réunit QUE des lignes du 416 de la créance (B2 ; second tour,
+   * B-1) · `figee` dit pourquoi il ne se défait plus (une ligne sous une
+   * clôture de période, totale ou d'exercice), `duModule` s'il est d'origine
+   * `MODULE`, que seul le module défait. FIGÉ, il est TOLÉRÉ quelle que soit
+   * son origine · un groupe MANUEL posé sur le conseil d'A7 (« lettrez-la à la
+   * main »), figé ensuite, enfermait la créance ; il n'est pas touché, reste
+   * soldé, et l'annulation s'inscrit en négatif à côté. NON FIGÉ, seul le
+   * groupe du module se défait ; un autre refuse comme toute ligne lettrée
+   * (le cabinet le délettre, rien ne l'en empêche). Les lignes d'à-nouveau
+   * désignées (« Lettrer au 416 ») n'ont pas de liaison · le critère est le
+   * COMPTE, et le groupe est trouvé par une ligne de la créance elle-même.
+   */
+  private async groupeDuModule(
+    tenantId: string,
+    c: { id: string; compte416Id: string; ecritureReclassementId: string | null },
+    ecritureId: string,
+  ): Promise<{ id: string; code: string; figee: string | null; duModule: boolean } | null> {
+    const [ligne] = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId, compteId: c.compte416Id, ecriture: { tenantId } },
+      select: { lettrageId: true },
+      take: 1,
+    });
+    if (!ligne?.lettrageId) return null;
+    const groupe = await this.prisma.lettrage.findFirst({
+      where: { id: ligne.lettrageId, tenantId },
+      select: { id: true, code: true, origine: true },
+    });
+    if (!groupe) return null;
+    const duGroupe = await this.prisma.ligneEcriture.findMany({
+      where: { lettrageId: groupe.id, ecriture: { tenantId } },
+      select: { id: true, compteId: true },
+    });
+    if (duGroupe.length === 0 || !duGroupe.every((l) => l.compteId === c.compte416Id)) return null;
+    const figees = await lignesFigees(this.prisma, tenantId, duGroupe.map((l) => l.id));
+    const premiere = [...figees.values()][0];
+    const figee = premiere ? `la ligne du ${jour(premiere.date)} est figée, ${premiere.motif}` : null;
+    const duModule = groupe.origine === OrigineLettrage.MODULE;
+    if (!figee && !duModule) return null;
+    return { id: groupe.id, code: groupe.code, figee, duModule };
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable, au TTC entier. */
@@ -1150,14 +1708,16 @@ export class CreancesDouteusesService {
         this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id } }),
         this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id } }),
       ]);
-      if (toutes > 0 || tousMouvements > 0) {
-        throw new BadRequestException(
-          'Cette créance porte déjà une revue ou un mouvement (même annulés, ils se gardent) · la créance ne se retire plus, ' +
-            'sa sortie se fait par la perte ou le recouvrement.',
-        );
-      }
       const ex = await this.exercice(tenantId, c.exerciceId);
-      if (ex.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice de cette créance est clôturé.");
+      // m6 · la règle que l'écran reçoit, servie (`retirable`) · une seule
+      // écriture. L'écriture elle-même est revérifiée par la suppression.
+      const refus = motifNonRetirable({
+        revuesTotal: toutes,
+        mouvementsTotal: tousMouvements,
+        exerciceClos: ex.statut === StatutExercice.CLOTURE,
+        ecriture: null,
+      });
+      if (refus) throw new BadRequestException(refus);
       const retirer = async (tx: Prisma.TransactionClient) => {
         await tx.creanceDouteuse.delete({ where: { id: c.id } });
       };
@@ -1211,8 +1771,15 @@ export class CreancesDouteusesService {
     if (refus) throw new BadRequestException(refus);
     const motif = motifSaisi.trim();
     const objet = `l'écriture du reclassement n° ${c.ecritureReclassement?.numeroPiece ?? '·'}`;
+    // B2b · le groupe du module figé par une clôture reste en place, toléré ;
+    // non figé, il se défait dans la transaction.
+    const groupe = c.ecritureReclassement ? await this.groupeDuModule(tenantId, c, c.ecritureReclassement.id) : null;
+    const maintenu = groupe?.figee ? groupe.id : null;
     if (c.ecritureReclassement) {
-      const tenues = motifLignesTenues(c.ecritureReclassement.lignes, objet, 'annuler', ', puis annulez le reclassement');
+      if (groupe?.figee && c.ecritureReclassement.statut === StatutEcriture.BROUILLARD) {
+        throw new BadRequestException(motifLettrageFigeAuBrouillard(groupe.code, groupe.figee, 'le reclassement'));
+      }
+      const tenues = motifLignesTenues(c.ecritureReclassement.lignes, objet, 'annuler', ', puis annulez le reclassement', groupe?.id ?? null);
       if (tenues) throw new BadRequestException(tenues);
     }
     return transactionJournalisee(this.prisma, async (tx) => {
@@ -1229,18 +1796,21 @@ export class CreancesDouteusesService {
       const e = c.ecritureReclassement;
       let annulation: Record<string, unknown> = { traitement: 'SANS_ECRITURE' };
       if (e) {
+        if (groupe && !maintenu) await this.lettrage.defaireLettrageDuModule(tx, tenantId, groupe.id);
         const relues = await tx.ligneEcriture.findMany({
           where: { ecritureId: e.id, ecriture: { tenantId } },
           select: { lettre: true, lettrageId: true, rapprochementId: true },
         });
-        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le reclassement');
+        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le reclassement', maintenu);
         if (tenues) throw new BadRequestException(tenues);
         if ((await this.statutDansTx(tx, tenantId, e.id)) === StatutEcriture.BROUILLARD) {
+          if (groupe && maintenu) throw new BadRequestException(motifLettrageFigeAuBrouillard(groupe.code, groupe.figee!, 'le reclassement'));
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {
-          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx, { groupeTolere: maintenu });
           annulation = { traitement: 'INSCRITE_EN_NEGATIF', ecritureId: e.id, numeroPiece: e.numeroPiece, negatifId: negatif.id, negatifNumeroPiece: negatif.numeroPiece };
         }
+        if (groupe) annulation = { ...annulation, ...(maintenu ? { lettrageMaintenu: groupe.id } : { lettrageDefait: groupe.id }) };
       }
       try {
         await tx.creanceDouteuse.update({
@@ -1262,11 +1832,19 @@ export class CreancesDouteusesService {
       if (e && annulation.traitement === 'SUPPRIMEE') {
         await this.supprimerBrouillardDansTx(tx, tenantId, e.id);
       }
-      return { annule: true, annulation };
+      return { annule: true, annulation, ...(groupe && maintenu ? { information: informationLettrageMaintenu(groupe.code, groupe.figee!) } : {}) };
     });
   }
 
-  retirerMouvement(tenantId: string, id: string, mouvementId: string) {
+  /**
+   * LE RETRAIT D'UN MOUVEMENT AU BROUILLARD (m7 · réservé au comptable). Le
+   * lettrage que le module a posé à l'extinction se défait DANS LA MÊME
+   * transaction que la suppression (mineur 7 · deux transactions laissaient,
+   * sur l'échec de la seconde, une créance éteinte sans son lettrage). Figé
+   * par une clôture, il ne se défait plus · refus nommé, l'issue est de
+   * valider l'écriture puis d'annuler le mouvement (B2b).
+   */
+  retirerMouvement(tenantId: string, userId: string, id: string, mouvementId: string) {
     return this.sousVerrou(tenantId, 'RETRAIT', async () => {
       const c = await this.creance(tenantId, id);
       const mv = c.mouvements.find((m) => m.id === mouvementId);
@@ -1278,11 +1856,25 @@ export class CreancesDouteusesService {
         );
       }
       if (!mv.ecritureId) throw new BadRequestException('Ce mouvement n’a plus d’écriture · il est annulé.');
-      await this.ecritures.supprimer(tenantId, mv.ecritureId, {
+      const ecritureId = mv.ecritureId;
+      const groupe = await this.groupeDuModule(tenantId, c, ecritureId);
+      if (groupe?.figee) {
+        const statut = await this.statutDansTx(this.prisma as unknown as Prisma.TransactionClient, tenantId, ecritureId);
+        // Validée, la suppression refuse d'elle-même (« correction par inscription en négatif »).
+        if (statut === StatutEcriture.BROUILLARD) {
+          throw new BadRequestException(motifLettrageFigeAuBrouillard(groupe.code, groupe.figee, 'le mouvement'));
+        }
+      }
+      const defaire = groupe && !groupe.figee ? groupe.id : null;
+      await this.ecritures.supprimer(tenantId, ecritureId, {
         detenteur: DETENTEUR_MOUVEMENT_CREANCE,
-        liberer: (tx) => tx.mouvementCreanceDouteuse.delete({ where: { id: mv.id } }),
+        lettrageTolere: defaire,
+        liberer: async (tx) => {
+          if (defaire) await this.lettrage.defaireLettrageDuModule(tx, tenantId, defaire);
+          await tx.mouvementCreanceDouteuse.delete({ where: { id: mv.id } });
+        },
       });
-      return { retire: true };
+      return { retire: true, ...(defaire ? { lettrageDefait: defaire } : {}) };
     });
   }
 
@@ -1315,6 +1907,16 @@ export class CreancesDouteusesService {
       },
     });
     if (!mv) throw new NotFoundException('Mouvement introuvable pour cette créance.');
+    // B2 · le lettrage que le module a posé à l'extinction se DÉFAIT avec le
+    // mouvement (dans la transaction ci-dessous) · il ne refuse pas
+    // l'annulation. B2b · figé par une clôture, il RESTE EN PLACE, toléré, et
+    // l'annulation s'inscrit en négatif à côté de lui.
+    const creanceDuMouvement = await this.prisma.creanceDouteuse.findFirst({
+      where: { id, tenantId },
+      select: { id: true, compte416Id: true, ecritureReclassementId: true },
+    });
+    const groupe = creanceDuMouvement && mv.ecriture ? await this.groupeDuModule(tenantId, creanceDuMouvement, mv.ecriture.id) : null;
+    const maintenu = groupe?.figee ? groupe.id : null;
     const revue = await this.prisma.ajustementCreanceDouteuse.findFirst({
       where: { tenantId, creanceId: id, annuleeLe: null, exercice: { dateFin: { gte: mv.date } } },
       orderBy: { date: 'asc' },
@@ -1331,24 +1933,29 @@ export class CreancesDouteusesService {
     const nom = mv.type === TypeMouvementCreanceDouteuse.PERTE ? 'de la perte' : 'du recouvrement';
     const objet = `l'écriture ${nom} n° ${mv.ecriture?.numeroPiece ?? '·'}`;
     if (mv.ecriture) {
-      const tenues = motifLignesTenues(mv.ecriture.lignes, objet, 'annuler', ', puis annulez le mouvement');
+      if (groupe?.figee && mv.ecriture.statut === StatutEcriture.BROUILLARD) {
+        throw new BadRequestException(motifLettrageFigeAuBrouillard(groupe.code, groupe.figee, 'le mouvement'));
+      }
+      const tenues = motifLignesTenues(mv.ecriture.lignes, objet, 'annuler', ', puis annulez le mouvement', groupe?.id ?? null);
       if (tenues) throw new BadRequestException(tenues);
     }
     return transactionJournalisee(this.prisma, async (tx) => {
       const e = mv.ecriture;
       let annulation: Record<string, unknown> = { traitement: 'SANS_ECRITURE' };
       if (e) {
+        if (groupe && !maintenu) await this.lettrage.defaireLettrageDuModule(tx, tenantId, groupe.id);
         // Relu dans la transaction · un lettrage ou un pointage posé entre-temps refuse aussi.
         const relues = await tx.ligneEcriture.findMany({
           where: { ecritureId: e.id, ecriture: { tenantId } },
           select: { lettre: true, lettrageId: true, rapprochementId: true },
         });
-        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le mouvement');
+        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le mouvement', maintenu);
         if (tenues) throw new BadRequestException(tenues);
         if ((await this.statutDansTx(tx, tenantId, e.id)) === StatutEcriture.BROUILLARD) {
+          if (groupe && maintenu) throw new BadRequestException(motifLettrageFigeAuBrouillard(groupe.code, groupe.figee!, 'le mouvement'));
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {
-          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx, { groupeTolere: maintenu });
           annulation = {
             traitement: 'INSCRITE_EN_NEGATIF',
             ecritureId: e.id,
@@ -1357,6 +1964,8 @@ export class CreancesDouteusesService {
             negatifNumeroPiece: negatif.numeroPiece,
           };
         }
+        // B2 · le sort du lettrage se garde dans la trace de l'annulation.
+        if (groupe) annulation = { ...annulation, ...(maintenu ? { lettrageMaintenu: groupe.id } : { lettrageDefait: groupe.id }) };
       }
       // Marqué AVANT la suppression du brouillard, sur une ligne encore non
       // annulée · le lien vers une écriture supprimée est effacé, l'écriture
@@ -1381,7 +1990,7 @@ export class CreancesDouteusesService {
       if (e && annulation.traitement === 'SUPPRIMEE') {
         await this.supprimerBrouillardDansTx(tx, tenantId, e.id);
       }
-      return { annule: true, annulation };
+      return { annule: true, annulation, ...(groupe && maintenu ? { information: informationLettrageMaintenu(groupe.code, groupe.figee!) } : {}) };
     });
   }
 }

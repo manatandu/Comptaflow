@@ -13,6 +13,7 @@ import {
   AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
+  Lettrer416Dto,
   PerteCreanceDto,
   ReclasserCreanceDto,
   RecouvrementCreanceDto,
@@ -87,6 +88,26 @@ export class CreancesDouteusesController {
     return this.service.perte(user.tenantId, user.userId, id, dto);
   }
 
+  /**
+   * Second tour d'A7 ter, B-1 · les lignes ouvertes de la créance dans
+   * l'exercice et les lignes d'à-nouveau du 416 à désigner.
+   */
+  @Get(':id/lettrage-416')
+  propositionLettrage416(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.service.propositionLettrage416(user.tenantId, id, exerciceId);
+  }
+
+  /** B-1 · le module pose LUI-MÊME le lettrage au 416 de la créance éteinte, à-nouveau désigné compris. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/lettrage-416')
+  lettrer416(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: Lettrer416Dto) {
+    return this.service.lettrer416(user.tenantId, user.userId, id, dto);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/recouvrement')
   recouvrement(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RecouvrementCreanceDto) {
@@ -133,13 +154,19 @@ export class CreancesDouteusesController {
     return this.service.annulerMouvement(user.tenantId, user.userId, id, mouvementId, dto);
   }
 
+  /**
+   * Le retrait d'un mouvement · réservé au comptable, la route entière (A7
+   * ter, m7) · elle ne distingue pas la perte, réservée (M-d), du
+   * recouvrement, et retirer une perte défait la décision du comptable.
+   */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Delete(':id/mouvements/:mouvementId')
   retirerMouvement(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('mouvementId', ParseUUIDPipe) mouvementId: string,
   ) {
-    return this.service.retirerMouvement(user.tenantId, id, mouvementId);
+    return this.service.retirerMouvement(user.tenantId, user.userId, id, mouvementId);
   }
 }

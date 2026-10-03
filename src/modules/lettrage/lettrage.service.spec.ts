@@ -638,6 +638,13 @@ describe('Pré-lettrage', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('A7 ter · refuse l’origine MODULE · reçue d’un client, elle ferait passer le groupe pour celui que le module défait', async () => {
+    const { service: s } = service(scene());
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['f1', 'r1'], origine: OrigineLettrage.MODULE }]),
+    ).rejects.toThrow(/l'une des deux origines automatiques/);
+  });
+
   it('refuse une proposition PÉRIMÉE · les lignes ont été lettrées entre-temps', async () => {
     // C'est le cas qui a fait renoncer à stocker les propositions. Le premier
     // utilisateur voit la scène, le second lettre les mêmes lignes autrement,

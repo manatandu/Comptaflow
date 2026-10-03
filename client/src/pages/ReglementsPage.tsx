@@ -36,6 +36,8 @@ interface GroupeTiers {
   numero: string;
   intitule: string;
   tiers: string | null;
+  /** A7 ter, mineur 1 · le compte porte une créance reclassée au 416 en vigueur · son encaissement passe par le module. */
+  creanceReclassee?: { compte416: string; date: string } | null;
   lignes: LigneEcheance[];
   /** Lignes d'à-nouveau PROVISOIRE écartées par le serveur (A6 bis, m6) · elles attendent la clôture de l'exercice précédent. */
   aNouveauProvisoireEcartees?: number;
@@ -651,6 +653,14 @@ export function ReglementsPage() {
                       <td colSpan={5} className="px-2 py-1 text-warning">
                         {g.aNouveauProvisoireEcartees} ligne(s) d'à-nouveau provisoire écartée(s) · attendez la clôture de l'exercice
                         précédent, ou saisissez le règlement au journal de trésorerie.
+                      </td>
+                    </tr>
+                  )}
+                  {g.creanceReclassee && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-[11.5px] text-warning">
+                        Créance reclassée au {g.creanceReclassee.compte416} le {g.creanceReclassee.date} · son encaissement se passe par
+                        « Recouvrement » dans « Créances douteuses ou litigieuses »
                       </td>
                     </tr>
                   )}

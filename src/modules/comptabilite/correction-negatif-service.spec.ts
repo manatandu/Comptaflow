@@ -164,6 +164,22 @@ describe('inscription en négatif pour l’annulation d’une réévaluation', (
     ]);
   });
 
+  it('A7 ter, B2b · une ligne lettrée refuse, sauf celle du groupe que le module TOLÈRE (figé par une clôture)', async () => {
+    const lettree = (lettrageId: string) => ({
+      lignes: [
+        { compteId: 'c401', libelle: 'R', debit: D(0), credit: D(198_200), tauxTvaId: null, dateEcheance: null, dateVersement: null, deviseId: null, montantDevise: null, coursApplique: null, ventilations: [], lettre: 'A', lettrageId, rapprochementId: null },
+        { compteId: 'c478', libelle: 'R', debit: D(198_200), credit: D(0), tauxTvaId: null, dateEcheance: null, dateVersement: null, deviseId: null, montantDevise: null, coursApplique: null, ventilations: [], lettre: null, lettrageId: null, rapprochementId: null },
+      ],
+    });
+    await expect(annulation(new Date('2026-12-31'), lettree('g-A')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.toThrow(/lettrées \(A\)/);
+    const { s, create } = annulation(new Date('2026-12-31'), lettree('g-A'));
+    await s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm', undefined, { groupeTolere: 'g-A' });
+    expect(create).toHaveBeenCalled();
+    await expect(
+      annulation(new Date('2026-12-31'), lettree('g-B')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm', undefined, { groupeTolere: 'g-A' }),
+    ).rejects.toThrow(/lettrées \(A\)/);
+  });
+
   it('période close · au premier jour non clôturé, la date réelle en date de valeur', async () => {
     const { s, create } = annulation(new Date('2027-01-01'), { exercice: { statut: StatutExercice.OUVERT, dateDebut: new Date('2026-01-01'), dateFin: new Date('2027-03-31') } });
     await s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm');
@@ -172,6 +188,10 @@ describe('inscription en négatif pour l’annulation d’une réévaluation', (
 
   it('refus · premier jour ouvert hors de l’exercice, exercice clôturé, déjà corrigée', async () => {
     await expect(annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.toThrow(/hors de l'exercice/);
+    // m-a (second tour d'A7 ter) · une clôture de période est définitive · jamais « rouvrez la période ».
+    const refus = annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm');
+    await expect(refus).rejects.toThrow(/close jusqu'à la fin de l'exercice, définitivement, et plus rien ne s'y inscrit/);
+    await expect(annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.not.toThrow(/rouvrez/);
     await expect(
       annulation(new Date('2026-12-31'), { exercice: { statut: StatutExercice.CLOTURE, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } }).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm'),
     ).rejects.toThrow(/exercice clôturé.*art\. 20, al\. 3/);

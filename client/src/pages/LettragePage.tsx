@@ -60,6 +60,7 @@ const LIBELLE_ORIGINE: Record<GroupeLettrage['origine'], string> = {
   MANUEL: 'manuel',
   AUTOMATIQUE_PIECE: 'auto · référence de pièce',
   AUTOMATIQUE_MONTANT: 'auto · montant',
+  MODULE: 'module · créance douteuse',
 };
 
 /**

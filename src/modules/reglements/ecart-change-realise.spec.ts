@@ -502,6 +502,8 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus
       ]),
     },
     ribBanque: { findFirst: jest.fn(async () => null) },
+    // A7 ter, mineur 1 · aucune créance reclassée sur ces comptes.
+    creanceDouteuse: { findMany: jest.fn(async () => []) },
     // Aucune réévaluation · ni de l'exercice, ni d'antérieure restée en place (M5).
     reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null), findMany: jest.fn(async (): Promise<unknown[]> => []) },
     exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },

@@ -6,6 +6,7 @@ import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
 import { referentielDuDossier } from '../reglements/compte-ecart-change';
 import { motifLettrageADeuxExercices } from './lettrages-a-cheval';
+import { lignesReclasseesDuCompte, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
 
 const EPSILON = 0.005;
 
@@ -57,13 +58,13 @@ function lettreVersIndex(lettre: string): number {
  *    déduit de la classe, il est posé compte par compte.
  *  - Lettrage automatique « a priori » : « chaque facture saisie est
  *    identifiée par un code unique, généralement le numéro de la pièce
- *    comptable. Et, chaque fois qu'on enregistre un règlement, le système
- *    impose d'enregistrer en même temps le code de la facture objet du
- *    règlement. » → première passe par référence de pièce, avant toute
- *    présomption sur les montants.
- *  - Lettrage automatique « a posteriori » : « l'ordinateur s'efforce
- *    d'associer chaque règlement à une facture en s'appuyant sur des éléments
- *    identiques des deux écritures, généralement le montant ou le libellé. »
+ *    comptable. À chaque règlement enregistré, le système impose
+ *    d'enregistrer en même temps le code de la facture réglée. » (CPCC,
+ *    ch. 6 § 2, relu le 2026-10-03) → première passe par référence de pièce,
+ *    avant toute présomption sur les montants.
+ *  - Lettrage automatique « a posteriori » : « l'ordinateur associe chaque
+ *    règlement à une facture en s'appuyant sur des éléments identiques des
+ *    deux écritures (généralement le montant ou le libellé). »
  *    → les passes par montant, conservées et enrichies.
  *  - « Verrouillage définitif ou non du lettrage » → `Lettrage.verrouille`.
  *  - « Il facilite également, pour les opérations en monnaies étrangères
@@ -482,6 +483,7 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
+        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds);
         // AU DÉTAIL, UN GROUPE NE MÊLE PAS DEUX EXERCICES (A6 bis) · la
         // facture de N se lettre, en N+1, avec la ligne d'à-nouveau.
         const aCheval = motifLettrageADeuxExercices(lignes, compte);
@@ -601,6 +603,8 @@ export class LettrageService {
           const aCheval = motifLettrageADeuxExercices([...nouvelles, ...dejaDuGroupe], compte);
           if (aCheval) throw new BadRequestException(aCheval);
         }
+        // A7 ter, B3 · ni la ligne d'un reclassement ajoutée, ni un groupe qui la porte déjà complété.
+        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds, dejaDuGroupe.map((l) => l.id));
         // Toléré, seules les lignes NOUVELLES doivent être libres · les lignes
         // figées du groupe restent où la clôture les a laissées.
         await refuserSiLignesFigees(tx, tenantId, tolere ? ligneIds : [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
@@ -897,11 +901,10 @@ export class LettrageService {
   }
 
   /**
-   * Appariement « A PRIORI » · CPCC, ch. 6 : « chaque facture saisie est
+   * Appariement « A PRIORI » · CPCC, ch. 6 § 2 : « chaque facture saisie est
    * identifiée par un code unique, généralement le numéro de la pièce
-   * comptable. Et, chaque fois qu'on enregistre un règlement, le système
-   * impose d'enregistrer en même temps le code de la facture objet du
-   * règlement. »
+   * comptable. À chaque règlement enregistré, le système impose d'enregistrer
+   * en même temps le code de la facture réglée. »
    *
    * OmegaX n'impose pas ce code à la saisie (ce serait un frein pour une
    * petite association qui règle au comptant), mais il le RECONNAÎT : quand
@@ -982,8 +985,6 @@ export class LettrageService {
    * lui renvoie.
    */
   private async calculerPropositions(tenantId: string, compte: { id: string; modeReportANouveau: string }) {
-    const LIMITE_LIGNES_SUBSET_SUM = 25;
-    const LIMITE_LIGNES_PARTITION = 16;
     const compteId = compte.id;
 
     // `lettrageId: null` et non `lettre: null` : une ligne déjà rattachée à un
@@ -1005,8 +1006,37 @@ export class LettrageService {
     // proposée · le lettrage automatique la poserait, et le pré-lettrage
     // proposerait un groupe que sa confirmation refuserait.
     const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
+    // A7 ter, B3 (règle d'A7 rétablie au second tour, B-2) · la ligne du
+    // compte client d'un reclassement en créance douteuse n'est JAMAIS
+    // proposée · la paire facture-reclassement, de même montant, rendait la
+    // TVA exigible (`ligne-de-reclassement.ts`). L'appariement se fait AVEC
+    // elle, comme avant A7 ter, puis tout groupe qui la contient est ÉCARTÉ ·
+    // la facture qu'elle aurait prise (la facture reclassée, d'ordinaire)
+    // reste ouverte, sans jamais être donnée au règlement d'une AUTRE facture.
+    // L'écarter des candidates AVANT l'appariement (troisième passage) laissait
+    // la facture reclassée prendre ce règlement · U du 10/02 lettrée avec le
+    // règlement P du 20/07 de la facture T, la TVA de T déclarée en mai au lieu
+    // de juillet, celle de U lue comme encaissée, et T dite impayée par le
+    // contrôle d'ancienneté (vérification sur base réelle, cas e4 et N pour 1).
+    const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
     const nonLettrees = candidates.filter((l) => !figees.has(l.id));
+    const { parPiece, parMontant } = this.apparierParExercice(nonLettrees, compte);
+    const sansReclassement = (g: string[]) => !g.some((id) => reclassees.has(id));
+    return {
+      parPiece: parPiece.filter(sansReclassement),
+      parMontant: parMontant.filter(sansReclassement),
+      lignes: nonLettrees.filter((l) => !reclassees.has(l.id)),
+    };
+  }
 
+  /**
+   * LES QUATRE PASSES sur un jeu de lignes non lettrées · référence de pièce,
+   * paires exactes, N pour 1, N pour M. Tout groupe rendu est soldé.
+   */
+  private apparierParExercice(
+    nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null; exerciceId: string } }>,
+    compte: { modeReportANouveau: string },
+  ): { parPiece: string[][]; parMontant: string[][] } {
     // AU DÉTAIL, UN GROUPE NE MÊLE PAS DEUX EXERCICES (A6 bis) · les passes
     // jouent exercice par exercice. Une facture de N et un règlement de N+1
     // de même montant ne sont jamais proposés ensemble · la facture se
@@ -1024,19 +1054,23 @@ export class LettrageService {
     const parPiece: string[][] = [];
     const parMontant: string[][] = [];
     for (const lot of parExercice.values()) {
-      const r = this.proposerDansUnExercice(lot, LIMITE_LIGNES_SUBSET_SUM, LIMITE_LIGNES_PARTITION);
+      const r = this.apparier(lot);
       parPiece.push(...r.parPiece);
       parMontant.push(...r.parMontant);
     }
-    return { parPiece, parMontant, lignes: nonLettrees };
+    return { parPiece, parMontant };
   }
 
-  /** Les quatre passes, sur les lignes non lettrées d'UN exercice. */
-  private proposerDansUnExercice(
-    nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null } }>,
-    LIMITE_LIGNES_SUBSET_SUM: number,
-    LIMITE_LIGNES_PARTITION: number,
-  ): { parPiece: string[][]; parMontant: string[][] } {
+  /**
+   * LES QUATRE PASSES sur un jeu de lignes non lettrées · référence de pièce,
+   * paires exactes, N pour 1, N pour M. Tout groupe rendu est soldé.
+   */
+  private apparier(nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null } }>): {
+    parPiece: string[][];
+    parMontant: string[][];
+  } {
+    const LIMITE_LIGNES_SUBSET_SUM = 25;
+    const LIMITE_LIGNES_PARTITION = 16;
     // Ce qui compte pour le lettrage est l'EFFET NET d'une ligne sur le
     // compte, pas la colonne dans laquelle elle est écrite. Sur toutes les
     // lignes ordinaires (un seul côté servi) le résultat est identique ; la
@@ -1228,6 +1262,14 @@ export class LettrageService {
           "Un groupe composé à la main se pose par le lettrage manuel, qui porte son origine propre. La confirmation d'un pré-lettrage conserve l'origine de la passe qui l'a trouvé.",
         );
       }
+      // L'origine MODULE n'est posée que par le module qui tient les lignes
+      // (A7 ter) · reçue d'un client, elle ferait passer un groupe pour celui
+      // que le module défait de lui-même.
+      if (g.origine !== OrigineLettrage.AUTOMATIQUE_PIECE && g.origine !== OrigineLettrage.AUTOMATIQUE_MONTANT) {
+        throw new BadRequestException(
+          "La confirmation d'un pré-lettrage ne porte que l'une des deux origines automatiques (référence de pièce, montant).",
+        );
+      }
       if (g.ligneIds.length < 2) {
         throw new BadRequestException('Un groupe de lettrage porte au moins deux lignes.');
       }
@@ -1244,6 +1286,7 @@ export class LettrageService {
             include: { ecriture: { select: { tenantId: true, date: true, exerciceId: true } } },
           });
           this.verifierLignes(lignes, { compteId, tenantId, nombre: g.ligneIds.length });
+          await refuserLignesDuCompteClientReclasse(tx, tenantId, g.ligneIds);
           // Au Détail, le pré-lettrage ne propose qu'à l'intérieur d'un
           // exercice ; un groupe renvoyé qui en mêle deux ne vient pas de lui.
           const aCheval = motifLettrageADeuxExercices(lignes, compte);
@@ -1311,5 +1354,75 @@ export class LettrageService {
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
       { operations: parPieceGroupes.length + groupes.length },
     );
+  }
+
+  /**
+   * LE LETTRAGE QU'UN MODULE POSE SUR SES PROPRES LIGNES (ligne A7 ter, B2) ·
+   * aujourd'hui les lignes 416 d'une créance douteuse éteinte, reconnues par
+   * le module à leur LIAISON. Origine `MODULE` · c'est l'appariement « a
+   * priori » du CPCC, ch. 6 § 2 (« À chaque règlement enregistré, le système
+   * impose d'enregistrer en même temps le code de la facture réglée ») ·
+   * chaque perte et chaque recouvrement est enregistré avec la créance qu'il
+   * solde, jamais rapproché par présomption de montant. L'origine propre dit
+   * que le module, et lui seul, défait ce groupe (`defaireLettrageDuModule`) ·
+   * un groupe composé à la main sur les mêmes lignes reste au lettrage.
+   *
+   * Le groupe se pose SOLDÉ ou pas du tout · rendu `{ motif }` quand il ne se
+   * pose pas (compte non lettrable, ligne figée par une clôture, ligne déjà
+   * lettrée, solde non nul), jamais une exception pour une raison métier ·
+   * le geste du module a déjà réussi, il dit seulement que rien n'a été lettré.
+   */
+  async lettrerLignesDuModule(
+    tenantId: string,
+    compteId: string,
+    ligneIds: string[],
+    userId: string,
+  ): Promise<{ code: string } | { motif: string }> {
+    const compte = await this.trouverCompte(tenantId, compteId);
+    if (!compte.lettrable) {
+      return { motif: `Le compte ${compte.numero} n'est pas déclaré lettrable · ses lignes ne sont pas lettrées.` };
+    }
+    const figees = await lignesFigees(this.prisma, tenantId, ligneIds);
+    const figee = [...figees.values()][0];
+    if (figee) return { motif: `La ligne du ${figee.date.toISOString().slice(0, 10)} est figée, ${figee.motif} · rien n'est lettré.` };
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const lignes = await tx.ligneEcriture.findMany({ where: { id: { in: ligneIds } }, include: { ecriture: true } });
+        const prise = lignes.find((l) => l.lettrageId !== null);
+        if (prise) return { motif: `Une des lignes est déjà lettrée (${prise.lettre ?? 'groupe partiel'}) · rien n'est lettré.` };
+        this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
+        const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        if (Math.abs(solde) > EPSILON) return { motif: `Les lignes ne soldent pas (écart de ${solde.toFixed(2)}) · rien n'est lettré.` };
+        const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine: OrigineLettrage.MODULE, userId });
+        return { code: groupe.code };
+      },
+      'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+    );
+  }
+
+  /**
+   * DÉFAIRE, DANS LA TRANSACTION DE L'APPELANT, le groupe qu'un module avait
+   * posé sur ses lignes (A7 ter, B2 · l'annulation ou le retrait d'un
+   * mouvement d'une créance éteinte). Mêmes refus que le délettrage · groupe
+   * verrouillé, ligne figée par une clôture.
+   */
+  async defaireLettrageDuModule(tx: Prisma.TransactionClient, tenantId: string, lettrageId: string) {
+    const groupe = await tx.lettrage.findFirst({ where: { id: lettrageId, tenantId } });
+    if (!groupe) return;
+    // Un groupe d'une autre origine (manuel, automatique) n'est jamais défait
+    // par un module, même posé sur ses seules lignes (A7 ter, mineur 7).
+    if (groupe.origine !== OrigineLettrage.MODULE) {
+      throw new BadRequestException(
+        `Le lettrage ${groupe.code} n'a pas été posé par le module · délettrez-le dans « Lettrage » avant de défaire le mouvement.`,
+      );
+    }
+    if (groupe.verrouille) {
+      throw new BadRequestException(`Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de défaire le mouvement.`);
+    }
+    const duGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId: groupe.id }, select: { id: true } });
+    await refuserSiLignesFigees(tx, tenantId, duGroupe.map((l) => l.id), 'défaire le lettrage de la créance');
+    await tx.ligneEcriture.updateMany({ where: { lettrageId: groupe.id }, data: { lettre: null, lettrageId: null } });
+    await tx.lettrage.delete({ where: { id: groupe.id } });
   }
 }

@@ -347,11 +347,39 @@ const SELECT_ECRITURE_CONTROLEE = {
   reevaluationEcarts: { select: { id: true } },
   reevaluationExtourne: { select: { id: true } },
   corrigeEcriture: { select: { reevaluationEcarts: { select: { id: true } }, reevaluationExtourne: { select: { id: true } } } },
+  // Ligne A7 ter, B2 · les écritures que tient une créance douteuse (son
+  // reclassement, ses pertes et recouvrements, ses revues) se reconnaissent
+  // par leur LIAISON, avec l'état d'annulation de l'acte et de la créance.
+  creanceDouteuseReclassement: { select: { annuleeLe: true } },
+  mouvementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
+  ajustementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
   lignes: {
-    // `lettrageId` · le contrôle 34 (lettrage à cheval de deux exercices, A6
+    // `lettrageId` · le contrôle 35 (lettrage à cheval de deux exercices, A6
     // bis, B2) n'interroge les lettrages que si une ligne de l'exercice est
     // lettrée, partiel compris · sans elle, aucun groupe ne peut y toucher.
-    select: { debit: true, credit: true, lettre: true, lettrageId: true, compte: { select: { id: true, numero: true, intitule: true } } },
+    select: {
+      debit: true,
+      credit: true,
+      lettre: true,
+      lettrageId: true,
+      compte: {
+        select: {
+          id: true,
+          numero: true,
+          intitule: true,
+          // B2 · le compte client d'ORIGINE d'une créance reclassée en
+          // vigueur, et la date de son reclassement le plus récent · la
+          // facture TAXÉE qui le précède se nomme comme telle (elle ne se
+          // lettre pas avec le reclassement, `lettrage/ligne-de-reclassement.ts`).
+          creancesDouteusesSource: {
+            where: { annuleeLe: null },
+            select: { dateReclassement: true },
+            orderBy: { dateReclassement: 'desc' },
+            take: 1,
+          },
+        },
+      },
+    },
   },
 } satisfies Prisma.EcritureSelect;
 
@@ -375,6 +403,47 @@ function estEcritureDeConversion(e: EcritureControlee): boolean {
     (e.corrigeEcriture != null &&
       (e.corrigeEcriture.reevaluationEcarts != null || e.corrigeEcriture.reevaluationExtourne != null))
   );
+}
+
+/**
+ * L'ÉCRITURE QUE TIENT UNE CRÉANCE DOUTEUSE EN VIGUEUR (ligne A7 ter, B2) ·
+ * son reclassement au 416, une perte ou un recouvrement, une revue de sa
+ * dépréciation, tant que ni l'acte ni la créance ne sont annulés. Le contrôle
+ * d'ancienneté les listait et conseillait « Lettrez ce qui est réglé » · or la
+ * créance se suit dans son module, et lettrer la facture avec le reclassement
+ * rendrait la TVA exigible (règle 6 de `creances-douteuses.ts`). Le module
+ * lettre lui-même ses lignes 416 quand la créance est éteinte.
+ * `!= null` · une liaison absente vaut `null`, et une doublure qui ne la sert
+ * pas ne fait jamais passer une écriture pour tenue.
+ */
+function estTenueParUneCreanceDouteuse(e: EcritureControlee): boolean {
+  const vivant = (acte: { annuleeLe: Date | null; creance?: { annuleeLe: Date | null } } | null | undefined) =>
+    acte != null && acte.annuleeLe == null && (acte.creance === undefined || acte.creance.annuleeLe == null);
+  return vivant(e.creanceDouteuseReclassement) || vivant(e.mouvementCreanceDouteuse) || vivant(e.ajustementCreanceDouteuse);
+}
+
+/**
+ * LA FACTURE D'UNE CRÉANCE RECLASSÉE (B2 ; relecture adverse, mineur 9) ·
+ * une ligne DÉBITRICE ouverte d'un compte client d'ORIGINE d'une créance en
+ * vigueur, datée AU PLUS TARD du reclassement le plus récent. Toutes les
+ * anciennes factures du compte étaient annotées · une vente postérieure est
+ * une créance ordinaire, à laquelle « Lettrez ce qui est réglé » s'applique.
+ * Nommer le compte une seule fois perdait la pièce que le cabinet doit
+ * retrouver ; restreindre garde la pièce et ne nomme qu'elle. Aucun critère de
+ * TVA · le reclassement ne lettre jamais le compte du client (règle d'A7,
+ * rétablie au second tour).
+ */
+function estFactureDUneCreanceReclassee(e: EcritureControlee): boolean {
+  return e.lignes.some((l) => {
+    const derniere = l.compte.creancesDouteusesSource?.[0]?.dateReclassement;
+    return (
+      !l.lettre &&
+      l.compte.numero.startsWith('41') &&
+      Number(l.debit) - Number(l.credit) > 0.005 &&
+      derniere != null &&
+      e.date.getTime() <= derniere.getTime()
+    );
+  });
 }
 
 /** Plafond des occurrences montrées par contrôle · le nombre trouvé est dit à côté. */
@@ -1268,6 +1337,8 @@ export class ControlesService {
     const cotisationsMouvementees = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
     const validesParLeurAuteur = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
     const soldesTiers = new Map<string, number>();
+    // A7 ter, mineur 1 · les comptes clients d'ORIGINE d'une créance reclassée en vigueur.
+    const comptesCreanceReclassee = new Set<string>();
     const comptesClasse9 = new Set<string>();
     // Les pièces entrées avant le refus d'entrée (classe-9-equilibree.ts) ·
     // la saisie les refuse désormais, les données anciennes restent.
@@ -1339,6 +1410,7 @@ export class ControlesService {
           }
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
+            if ((l.compte.creancesDouteusesSource?.length ?? 0) > 0) comptesCreanceReclassee.add(n);
           }
           // Le report à-nouveau n'est pas un mouvement (passe R5-C2) · les 90
           // et 91 sont semés en report SOLDE, et le signalement se rallumait à
@@ -1362,6 +1434,8 @@ export class ControlesService {
 
         if (
           e.date < seuilAnciennete &&
+          // B2 · la créance douteuse se suit dans son module, jamais ici.
+          !estTenueParUneCreanceDouteuse(e) &&
           e.lignes.some(
             (l) =>
               !l.lettre &&
@@ -1438,6 +1512,7 @@ export class ControlesService {
       cotisationsMouvementees,
       validesParLeurAuteur,
       soldesTiers,
+      comptesCreanceReclassee,
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
@@ -1606,11 +1681,38 @@ export class ControlesService {
     // l'aurait rendue invisible. Ce défaut-là n'est propre à aucun
     // référentiel · les deux plans portent les mêmes racines, il se corrige
     // une seule fois, sans branche.
-    const inverses = [...soldesTiers.entries()].filter(([numero, solde]) => {
+    const inversesTous = [...soldesTiers.entries()].filter(([numero, solde]) => {
       if (numero.startsWith('409')) return solde < -0.005; // débiteur par nature
       if (numero.startsWith('419')) return solde > 0.005; // créditeur par nature
       return (numero.startsWith('41') && solde < -0.005) || (numero.startsWith('40') && solde > 0.005);
     });
+    // A7 ter, mineur 1 · le compte d'ORIGINE d'une créance reclassée en vigueur
+    // devenu créditeur a son propre constat · le chemin juste n'est pas le 4191
+    // (une avance), c'est le recouvrement du module.
+    const origineCreditrice = inversesTous.filter(([numero]) => parcours.comptesCreanceReclassee.has(numero) && !numero.startsWith('419'));
+    const inverses = inversesTous.filter(([numero]) => !origineCreditrice.some(([n]) => n === numero));
+    if (origineCreditrice.length > 0) {
+      anomalies.push({
+        // Second tour d'A7 ter, m-d · AVERTISSEMENT · le 416 garde une créance
+        // encaissée, et la revue la déprécie · le résultat est faussé.
+        code: 'COMPTE_CREANCE_RECLASSEE_CREDITEUR',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Compte d’une créance reclassée au 416 devenu créditeur',
+        consequence:
+          'Le compte du client porte une créance reclassée au 416 (« Créances douteuses ou litigieuses »), et il est créditeur · ' +
+          'le plus souvent l’encaissement de cette créance passé sur ce compte (Règlement des tiers ou saisie) au lieu du ' +
+          '« Recouvrement » du module. Le 416 garde alors une créance déjà encaissée, et le module la revoit et la déprécie.',
+        action:
+          'Supprimez ce règlement s’il est au brouillard, ou annulez-le par inscription en négatif s’il est validé, puis passez ' +
+          'l’encaissement par « Recouvrement » dans « Créances douteuses ou litigieuses ». S’il s’agit d’une avance sans rapport ' +
+          'avec la créance, reclassez-la au 4191 à l’arrêté.',
+        occurrences: origineCreditrice.map(([numero, solde]) => ({
+          reference: numero,
+          detail: `${qualite41Capitale} créditeur, compte d’une créance reclassée au 416`,
+          montant: solde,
+        })),
+      });
+    }
     if (inverses.length > 0) {
       anomalies.push({
         code: 'TIERS_SOLDE_INVERSE',
@@ -1663,10 +1765,18 @@ export class ControlesService {
           // aucune. Le compte de charge n'est pas nommé : son intitulé diffère
           // d'un référentiel à l'autre.
           "Une créance ancienne non lettrée est soit déjà réglée sans que le rapprochement ait été fait, soit douteuse · dans le second cas elle se reclasse au 416 (créances litigieuses ou douteuses) et appelle une dépréciation au 491 (note annexe).",
-        action: 'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire.',
+        action:
+          'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire. Les pièces d’une créance ' +
+          'reclassée au 416 dans « Créances douteuses ou litigieuses » ne sont pas listées, le module les suit ; la facture ' +
+          'd’une telle créance, antérieure à son reclassement, est nommée comme telle et ne se lettre pas avec le ' +
+          'reclassement (la TVA deviendrait exigible).',
         occurrences: anciennes.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
-          detail: e.libelle,
+          // B2 · la facture d'une créance reclassée se nomme, au lieu d'un
+          // « lettrez ce qui est réglé » qui pousserait au lettrage refusé.
+          detail: estFactureDUneCreanceReclassee(e)
+            ? `${e.libelle} · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement`
+            : e.libelle,
           date: e.date.toISOString().slice(0, 10),
         })),
         ...nombreSiTronque(parcours.anciennes),
