@@ -1953,6 +1953,21 @@ export class DevisesService {
 
   async listerReevaluations(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
+    // L'exercice qui suit IMMÉDIATEMENT (M1) · le seul où la contre-passation
+    // se passe ; et s'il a été réévalué sous l'ancien régime (B2).
+    const suivant = exercice
+      ? await this.prisma.exercice.findFirst({
+          where: { tenantId, dateDebut: { gt: exercice.dateFin } },
+          orderBy: { dateDebut: 'asc' },
+          select: { id: true, dateDebut: true, dateFin: true, statut: true },
+        })
+      : null;
+    const suivantAncienRegime = suivant
+      ? (await this.prisma.reevaluation.findFirst({
+          where: { tenantId, exerciceId: suivant.id, annuleeLe: null, ecartsDisponibilites: { equals: Prisma.DbNull } },
+          select: { id: true },
+        })) !== null
+      : false;
     const reevaluations = await this.prisma.reevaluation.findMany({
       where: { tenantId, exerciceId },
       orderBy: { dateReevaluation: 'desc' },
@@ -1965,9 +1980,13 @@ export class DevisesService {
     // Une réévaluation passée AVANT la décision D1 à une autre date que la
     // clôture n'est pas retouchée · elle est SIGNALÉE, avec son motif.
     // Ce que l'écran doit savoir sans le recalculer (relecture adverse d'A5
-    // bis) · s'il reste un écart de conversion à contre-passer (une
-    // réévaluation des seules disponibilités n'en a aucun, AUDCIF art. 57),
-    // et la ventilation à déclarer d'une réévaluation antérieure (B1).
+    // bis) · ce qu'il reste à contre-passer et sous quelle forme
+    // (`contrePassationAPasser` · les écarts de conversion seuls ; INTÉGRALE
+    // imposée par l'exercice suivant de l'ancien régime, B2 ; INTÉGRALE à
+    // demander, l'écriture ne se partageant pas, M2 ; rien, une réévaluation
+    // des seules disponibilités n'ayant aucun écart de conversion, AUDCIF
+    // art. 57), l'exercice où elle se passe (M1), et la ventilation à
+    // déclarer d'une réévaluation antérieure (B1).
     const relues = await this.prisma.reevaluation.findMany({
       where: { tenantId, exerciceId, id: { in: reevaluations.map((r) => r.id) } },
       select: SELECTION_REEVALUATION_RELUE,
@@ -1981,11 +2000,21 @@ export class DevisesService {
               relue.ecritureEcarts.lignes.map((l) => ({ compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
             )
           : null;
+        const libre = !r.annuleeLe && !r.ecritureExtourneId && partage !== null;
+        const contrePassationAPasser: 'ECARTS_DE_CONVERSION' | 'INTEGRALE_ANCIEN_REGIME' | 'INTEGRALE_SUR_DEMANDE' | null = !libre
+          ? null
+          : partage.realisees.length > 0 && suivantAncienRegime
+            ? 'INTEGRALE_ANCIEN_REGIME'
+            : partage.motifRefus
+              ? 'INTEGRALE_SUR_DEMANDE'
+              : partage.aContrePasser.length > 0
+                ? 'ECARTS_DE_CONVERSION'
+                : null;
         return {
           ...r,
           horsCloture: exercice ? motifDateReevaluation(r.dateReevaluation.toISOString().slice(0, 10), exercice.dateFin) : null,
-          ecartsDeConversionAContrePasser: partage ? partage.aContrePasser.length > 0 : false,
-          partageImpossible: partage ? partage.motifRefus !== null : false,
+          contrePassationAPasser,
+          exerciceDeContrePassation: suivant,
           ventilationAExiger: relue ? await this.ventilationAExiger(tenantId, relue) : null,
         };
       }),

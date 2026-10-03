@@ -38,11 +38,14 @@ describe('écran Devises · annuler une réévaluation', () => {
     expect(source).toContain('Annuler la réévaluation');
     const debut = source.indexOf('const annulerReevaluation = async');
     const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
-    expect(corps).toContain("api.post(`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`, { motif: aAnnuler.motif.trim() })");
+    expect(corps).toContain('`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`');
+    // La même modale annule la seule contre-passation (relecture adverse d'A5 bis, M1).
+    expect(corps).toContain('`/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation/annuler`');
+    expect(corps).toContain('{ motif: aAnnuler.motif.trim() }');
     // M7 · la règle du DTO (3 à 500), vérifiée avant l'envoi, et une modale de l'interface.
     expect(corps).toContain('motifRefusMotifAnnulation(aAnnuler.motif)');
     expect(corps).not.toContain('window.prompt');
-    expect(source).toContain("setAAnnuler({ reevaluation: r, motif: '' });");
+    expect(source).toContain("setAAnnuler({ reevaluation: r, motif: '', geste: 'REEVALUATION' });");
     // m3 · l'erreur du serveur s'affiche DANS la modale.
     expect(corps).toContain("setErreurAnnulation(e instanceof ApiError ? e.message : 'Annulation impossible')");
     const modale = source.slice(source.indexOf('{aAnnuler && ('));
@@ -51,7 +54,24 @@ describe('écran Devises · annuler une réévaluation', () => {
   });
 
   it('une annulée ne propose plus la contre-passation', () => {
-    expect(source).toContain('{r.annuleeLe || !r.ecritureEcarts ? null : r.ecritureExtourne ? (');
+    expect(source).toContain('if (r.annuleeLe || !r.ecritureEcarts) return null;');
+  });
+
+  // M8 (relecture adverse d'A5 bis) · aucun « Contre-passer » sur une
+  // réévaluation des seules disponibilités · le geste suit ce que le serveur
+  // sert, et la cible est l'exercice qui suit immédiatement, jamais une liste.
+  it('le geste de contre-passation suit le serveur · « Rien à contre-passer » pour les seules disponibilités, une seule cible', () => {
+    const debut = source.indexOf('function ColonneContrePassation(');
+    const corps = source.slice(debut);
+    expect(corps).toContain('libelleContrePassation(r.contrePassationAPasser)');
+    expect(corps).toContain('Rien à contre-passer');
+    expect(corps).toContain("r.contrePassationAPasser === 'INTEGRALE_SUR_DEMANDE'");
+    expect(source).not.toContain('Contre-passer sur…');
+    expect(source).not.toContain('exercicesDeContrePassation(');
+  });
+
+  it('la bulle dit que la banque et la caisse ne se contre-passent plus', () => {
+    expect(source).toContain('La banque et la caisse ne se contre-passent plus');
   });
 });
 

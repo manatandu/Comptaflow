@@ -404,3 +404,54 @@ describe('M1 · annuler une contre-passation', () => {
     await expect(svc.annulerContrePassation('t', 'u', 'r1', '  ')).rejects.toThrow(/motif/);
   });
 });
+
+/**
+ * LA LISTE DIT CE QU'IL RESTE À CONTRE-PASSER (M8) · l'écran n'offre pas de
+ * « Contre-passer » à une réévaluation des seules disponibilités, sauf quand
+ * l'exercice suivant de l'ancien régime l'impose (B2) ; il offre la
+ * contre-passation intégrale à l'écriture qui ne se partage pas (M2) ; il ne
+ * propose que l'exercice qui suit immédiatement (M1).
+ */
+describe('liste des réévaluations · ce qu’il reste à contre-passer', () => {
+  function lister(lignes: LigneFaite[], o: { suivantAncienRegime?: boolean; contrePassee?: boolean } = {}) {
+    const r = {
+      id: 'r1',
+      exerciceId: 'n',
+      dateReevaluation: N.dateFin,
+      createdAt: new Date('2027-01-05'),
+      annuleeLe: null,
+      ecritureExtourneId: o.contrePassee ? 'cp' : null,
+      coursUtilises: null,
+      ecartsDisponibilites: [],
+      ventilationDisponibilites: null,
+      ecritureEcarts: { statut: 'VALIDEE', valideeAt: null, lignes: lignes.map(ligne) },
+    };
+    const prisma = {
+      exercice: {
+        findFirst: jest.fn(async (a: { where: Record<string, unknown> }) => (typeof a.where.id === 'string' ? N : N1)),
+      },
+      reevaluation: {
+        findMany: jest.fn().mockResolvedValue([r]),
+        findFirst: jest.fn().mockResolvedValue(o.suivantAncienRegime ? { id: 'r-e' } : null),
+      },
+    };
+    return new DevisesService(prisma as never, {} as never).listerReevaluations('t', 'n');
+  }
+
+  it('créance et caisse · les écarts de conversion seuls, à l’ouverture de l’exercice qui suit immédiatement', async () => {
+    const [r] = await lister(CAISSE_ET_CREANCE);
+    expect(r).toMatchObject({ contrePassationAPasser: 'ECARTS_DE_CONVERSION', exerciceDeContrePassation: { id: 'e' } });
+  });
+
+  it('seules des disponibilités · rien à contre-passer (art. 57), sauf si l’exercice suivant est de l’ancien régime (B2)', async () => {
+    expect((await lister(CAISSE_ET_CREANCE.slice(2)))[0].contrePassationAPasser).toBeNull();
+    expect((await lister(CAISSE_ET_CREANCE.slice(2), { suivantAncienRegime: true }))[0].contrePassationAPasser).toBe('INTEGRALE_ANCIEN_REGIME');
+  });
+
+  it('écriture qui ne se partage pas · intégrale sur demande (M2) ; déjà contre-passée · rien', async () => {
+    const retouchee = [...CAISSE_ET_CREANCE.map((x) => (x.compteId === 'c-676' ? { ...x, debit: 250_000 } : x))];
+    retouchee.push({ compteId: 'c-4111b', numero: '41110000', debit: 50_000, credit: 0 });
+    expect((await lister(retouchee))[0].contrePassationAPasser).toBe('INTEGRALE_SUR_DEMANDE');
+    expect((await lister(CAISSE_ET_CREANCE, { contrePassee: true }))[0].contrePassationAPasser).toBeNull();
+  });
+});
