@@ -19,7 +19,7 @@ import {
   type Referentiel,
 } from './ecart-change-realise';
 import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
-import { issueReevaluationDejaPassee } from './reevaluation-et-ecart-realise';
+import { issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
@@ -235,6 +235,22 @@ export class ReglementsService {
         journalCode: journal.code,
       });
       if (motif) throw new BadRequestException(motif);
+    }
+
+    // UNE FACTURE DÉJÀ RÉÉVALUÉE NE SE RÈGLE PAS EN PASSANT SON RÉALISÉ
+    // (relecture adverse, bloquant 1) · la réévaluation de l'exercice qui l'a
+    // lue a porté son écart au 478 et en provision ; le 656 du règlement
+    // recompterait la perte. Refus avant la première pièce.
+    for (const x of prepares) {
+      if (!x.enDevise) continue;
+      const motif = await motifReglementDejaReevalue(this.prisma, {
+        tenantId,
+        exerciceId: dto.exerciceId,
+        compteId: x.r.compteId,
+        compteNumero: x.compte.numero,
+        ligneIds: x.r.ligneIds,
+      });
+      if (motif) throw new ConflictException(motif);
     }
 
     // Le lettrage vient APRÈS la pièce · une facture figée par une clôture

@@ -1,17 +1,19 @@
 import type { PrismaService } from '../../common/prisma.service';
 import { groupesDenoues, positionDesLignes } from '../devises/perimetre-reevaluation';
 
-type Lecteur = Pick<PrismaService, 'reevaluation' | 'ligneEcriture' | 'coursDevise'>;
+type Lecteur = Pick<PrismaService, 'reevaluation' | 'ligneEcriture' | 'coursDevise' | 'exercice'>;
 
 const jour = (d: Date) => d.toISOString().slice(0, 10);
 const centimes = (x: number) => Math.round(x * 100) / 100;
 
 /** Une ligne en devise du compte, telle qu'elle était à la réévaluation. */
 export interface LigneAReconstituer {
+  id?: string;
   deviseId: string;
   debit: number;
   credit: number;
   montantDevise: number | null;
+  /** Le groupe AUQUEL ELLE APPARTENAIT À LA RÉÉVALUATION, ou `null`. */
   lettrageId: string | null;
 }
 
@@ -42,37 +44,37 @@ export function ecartReconstitue(
   return centimes(total);
 }
 
-export type IssueReevaluation = { refus: string } | { avertissement: string } | null;
+/** Ce que la réévaluation de l'exercice a lu et passé sur un compte. */
+interface LectureDeLaReevaluation {
+  date: Date;
+  creeeLe: Date;
+  passe: number;
+  lignes: LigneAReconstituer[];
+  denoues: Set<string>;
+  cours: Map<string, number | null>;
+}
 
 /**
- * L'ÉCART PROPOSÉ A-T-IL DÉJÀ ÉTÉ RÉÉVALUÉ ? (ligne A6, relectures adverses B1)
+ * LE COMPTE TEL QU'IL ÉTAIT À LA RÉÉVALUATION DE L'EXERCICE, ou `null` sans
+ * réévaluation ou si son écriture n'a rien passé sur le compte.
  *
- * Une réévaluation des devises de l'exercice, datée au plus tôt du
- * dénouement, a pu lire les lignes du groupe quand elles n'y étaient pas
- * encore (le solde ajouté au groupe APRÈS elle) · elle a alors porté le
- * réalisé au 478 ou 479 et en provision (art. 54, A5), et le passer au 656 ou
- * 676 le compterait deux fois.
- *
- * DEUX RECONSTITUTIONS DU COMPTE TEL QU'IL ÉTAIT À LA RÉÉVALUATION, toutes
- * devises, au cours en vigueur à sa date (l'enregistrement ne garde pas le
- * cours) · lignes datées au plus tard d'elle, SAISIES avant elle, lettrées
- * SOLDE après elle comprises (elles étaient ouvertes) ; (a) le groupe écarté
- * · elle concorde, rien ne s'oppose ; (b) le groupe lu · elle concorde, refus.
- * Ni l'une ni l'autre (cours corrigé depuis, compte retouché) · on ne sait
- * pas, et l'on ne dit JAMAIS « déjà porté » · avertissement, l'écart passe.
- * Une seule réévaluation par exercice (index unique).
+ *  · Les écritures datées au plus tard d'elle et SAISIES avant elle · sauf
+ *    l'à-nouveau daté du début de l'exercice (relecture adverse, M1) · un
+ *    à-nouveau provisoire se RECRÉE (`retirerANouveauProvisoire` puis une
+ *    nouvelle écriture), et son `createdAt` postérieur ne dit pas qu'il
+ *    n'existait pas.
+ *  · Les lignes ouvertes à ce moment · non lettrées, ou lettrées SOLDE après
+ *    elle. NB · `soldeAt` des groupes antérieurs au 29/08/2026 a été posé par
+ *    la migration `20260829160000_lettrage_professionnel` (M2) · lu tel quel.
+ *  · LES GROUPES D'ALORS (relecture adverse B2) · un groupe créé après elle
+ *    (`Lettrage.createdAt`) n'existait pas · ses lignes se lisent NON
+ *    LETTRÉES, sauf le groupe `cible`, que l'appelant bascule lui-même.
+ *  · Le cours en vigueur à sa date · l'enregistrement ne garde pas le cours.
  */
-export async function issueReevaluationDejaPassee(
+async function lireLaReevaluation(
   prisma: Lecteur,
-  p: {
-    tenantId: string;
-    exerciceId: string;
-    compteId: string;
-    compteNumero: string;
-    lettrageId: string;
-    denouement: Date;
-  },
-): Promise<IssueReevaluation> {
+  p: { tenantId: string; exerciceId: string; compteId: string; cible: string | null },
+): Promise<LectureDeLaReevaluation | null> {
   const reeval = await prisma.reevaluation.findFirst({
     where: { tenantId: p.tenantId, exerciceId: p.exerciceId },
     select: {
@@ -81,16 +83,29 @@ export async function issueReevaluationDejaPassee(
       ecritureEcarts: { select: { lignes: { where: { compteId: p.compteId }, select: { debit: true, credit: true } } } },
     },
   });
-  if (!reeval || !reeval.ecritureEcarts) return null;
-  if (jour(reeval.dateReevaluation) < jour(p.denouement)) return null;
+  if (!reeval || !reeval.ecritureEcarts || reeval.ecritureEcarts.lignes.length === 0) return null;
   const passe = centimes(reeval.ecritureEcarts.lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0));
+  const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
 
   const telQuIlEtait = {
     tenantId: p.tenantId,
     exerciceId: p.exerciceId,
     date: { lte: reeval.dateReevaluation },
-    createdAt: { lte: reeval.createdAt },
+    OR: [
+      { createdAt: { lte: reeval.createdAt } },
+      ...(exercice
+        ? [
+            {
+              date: exercice.dateDebut,
+              OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+            },
+          ]
+        : []),
+    ],
   };
+  const groupeDAlors = (l: { lettrageId: string | null; lettrage: { createdAt: Date } | null }) =>
+    l.lettrageId && (l.lettrageId === p.cible || (l.lettrage && l.lettrage.createdAt <= reeval.createdAt)) ? l.lettrageId : null;
+
   const lignes: LigneAReconstituer[] = (
     await prisma.ligneEcriture.findMany({
       where: {
@@ -100,14 +115,23 @@ export async function issueReevaluationDejaPassee(
         // Ouverte à la réévaluation · non lettrée, ou lettrée SOLDE après elle.
         OR: [{ lettre: null }, { lettrage: { soldeAt: { gt: reeval.createdAt } } }],
       },
-      select: { deviseId: true, debit: true, credit: true, montantDevise: true, lettrageId: true },
+      select: {
+        id: true,
+        deviseId: true,
+        debit: true,
+        credit: true,
+        montantDevise: true,
+        lettrageId: true,
+        lettrage: { select: { createdAt: true } },
+      },
     })
   ).map((l) => ({
+    id: l.id,
     deviseId: l.deviseId!,
     debit: Number(l.debit),
     credit: Number(l.credit),
     montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-    lettrageId: l.lettrageId,
+    lettrageId: groupeDAlors(l),
   }));
   const ids = [...new Set(lignes.flatMap((l) => (l.lettrageId ? [l.lettrageId] : [])))];
   const denoues = new Set(
@@ -138,24 +162,88 @@ export async function issueReevaluationDejaPassee(
     });
     cours.set(deviseId, cote ? Number(cote.cours) : null);
   }
-  const tolerance = 0.01 * Math.max(1, cours.size);
-  const sansLeGroupe = ecartReconstitue(lignes, denoues, cours, null);
-  if (Math.abs(sansLeGroupe - passe) <= tolerance) return null;
-  const avecLeGroupe = ecartReconstitue(lignes, denoues, cours, p.lettrageId);
-  const date = jour(reeval.dateReevaluation);
-  if (Math.abs(avecLeGroupe - passe) <= tolerance) {
-    return {
-      refus:
-        `La réévaluation des devises du ${date} a déjà porté ce dénouement du ${p.compteNumero} au 478 ou au 479, ` +
-        'et sa perte en provision · passer l’écart réalisé le compterait deux fois (AUDCIF art. 54 et 55). Issue · retirer cette ' +
-        'réévaluation, passer l’écart, puis réévaluer l’exercice. OmegaX n’offre aucun geste qui retire une réévaluation passée · ' +
-        'la correction se décide avec l’administrateur du dossier.',
-    };
+  return { date: reeval.dateReevaluation, creeeLe: reeval.createdAt, passe, lignes, denoues, cours };
+}
+
+/**
+ * LA PHRASE DU REFUS, une seule · elle dit ce qui serait compté deux fois, et
+ * qu'AUCUN GESTE D'OMEGAX NE RETIRE AUJOURD'HUI UNE RÉÉVALUATION PASSÉE · la
+ * décision attendue de Manasse est de dire si ce retrait doit exister. Aucun
+ * contournement n'est proposé · tout chemin qui passerait le réalisé en
+ * laissant le 478 et sa provision recompterait la perte.
+ */
+export function motifDejaReevalue(p: { date: Date; creeeLe: Date; compteNumero: string; objet: string }): string {
+  return (
+    `La réévaluation des devises du ${jour(p.date)}, passée le ${jour(p.creeeLe)}, a lu ${p.objet} du ${p.compteNumero} et ` +
+    'porté son écart au 478 ou au 479, avec sa provision pour pertes de change · passer maintenant le réalisé au 656 ou au 676 ' +
+    'compterait la perte deux fois (AUDCIF art. 54 et 55). Rien n’est passé. Aucun geste d’OmegaX ne retire aujourd’hui une ' +
+    'réévaluation passée · la décision attendue de Manasse est de dire si ce retrait doit exister, et comment.'
+  );
+}
+
+export type IssueReevaluation = { refus: string } | { avertissement: string } | null;
+
+/**
+ * L'ÉCART PROPOSÉ A-T-IL DÉJÀ ÉTÉ RÉÉVALUÉ ? (ligne A6, relectures adverses B1)
+ *
+ * DEUX RECONSTITUTIONS du compte tel qu'il était (`lireLaReevaluation`) ·
+ * (a) le groupe écarté · elle concorde, rien ne s'oppose ; (b) le groupe lu ·
+ * elle concorde, refus. Ni l'une ni l'autre (cours corrigé, lettrages ou
+ * écritures changés) · on ne sait pas, et l'on ne dit JAMAIS « déjà porté » ·
+ * avertissement, l'écart passe. Une seule réévaluation par exercice (index
+ * unique).
+ */
+export async function issueReevaluationDejaPassee(
+  prisma: Lecteur,
+  p: {
+    tenantId: string;
+    exerciceId: string;
+    compteId: string;
+    compteNumero: string;
+    lettrageId: string;
+    denouement: Date;
+  },
+): Promise<IssueReevaluation> {
+  const lu = await lireLaReevaluation(prisma, { ...p, cible: p.lettrageId });
+  if (!lu) return null;
+  if (jour(lu.date) < jour(p.denouement)) return null;
+  const tolerance = 0.01 * Math.max(1, lu.cours.size);
+  // La cible se bascule · écartée en (a), lue en (b), qu'elle ait existé ou non.
+  const avecCible = new Set([...lu.denoues, p.lettrageId]);
+  const sansLeGroupe = ecartReconstitue(lu.lignes, avecCible, lu.cours, null);
+  if (Math.abs(sansLeGroupe - lu.passe) <= tolerance) return null;
+  const avecLeGroupe = ecartReconstitue(lu.lignes, lu.denoues, lu.cours, p.lettrageId);
+  if (Math.abs(avecLeGroupe - lu.passe) <= tolerance) {
+    return { refus: motifDejaReevalue({ date: lu.date, creeeLe: lu.creeeLe, compteNumero: p.compteNumero, objet: 'ce dénouement' }) };
   }
   return {
     avertissement:
-      `Le compte ${p.compteNumero} a changé depuis la réévaluation des devises du ${date} (cours corrigé, écriture retouchée) · ` +
-      `elle y a passé ${passe.toFixed(2)}, que le compte d'aujourd'hui ne reconstitue ni avec ni sans ce lettrage. ` +
+      `Des lettrages ou des écritures ont changé depuis la réévaluation des devises du ${jour(lu.date)} sur le ${p.compteNumero} · ` +
+      `elle y a passé ${lu.passe.toFixed(2)}, que le compte d'aujourd'hui ne reconstitue ni avec ni sans ce lettrage. ` +
       "L'écart est passé ; vérifiez les lignes de cette réévaluation sur le compte.",
   };
+}
+
+/**
+ * UN RÈGLEMENT EN DEVISE DONT LA FACTURE A ÉTÉ RÉÉVALUÉE (relecture adverse,
+ * bloquant 1) · la réévaluation de l'exercice a lu une facture choisie (elle
+ * était ouverte, datée et saisie avant elle, et sa devise avait un cours),
+ * porté son écart au 478 et en provision ; le règlement passerait le réalisé
+ * au 656 ou 676 contre le coût historique · deux fois la même perte dans le
+ * même exercice. Refus avant la première pièce, sinon `null`.
+ */
+export async function motifReglementDejaReevalue(
+  prisma: Lecteur,
+  p: { tenantId: string; exerciceId: string; compteId: string; compteNumero: string; ligneIds: string[] },
+): Promise<string | null> {
+  const lu = await lireLaReevaluation(prisma, { tenantId: p.tenantId, exerciceId: p.exerciceId, compteId: p.compteId, cible: null });
+  if (!lu) return null;
+  const lues = lu.lignes.filter((l) => l.id && p.ligneIds.includes(l.id) && (lu.cours.get(l.deviseId) ?? null) !== null);
+  if (lues.length === 0) return null;
+  return motifDejaReevalue({
+    date: lu.date,
+    creeeLe: lu.creeeLe,
+    compteNumero: p.compteNumero,
+    objet: lues.length > 1 ? `${lues.length} des factures choisies` : 'une facture choisie',
+  });
 }

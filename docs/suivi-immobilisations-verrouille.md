@@ -52,7 +52,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position ou un groupe partiel soldé dans sa devise n'est plus réévalué, et l'écart déjà repris par une réévaluation est refusé ; relecture adverse reprise (trésorerie en devise déclarée, comptes admis sur une table, débit réel en francs, réalisé total au groupe) ; seconde relecture reprise (réévaluation reconstituée toutes devises, à sa date, refus seulement si elle a lu le groupe, sinon avertissement ; groupe borné à l'exercice ; francs sans devise refusés ; lot sans facture en devise) ; questions à Manasse · bornes 65 / 75 du SYCEBNL (admis aujourd'hui sous le 65 hors 659 et le 75 hors 759, donc aussi 651, 652, 657 et 752), blocage de la réévaluation, anciens règlements partiels, retrait d'une réévaluation passée |
+| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position ou un groupe partiel soldé dans sa devise n'est plus réévalué, et l'écart déjà repris par une réévaluation est refusé ; relecture adverse reprise (trésorerie en devise déclarée, comptes admis sur une table, débit réel en francs, réalisé total au groupe) ; seconde relecture reprise (réévaluation reconstituée toutes devises, à sa date, refus seulement si elle a lu le groupe, sinon avertissement ; groupe borné à l'exercice ; francs sans devise refusés ; lot sans facture en devise) ; troisième relecture reprise (règlement d'une facture déjà réévaluée refusé en 409, groupes lus tels qu'ils existaient à la réévaluation, à-nouveau recréé lu à sa date) ; questions à Manasse · bornes 65 / 75 du SYCEBNL (admis aujourd'hui sous le 65 hors 659 et le 75 hors 759, donc aussi 651, 652, 657 et 752), blocage de la réévaluation, anciens règlements partiels, retrait d'une réévaluation passée |
 
 ## À faire, dans l'ordre
 
@@ -93,6 +93,12 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
   l'exercice, suivie d'un dénouement postérieur dans le même exercice · la
   position réévaluée se dénoue après elle, et rien ne reprend son 478 ou 479
   ni sa provision avant la clôture (une seule réévaluation par exercice).
+  A6 L'AGGRAVE (troisième relecture) · le réalisé est passé au 656 ou au 676
+  contre le coût historique pendant que le 478 et sa provision restent en
+  place · la même perte est comptée deux fois dans l'exercice. Le règlement
+  et l'écart proposé refusent désormais (409) une facture ou un dénouement
+  que la réévaluation a lu, ce qui borne le défaut sans le corriger ; la
+  sortie attend la décision de Manasse sur le retrait d'une réévaluation.
 
   textes, ni proposée ni virée au 29x définitif à la mise en service, faute de
   texte.

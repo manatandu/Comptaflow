@@ -1,70 +1,84 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { issueReevaluationDejaPassee } from './reevaluation-et-ecart-realise';
+import { issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 
 /**
  * PAS DEUX FOIS LA MÊME PERTE, ET JAMAIS UN FAUX 409 (ligne A6, relectures
- * adverses B1). Le cas mixte du 401 · facture A de 1 160 USD à 1 680 au
- * groupe L (600 USD réglés au coût historique, 560 USD à 1 900), facture B de
- * 500 USD à 1 700 ouverte, réévaluation au 31 décembre à 1 850, saisie le 5
- * janvier. Groupe lu · 198 200 passés ; groupe écarté · 75 000.
+ * adverses). Le cas mixte du 401 · facture A de 1 160 USD à 1 680 au groupe L
+ * (600 USD réglés au coût historique, 560 USD à 1 900), facture B de 500 USD à
+ * 1 700 ouverte, réévaluation au 31 décembre à 1 850, saisie le 5 janvier.
+ * Groupe lu · 198 200 passés ; groupe écarté · 75 000.
  *
- * La DOUBLURE HONORE LA REQUÊTE (compte, devise, groupe, exercice, date,
- * saisie, lettrage à la réévaluation) · ce qui dépend de ce qu'une requête
- * ramène se teste sur la requête.
+ * LA DOUBLURE HONORE LA REQUÊTE · un filtre Prisma réduit (égalité, `lte`,
+ * `gt`, `in`, `not`, `OR`, relations imbriquées), appliqué aux lignes · ce
+ * qui dépend de ce qu'une requête ramène se teste sur la requête.
  */
-interface Ligne {
-  compteId: string;
-  deviseId: string;
-  debit: number;
-  credit: number;
-  montantDevise: number;
-  lettrageId: string | null;
-  lettre: string | null;
-  soldeAt: Date | null;
-  ecriture: { exerciceId: string; date: Date; createdAt: Date };
+type Objet = Record<string, unknown>;
+function tient(obj: Objet, where: Objet): boolean {
+  for (const [k, v] of Object.entries(where)) {
+    if (v === undefined) continue;
+    if (k === 'OR') {
+      if (!(v as Objet[]).some((w) => tient(obj, w))) return false;
+      continue;
+    }
+    const val = obj[k] as never;
+    if (v instanceof Date) {
+      if (!((val as unknown) instanceof Date) || (val as Date).getTime() !== v.getTime()) return false;
+      continue;
+    }
+    if (v !== null && typeof v === 'object') {
+      const op = v as { lte?: never; gt?: never; in?: unknown[]; not?: unknown };
+      if ('lte' in op || 'gt' in op || 'in' in op || 'not' in op) {
+        if ('lte' in op && !(val !== null && val <= op.lte!)) return false;
+        if ('gt' in op && !(val !== null && val > op.gt!)) return false;
+        if ('in' in op && !op.in!.includes(val)) return false;
+        if ('not' in op && val === op.not) return false;
+        continue;
+      }
+      if (val === null || typeof val !== 'object') return false;
+      if (!tient(val as Objet, v as Objet)) return false;
+      continue;
+    }
+    if (val !== v) return false;
+  }
+  return true;
 }
 
 const SAISIE = new Date('2026-12-31T10:00:00Z');
-const ligne = (
-  deviseId: string,
-  debit: number,
-  credit: number,
-  montantDevise: number,
-  lettrageId: string | null,
-  autre: Partial<Ligne> = {},
-): Ligne => ({
-  compteId: 'c401',
-  deviseId,
-  debit,
-  credit,
-  montantDevise,
-  lettrageId,
-  lettre: null,
-  soldeAt: null,
-  ecriture: { exerciceId: 'ex', date: new Date('2026-06-01'), createdAt: SAISIE },
-  ...autre,
-});
+const AVANT = new Date('2026-05-15');
+let n = 0;
+function ligne(deviseId: string, debit: number, credit: number, montantDevise: number, groupe: { id: string; creeLe: Date; soldeLe?: Date } | null, ecriture: Objet = {}) {
+  n += 1;
+  return {
+    id: `l${n}`,
+    compteId: 'c401',
+    deviseId,
+    debit,
+    credit,
+    montantDevise,
+    lettrageId: groupe?.id ?? null,
+    lettre: groupe?.soldeLe ? groupe.id : null,
+    lettrage: groupe ? { createdAt: groupe.creeLe, soldeAt: groupe.soldeLe ?? null } : null,
+    ecriture: {
+      tenantId: 't',
+      exerciceId: 'ex',
+      date: new Date('2026-06-01'),
+      createdAt: SAISIE,
+      estANouveauProvisoire: false,
+      estGenereeParCloture: false,
+      estSoldeDesComptesDeGestion: false,
+      ...ecriture,
+    },
+  };
+}
+type Ligne = ReturnType<typeof ligne>;
 
-const groupeL = () => [ligne('usd', 0, 1_948_800, 1160, 'L'), ligne('usd', 1_008_000, 0, 600, 'L'), ligne('usd', 1_064_000, 0, 560, 'L')];
-const factureB = (autre: Partial<Ligne> = {}) => ligne('usd', 0, 850_000, 500, null, autre);
+const L = { id: 'L', creeLe: AVANT };
+const groupeL = () => [ligne('usd', 0, 1_948_800, 1160, L), ligne('usd', 1_008_000, 0, 600, L), ligne('usd', 1_064_000, 0, 560, L)];
+const factureB = (ecriture: Objet = {}, groupe: { id: string; creeLe: Date; soldeLe?: Date } | null = null) =>
+  ligne('usd', 0, 850_000, 500, groupe, ecriture);
 
-type Where = {
-  compteId?: string;
-  deviseId?: { not: null };
-  lettrageId?: { in: string[] };
-  ecriture: { exerciceId: string; date: { lte: Date }; createdAt: { lte: Date } };
-  OR?: unknown[];
-};
-
-function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, number>; dateReevaluation?: string; creeeLe?: string }) {
-  const creeeLe = new Date(p.creeeLe ?? '2027-01-05T09:00:00Z');
-  const tient = (l: Ligne, w: Where) =>
-    (w.compteId === undefined || l.compteId === w.compteId) &&
-    (w.lettrageId === undefined || (l.lettrageId !== null && w.lettrageId.in.includes(l.lettrageId))) &&
-    l.ecriture.exerciceId === w.ecriture.exerciceId &&
-    l.ecriture.date <= w.ecriture.date.lte &&
-    l.ecriture.createdAt <= w.ecriture.createdAt.lte &&
-    (w.OR === undefined || l.lettre === null || (l.soldeAt !== null && l.soldeAt > creeeLe));
+function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, number>; dateReevaluation?: string }) {
+  const creeeLe = new Date('2027-01-05T09:00:00Z');
   return {
     reevaluation: {
       findFirst: jest.fn(async () => ({
@@ -74,7 +88,8 @@ function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, numb
         ecritureEcarts: { lignes: [{ debit: p.passe > 0 ? p.passe : 0, credit: p.passe < 0 ? -p.passe : 0 }] },
       })),
     },
-    ligneEcriture: { findMany: jest.fn(async ({ where }: { where: Where }) => p.lignes.filter((l) => tient(l, where))) },
+    exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },
+    ligneEcriture: { findMany: jest.fn(async ({ where }: { where: Objet }) => p.lignes.filter((l) => tient(l as unknown as Objet, where))) },
     coursDevise: {
       findFirst: jest.fn(async ({ where }: { where: { deviseId: string } }) => {
         const c = (p.cours ?? { usd: 1850, eur: 1100 })[where.deviseId];
@@ -87,9 +102,10 @@ function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, numb
 const params = { tenantId: 't', exerciceId: 'ex', compteId: 'c401', compteNumero: '40110000', lettrageId: 'L', denouement: new Date('2026-11-30') };
 
 describe('l’écart proposé et la réévaluation de l’exercice', () => {
-  it('la réévaluation a lu le groupe (198 200) · refus nommé, avec l’issue', async () => {
+  it('la réévaluation a lu le groupe (198 200) · refus nommé, honnête sur le retrait', async () => {
     const r = await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -198_200 }), params);
-    expect(r).toEqual({ refus: expect.stringMatching(/a déjà porté ce dénouement du 40110000.*compterait deux fois.*retirer cette réévaluation/) });
+    expect(r).toEqual({ refus: expect.stringMatching(/a lu ce dénouement du 40110000.*compterait la perte deux fois/) });
+    expect((r as { refus: string }).refus).toMatch(/Aucun geste d’OmegaX ne retire aujourd’hui une réévaluation passée · la décision attendue de Manasse/);
   });
 
   it('la réévaluation a écarté le groupe (75 000) · rien ne s’oppose', async () => {
@@ -102,9 +118,6 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
     ).toBeNull();
   });
 
-  // Le faux 409 de la seconde relecture · les lignes d'écart de la
-  // réévaluation ne portent pas de devise, le total du compte additionne
-  // l'USD ET l'EUR.
   it('tiers à deux devises · 75 000 en USD et 10 000 en EUR passés · rien ne s’oppose, et 208 200 refusent', async () => {
     const eur = ligne('eur', 0, 100_000, 100, null);
     expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB(), eur], passe: -85_000 }), params)).toBeNull();
@@ -112,18 +125,63 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
   });
 
   it('la facture B lettrée SOLDE après la réévaluation · elle était ouverte, rien ne s’oppose', async () => {
-    const b = factureB({ lettrageId: 'LB', lettre: 'B', soldeAt: new Date('2027-01-10') });
+    const b = factureB({}, { id: 'LB', creeLe: new Date('2027-01-10'), soldeLe: new Date('2027-01-10') });
     expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), b], passe: -75_000 }), params)).toBeNull();
   });
 
   it('une facture de décembre SAISIE après la réévaluation · elle n’y était pas, rien ne s’oppose', async () => {
-    const c = ligne('usd', 0, 340_000, 200, null, { ecriture: { exerciceId: 'ex', date: new Date('2026-12-20'), createdAt: new Date('2027-01-08') } });
+    const c = ligne('usd', 0, 340_000, 200, null, { date: new Date('2026-12-20'), createdAt: new Date('2027-01-08') });
     expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB(), c], passe: -75_000 }), params)).toBeNull();
   });
 
-  it('le cours du 31 décembre corrigé depuis · ni l’une ni l’autre · avertissement, jamais « déjà porté »', async () => {
+  it('le cours du 31 décembre corrigé depuis · avertissement, jamais « déjà porté »', async () => {
     const r = await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -75_000, cours: { usd: 1900 } }), params);
-    expect(r).toEqual({ avertissement: expect.stringMatching(/a changé depuis la réévaluation des devises du 2026-12-31/) });
+    expect(r).toEqual({ avertissement: expect.stringMatching(/^Des lettrages ou des écritures ont changé depuis la réévaluation des devises du 2026-12-31/) });
     expect((r as { avertissement: string }).avertissement).not.toMatch(/déjà porté/);
+  });
+
+  // Bloquant 2 · un groupe CRÉÉ APRÈS la réévaluation n'existait pas · ses
+  // lignes étaient ouvertes et lues. Écarté comme dénoué d'aujourd'hui, il
+  // donnait 75 000 et 198 200 contre 298 200 passés · un simple
+  // avertissement, puis le réalisé de L et celui de M passés en double.
+  it('L et M, décembre lettré en janvier · la réévaluation de 298 200 a lu les deux · refus pour L, puis pour M', async () => {
+    const Lj = { id: 'L', creeLe: new Date('2027-01-06') };
+    const M = { id: 'M', creeLe: new Date('2027-01-07') };
+    const groupeLj = [ligne('usd', 0, 1_948_800, 1160, Lj), ligne('usd', 1_008_000, 0, 600, Lj), ligne('usd', 1_064_000, 0, 560, Lj)];
+    const lignes = [...groupeLj, factureB(), ligne('usd', 0, 1_700_000, 1000, M), ligne('usd', 1_800_000, 0, 1000, M, { date: new Date('2026-12-15') })];
+    expect(await issueReevaluationDejaPassee(monter({ lignes, passe: -298_200 }), params)).toHaveProperty('refus');
+    expect(await issueReevaluationDejaPassee(monter({ lignes, passe: -298_200 }), { ...params, lettrageId: 'M' })).toHaveProperty('refus');
+  });
+
+  // M1 · l'à-nouveau provisoire se RECRÉE (`retirerANouveauProvisoire`), son
+  // `createdAt` est postérieur à la réévaluation · il existait pourtant.
+  it('un à-nouveau provisoire recréé après la réévaluation · lu comme à sa date, rien ne s’oppose', async () => {
+    const b = factureB({ date: new Date('2026-01-01'), createdAt: new Date('2027-01-06'), estANouveauProvisoire: true });
+    expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), b], passe: -75_000 }), params)).toBeNull();
+    // Une écriture ordinaire saisie après, même datée du 1er janvier, n'y était pas.
+    const ordinaire = factureB({ date: new Date('2026-01-01'), createdAt: new Date('2027-01-06') });
+    expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), ordinaire], passe: -75_000 }), params)).toHaveProperty('avertissement');
+  });
+});
+
+/**
+ * BLOQUANT 1 · LE RÈGLEMENT D'UNE FACTURE DÉJÀ RÉÉVALUÉE. Facture B de 500
+ * USD à 1 700 · la réévaluation au 31/12 à 1 850, passée le 05/01, porte
+ * 75 000 au 478 et en provision ; le règlement du 28/12 saisi le 08/01 à
+ * 1 860 passerait 80 000 au 656 · 155 000 de charges pour 80 000 de perte.
+ */
+describe('un règlement en devise d’une facture déjà réévaluée', () => {
+  it('la facture choisie a été lue · refus nommé, honnête sur le retrait', async () => {
+    const b = factureB();
+    const motif = await motifReglementDejaReevalue(monter({ lignes: [b], passe: -75_000 }), { ...params, ligneIds: [b.id] });
+    expect(motif).toMatch(/a lu une facture choisie du 40110000.*compterait la perte deux fois.*Rien n’est passé/);
+    expect(motif).toMatch(/Aucun geste d’OmegaX ne retire aujourd’hui/);
+  });
+
+  it('une facture saisie après la réévaluation, ou une devise sans cours · rien ne s’oppose', async () => {
+    const tardive = factureB({ date: new Date('2026-12-20'), createdAt: new Date('2027-01-08') });
+    expect(await motifReglementDejaReevalue(monter({ lignes: [tardive], passe: -75_000 }), { ...params, ligneIds: [tardive.id] })).toBeNull();
+    const b = factureB();
+    expect(await motifReglementDejaReevalue(monter({ lignes: [b], passe: -75_000, cours: {} }), { ...params, ligneIds: [b.id] })).toBeNull();
   });
 });

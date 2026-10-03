@@ -145,3 +145,18 @@ describe('l’infobulle du réalisé au lettrage', () => {
     expect(source.match(/saisie à la main n'y est pas comptée/g)?.length).toBe(2);
   });
 });
+
+/**
+ * Troisième relecture · le refus du règlement d'une facture déjà réévaluée
+ * (409 nommé du serveur) s'affiche TEL QUEL · aucun message générique ne le
+ * remplace. On lit le CORPS de `enregistrer`, jamais une distance.
+ */
+describe('le refus du règlement s’affiche tel quel', () => {
+  it('enregistrer rend le message du serveur, sans le réécrire', () => {
+    const source = readFileSync(join(__dirname, '../pages/ReglementsPage.tsx'), 'utf8');
+    const debut = source.indexOf('const enregistrer = async () => {');
+    const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
+    expect(corps).toContain("setErreur(err instanceof ApiError ? err.message : 'Règlements non enregistrés')");
+    expect(corps).not.toMatch(/status === 409/);
+  });
+});

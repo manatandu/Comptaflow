@@ -328,6 +328,7 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
     },
     ribBanque: { findFirst: jest.fn(async () => null) },
     reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null) },
+    exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },
     coursDevise: { findFirst: jest.fn(async () => ({ cours: 1850 })) },
   } as unknown as PrismaService;
   let n = 0;
@@ -550,6 +551,29 @@ describe('enregistrer un règlement en devise', () => {
  * facture en EUR, ou un lot USD et EUR, faussait le 52 et la conversion des
  * disponibilités à la clôture (AUDCIF art. 57).
  */
+/**
+ * BLOQUANT 1 (troisième relecture) · une facture que la réévaluation de
+ * l'exercice a lue ne se règle pas en passant son réalisé · 409 nommé avant
+ * la première pièce (règle dans reevaluation-et-ecart-realise.ts).
+ */
+describe('le règlement d’une facture déjà réévaluée', () => {
+  it('la facture B réévaluée le 05/01, réglée le 08/01 en N · 409, rien n’est passé', async () => {
+    const { service, creer, prisma } = monter();
+    (prisma.reevaluation.findFirst as jest.Mock).mockResolvedValueOnce({
+      dateReevaluation: new Date('2026-12-31'),
+      createdAt: new Date('2027-01-05'),
+      ecritureEcarts: { lignes: [{ debit: 0, credit: 75000 }] },
+    });
+    const lues = [{ id: 'fm', deviseId: 'usd', debit: 0, credit: TTC_FRANCS, montantDevise: TTC_USD, lettrageId: null, lettrage: null }];
+    const parId = (prisma.ligneEcriture.findMany as jest.Mock).getMockImplementation()!;
+    (prisma.ligneEcriture.findMany as jest.Mock).mockImplementation(async (a: { where: { id?: unknown } }) => (a.where.id ? parId(a) : lues));
+    await expect(
+      service.enregistrer('t', 'u', { ...base, date: '2026-12-28', sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1860 }] }),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/a lu une facture choisie du 40110000.*Aucun geste d’OmegaX ne retire/) });
+    expect(creer).not.toHaveBeenCalled();
+  });
+});
+
 describe('la trésorerie en devise', () => {
   const regl = { compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 };
 
@@ -638,6 +662,7 @@ function reevaluationDuCasMixte(prisma: PrismaService, perte: number) {
     credit,
     montantDevise,
     lettrageId,
+    lettrage: lettrageId ? { createdAt: new Date('2026-05-15') } : null,
   });
   const groupe = [l(0, 1_948_800, 1160, 'L'), l(1_008_000, 0, 600, 'L'), l(1_064_000, 0, 560, 'L')];
   (prisma.ligneEcriture.findMany as jest.Mock)
@@ -695,7 +720,7 @@ describe('passer l’écart de change proposé au lettrage', () => {
     reevaluationDuCasMixte(prisma, 198_200);
     await expect(service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' })).rejects.toMatchObject({
       status: 409,
-      message: expect.stringMatching(/compterait deux fois/),
+      message: expect.stringMatching(/compterait la perte deux fois/),
     });
     expect(creer).not.toHaveBeenCalled();
   });
@@ -707,7 +732,7 @@ describe('passer l’écart de change proposé au lettrage', () => {
     reevaluationDuCasMixte(prisma, 90_000);
     const r = await service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' });
     expect(creer).toHaveBeenCalled();
-    expect(r.avertissement).toMatch(/a changé depuis la réévaluation/);
+    expect(r.avertissement).toMatch(/ont changé depuis la réévaluation/);
   });
 
   it('un groupe resté partiel après l’écart · la pièce est retirée, 409', async () => {

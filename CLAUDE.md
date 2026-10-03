@@ -572,9 +572,13 @@ ou pièce retirée (409). AVEC A5 · une position ou un groupe partiel SOLDÉ DA
 DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel que soit le
 reste du compte, lu sur ses lignes de l'EXERCICE ; et l'écart est refusé (409) si la
 réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
-le compte, ses lignes étant SANS devise, confronté au compte reconstitué à sa date,
-toutes devises, avec et sans le groupe) ; sans concordance, avertissement et l'écart
-passe, jamais « déjà porté ». Aucun geste ne retire une réévaluation passée. Des
+le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL QU'IL ÉTAIT,
+toutes devises, avec et sans le groupe · écritures datées et SAISIES avant elle, sauf
+l'à-nouveau du début d'exercice, qui se recrée ; lignes lettrées après elle ouvertes ;
+un groupe CRÉÉ après elle n'existait pas) ; sans concordance, avertissement et l'écart
+passe, jamais « déjà porté ». Le RÈGLEMENT d'une facture que la réévaluation a lue est
+refusé de même (409, `motifReglementDejaReevalue`). Aucun geste ne retire une
+réévaluation passée · le refus le dit et nomme la décision attendue de Manasse. Des
 francs sans montant en devise sont refusés ; un lot de virements ne rappelle pas une
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.
