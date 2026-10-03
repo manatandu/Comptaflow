@@ -2339,7 +2339,7 @@ export class DevisesService {
       .sort((a, b) => a.date.getTime() - b.date.getTime() || a.id.localeCompare(b.id));
     if (exactes.length > 0) {
       const ecritures = await this.prisma.ecriture.findMany({
-        where: { ...horsModule, id: { in: exactes } },
+        where: { ...horsModule, tenantId, id: { in: exactes } },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
         take: PLAFOND_CANDIDATES + 1,
         select: {

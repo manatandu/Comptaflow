@@ -194,6 +194,51 @@ difference detected » ; formes de requête nouvelles éprouvées sur base
 jetable migrée (filtre de relation sur l'exercice, `OR` sur les deux
 contre-passations, `is: null` sur les liens, update à filtre étendu).
 
+## Quatrième tour (2026-10-03) · corrigé
+
+Relu · AUDCIF art. 34 (« le bilan d'ouverture d'un exercice doit
+correspondre au bilan de clôture de l'exercice précédent ») ; SYCEBNL
+art. 16, 4), même phrase, son art. 3 écartant l'art. 34 ; AUDCIF art. 20,
+al. 2 et 3 ; Guide, Partie 2 ch. 22, Application 84 (« 411 · 4781 »,
+« 4791 · 411 »).
+
+- BLOQUANT 1 (sh1) · l'inversion se porte du côté OPPOSÉ, en montants
+  positifs, rien du côté de l'écart (`motifRefusInversion`) ; une
+  inscription en négatif (`corrigeEcritureId`) est refusée à la
+  déclaration, et ni elle ni l'écriture qu'elle corrige ne sont proposées
+  (correction, négatif D6, contre-passation annulée). Déclaration refusée
+  si une autre écriture hors module touche l'écart (doublon compris).
+  Base réelle · 411 à 2 400 000, 479 à −400 000. Variante D6 au spec.
+- BLOQUANT 2 · `manuellesSurLEcart` lit, dans la fenêtre de la
+  contre-passation, les lignes hors module (ni à-nouveau, ni liées à une
+  réévaluation, ni paire neutralisée) sur le 478 / 479 de l'écart et
+  l'ouverture du premier exercice ; `motifManuellesSurLEcart` en tire une
+  seule règle, servie à `extourner`, au portillon et à l'écran
+  (`motifHorsModule`) · OD exacte, « déclarez-la » (sm · 2 400 000,
+  −400 000) ; autres lignes, nommées, « corrigez-les », une OD groupée ne
+  se déclare pas, une contre-passation par réévaluation (sk · 2 600 000,
+  −600 000) ; ouverture qui ne porte pas l'écart, « rétablissez-le par une
+  OD, puis contre-passez » (m1 · 3 200 000, −100 000), l'OD de
+  rétablissement exacte admise seulement si l'ouverture ne porte pas
+  l'écart (sinon elle le doublerait). Le 409 d'`extourner` sur une
+  déclarée dit de CORRIGER l'écriture. Retrait refusé si l'écriture
+  déclarée est dans un exercice clôturé (sr · 2 600 000, −600 000).
+- m2 · « Annuler la contre-passation » sur une déclarée nomme la
+  déclaration et « Retirer la déclaration ». m3 · le retrait exige un
+  motif, gardé avec la déclaration retirée (`retraitsContrePassationDeclaree`,
+  migration complétée). m4 · lecture périmée jetée par jeton au succès et
+  à l'échec, Échap ferme la modale. m5 · contrôle 34, une OD groupée
+  corrigée · repasser les autres gestes.
+
+Rejoué sur ma grappe (55439, port 8192) · sh1, sm, sk, sr, s11, sf (net
+puis rétablissement, net puis contre-passation refusée, brut), sf3 · toutes
+les vérifications passent ; serveur arrêté, base supprimée.
+
+Bloc du § 3 passé après le quatrième tour · serveur 715 suites, 10067
+tests (`npx jest --maxWorkers=2`), typage et construction ; client 209
+fichiers, 1709 tests, typage et construction. `prisma migrate diff` · « No
+difference detected ».
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
@@ -205,10 +250,14 @@ contre-passations, `is: null` sur les liens, update à filtre étendu).
 - Contrôle 32 · une OD manuelle déclarée qui inverse aussi la banque compte
   comme une opération de banque (dernière ligne d'un compte fermé) · non
   traité (l'OD peut grouper de vraies opérations de banque).
-- Un bilan d'ouverture SAISI qui aurait déjà retiré l'écart de N n'a pas
-  d'écriture à déclarer · le portillon demanderait une contre-passation
-  qui n'a pas lieu d'être. Cas non rencontré, à trancher si un dossier repris
-  le présente (même risque qu'avant ce tour pour la dernière réévaluation).
+- Un bilan d'ouverture SAISI qui aurait déjà retiré l'écart de N · traité
+  au quatrième tour (m1, rétablissement puis contre-passation). Hors ligne,
+  au suivi du coordinateur · la double reprise de l'à-nouveau importé, la
+  balance importée sans devise.
+- `motifManuellesSurLEcart` juge l'ouverture « porte l'écart » compte par
+  compte (même sens, au moins le montant) · un 4791 qui porterait aussi
+  d'autres écarts non contre-passés passe pour la porter ; et le
+  rétablissement n'est reconnu qu'au montant exact.
 - A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
   pas la part reportée en francs par l'à-nouveau · une caisse en devise
   réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la
