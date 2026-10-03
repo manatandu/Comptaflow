@@ -45,19 +45,27 @@ function service(reevaluations: unknown[]) {
  * (forme d'avant A5 bis). L'issue se règle sur l'exercice qui PORTE la
  * contre-passation (second tour, m2).
  */
+/** L'écriture des écarts · créance (4781 / 4111) et caisse (676 / 5712), perte de 300 000 sur chacune. */
+const ECARTS = [
+  { compteId: 'c-4781', debit: 300_000, credit: 0, compte: { numero: '47810000' } },
+  { compteId: 'c-4111', debit: 0, credit: 300_000, compte: { numero: '41110000' } },
+  { compteId: 'c-676', debit: 300_000, credit: 0, compte: { numero: '67600000' } },
+  { compteId: 'c-5712', debit: 0, credit: 300_000, compte: { numero: '57120000' } },
+];
+/** Sa contre-passation intégrale, ligne à ligne. */
+const INVERSE = ECARTS.map((l) => ({ ...l, debit: l.credit, credit: l.debit }));
+
 const ancienne = (statutExercice: 'OUVERT' | 'CLOTURE', statutPorteuse: 'OUVERT' | 'CLOTURE' = statutExercice) => ({
   dateReevaluation: new Date('2026-12-31'),
   exercice: { statut: statutExercice },
+  ecritureEcarts: { lignes: ECARTS },
+  contrePassationDeclaree: null as unknown,
   ecritureExtourne: {
+    exerciceId: 'e27',
     numeroPiece: 12,
     date: new Date('2027-01-01'),
     exercice: { statut: statutPorteuse },
-    lignes: [
-      { debit: 0, credit: 300_000, compte: { numero: '47810000' } },
-      { debit: 300_000, credit: 0, compte: { numero: '41110000' } },
-      { debit: 0, credit: 300_000, compte: { numero: '67600000' } },
-      { debit: 300_000, credit: 0, compte: { numero: '57120000' } },
-    ],
+    lignes: INVERSE,
   },
 });
 
@@ -76,8 +84,14 @@ describe('contrôle 34 · contre-passation qui a inversé une disponibilité', (
     expect(a!.action).toMatch(/annulez-la \(Devises, « Annuler la contre-passation »/);
     // Lu dans l'exercice qui PORTE la contre-passation, réévaluations annulées écartées.
     // (Le contrôle 32 lit aussi les traces des contre-passations annulées, m3 · l'appel du 34 se retrouve par son filtre.)
-    const appel34 = findMany.mock.calls.find((c) => c[0].where?.ecritureExtourne);
-    expect(appel34?.[0].where).toMatchObject({ tenantId: 't', annuleeLe: null, ecritureExtourne: { is: { exerciceId: 'e27' } } });
+    const appel34 = findMany.mock.calls.find((c) => c[0].where?.OR?.[0]?.ecritureExtourne);
+    // La contre-passation du module OU celle faite à la main et déclarée (troisième tour), tri stable.
+    expect(appel34?.[0].where).toMatchObject({
+      tenantId: 't',
+      annuleeLe: null,
+      OR: [{ ecritureExtourne: { is: { exerciceId: 'e27' } } }, { contrePassationDeclaree: { is: { exerciceId: 'e27' } } }],
+    });
+    expect(appel34?.[0].orderBy).toEqual([{ dateReevaluation: 'asc' }, { id: 'asc' }]);
   });
 
   it('exercice qui porte la contre-passation clôturé · aucune annulation proposée, et la ligne de la banque ne se repasse pas à la main', async () => {
@@ -123,5 +137,45 @@ describe('contrôle 34 · contre-passation qui a inversé une disponibilité', (
     a5bis.ecritureExtourne.lignes = a5bis.ecritureExtourne.lignes.slice(0, 2);
     const { svc } = service([a5bis]);
     expect(await trouver(svc)).toBeUndefined();
+  });
+
+  it('mineur 1 · réévaluation des seules disponibilités · l’annulation est proposée, jamais « repassez-la », rien n’étant à repasser', async () => {
+    const seules = ancienne('OUVERT');
+    seules.ecritureEcarts = { lignes: ECARTS.slice(2) };
+    seules.ecritureExtourne.lignes = INVERSE.slice(2);
+    const { svc } = service([seules]);
+    const a = await trouver(svc);
+    expect(a!.action).toMatch(/annulez-la \(Devises, « Annuler la contre-passation »/);
+    expect(a!.action).not.toMatch(/repassez-la/);
+    expect(a!.action).toMatch(/il n'y a rien à repasser/);
+  });
+
+  describe('troisième tour · la contre-passation faite à la main et déclarée', () => {
+    /** Une OD d'ouverture qui a tout inversé, plus une remise de chèque sur la banque 5211, autre geste groupé. */
+    const declaree = (statutPorteuse: 'OUVERT' | 'CLOTURE', lignes = [...INVERSE, { compteId: 'c-5211', debit: 50_000, credit: 0, compte: { numero: '52110000' } }]) => ({
+      ...ancienne('OUVERT'),
+      ecritureExtourne: null,
+      contrePassationDeclaree: { exerciceId: 'e27', numeroPiece: 40, date: new Date('2027-01-03'), exercice: { statut: statutPorteuse }, lignes },
+    });
+
+    it('elle a inversé la caisse · nommée comme manuelle, seule la caisse inversée (pas la remise de chèque), l’issue est de retirer la déclaration', async () => {
+      const { svc } = service([declaree('OUVERT')]);
+      const a = await trouver(svc);
+      expect(a!.occurrences).toEqual([
+        expect.objectContaining({ reference: '57120000 · contre-passation n° 40', montant: 300_000, detail: expect.stringMatching(/contre-passation manuelle déclarée/) }),
+      ]);
+      expect(a!.action).toMatch(/Contre-passation manuelle déclarée, dans un exercice encore ouvert · retirez la déclaration/);
+      expect(a!.action).not.toMatch(/Annuler la contre-passation/);
+    });
+
+    it('exercice qui la porte clôturé · elle ne se corrige plus', async () => {
+      const { svc } = service([declaree('CLOTURE')]);
+      expect((await trouver(svc))!.action).toMatch(/Contre-passation manuelle déclarée, dans un exercice clôturé · elle ne se corrige plus/);
+    });
+
+    it('elle ne touche que le 478 et le tiers · rien à dire', async () => {
+      const { svc } = service([declaree('OUVERT', INVERSE.slice(0, 2))]);
+      expect(await trouver(svc)).toBeUndefined();
+    });
   });
 });

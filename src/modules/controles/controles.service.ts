@@ -1107,7 +1107,11 @@ export class ControlesService {
     tenantId: string,
     ex: { statut: StatutExercice; dateDebut: Date; dateFin: Date },
     referentiel: Referentiel,
-    parcours: { journauxEcrits: Map<string, JournalEcrit>; comptesBancaires: Map<string, CompteBancaireMouvemente> },
+    parcours: {
+      journauxEcrits: Map<string, JournalEcrit>;
+      comptesBancaires: Map<string, CompteBancaireMouvemente>;
+      contrePassationsAnnuleesTronquees?: boolean;
+    },
     maintenant: number,
   ): Promise<AnomalieControle[]> {
     const anomalies: AnomalieControle[] = [];
@@ -1185,7 +1189,19 @@ export class ControlesService {
             'solde nul, daté au plus tôt de sa dernière opération, quand son solde comptable est nul. Pour un compte en devises, ' +
             'le solde du relevé se compare en francs au cours de clôture, une fois passée la réévaluation de l’exercice ' +
             '(Traitement > Clôture > Devises et réévaluation).',
-          occurrences: sans,
+          occurrences: [
+            ...(parcours.contrePassationsAnnuleesTronquees
+              ? [
+                  {
+                    reference: 'Lecture bornée',
+                    detail:
+                      `${PLAFOND_REEVALUATIONS_EXAMINEES} réévaluations à contre-passation annulée lues · une contre-passation annulée ` +
+                      "plus ancienne peut avancer la dernière opération d'un compte fermé, et le faire paraître non couvert.",
+                  },
+                ]
+              : []),
+            ...sans,
+          ],
         });
       }
     }
@@ -1280,7 +1296,8 @@ export class ControlesService {
     // plus la liaison · la trace gardée sur la réévaluation les nomme (second
     // tour, m3), sans quoi une ancienne contre-passation qui inversait la
     // banque avançait la dernière ligne d'un compte fermé.
-    const contrePassationsAnnulees = (await ecrituresDesContrePassationsAnnulees(this.prisma, tenantId)).ids;
+    const tracesAnnulees = await ecrituresDesContrePassationsAnnulees(this.prisma, tenantId);
+    const contrePassationsAnnulees = tracesAnnulees.ids;
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1444,6 +1461,10 @@ export class ControlesService {
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
+      // Au-delà de la borne, une contre-passation annulée plus ancienne
+      // pourrait passer pour une opération de banque · le contrôle 32 le DIT
+      // (troisième tour, mineur 3).
+      contrePassationsAnnuleesTronquees: tracesAnnulees.tronque,
       // Le solde a été tenu en centimes · il repart ici en francs.
       comptesBancaires: new Map(
         [...comptesBancaires].map(([id, c]) => [id, { ...c, soldeCloture: c.soldeCloture / 100 }]),
@@ -4406,9 +4427,17 @@ export class ControlesService {
     {
       const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
       if (contrePassees.elements.length > 0 || contrePassees.tronque) {
-        const anciennes = contrePassees.elements.filter((e) => e.exception === null);
-        const annulable = anciennes.some((e) => !e.exerciceContrePassationClos);
+        const anciennes = contrePassees.elements.filter((e) => e.exception === null && !e.manuelle);
+        const annulable = anciennes.filter((e) => !e.exerciceContrePassationClos);
+        // Rien à repasser (troisième tour, mineur 1) · une réévaluation des
+        // seules disponibilités n'a aucun écart de conversion ; « repassez-la »
+        // nommerait un geste que `extourner` refuse.
+        const aRepasser = annulable.some((e) => e.aRepasser);
+        const rienARepasser = annulable.some((e) => !e.aRepasser);
         const close = anciennes.some((e) => e.exerciceContrePassationClos);
+        const manuelles = contrePassees.elements.filter((e) => e.manuelle);
+        const manuelleOuverte = manuelles.some((e) => !e.exerciceContrePassationClos);
+        const manuelleClose = manuelles.some((e) => e.exerciceContrePassationClos);
         const parException = contrePassees.elements.some((e) => e.exception !== null);
         anomalies.push({
           code: 'CONTRE_PASSATION_DE_DISPONIBILITE',
@@ -4421,10 +4450,22 @@ export class ControlesService {
             "mesure la banque sans l'écart contre-passé et le repasse · une fois elle passée, le résultat cumulé des exercices en sort juste " +
             "(d'ici là, l'exercice porte la contre-passation seule) ; la présentation des pertes et gains de change ne l’est pas.",
           action:
-            (annulable
+            (annulable.length > 0
               ? 'Contre-passation dans un exercice encore ouvert · annulez-la (Devises, « Annuler la contre-passation », AUDCIF ' +
-                "art. 20, al. 2), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, puis repassez-la · seuls " +
-                'le 478, le 479 et les comptes de tiers le seront. '
+                "art. 20, al. 2), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué" +
+                (aRepasser ? ', puis repassez-la · seuls le 478, le 479 et les comptes de tiers le seront' : '') +
+                (rienARepasser
+                  ? `${aRepasser ? ' ; ' : ' · '}une réévaluation des seules disponibilités n'a aucun écart de conversion, il n'y a rien à repasser`
+                  : '') +
+                '. '
+              : '') +
+            (manuelleOuverte
+              ? "Contre-passation manuelle déclarée, dans un exercice encore ouvert · retirez la déclaration (Devises, « Retirer la " +
+                "déclaration »), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, corrigez l'écriture " +
+                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers. '
+              : '') +
+            (manuelleClose
+              ? "Contre-passation manuelle déclarée, dans un exercice clôturé · elle ne se corrige plus ; toute régularisation est à décider par le cabinet. "
               : '') +
             (close
               ? "Contre-passation dans un exercice clôturé · elle ne s'annule plus ; toute régularisation est à décider par le cabinet. "
@@ -4444,7 +4485,8 @@ export class ControlesService {
               detail:
                 `Réévaluation du ${e.dateReevaluation.toISOString().slice(0, 10)}${e.exerciceReevaluationClos ? ' (exercice clôturé)' : ''} · ` +
                 `disponibilité ${e.montant > 0 ? 'débitée' : 'créditée'} de ${Math.abs(e.montant).toFixed(2)} à l'ouverture` +
-                (e.exception ? ` · contre-passation intégrale par exception (${e.exception})` : ''),
+                (e.exception ? ` · contre-passation intégrale par exception (${e.exception})` : '') +
+                (e.manuelle ? ' · contre-passation manuelle déclarée' : ''),
               date: e.date.toISOString().slice(0, 10),
               montant: e.montant,
             })),

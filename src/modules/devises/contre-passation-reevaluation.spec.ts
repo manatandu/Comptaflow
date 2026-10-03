@@ -69,7 +69,7 @@ function monter(
     { compteId: 'c1', numero: '41110000', debit: 100, credit: 0 },
     { compteId: 'c2', numero: '47910000', debit: 0, credit: 100 },
   ],
-  options: { ecartsDisponibilites?: unknown; exercices?: Exo[]; autres?: AutreReevaluation[]; updateEchoue?: unknown } = {},
+  options: { ecartsDisponibilites?: unknown; exercices?: Exo[]; autres?: AutreReevaluation[]; updateEchoue?: unknown; declaree?: boolean } = {},
 ) {
   // L'exercice choisi pour la contre-passation · `e`, à la date donnée.
   const exercices = options.exercices ?? [N, { ...N1, dateDebut: new Date(dateDebutSuivant) }];
@@ -89,6 +89,7 @@ function monter(
             exercice: { dateFin: N.dateFin },
             dateReevaluation: new Date('2026-12-31'),
             ecritureExtourneId: null,
+            contrePassationDeclareeId: options.declaree ? 'od' : null,
             coursUtilises: null,
             ecartsDisponibilites: options.ecartsDisponibilites ?? null,
             ecritureEcarts: { lignes: lignes.map(ligne) },
@@ -180,13 +181,21 @@ describe('contre-passation de la réévaluation', () => {
     const { svc, update } = monter('2027-01-01');
     await svc.extourner('t', 'u', 'r1', 'e');
     expect(update).toHaveBeenCalledWith({
-      where: { id: 'r1', tenantId: 't', AND: [{ ecritureExtourneId: null }] },
+      where: { id: 'r1', tenantId: 't', AND: [{ ecritureExtourneId: null }, { contrePassationDeclareeId: null }] },
       data: { ecritureExtourneId: 'ex', contrePassationIntegrale: null },
     });
     const course = new Prisma.PrismaClientKnownRequestError('perdu', { code: 'P2025', clientVersion: 'x' });
     const perdu = monter('2027-01-01', undefined, { updateEchoue: course });
     await expect(perdu.svc.extourner('t', 'u', 'r1', 'e')).rejects.toThrow(/déjà été extournée/);
     expect(perdu.retirerCompensation).toHaveBeenCalledWith('t', 'ex');
+  });
+});
+
+describe('troisième tour · une réévaluation contre-passée À LA MAIN et déclarée', () => {
+  it('ne se contre-passe pas une seconde fois par le module · refus nommé, rien écrit', async () => {
+    const { svc, creer } = monter('2027-01-01', undefined, { declaree: true });
+    await expect(svc.extourner('t', 'u', 'r1', 'e')).rejects.toThrow(/déjà contre-passée par une écriture manuelle déclarée/);
+    expect(creer).not.toHaveBeenCalled();
   });
 });
 

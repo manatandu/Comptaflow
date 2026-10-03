@@ -110,6 +110,20 @@ export class AnnulerReevaluationDto {
 }
 
 /**
+ * La contre-passation faite à la main, DÉCLARÉE (A5 bis, troisième tour) ·
+ * l'écriture désignée et le motif, au journal d'audit avec la réévaluation.
+ * Les vérifications (inversion exacte, place, liens) sont au service.
+ */
+export class DeclarerContrePassationManuelleDto {
+  @IsUUID()
+  ecritureId!: string;
+
+  @IsString()
+  @Length(3, 500)
+  motif!: string;
+}
+
+/**
  * Provision pour pertes de change existant à l'ouverture, déclarée par le
  * cabinet (ligne A5, décision de Manasse du 2026-10-02). Le compte, le
  * montant, la date et la SOURCE · la règle complète vit dans

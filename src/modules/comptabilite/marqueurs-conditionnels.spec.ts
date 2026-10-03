@@ -49,7 +49,7 @@ describe('marqueurs posés après creer', () => {
     expect(['ancre trouvée', debut >= 0]).toEqual(['ancre trouvée', true]);
     const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
     const lien = corps.slice(corps.indexOf('await this.prisma.reevaluation.update({'));
-    expect(lien).toContain('AND: [{ ecritureExtourneId: null }]');
+    expect(lien).toContain('AND: [{ ecritureExtourneId: null }, { contrePassationDeclareeId: null }]');
     const perdu = lien.slice(lien.indexOf('} catch (e) {'));
     expect(perdu).toContain('this.ecritureService.retirerCompensation(tenantId, ecriture.id)');
     expect(perdu).toContain("e.code === 'P2025'");

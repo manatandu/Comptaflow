@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaService } from '../../common/prisma.service';
-import { CodeContrePassationIntegrale, LIBELLE_INTEGRALE, estDisponibilite } from './ecarts-disponibilites';
+import { CodeContrePassationIntegrale, LIBELLE_INTEGRALE, estDisponibilite, partagerLignesDEcarts } from './ecarts-disponibilites';
+import { disponibilitesInversees } from './contre-passation-manuelle';
 
 type Lecteur = Pick<PrismaService, 'reevaluation'>;
 
@@ -33,6 +34,18 @@ export interface DisponibiliteContrePassee {
    * contre-passation d'avant A5 bis, qui inversait tout sans le dire.
    */
   exception: string | null;
+  /**
+   * Une contre-passation faite À LA MAIN et déclarée (troisième tour) · elle
+   * ne s'annule pas par le module ; l'issue est de retirer la déclaration et
+   * de corriger l'écriture du cabinet.
+   */
+  manuelle: boolean;
+  /**
+   * La réévaluation porte un écart de conversion (le tiers et son 478 ou
+   * 479) · une fois la contre-passation annulée, il y a quelque chose à
+   * repasser. Sans lui (les seules disponibilités), rien (mineur 1).
+   */
+  aRepasser: boolean;
 }
 
 /**
@@ -52,42 +65,89 @@ export async function contrePassationsDeDisponibilites(
   prisma: Lecteur,
   p: { tenantId: string; exerciceId: string },
 ): Promise<{ elements: DisponibiliteContrePassee[]; tronque: boolean }> {
+  const lignesLues = { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } } as const;
   const reevaluations = await prisma.reevaluation.findMany({
-    where: { tenantId: p.tenantId, annuleeLe: null, ecritureExtourne: { is: { exerciceId: p.exerciceId } } },
-    orderBy: { dateReevaluation: 'asc' },
+    where: {
+      tenantId: p.tenantId,
+      annuleeLe: null,
+      // La contre-passation du module, ou celle faite à la main et DÉCLARÉE
+      // (troisième tour) · l'une et l'autre peuvent avoir inversé la banque.
+      OR: [{ ecritureExtourne: { is: { exerciceId: p.exerciceId } } }, { contrePassationDeclaree: { is: { exerciceId: p.exerciceId } } }],
+    },
+    // Tri STABLE · la borne garde toujours les mêmes.
+    orderBy: [{ dateReevaluation: 'asc' }, { id: 'asc' }],
     take: PLAFOND_REEVALUATIONS_EXAMINEES + 1,
     select: {
       dateReevaluation: true,
       contrePassationIntegrale: true,
       exercice: { select: { statut: true } },
+      ecritureEcarts: { select: { lignes: lignesLues } },
       ecritureExtourne: {
         select: {
+          exerciceId: true,
           numeroPiece: true,
           date: true,
           exercice: { select: { statut: true } },
-          lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } },
+          lignes: lignesLues,
+        },
+      },
+      contrePassationDeclaree: {
+        select: {
+          exerciceId: true,
+          numeroPiece: true,
+          date: true,
+          exercice: { select: { statut: true } },
+          lignes: lignesLues,
         },
       },
     },
   });
   const tronque = reevaluations.length > PLAFOND_REEVALUATIONS_EXAMINEES;
   const elements: DisponibiliteContrePassee[] = [];
+  const enLignes = (lignes: { compteId: string; debit: unknown; credit: unknown; compte: { numero: string } }[]) =>
+    lignes.map((l) => ({ compteId: l.compteId, compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) }));
   for (const r of reevaluations.slice(0, PLAFOND_REEVALUATIONS_EXAMINEES)) {
-    if (!r.ecritureExtourne) continue;
-    for (const l of r.ecritureExtourne.lignes) {
-      if (!estDisponibilite(l.compte.numero)) continue;
-      elements.push({
-        dateReevaluation: r.dateReevaluation,
-        exerciceReevaluationClos: r.exercice.statut === 'CLOTURE',
-        exerciceContrePassationClos: r.ecritureExtourne.exercice?.statut === 'CLOTURE',
-        piece: r.ecritureExtourne.numeroPiece,
-        date: r.ecritureExtourne.date,
-        compteNumero: l.compte.numero,
-        montant: Math.round((Number(l.debit) - Number(l.credit)) * 100) / 100,
-        exception: r.contrePassationIntegrale
-          ? (LIBELLE_INTEGRALE[r.contrePassationIntegrale as CodeContrePassationIntegrale] ?? r.contrePassationIntegrale)
-          : null,
-      });
+    const ecarts = enLignes(r.ecritureEcarts?.lignes ?? []);
+    const aRepasser = partagerLignesDEcarts(ecarts).aContrePasser.length > 0;
+    const commun = { dateReevaluation: r.dateReevaluation, exerciceReevaluationClos: r.exercice.statut === 'CLOTURE', aRepasser };
+    const x = r.ecritureExtourne;
+    if (x && x.exerciceId === p.exerciceId) {
+      for (const l of x.lignes) {
+        if (!estDisponibilite(l.compte.numero)) continue;
+        elements.push({
+          ...commun,
+          exerciceContrePassationClos: x.exercice?.statut === 'CLOTURE',
+          piece: x.numeroPiece,
+          date: x.date,
+          compteNumero: l.compte.numero,
+          montant: Math.round((Number(l.debit) - Number(l.credit)) * 100) / 100,
+          exception: r.contrePassationIntegrale
+            ? (LIBELLE_INTEGRALE[r.contrePassationIntegrale as CodeContrePassationIntegrale] ?? r.contrePassationIntegrale)
+            : null,
+          manuelle: false,
+        });
+      }
+    }
+    // La déclarée · seuls les comptes de banque ou de caisse dont elle inverse
+    // EXACTEMENT l'écart passé · une autre ligne de banque de la même OD
+    // d'ouverture est une opération du cabinet, pas une contre-passation.
+    const d = r.contrePassationDeclaree;
+    if (d && d.exerciceId === p.exerciceId) {
+      const lignes = enLignes(d.lignes);
+      const inversees = disponibilitesInversees(ecarts, lignes, estDisponibilite);
+      for (const compteId of inversees) {
+        const surLeCompte = lignes.filter((l) => l.compteId === compteId);
+        elements.push({
+          ...commun,
+          exerciceContrePassationClos: d.exercice?.statut === 'CLOTURE',
+          piece: d.numeroPiece,
+          date: d.date,
+          compteNumero: surLeCompte[0]?.compteNumero ?? '',
+          montant: Math.round(surLeCompte.reduce((t, l) => t + l.debit - l.credit, 0) * 100) / 100,
+          exception: null,
+          manuelle: true,
+        });
+      }
     }
   }
   return { elements, tronque };
@@ -109,6 +169,10 @@ export async function ecrituresDesContrePassationsAnnulees(
 ): Promise<{ ids: Set<string>; tronque: boolean }> {
   const traces = await prisma.reevaluation.findMany({
     where: { tenantId, annulationsContrePassation: { not: Prisma.DbNull } },
+    // Tri STABLE (troisième tour, mineur 3) · les plus récentes d'abord, les
+    // plus proches de l'exercice contrôlé ; au-delà de la borne, `tronque`, que
+    // le contrôle 32 DIT.
+    orderBy: [{ dateReevaluation: 'desc' }, { id: 'asc' }],
     take: PLAFOND_REEVALUATIONS_EXAMINEES + 1,
     select: { annulationsContrePassation: true },
   });

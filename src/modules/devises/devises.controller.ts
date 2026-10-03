@@ -9,6 +9,7 @@ import { DevisesService } from './devises.service';
 import {
   AnnulerReevaluationDto,
   CreerDeviseDto,
+  DeclarerContrePassationManuelleDto,
   DeclarerProvisionOuvertureDto,
   DeclarerVentilationDisponibilitesDto,
   ExtournerReevaluationDto,
@@ -146,6 +147,36 @@ export class DevisesController {
   @ReserveAuComptable()
   async annulerContrePassation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
     return this.devises.annulerContrePassation(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * LA CONTRE-PASSATION FAITE À LA MAIN SE DÉCLARE (A5 bis, troisième tour) ·
+   * les écritures candidates (une proposition, rien n'est retenu), la
+   * déclaration et son retrait. Une décision de validation · elle lève le
+   * portillon de la réévaluation suivante et retient l'écriture désignée ·
+   * réservée au comptable, comme l'annulation de la contre-passation.
+   */
+  @Get('reevaluations/:id/contre-passation-manuelle/candidates')
+  async candidatesContrePassationManuelle(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.devises.candidatesContrePassationManuelle(user.tenantId, id);
+  }
+
+  @Post('reevaluations/:id/contre-passation-manuelle')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async declarerContrePassationManuelle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: DeclarerContrePassationManuelleDto,
+  ) {
+    return this.devises.declarerContrePassationManuelle(user.tenantId, user.userId, id, body.ecritureId, body.motif);
+  }
+
+  @Delete('reevaluations/:id/contre-passation-manuelle')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async retirerContrePassationManuelle(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.devises.retirerContrePassationManuelle(user.tenantId, id);
   }
 
   /**

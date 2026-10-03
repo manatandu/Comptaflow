@@ -84,6 +84,13 @@ interface Reeval {
   contrePasseeDans?: string;
   /** La ventilation déclarée par le cabinet (B1, c). */
   ventilation?: { compteId: string; deviseId: string; ecart: number }[];
+  /**
+   * Une contre-passation faite À LA MAIN et DÉCLARÉE (troisième tour), dans
+   * cet exercice · l'inverse du seul écart de conversion, ou de toute
+   * l'écriture (`declareeInverseTout`, comme le faisait le module avant A5 bis).
+   */
+  declareeDans?: string;
+  declareeInverseTout?: boolean;
 }
 
 function correspond(valeur: unknown, filtre: unknown): boolean {
@@ -230,6 +237,20 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
               lignes: lignesEcarts.filter((l) => !/^(52|53|55|57|58|676|776)/.test(l.numero)).map((l) => ({ compte: { numero: l.numero } })),
             }
           : null,
+      contrePassationDeclareeId: r.declareeDans ? 'od-manuelle' : null,
+      contrePassationDeclaree: r.declareeDans
+        ? {
+            id: 'od-manuelle',
+            exerciceId: r.declareeDans,
+            exercice: exerciceDe(r.declareeDans),
+            numeroPiece: 40,
+            date: exerciceDe(r.declareeDans).dateDebut,
+            // L'inverse exact, ligne à ligne · du seul écart de conversion, ou de tout.
+            lignes: lignesEcarts
+              .filter((l) => r.declareeInverseTout || !/^(52|53|55|57|58|676|776)/.test(l.numero))
+              .map((l) => ({ compteId: l.compteId, debit: l.credit, credit: l.debit, compte: { numero: l.numero } })),
+          }
+        : null,
     };
   };
   const creer = jest.fn().mockResolvedValue({ id: 'ecr' });
@@ -345,6 +366,43 @@ describe('A5 bis · la caisse en devise part de sa valeur de clôture précéden
     });
     const r = await svc.calculer('t', { exerciceId: 'e27' });
     expect(caisse(r)).toMatchObject({ valeurComptable: 2_800_000, ecart: -400_000 });
+  });
+
+  it('troisième tour · contre-passation faite À LA MAIN et déclarée, qui a inversé la caisse · revenue au coût historique, rien n’est reporté', async () => {
+    const { svc } = monter({
+      lignes: [caisseN, ouvertureN1()],
+      reeval: {
+        exerciceId: 'e26',
+        lignesEcarts: [
+          { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 50_000 },
+          { compteId: 'c-4111', numero: '41110000', debit: 50_000, credit: 0 },
+          { compteId: 'c-676', numero: '67600000', debit: 300_000, credit: 0 },
+          { compteId: 'c-5712', numero: '57120000', debit: 0, credit: 300_000 },
+        ],
+        declareeDans: 'e27',
+        declareeInverseTout: true,
+      },
+    });
+    const r = await svc.calculer('t', { exerciceId: 'e27' });
+    expect(caisse(r)).toMatchObject({ valeurComptable: 2_800_000, ecart: -400_000 });
+  });
+
+  it('troisième tour · déclarée, mais du seul écart de conversion · la caisse garde l’écart de N, reporté', async () => {
+    const { svc } = monter({
+      lignes: [caisseN, ouvertureN1()],
+      reeval: {
+        exerciceId: 'e26',
+        lignesEcarts: [
+          { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 50_000 },
+          { compteId: 'c-4111', numero: '41110000', debit: 50_000, credit: 0 },
+          { compteId: 'c-676', numero: '67600000', debit: 300_000, credit: 0 },
+          { compteId: 'c-5712', numero: '57120000', debit: 0, credit: 300_000 },
+        ],
+        declareeDans: 'e27',
+      },
+    });
+    const r = await svc.calculer('t', { exerciceId: 'e27' });
+    expect(caisse(r)).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
   });
 
   it('M1 · une ancienne contre-passation passée plus loin que l’exercice qui suit · la caisse n’y est pas revenue au coût, l’écart est reporté', async () => {
@@ -881,7 +939,39 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
         /La réévaluation du 2026-12-31 n'est pas contre-passée \(exercice du 2026-01-01 au 2026-12-31\)[\s\S]*41110000 au crédit de 500000\.00, 47910000 au débit de 500000\.00[\s\S]*à l'ouverture de cet exercice/,
       );
       await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.not.toThrow(/2027-12-31/);
+      // Les deux issues · contre-passer par le module, ou déclarer l'écriture manuelle qui l'a déjà fait.
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.toThrow(
+        /Passez la contre-passation de la réévaluation du 2026-12-31 \(Devises\)[\s\S]*déjà été contre-passée À LA MAIN, déclarez cette écriture \(Devises, « Déclarer une contre-passation manuelle »\)/,
+      );
       expect(creer).not.toHaveBeenCalled();
+    });
+
+    it('N contre-passée À LA MAIN dans N+2 et déclarée · N+2 passe sans rien repasser · 411 à 2 600 000 et 479 à −600 000', async () => {
+      const { svc, creer } = monter({
+        exercices,
+        lignes: [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }],
+        reevals: [
+          { exerciceId: 'e26', lignesEcarts: ecartsN, declareeDans: 'e28' },
+          { exerciceId: 'e27', lignesEcarts: ecartsN1, dateReevaluation: N1.dateFin, contrePassee: true, contrePasseeDans: 'e28' },
+        ],
+        cours: 2600,
+      });
+      await svc.reevaluer('t', 'u', { exerciceId: 'e28' });
+      // Le livre de N+2 · plus l'OD manuelle déclarée (C 411 / D 4791 de 500 000), plus ce que le module a passé.
+      expect(solde(creer, 'c-4111', livreN2[0].solde - 500_000)).toBe(2_600_000);
+      expect(solde(creer, 'c-479', livreN2[1].solde + 500_000)).toBe(-600_000);
+    });
+
+    it('déclarée hors de sa place (N+2 alors que N+1 est ouvert) · le portillon de N+1 la nomme, l’issue est de retirer la déclaration', async () => {
+      const { svc } = monter({
+        exercices: [N, N1, N2],
+        lignes: [creanceN, report],
+        reevals: [{ exerciceId: 'e26', lignesEcarts: ecartsN, declareeDans: 'e28' }],
+        cours: 2400,
+      });
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(
+        /La contre-passation déclarée de la réévaluation du 2026-12-31[\s\S]*Retirez la déclaration/,
+      );
     });
 
     it('la contre-passation de N passée dans N+2, sa cible · N+2 passe · 411 à 2 600 000 et 479 à −600 000', async () => {

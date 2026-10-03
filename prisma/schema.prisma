@@ -1581,6 +1581,7 @@ model Ecriture {
   reevaluationEcarts         Reevaluation?               @relation("ReevalEcarts")
   reevaluationProvision      Reevaluation?               @relation("ReevalProvision")
   reevaluationExtourne       Reevaluation?               @relation("ReevalExtourne")
+  reevaluationContrePassationDeclaree Reevaluation?      @relation("ReevalContrePassationDeclaree")
   reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
   executionsEngagement       ExecutionEngagement[]
 
@@ -3444,6 +3445,23 @@ model Reevaluation {
   // repassée au bon endroit · [{ ecritureId, numeroPiece, traitement,
   // negatifId?, motif, par, le }], jamais effacé.
   annulationsContrePassation Json?
+
+  // LA CONTRE-PASSATION FAITE À LA MAIN, DÉCLARÉE (relecture adverse d'A5
+  // bis, troisième tour) · le cabinet a contre-passé l'écart de conversion
+  // par une écriture à lui, hors du module. Il la DÉSIGNE, avec un motif,
+  // comme les versions de la provision d'ouverture · sans quoi le portillon
+  // la redemandait, et la seule issue (contre-passer par le module)
+  // l'inversait une seconde fois. Vérifiée à la déclaration · elle inverse
+  // EXACTEMENT, au centime, chaque compte de l'écart de conversion, à la
+  // place où le module l'aurait posée. RETENUE tant que la réévaluation n'est
+  // pas annulée (detenteurs-ecriture.ts) · RESTRICT, une suppression qui
+  // passerait la garde est refusée par la base, jamais dénouée en silence.
+  // Au journal d'audit avec l'enregistrement.
+  contrePassationDeclareeId    String?   @unique
+  contrePassationDeclaree      Ecriture? @relation("ReevalContrePassationDeclaree", fields: [contrePassationDeclareeId], references: [id], onDelete: Restrict)
+  motifContrePassationDeclaree String?
+  contrePassationDeclareeLe    DateTime?
+  contrePassationDeclareePar   String?
 
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·

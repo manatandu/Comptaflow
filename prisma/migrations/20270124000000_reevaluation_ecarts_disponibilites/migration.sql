@@ -14,3 +14,14 @@ ALTER TABLE "reevaluations" ADD COLUMN "ventilationDisponibilitesLe" TIMESTAMP(3
 ALTER TABLE "reevaluations" ADD COLUMN "ventilationDisponibilitesPar" TEXT;
 ALTER TABLE "reevaluations" ADD COLUMN "contrePassationIntegrale" TEXT;
 ALTER TABLE "reevaluations" ADD COLUMN "annulationsContrePassation" JSONB;
+
+-- Troisième tour d'A5 bis · la contre-passation faite à la main, hors du
+-- module, se DÉCLARE · l'écriture désignée, son motif, sa date et son auteur.
+-- RESTRICT · l'écriture est retenue par la réévaluation, une suppression qui
+-- passerait la garde est refusée par la base, jamais dénouée en silence.
+ALTER TABLE "reevaluations" ADD COLUMN "contrePassationDeclareeId" TEXT;
+ALTER TABLE "reevaluations" ADD COLUMN "motifContrePassationDeclaree" TEXT;
+ALTER TABLE "reevaluations" ADD COLUMN "contrePassationDeclareeLe" TIMESTAMP(3);
+ALTER TABLE "reevaluations" ADD COLUMN "contrePassationDeclareePar" TEXT;
+CREATE UNIQUE INDEX "reevaluations_contrePassationDeclareeId_key" ON "reevaluations"("contrePassationDeclareeId");
+ALTER TABLE "reevaluations" ADD CONSTRAINT "reevaluations_contrePassationDeclareeId_fkey" FOREIGN KEY ("contrePassationDeclareeId") REFERENCES "ecritures"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
