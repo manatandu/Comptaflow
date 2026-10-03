@@ -32,10 +32,16 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    `inventaire-pv-caisse-reconstitution.spec.ts`, route ajoutée à
    `inventaire-gestes-a-lecran.spec.ts`.
 
+3. Bloc du § 3 passé des deux côtés (2026-10-03). Serveur · `tsc` vert,
+   `npm run build` vert, `npx jest --maxWorkers=2` · 701 suites, 9 537
+   tests ; 24 suites tombées par processus tués (manque de mémoire, trois
+   agents en parallèle) ou délai de 5 s dépassé, relancées seules en
+   `--runInBand` · toutes vertes. Client · `tsc`, 204 fichiers et 1 661
+   tests verts, `npm run build` vert.
+
 ## Reste
 
-- Bloc du § 3 des deux côtés avant le dernier commit (client vert,
-  1 661 tests ; serveur en cours).
+- Rien côté construction · relecture adverse et intégration.
 
 ## Décisions, avec leur article
 
