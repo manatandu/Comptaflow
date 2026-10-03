@@ -43,6 +43,7 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
+import { lettragesACheval, nommerLettrageACheval, PLAFOND_LETTRAGES_A_CHEVAL } from '../lettrage/lettrages-a-cheval';
 import {
   comptesBancairesSansRapprochement,
   estCompteBancaireARapprocher,
@@ -347,7 +348,10 @@ const SELECT_ECRITURE_CONTROLEE = {
   reevaluationExtourne: { select: { id: true } },
   corrigeEcriture: { select: { reevaluationEcarts: { select: { id: true } }, reevaluationExtourne: { select: { id: true } } } },
   lignes: {
-    select: { debit: true, credit: true, lettre: true, compte: { select: { id: true, numero: true, intitule: true } } },
+    // `lettrageId` · le contrôle 34 (lettrage à cheval de deux exercices, A6
+    // bis, B2) n'interroge les lettrages que si une ligne de l'exercice est
+    // lettrée, partiel compris · sans elle, aucun groupe ne peut y toucher.
+    select: { debit: true, credit: true, lettre: true, lettrageId: true, compte: { select: { id: true, numero: true, intitule: true } } },
   },
 } satisfies Prisma.EcritureSelect;
 
@@ -1271,6 +1275,8 @@ export class ControlesService {
     // Ligne A13 · relevés au passage, sans seconde lecture des écritures.
     const journauxEcrits = new Map<string, JournalEcrit>();
     const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
+    // Ligne A6 bis, B2 · une ligne de l'exercice dans un groupe de lettrage.
+    let lettrageVu = false;
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1301,6 +1307,7 @@ export class ControlesService {
         for (const l of e.lignes) {
           debit += Number(l.debit);
           credit += Number(l.credit);
+          if (l.lettrageId) lettrageVu = true;
           const n = l.compte.numero;
           if (estCompteBancaireARapprocher(n)) {
             // Solde comptable à la clôture (lignes de l'exercice, à-nouveau
@@ -1434,6 +1441,7 @@ export class ControlesService {
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
+      lettrageVu,
       // Le solde a été tenu en centimes · il repart ici en francs.
       comptesBancaires: new Map(
         [...comptesBancaires].map(([id, c]) => [id, { ...c, soldeCloture: c.soldeCloture / 100 }]),
@@ -4371,6 +4379,59 @@ export class ControlesService {
     // Les règles, leurs textes et leurs bornes vivent dans
     // `banque-et-cloture-informatique.ts` · ici, la lecture et le message.
     anomalies.push(...(await this.controlesBanqueEtClotureInformatique(tenantId, ex, tenant.referentiel, parcours, maintenant)));
+
+    // --- 34. Lettrage à cheval de deux exercices (ligne A6 bis, B2) ---------
+    //
+    // Les groupes DÉJÀ en base ne sont jamais réécrits (AUDCIF art. 20) ; le
+    // contrôle les nomme. BLOQUANT ceux que la clôture refuse · toutes leurs
+    // lignes dans des exercices ouverts (ils se délettrent, c'est l'issue), ou
+    // soldés au Détail avec une part non nulle dans cet exercice (leurs
+    // lignes sortiraient du report à-nouveau sans s'y solder). INFORMATION
+    // les autres, figés par un exercice clôturé · ils ne faussent aucun
+    // total, mais leurs lignes ne se lettreront plus avec la ligne
+    // d'à-nouveau, et aucun geste d'OmegaX ne les défait. Sans ligne lettrée
+    // dans l'exercice (relevé au parcours), aucun groupe n'y touche · la
+    // lecture des lettrages n'a pas lieu d'être.
+    if (parcours.lettrageVu) {
+      const aCheval = await lettragesACheval(this.prisma, { tenantId, exerciceId });
+      const bloquants = [...aCheval.adelettrer, ...aCheval.figes.filter((g) => g.faussentLeReport)];
+      const borne = (tronque: boolean) =>
+        tronque ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LETTRAGES_A_CHEVAL} groupes lus · d'autres lettrages à cheval peuvent exister.` }] : [];
+      if (bloquants.length > 0) {
+        anomalies.push({
+          code: 'LETTRAGE_A_CHEVAL_D_EXERCICES',
+          gravite: 'BLOQUANT',
+          libelle: 'Lettrage qui mêle deux exercices',
+          consequence:
+            "Un lettrage ne mêle pas deux exercices · soldé, il retire du report à-nouveau des lignes de cet exercice qui ne s'y soldent pas, " +
+            'et la clôture comme l’à-nouveau provisoire sont refusés ; partiel, il ne se délettrerait plus une fois l’exercice clôturé.',
+          action:
+            "Délettrez le groupe depuis Interrogation et lettrage tant que ses exercices sont ouverts, lettrez entre elles les lignes de chaque " +
+            "exercice, puis, après la clôture, les lignes de l'exercice suivant avec les lignes d'à-nouveau. Un groupe déjà figé par un " +
+            "exercice clôturé ne se délettre plus · aucun geste d'OmegaX ne lève encore ce refus.",
+          occurrences: [
+            ...borne(aCheval.tronqueADelettrer),
+            ...bloquants.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: nommerLettrageACheval(g) })),
+          ],
+        });
+      }
+      const figes = aCheval.figes.filter((g) => !g.faussentLeReport);
+      if (figes.length > 0) {
+        anomalies.push({
+          code: 'LETTRAGE_A_CHEVAL_FIGE',
+          gravite: 'INFORMATION',
+          libelle: 'Lettrage partiel figé à cheval de deux exercices',
+          consequence:
+            "Le groupe mêle une ligne d'un exercice clôturé · il ne se complète ni ne se délettre plus, et ses lignes de cet exercice ne se " +
+            "lettreront pas avec la ligne d'à-nouveau. Aucun total n'en est faussé.",
+          action: "Aucune dans OmegaX · le relever au dossier de travail si le détail du compte de tiers doit le justifier.",
+          occurrences: [
+            ...borne(aCheval.tronqueFiges),
+            ...figes.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: nommerLettrageACheval(g) })),
+          ],
+        });
+      }
+    }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);

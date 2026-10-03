@@ -20,6 +20,7 @@ interface LigneFausse {
   montantDevise: number | null;
   ecriture: {
     tenantId: string;
+    exerciceId: string;
     date: Date;
     reference: string | null;
     journalId: string;
@@ -52,6 +53,8 @@ function ligne(
     reference?: string;
     date?: string;
     exerciceClos?: boolean;
+    /** L'exercice de l'écriture · un seul par défaut (A6 bis, B2). */
+    exercice?: string;
   } = {},
 ): LigneFausse {
   return {
@@ -66,6 +69,7 @@ function ligne(
     libelle: null,
     ecriture: {
       tenantId: 't1',
+      exerciceId: extra.exercice ?? 'ex1',
       date: new Date(extra.date ?? '2026-03-01'),
       reference: extra.reference ?? null,
       journalId: 'jACH',
@@ -716,5 +720,106 @@ describe('Gel du lettrage par la clôture', () => {
     await expect(
       s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['a', 'b'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
     ).rejects.toThrow(/figée/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, B2 · un lettrage ne mêle pas deux exercices
+// ---------------------------------------------------------------------------
+
+describe('Un lettrage ne mêle pas deux exercices (A6 bis, B2)', () => {
+  // La facture de N (15/12/2026) et son règlement de N+1 (10/01/2027), les
+  // deux exercices ouverts · soldé, le groupe posait sa lettre sur la facture
+  // de N, qui sortait du report à-nouveau Détail sans s'y solder.
+  const facture = () => ligne('f', 0, 1000, { date: '2026-12-15', exercice: 'N' });
+  const reglement = () => ligne('r', 1000, 0, { date: '2027-01-10', exercice: 'N1' });
+
+  it('le lettrage manuel refuse, nomme les deux lignes et l’issue · rien n’est posé', async () => {
+    const { service: s, groupes, lignes } = service([facture(), reglement()]);
+    await expect(s.lettrerManuel('t1', 'c1', ['f', 'r'], 'u1')).rejects.toThrow(
+      /appartiennent à 2 exercices \(lignes du 2026-12-15, du 2027-01-10\) · un lettrage ne mêle pas deux exercices.*ligne d'à-nouveau/,
+    );
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettrageId === null)).toBe(true);
+  });
+
+  it('compléter un partiel de N avec une ligne de N+1 · refusé, le groupe reste tel quel', async () => {
+    const { service: s, groupes, lignes } = service([
+      facture(),
+      ligne('a', 400, 0, { date: '2026-12-20', exercice: 'N' }),
+      ligne('r', 600, 0, { date: '2027-01-10', exercice: 'N1' }),
+    ]);
+    await s.lettrerManuel('t1', 'c1', ['f', 'a'], 'u1', { autoriserPartiel: true });
+    await expect(s.completer('t1', groupes[0].id, ['r'])).rejects.toThrow(/un lettrage ne mêle pas deux exercices/);
+    expect(groupes[0].statut).toBe('PARTIEL');
+    expect(lignes.find((l) => l.id === 'r')!.lettrageId).toBeNull();
+  });
+
+  it('le pré-lettrage et le lettrage automatique ne proposent qu’à l’intérieur d’un exercice', async () => {
+    const scene = () => [facture(), reglement(), ligne('d', 300, 0, { exercice: 'N1' }), ligne('c', 0, 300, { exercice: 'N1' })];
+    const { service: s } = service(scene());
+    const pre = await s.preLettrage('t1', 'c1');
+    expect(pre.propositions.map((p) => [...p.ligneIds].sort())).toEqual([['c', 'd']]);
+    const pose = service(scene());
+    await pose.service.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(pose.lignes.find((l) => l.id === 'f')!.lettrageId).toBeNull();
+    expect(pose.lignes.find((l) => l.id === 'r')!.lettrageId).toBeNull();
+  });
+
+  it('la confirmation d’un groupe à cheval · refusée, il ne vient pas d’une proposition', async () => {
+    const { service: s, groupes } = service([facture(), reglement()]);
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['f', 'r'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
+    ).rejects.toThrow(/un lettrage ne mêle pas deux exercices/);
+    expect(groupes).toHaveLength(0);
+  });
+
+  /** Un groupe à cheval DÉJÀ en base (posé avant la règle) · rien ne le réécrit. */
+  function groupeExistant(statut: 'PARTIEL' | 'SOLDE') {
+    const lettre = statut === 'SOLDE' ? 'A' : null;
+    const lignes = [
+      ligne('f', 0, 1_948_800, { date: '2026-12-15', exercice: 'N', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9', lettre }),
+      ligne('r', 2_030_000, 0, { date: '2027-01-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9', lettre }),
+    ];
+    const monte = service(lignes);
+    monte.groupes.push({
+      id: 'g9',
+      tenantId: 't1',
+      compteId: 'c1',
+      code: 'A',
+      statut,
+      solde: statut === 'SOLDE' ? 0 : 81_200,
+      origine: 'MANUEL',
+      verrouille: false,
+      ecartChange: null,
+      createdAt: new Date('2027-01-10'),
+      createdBy: 'u1',
+      soldeAt: null,
+    });
+    const p = monte.prisma as any;
+    const trouver = p.lettrage.findFirst.getMockImplementation();
+    p.lettrage.findFirst = jest.fn().mockImplementation(async (args: any) => {
+      const g = await trouver(args);
+      return g ? { ...g, compte: { id: 'c1', numero: '40110000', intitule: 'NZUZI' } } : null;
+    });
+    return monte;
+  }
+
+  it('l’écart de change d’un groupe à cheval n’est pas proposé · le motif nomme l’issue, délettrer', async () => {
+    const { service: s, prisma } = groupeExistant('PARTIEL');
+    const r = await s.propositionEcartChange('t1', 'g9');
+    expect(r.ecart).toBeNull();
+    expect(r.motif).toMatch(/Le lettrage a mêle deux exercices · aucun écart de change ne se passe sur lui/);
+    expect(r.motif).toMatch(/Délettrez-le d'abord/);
+    // Rien n'est lu au-delà · ni référentiel, ni compte d'écart.
+    expect((prisma as any).tenant).toBeUndefined();
+  });
+
+  it('un groupe à cheval déjà en base se DÉLETTRE tant que ses exercices sont ouverts · c’est son issue', async () => {
+    const { service: s, groupes, lignes } = groupeExistant('SOLDE');
+    const r = await s.delettrer('t1', 'c1', 'A');
+    expect(r.nombreLignes).toBe(2);
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettrageId === null && l.lettre === null)).toBe(true);
   });
 });

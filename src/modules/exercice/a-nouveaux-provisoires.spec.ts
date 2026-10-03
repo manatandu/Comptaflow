@@ -118,6 +118,8 @@ function service(
   const prisma = {
     exercice: { findFirst: jest.fn().mockResolvedValue(N) },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+    // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
+    lettrage: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: { count: jest.fn().mockResolvedValue(2) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };

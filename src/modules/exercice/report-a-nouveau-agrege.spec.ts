@@ -233,6 +233,8 @@ function base(comptes: Cpt[], lignes: Lgn[]) {
       findFirst: jest.fn(({ where }: { where: Record<string, unknown> }) => Promise.resolve(where.dateFin || where.dateDebut ? null : N)),
     },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+    // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
+    lettrage: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },

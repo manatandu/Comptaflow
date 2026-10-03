@@ -30,15 +30,41 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   plans). La trésorerie en devise sur facture en francs n'est PAS ouverte
   (relevé), le refus nomme l'issue (journal d'un compte en francs, ou saisie
   au journal avec devise et cours).
+- B2 · `lettrage/lettrages-a-cheval.ts`. (1) Un groupe ne mêle jamais deux
+  exercices · refus nommé au lettrage manuel, au complément, à la confirmation
+  du pré-lettrage ; le lettrage automatique et le pré-lettrage jouent
+  exercice par exercice ; l'écart de change n'est pas proposé sur un groupe à
+  cheval (motif · délettrer), donc `passerEcartChange` le refuse. (2) Groupes
+  DÉJÀ en base · jamais réécrits ; la clôture et l'à-nouveau provisoire les
+  refusent par un message nommé (groupe, compte, exercices, issue) au lieu du
+  500, AVANT la garde D3 ; D3 ne lit plus les groupes à cheval et dit à part
+  que ceux-là seuls se délettrent ; le délettrage reste possible tant que les
+  exercices sont ouverts (testé). Contrôle 34 · `LETTRAGE_A_CHEVAL_D_EXERCICES`
+  BLOQUANT (la clôture refuse), `LETTRAGE_A_CHEVAL_FIGE` INFORMATION (figé par
+  un exercice clôturé, ne fausse rien, aucun geste). Tests · lettrage (six),
+  module (onze, dont la reproduction du report déséquilibré, la clôture, le
+  provisoire et le câblage du contrôle).
 
 ## Reste
 
-- B2 · groupe de lettrage à cheval sur deux exercices.
 - M1 à M7.
 
 ## Décisions prises
 
-(avec leur article, à chaque commit)
+- B1 · AUDCIF art. 52 et 55 · le règlement se mesure contre ce qui est
+  réellement payé ; un paiement nul ou négatif n'est pas un règlement.
+- B3 · AUDCIF art. 57, fiche du compte 52 des deux plans (« les avoirs en
+  monnaies étrangères sont évalués au dernier cours officiel de change
+  connu ») · un compte tenu en devise ne reçoit pas de francs sans devise.
+- B2 · doctrine CPCC (ch. 6, en tête de `lettrage.service.ts`) · le règlement
+  de N+1 se lettre contre la ligne d'à-nouveau ; AUDCIF art. 20 · les groupes
+  existants ne sont pas réécrits ; gravité BLOQUANT du contrôle pour les
+  groupes que la clôture refuse (même sens que les autres BLOQUANT ·
+  « la clôture refuse »), INFORMATION pour les figés qui ne faussent rien.
+  Non tranché par le texte · un groupe SOLDÉ figé par un exercice clôturé
+  et dont la part de l'exercice n'est pas nulle (atteignable seulement si le
+  compte a changé de mode de report après coup) · refus nommé, aucune issue
+  dans OmegaX, dit tel quel.
 
 ## Vérification
 

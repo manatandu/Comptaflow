@@ -31,6 +31,12 @@ interface Cumul {
  * réalisé que rien n'a passé · la réévaluation l'écarte déjà (art. 54) ;
  * c'est la CLÔTURE qui le refuse, jamais la réévaluation.
  *
+ * UN GROUPE À CHEVAL DE DEUX EXERCICES N'EST PAS LU ICI (A6 bis, B2) · ses
+ * lignes de l'exercice ne disent pas son dénouement, et l'issue que ce refus
+ * nommerait (passer l'écart) lui est refusée (`propositionEcartChange`) · la
+ * clôture le nomme AVANT, par `lettragesACheval`, avec SA seule issue,
+ * délettrer.
+ *
  * LU PAR TRANCHES, SANS BORNE (§ 8 bis, relecture adverse M4) · un exercice
  * aux lettrages partiels nombreux n'est jamais refusé pour son volume ; seuls
  * des cumuls par groupe sont gardés (une seule devise, solde en devise, solde
@@ -47,7 +53,9 @@ export async function ecartsRealisesNonConstates(
         where: {
           lettrageId: { not: null },
           lettre: null,
-          lettrage: { statut: 'PARTIEL' },
+          // Toutes les lignes du groupe dans l'exercice · un groupe à cheval
+          // relève de `lettragesACheval` (A6 bis, B2).
+          lettrage: { statut: 'PARTIEL', lignes: { every: { ecriture: { exerciceId: p.exerciceId } } } },
           ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId },
         },
         select: {
@@ -108,6 +116,7 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }
     'Pour chacun, UNE seule issue · passez l’écart proposé depuis Interrogation et lettrage (« Écart de change ») ; ' +
     's’il a DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser ; si le geste est refusé ' +
     '(réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l\'écart, ' +
-    'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez.'
+    'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez. ' +
+    'Un lettrage qui mêle deux exercices n\'est pas compté ici · la clôture le nomme à part, et lui seul se délettre.'
   );
 }

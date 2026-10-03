@@ -215,6 +215,8 @@ describe('F55 · la clôture passe la devise au report', () => {
         ),
       },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+      // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
+      lettrage: { findMany: jest.fn().mockResolvedValue([]) },
       ecriture: { count: jest.fn().mockResolvedValue(0) },
       // Aucun lettrage dénoué en souffrance (décision D3).
       ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
@@ -263,6 +265,8 @@ describe('F54 · une seule réévaluation passée par exercice', () => {
       // Le verrou des gestes de provision (A5) · une ligne par dossier.
       verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
       // Un à-nouveau validé existe, sans ligne sur les comptes de provision (A5).
+      // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
+      lettrage: { findMany: jest.fn().mockResolvedValue([]) },
       ecriture: { count: jest.fn().mockResolvedValue(1) },
       reevaluation: {
         findMany: jest.fn().mockResolvedValue([]),

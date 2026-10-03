@@ -1,4 +1,5 @@
 import { ecartsRealisesNonConstates, motifClotureEcartsNonConstates } from '../reglements/ecarts-non-constates';
+import { lettragesACheval, motifClotureLettragesACheval } from '../lettrage/lettrages-a-cheval';
 import { depreciationsOrphelines } from '../creances-douteuses/depreciations-orphelines';
 import { motifClotureDepreciationsOrphelines } from '../creances-douteuses/creances-douteuses';
 import {
@@ -815,6 +816,18 @@ export class ExerciceService {
       );
     }
 
+    // UN LETTRAGE NE MÊLE PAS DEUX EXERCICES (A6 bis, B2) · soldé, un groupe
+    // à cheval posait sa lettre sur des lignes de cet exercice qui ne s'y
+    // soldent pas · elles sortaient du report Détail et la clôture tombait en
+    // « report à-nouveau déséquilibré » (500) ; partiel, il passait puis ne
+    // se délettrait plus. Refus NOMMÉ (groupes, comptes, exercices, issue),
+    // AVANT la garde de l'écart réalisé · pour ces groupes-là, l'issue est de
+    // délettrer, ce que D3 interdit pour les autres. Aucun nouveau groupe à
+    // cheval ne se pose (`lettrage.service.ts`), la lecture hors transaction
+    // suffit.
+    const aCheval = motifClotureLettragesACheval(await lettragesACheval(this.prisma, { tenantId, exerciceId }));
+    if (aCheval) throw new BadRequestException(aCheval);
+
     // L'ÉCART DE CHANGE RÉALISÉ SE CONSTATE DANS SON EXERCICE (décision D3 ·
     // AUDCIF art. 55) · un lettrage dénoué dans sa devise dont l'écart n'est
     // pas passé laisserait le tiers au bilan d'un reste en francs qui n'est
@@ -1039,6 +1052,10 @@ export class ExerciceService {
     const brouillardNonRepris = await this.prisma.ecriture.count({
       where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
     });
+    // Même refus nommé que la clôture (A6 bis, B2) · un groupe à cheval
+    // soldé rendait le report provisoire déséquilibré (500).
+    const aCheval = motifClotureLettragesACheval(await lettragesACheval(this.prisma, { tenantId, exerciceId }));
+    if (aCheval) throw new BadRequestException(aCheval);
 
     const resultat = await avecRetrySerialisable(
       this.prisma,
