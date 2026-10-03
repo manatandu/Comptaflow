@@ -311,14 +311,25 @@ type LigneEcheance = {
 };
 
 /** Une doublure qui HONORE la requête des échéances (F4b) · exercice, compte, sens, lettrage. */
-function echeancier(lignes: LigneEcheance[]) {
+function echeancier(lignes: LigneEcheance[], reevaluations: Array<{ ecritureEcartsId: string; exerciceFin: Date }> = []) {
   const prisma = {
+    // Les réévaluations ANTÉRIEURES à l'exercice (A6 ter) · la doublure honore la borne de date.
+    reevaluation: {
+      findMany: jest.fn(async ({ where }: { where: any }) =>
+        reevaluations.filter((r) => r.exerciceFin < where.exercice.dateFin.lt).map((r) => ({ ecritureEcartsId: r.ecritureEcartsId })),
+      ),
+    },
     exercice: { findFirst: jest.fn(async () => ({ id: 'ex', dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31') })) },
     ligneEcriture: {
       findMany: jest.fn(async ({ where, cursor, take }: { where: any; cursor?: { id: string }; take?: number }) => {
         const toutes = lignes
           .filter((l) => {
             if (where.id?.in) return where.id.in.includes(l.id);
+            // A6 ter · les lignes d'une écriture d'écarts nommée, et la liaison directe.
+            if (where.ecritureId?.in && !where.ecritureId.in.includes((l as any).ecritureId)) return false;
+            if (where.deviseId === null && l.deviseId !== null) return false;
+            if (where.lettre === null && ((l as any).lettre ?? null) !== null) return false;
+            if (where.ecriture?.reevaluationEcarts?.isNot === null && !(l.ecriture as any).reevaluationEcarts) return false;
             if (where.compteId?.in && !where.compteId.in.includes(l.compteId)) return false;
             const e = where.ecriture;
             if (e?.exerciceId && l.ecriture.exerciceId !== e.exerciceId) return false;
@@ -413,6 +424,33 @@ describe('les échéances · l’à-nouveau provisoire écarté et dit (A6 bis, 
       /40110000 · la ligne d'à-nouveau choisie est PROVISOIRE[\s\S]*Attendez sa clôture, ou saisissez le règlement au journal de trésorerie/,
     );
     expect(creer).not.toHaveBeenCalled();
+  });
+});
+
+// A6 TER · L'ÉCART D'UNE RÉÉVALUATION N'EST PAS UNE FACTURE. Une perte de
+// change latente crédite le 401 sans devise · dans l'exercice (liaison
+// directe) et reportée à l'à-nouveau (liaison de la réévaluation antérieure),
+// elle ne se présente plus comme une échéance à payer.
+describe('les échéances · l’écart d’une réévaluation n’est pas une facture (A6 ter)', () => {
+  const ecartAnterieur = { ...ligneEcheance('eR1', 50_000, { exerciceId: 'n0', date: new Date('2026-12-31') }), ecritureId: 'eR' } as LigneEcheance;
+  it('reportée à l’à-nouveau ou passée dans l’exercice · écartée, la vraie facture reportée reste due', async () => {
+    const { service } = echeancier(
+      [
+        ecartAnterieur,
+        ligneEcheance('ranR', 50_000, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }),
+        ligneEcheance('ranF', 600, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }),
+        ligneEcheance('reev', 30_000, { date: new Date('2027-12-31'), journal: { code: 'OD' }, reevaluationEcarts: { id: 'r27' } }),
+      ],
+      [{ ecritureEcartsId: 'eR', exerciceFin: new Date('2026-12-31') }],
+    );
+    const r = await service.echeances('t', 'ex', 'FOURNISSEUR');
+    expect(r.map((g) => [g.numero, g.lignes.map((l) => l.id)])).toEqual([['40110000', ['ranF']]]);
+  });
+
+  it('sans réévaluation antérieure, un à-nouveau en francs du même montant reste dû', async () => {
+    const { service } = echeancier([ecartAnterieur, ligneEcheance('ranR', 50_000, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false })]);
+    const r = await service.echeances('t', 'ex', 'FOURNISSEUR');
+    expect(r.map((g) => g.lignes.map((l) => l.id))).toEqual([['ranR']]);
   });
 });
 

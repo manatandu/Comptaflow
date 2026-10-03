@@ -18,11 +18,15 @@ Branche de sauvegarde `travail/a6ter`, partie de `main` 0dbc315.
 - (m-3) la borne M6 dit « lettrez-les d'abord avec leur facture » avant
   « réglez au plus ».
 
+- (m-2) et échéances · la ligne d'écart d'une réévaluation sur le compte
+  d'un tiers, dans l'exercice (liaison directe) ou reportée à l'à-nouveau
+  (liaison des réévaluations antérieures, une ligne d'écart pour une ligne
+  d'à-nouveau au Détail, le reste d'un seul tenant au Solde), n'est plus ni
+  une facture à payer (`/reglements/echeances`) ni un règlement en francs
+  (avertissement du règlement en devise) · `reglements/lignes-de-reevaluation.ts`.
+
 ## Reste
 
-- (m-2) faux avertissement « en francs, sans devise » sur la ligne reportée
-  d'une réévaluation (`reglesEnFrancs`).
-- Ligne reportée d'une réévaluation dans les échéances fournisseurs.
 - Rejeu sur vraie base à travers la clôture (§ 10).
 
 ## Décisions

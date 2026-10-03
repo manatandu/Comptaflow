@@ -989,6 +989,35 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
     const net = monter('SYSCOHADA', [factureReportee()]);
     expect((await net.service.enregistrer('t', 'u', reglerLaReportee)).avertissements).toEqual([]);
   });
+
+  // A6 ter, m-2 · L'ÉCART D'UNE RÉÉVALUATION REPORTÉ n'est pas un règlement ·
+  // un gain de change latent de N débite le 401 sans devise et passe à
+  // l'à-nouveau ; reconnu par la liaison de la réévaluation de N, il ne
+  // déclenche plus l'avertissement « en francs, sans devise ».
+  it('la ligne reportée d’une réévaluation · reconnue par sa liaison, aucun avertissement', async () => {
+    const enFrancs = { ...ligne('ranX', 'c401', 500_000, 0, 0, cloture), deviseId: null, montantDevise: null };
+    const ecartDeN = { id: 'eR1', compteId: 'c401', debit: 500_000, credit: 0, deviseId: null, montantDevise: null, ecriture: { exerciceId: 'n0' } };
+    const { service, prisma } = monter('SYSCOHADA', [factureReportee(), enFrancs]);
+    (prisma.reevaluation.findMany as jest.Mock).mockImplementation(async ({ where }: { where: any }) =>
+      where.ecritureEcartsId && where.exercice?.dateFin?.lt ? [{ ecritureEcartsId: 'eR' }] : [],
+    );
+    const findMany = prisma.ligneEcriture.findMany as jest.Mock;
+    const ordinaire = findMany.getMockImplementation()!;
+    findMany.mockImplementation(async (args: { where: any }) => {
+      const w = args.where;
+      // Les lignes de l'écriture d'écarts de N, sur le compte, non lettrées.
+      if (w.ecritureId?.in) return w.ecritureId.in.includes('eR') && w.compteId.in.includes('c401') && w.lettre === null ? [ecartDeN] : [];
+      // La liaison directe dans l'exercice · aucune.
+      if (w.ecriture?.reevaluationEcarts) return [];
+      // Les à-nouveau en francs, non lettrés, du compte.
+      if (w.deviseId === null && w.compteId?.in) {
+        return [enFrancs].filter((l) => w.compteId.in.includes(l.compteId) && ligneRetenue(l as LigneDouble, { ...w, compteId: undefined }));
+      }
+      return ordinaire(args);
+    });
+    const r = await service.enregistrer('t', 'u', reglerLaReportee);
+    expect(r.avertissements).toEqual([]);
+  });
 });
 
 describe('la trésorerie en devise', () => {
