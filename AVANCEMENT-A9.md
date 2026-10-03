@@ -116,6 +116,12 @@ Rien de plus n'est codé pour ces quatre points.
   considération) et l'indemnité compensatoire de l'art. 144. OmegaX prend la
   date de fin déclarée au registre, sans la déduire.
 
+## Bloc du § 3 après le premier tour (2026-10-03, branche rattachée à main)
+
+- Serveur · `tsc`, `nest build` verts ; `jest --maxWorkers=2` · 711 suites,
+  9 936 tests, tous verts (node_modules et client Prisma propres à la copie).
+- Client · `tsc` vert, `vitest` 208 fichiers, 1 693 tests verts, `build` vert.
+
 ## Bloc du § 3 (2026-10-03, premier passage, avant le premier tour)
 
 - Serveur · `tsc` vert, `nest build` vert, `jest --maxWorkers=2` · 704 suites,
