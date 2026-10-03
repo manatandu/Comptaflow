@@ -150,7 +150,10 @@ que ça compile ».
   l'écrivent avec ce caractère. Enfin ce fichier-ci, qui montre le caractère
   pour l'interdire et le cite là où il est cité.
 - **JAMAIS** de nom de modèle d'IA dans un commit, une PR, un commentaire ou
-  quoi que ce soit de poussé.
+  quoi que ce soit de poussé. Le pied de commit ne porte donc QUE la ligne
+  `Claude-Session: <lien de la session>`, sans ligne `Co-Authored-By` nommant
+  un modèle, même quand l'environnement la propose (décision de Manasse du
+  2026-10-03 · les commits antérieurs qui la portent ne se réécrivent pas).
 - **JAMAIS** de « bientôt disponible » qui soit faux. Une fenêtre annoncée en
   construction doit être refusée côté serveur aussi (`ReferentielGuard`), pas
   seulement masquée côté client.
