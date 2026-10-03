@@ -109,6 +109,10 @@ interface TvaOrigine {
     tvaExigibleCreance: number;
     /** Jamais rendue exigible · sortie d'office du 443, sans taux (B-1). */
     tvaNonExigibleCreance: number;
+    /** La TVA du reste de la créance (base de la perte). */
+    tvaResteCreance: number;
+    /** Une liquidation antérieure au figé a pu lire un lettrage qui a bougé · le cabinet déclare la part. */
+    ambigu: boolean;
   } | null;
   raison: string | null;
 }
@@ -138,6 +142,9 @@ interface Formulaire {
   tvaRecuperee: string;
   duplicataReference: string;
   duplicataDate: string;
+  // Quatrième relecture · la part déjà déclarée, déclarée par le cabinet quand elle ne se lit que reconstituée.
+  tvaDejaDeclaree: string;
+  sourceTvaDejaDeclaree: string;
   // K3 · les ventes dont la créance est issue.
   ventesOrigineIds: string[];
   motif: string;
@@ -238,6 +245,8 @@ export function CreancesDouteusesPage() {
       duplicataReference: '',
       duplicataDate: '',
       ventesOrigineIds: [],
+      tvaDejaDeclaree: '',
+      sourceTvaDejaDeclaree: '',
       motif: '',
       pieces: [{ nature: '', reference: '', date: '' }],
     });
@@ -337,7 +346,13 @@ export function CreancesDouteusesPage() {
         if (form.recupererTva && tva == null) {
           throw new Error('Saisissez la TVA récupérée · un champ vide n’est pas zéro.');
         }
+        const ambigu = !!tvaOrigine?.proposition?.ambigu;
+        const declaree = ambigu ? montantSaisi(form.tvaDejaDeclaree) : null;
+        if (ambigu && declaree == null) {
+          throw new Error('Déclarez la part de la TVA de la créance déjà déclarée · un champ vide n’est pas zéro.');
+        }
         await api.post(`/creances-douteuses/${form.creance!.id}/perte`, {
+          tvaDejaDeclaree: ambigu ? { montant: declaree, source: form.sourceTvaDejaDeclaree } : undefined,
           ...commun,
           date: form.date,
           montant: valeur,
@@ -723,8 +738,16 @@ export function CreancesDouteusesPage() {
                     <>
                       <span />
                       <span className="text-text-dim">
-                        {annonceTvaNonExigible(tvaOrigine.proposition.tvaNonExigibleCreance, montantSaisi(form.montant), form.creance?.montant ?? 0)}
+                        {annonceTvaNonExigible(tvaOrigine.proposition.tvaNonExigibleCreance, montantSaisi(form.montant), form.creance?.resteALaCloture ?? 0)}
                       </span>
+                    </>
+                  )}
+                  {form.geste === 'perte' && tvaOrigine?.proposition?.ambigu && (
+                    <>
+                      <span className="text-right">TVA déjà déclarée :</span>
+                      <input required inputMode="decimal" value={form.tvaDejaDeclaree} onChange={(e) => champ('tvaDejaDeclaree', e.target.value)} className="border border-border-dark px-2 py-1" />
+                      <span className="text-right">Source :</span>
+                      <input required maxLength={500} placeholder="Déclaration déposée, état de liquidation…" value={form.sourceTvaDejaDeclaree} onChange={(e) => champ('sourceTvaDejaDeclaree', e.target.value)} className="border border-border-dark px-2 py-1" />
                     </>
                   )}
                   {form.geste === 'perte' && (
@@ -735,7 +758,7 @@ export function CreancesDouteusesPage() {
                         Récupérer la TVA de la créance
                         <Aide
                           titre="TVA d'une créance irrécouvrable"
-                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. Le compte, le taux et la TVA facturée se lisent sur les ventes d'origine rattachées à la créance (sans elles, la récupération est refusée ; une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module). Seule la part que la déclaration a déjà rendue exigible se récupère ; elle s'inscrit en déduction au plus tôt dans la déclaration du mois civil qui suit la constatation, une seule fois, jusqu'au 31 décembre de l'année suivante. La part jamais exigible (prestation dont le prix n'a pas été encaissé) n'a jamais été déclarée : elle sort d'office du 443, sans taux, hors de toute déclaration."
+                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. Le compte, le taux et la TVA facturée se lisent sur les ventes d'origine rattachées à la créance (sans elles, la récupération est refusée ; une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module). Seule la part que la déclaration a déjà rendue exigible se récupère, chiffrée sur le reste de la créance avant la perte ; elle s'inscrit en déduction au plus tôt dans la déclaration du mois civil qui suit la constatation, une seule fois, jusqu'au 31 décembre de l'année suivante. Ce qui est déjà déclaré se lit sur la TVA que chaque liquidation a figée vente par vente, jamais sur des lettrages qui ont bougé ; pour une liquidation antérieure à cette règle, quand le lettrage a bougé depuis, le cabinet déclare la part avec sa source. La part jamais exigible (prestation dont le prix n'a pas été encaissé) n'a jamais été déclarée : elle sort d'office du 443, sans taux, hors de toute déclaration. Annulé après une liquidation validée, un mouvement porte une régularisation dans la prochaine déclaration."
                           source="O.-L. n° 10/001, art. 25, 37 et 52 ; décret n° 011/42, art. 96, 126 et 127"
                         />
                       </label>

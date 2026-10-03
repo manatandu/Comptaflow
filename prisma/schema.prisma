@@ -793,6 +793,8 @@ model Tenant {
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
   mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
   originesCreancesDouteuses    OrigineCreanceDouteuse[]
+  tvaVentesDeclarees           TvaVenteDeclaree[]
+  regularisationsTvaCreances   RegularisationTvaCreance[]
   provisionsChangeOuverture    ProvisionChangeOuverture[]
   verrouProvisionChange        VerrouProvisionChange?
   verrouCreancesDouteuses      VerrouCreancesDouteuses?
@@ -1180,6 +1182,7 @@ model Compte {
   creancesDouteuses416          CreanceDouteuse[]            @relation("CreanceDouteuse416")
   creancesDouteuses491          CreanceDouteuse[]            @relation("CreanceDouteuse491")
   mouvementsCreancesTva         MouvementCreanceDouteuse[]   @relation("MouvementCreanceDouteuseTva")
+  regularisationsTvaCreances    RegularisationTvaCreance[]   @relation("RegularisationTvaCreanceCompte")
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
@@ -1874,6 +1877,10 @@ model LigneEcriture {
 
   // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
   ventilations VentilationAnalytique[]
+
+  /// La TVA de cette ligne de TVA collectée que chaque liquidation a rendue
+  /// exigible, FIGÉE à la liquidation (ligne A7, quatrième relecture).
+  tvaVentesDeclarees TvaVenteDeclaree[]
 
   // Multidevise · `debit`/`credit` restent TOUJOURS exprimés dans la monnaie
   // de tenue du dossier, seule monnaie dans laquelle la comptabilité est
@@ -3628,6 +3635,13 @@ model LiquidationTva {
   /// Les pertes sur créances irrécouvrables dont CETTE liquidation impute la
   /// récupération de TVA (ligne A7, K1) · une perte n'est récupérée qu'une fois.
   recuperationsCreances MouvementCreanceDouteuse[]
+
+  /// FIGÉE · la liquidation a enregistré, vente par vente, la TVA collectée
+  /// qu'elle rendait exigible (`TvaVenteDeclaree`). Fausse pour une
+  /// liquidation antérieure à cette règle · sa TVA se lit alors RECONSTITUÉE.
+  tvaVentesFigee             Boolean                    @default(false)
+  tvaVentesDeclarees         TvaVenteDeclaree[]
+  regularisationsTvaCreances RegularisationTvaCreance[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -9036,6 +9050,19 @@ model MouvementCreanceDouteuse {
   /// SANS TAUX, hors de toute déclaration (troisième relecture, B-1).
   tvaNonExigible     Decimal?  @db.Decimal(18, 2)
 
+  /// RECOUVREMENT · la TVA de la créance en dépend (vente d'origine dont la
+  /// TVA n'est exigible qu'à l'encaissement) · lu par la liquidation (BL-2).
+  tvaEnDepend           Boolean                    @default(false)
+  /// PERTE · la part de la TVA de la créance déjà déclarée que cette perte
+  /// consomme (le plafond de sa récupération), qu'elle soit récupérée ou non.
+  tvaDeclareePerte      Decimal?                   @db.Decimal(18, 2)
+  /// PERTE · part déjà déclarée DÉCLARÉE par le cabinet, quand la TVA de la
+  /// vente ne se lit que reconstituée (liquidation antérieure au figé), et sa
+  /// source.
+  tvaDejaDeclareeSource String?
+  regularisationsTva    RegularisationTvaCreance[]
+  tvaVentesDeclarees    TvaVenteDeclaree[]         @relation("TvaVenteDeclareeRecouvrement")
+
   /// LA LIQUIDATION QUI IMPUTE LA RÉCUPÉRATION (K1) · posée par elle, remise à
   /// null par son annulation. Nulle, la perte validée reste à récupérer par la
   /// déclaration de toute période qui commence après elle (décret n° 011/42,
@@ -9106,4 +9133,78 @@ model VerrouCreancesDouteuses {
   createdAt DateTime @default(now())
 
   @@map("verrous_creances_douteuses")
+}
+
+/// LA TVA D'UNE VENTE, FIGÉE À LA LIQUIDATION (ligne A7, quatrième relecture) ·
+/// pour chaque ligne de TVA collectée, ce que la liquidation a rendu exigible
+/// dans sa période (une ligne par tranche d'encaissement). « Déjà déclaré »
+/// se lit ici, jamais sur des lettrages qui ont pu bouger. Supprimée avec sa
+/// liquidation.
+model TvaVenteDeclaree {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  liquidationId   String
+  liquidation     LiquidationTva            @relation(fields: [liquidationId], references: [id], onDelete: Cascade)
+  /// La ligne de TVA collectée de la vente.
+  ligneEcritureId String
+  ligne           LigneEcriture             @relation(fields: [ligneEcritureId], references: [id], onDelete: Restrict)
+  /// L'écriture de la vente (lecture par vente, sans relation · la ligne la porte).
+  ecritureId      String
+  /// Le recouvrement du module qui a encaissé cette tranche, s'il y en a un.
+  recouvrementId  String?
+  recouvrement    MouvementCreanceDouteuse? @relation("TvaVenteDeclareeRecouvrement", fields: [recouvrementId], references: [id], onDelete: Restrict)
+
+  montant         Decimal  @db.Decimal(18, 2)
+  /// La date d'exigibilité de la tranche (sa date de valeur quand elle est reportée).
+  dateExigibilite DateTime @db.Date
+  reportee        Boolean  @default(false)
+
+  @@index([tenantId])
+  @@index([liquidationId])
+  @@index([ligneEcritureId])
+  @@index([ecritureId])
+  @@index([recouvrementId])
+  @@map("tva_ventes_declarees")
+}
+
+enum SensRegularisationTvaCreance {
+  /// Recouvrement annulé après liquidation · la TVA collectée revient en déduction.
+  DEDUCTION
+  /// Perte annulée après liquidation · la TVA récupérée se reverse.
+  REVERSEMENT
+}
+
+/// LA RÉGULARISATION DE TVA D'UN MOUVEMENT ANNULÉ APRÈS LIQUIDATION (BL-3) ·
+/// imputée dans la prochaine déclaration, une seule fois, sur le modèle de la
+/// récupération (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126).
+model RegularisationTvaCreance {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  mouvementId     String
+  mouvement       MouvementCreanceDouteuse     @relation(fields: [mouvementId], references: [id], onDelete: Restrict)
+  sens            SensRegularisationTvaCreance
+  /// La date de l'annulation · imputée dans une période qui commence après elle.
+  date            DateTime                     @db.Date
+  montant         Decimal                      @db.Decimal(18, 2)
+  compteId        String
+  compte          Compte                       @relation("RegularisationTvaCreanceCompte", fields: [compteId], references: [id], onDelete: Restrict)
+  tauxTvaId       String
+  /// La vente dont la TVA est régularisée (lecture par vente).
+  ecritureVenteId String?
+
+  /// La liquidation qui l'impute · nulle tant qu'aucune ne l'a fait.
+  liquidationImputationId String?
+  liquidationImputation   LiquidationTva? @relation(fields: [liquidationImputationId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([mouvementId])
+  @@index([liquidationImputationId])
+  @@map("regularisations_tva_creances")
 }

@@ -59,6 +59,7 @@ function monter(options: { autreDetenteur?: boolean } = {}) {
     // K1 · aucune perte imputée par cette liquidation · rien à remettre à null.
     mouvementCreanceDouteuse: { ...zero(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     origineCreanceDouteuse: zero(),
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     consignation: zero(),
     bulletinPaie: zero(),
     ligneOrdreVirement: zero(),

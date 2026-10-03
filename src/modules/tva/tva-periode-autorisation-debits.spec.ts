@@ -171,7 +171,10 @@ function service(lignesTva: LigneTva[], regime = 'LIVRAISONS', dateAutorisationD
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
       groupBy: jest.fn().mockResolvedValue([]),
     },
-    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null) },
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+    liquidationTva: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return { s: new TauxTvaService(prisma, {} as EcritureService), findMany };
 }

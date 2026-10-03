@@ -404,6 +404,11 @@ export interface EntreeRecuperationTva {
    * exigible.
    */
   tvaExigibleCreance?: number | null;
+  /**
+   * Le plafond de la récupération, chiffré par le serveur sur le reste de la
+   * créance (`tvaDeLaPerte`, quatrième relecture) · prime sur le prorata.
+   */
+  plafond?: number | null;
   numeroCompteTva: string | null;
   compteTvaEstDetail: boolean;
   duplicataReference: string | null | undefined;
@@ -452,15 +457,15 @@ export function motifRefusRecuperationTva(e: EntreeRecuperationTva): string | nu
       `(${centimes(facturee).toFixed(2)}) · elle se lit sur les ventes rattachées à la créance, jamais à la saisie.`
     );
   }
-  const exigible = e.tvaExigibleCreance ?? facturee;
-  if (!(exigible > 0)) {
+  const exigible = e.plafond ?? e.tvaExigibleCreance ?? facturee;
+  if (!(exigible > 0.005)) {
     return (
       'Aucune part de la TVA de cette créance n’a été rendue exigible par la déclaration · elle n’a jamais été acquittée, ' +
       'il n’y a rien à récupérer (O.-L. n° 10/001, art. 25, 2° et 52). Elle sort d’office du 443 sans taux, avec la perte.'
     );
   }
   if (!(e.tvaRecuperee > 0)) return 'La TVA récupérée doit être positive.';
-  const plafond = plafondTvaRecuperable(exigible, e.montantSorti, e.montantCreance);
+  const plafond = e.plafond ?? plafondTvaRecuperable(exigible, e.montantSorti, e.montantCreance);
   if (centimes(e.tvaRecuperee) > plafond + 0.005) {
     return (
       `La TVA récupérée (${centimes(e.tvaRecuperee).toFixed(2)}) dépasse le prorata, sur la part perdue, de la TVA facturée ` +
@@ -654,12 +659,13 @@ export function motifRefusAnnulationMouvement(p: {
   dejaAnnule: string | null;
   exerciceClos: boolean;
   revueNonAnnulee: string | null;
-  liquidationRecuperation: { du: string; au: string } | null;
   /**
-   * B-4 · la période liquidée où tombe un RECOUVREMENT validé · il a rendu
-   * exigible la TVA de la part reclassée (K3), et cette taxe est déclarée.
+   * BL-3 · la liquidation qui a déclaré la TVA de ce mouvement (récupération
+   * d'une perte, encaissement d'un recouvrement) est encore AU BROUILLARD ·
+   * elle s'annule d'abord. Validée, l'annulation passe avec une
+   * régularisation imputée dans la prochaine déclaration.
    */
-  periodeLiquidee?: { du: string; au: string } | null;
+  liquidationAuBrouillard?: { du: string; au: string } | null;
   motif: string | null | undefined;
 }): string | null {
   if (p.dejaAnnule) return `Ce mouvement est déjà annulé, le ${p.dejaAnnule}.`;
@@ -672,18 +678,11 @@ export function motifRefusAnnulationMouvement(p: {
       'puis annulez le mouvement, puis refaites la revue.'
     );
   }
-  if (p.liquidationRecuperation) {
+  if (p.liquidationAuBrouillard) {
     return (
-      `La TVA récupérée par cette perte est imputée par la liquidation du ${p.liquidationRecuperation.du} au ` +
-      `${p.liquidationRecuperation.au} · annulez d'abord cette liquidation (Déclaration de TVA), sans quoi la déduction resterait ` +
-      'acquise sur une perte qui n’existe plus (décret n° 011/42, art. 126).'
-    );
-  }
-  if (p.periodeLiquidee) {
-    return (
-      `La période du ${p.periodeLiquidee.du} au ${p.periodeLiquidee.au} est liquidée, et ce recouvrement y a rendu exigible la ` +
-      "TVA de la part reclassée (décret n° 011/42, art. 57) · annulez d'abord la liquidation (Déclaration de TVA), sans quoi " +
-      'la taxe resterait déclarée sur un encaissement qui n’existe plus.'
+      `La liquidation du ${p.liquidationAuBrouillard.du} au ${p.liquidationAuBrouillard.au}, encore au brouillard, a déclaré la ` +
+      "TVA de ce mouvement · annulez d'abord la liquidation (Déclaration de TVA), puis annulez le mouvement. Une liquidation " +
+      'validée, elle, ne bloque pas · l’annulation passe avec une régularisation imputée dans la prochaine déclaration.'
     );
   }
   const m = (p.motif ?? '').trim();
@@ -821,4 +820,107 @@ export function tvaFactureeDesOrigines(
  */
 export function mouvementsSansRevue(p: { revueDeLExercice: boolean; mouvementsDeLExercice: number }): number {
   return p.revueDeLExercice ? 0 : p.mouvementsDeLExercice;
+}
+
+/** Une vente d'origine telle que le moteur de la TVA la rend (`tvaDesVentesOrigine`). */
+export interface VenteOrigineTva {
+  part: number;
+  ttcClient: number;
+  tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[];
+  fractionExigible?: number;
+  /** Ce que les déclarations à venir porteront encore (hors du figé). */
+  exigibleAVenir?: number;
+  declareeFigee?: number;
+  ambigu?: boolean;
+}
+
+/**
+ * LA TVA D'UNE PERTE, CHIFFRÉE SUR LE RESTE DE LA CRÉANCE (quatrième relecture
+ * d'A7). Sur chaque vente d'origine · ce qui est DÉJÀ DÉCLARÉ (le figé des
+ * liquidations, plus ce qu'une période encore ouverte déclarera) s'impute
+ * d'abord sur la part HORS créance,
+ * puis sur la TVA des RECOUVREMENTS (qui rendent exigible leur propre part,
+ * jamais celle du reste) · ce qui en reste est la part déclarée de la TVA du
+ * reste, diminuée de ce que les pertes antérieures en ont consommé.
+ *  · TVA du reste = TVA facturée × reste ÷ montant de la créance ;
+ *  · la perte en prend le prorata ; sa part déclarée est le PLAFOND de la
+ *    récupération (art. 52), le reste sort sans taux, d'office.
+ * Jeux du relecteur · recouvrement de 580 000 puis perte de 580 000 · 80 000
+ * non exigibles, plafond 0 (BL-1) ; groupe recréé après la liquidation · la
+ * part impayée n'est pas déclarée, plafond 0 (BL-4).
+ */
+export function tvaDeLaPerte(p: {
+  origines: readonly VenteOrigineTva[];
+  montantCreance: number;
+  recouvrements: number;
+  reste: number;
+  perte: number;
+  declareePertesAnterieures: number;
+  /** La part déjà déclarée DÉCLARÉE par le cabinet (TVA reconstituée ambiguë). */
+  declareeParLeCabinet?: number | null;
+}):
+  | {
+      compteId: string;
+      numero: string;
+      tauxTvaId: string | null;
+      raisonTaux: string | null;
+      tvaFacturee: number;
+      tvaReste: number;
+      declareeReste: number;
+      plafond: number;
+      nonExigible: number;
+      ambigu: boolean;
+    }
+  | { raison: string } {
+  const lue = tvaFactureeDesOrigines(p.origines.map((o) => ({ ...o, fractionExigible: 1 })));
+  if ('raison' in lue) return lue;
+  const M = p.montantCreance;
+  let declareeCreance = 0;
+  for (const o of p.origines) {
+    if (!(o.ttcClient > 0) || !(M > 0)) continue;
+    const T = o.tva.reduce((s, l) => s + l.montant, 0);
+    const tc = (T * o.part) / o.ttcClient;
+    const hors = T - tc;
+    const recouvre = (tc * p.recouvrements) / M;
+    // Déjà déclarée (figé) ou à déclarer par une période encore ouverte ·
+    // jamais une relecture des lettrages pour le passé figé.
+    const declaree = Math.min(T, Math.max(0, (o.declareeFigee ?? 0) + (o.exigibleAVenir ?? 0)));
+    declareeCreance += Math.min(Math.max(0, tc - recouvre), Math.max(0, declaree - hors - recouvre));
+  }
+  const ambigu = p.origines.some((o) => o.ambigu);
+  const tvaReste = M > 0 ? (lue.tvaFacturee * p.reste) / M : 0;
+  const declareeReste = Math.min(
+    tvaReste,
+    Math.max(0, p.declareeParLeCabinet != null ? p.declareeParLeCabinet : declareeCreance - p.declareePertesAnterieures),
+  );
+  const prorata = p.reste > 0 ? Math.min(1, p.perte / p.reste) : 0;
+  return {
+    compteId: lue.compteId,
+    numero: lue.numero,
+    tauxTvaId: lue.tauxTvaId,
+    raisonTaux: lue.raisonTaux,
+    tvaFacturee: lue.tvaFacturee,
+    tvaReste: centimes(tvaReste),
+    declareeReste: centimes(declareeReste),
+    plafond: centimes(declareeReste * prorata),
+    nonExigible: centimes((tvaReste - declareeReste) * prorata),
+    ambigu,
+  };
+}
+
+/**
+ * LA TVA RECONSTITUÉE AMBIGUË SE DÉCLARE (quatrième relecture) · une
+ * liquidation antérieure au figé a pu lire un lettrage qui a bougé depuis ·
+ * la part déjà déclarée ne se lit plus, le cabinet la déclare avec sa source.
+ */
+export function motifRefusTvaAmbigue(p: { ambigu: boolean; declaree: number | null | undefined; source: string | null | undefined }): string | null {
+  if (!p.ambigu) return null;
+  if (p.declaree == null || !(p.declaree >= 0) || !p.source || p.source.trim().length === 0) {
+    return (
+      'La TVA d’une vente d’origine a été déclarée par une liquidation antérieure à la règle du figé, et son lettrage a bougé ' +
+      'depuis · ce qu’elle a déclaré ne se lit plus. Déclarez la part de la TVA de la créance déjà déclarée, avec sa source ' +
+      '(déclaration déposée, état de liquidation), avant de passer la perte.'
+    );
+  }
+  return null;
 }

@@ -121,6 +121,21 @@ export class RecuperationTvaDto {
   duplicataDateEnvoi!: string;
 }
 
+/**
+ * La part de la TVA de la créance DÉJÀ DÉCLARÉE, déclarée par le cabinet quand
+ * elle ne se lit que reconstituée (liquidation antérieure au figé), avec sa
+ * source (quatrième relecture).
+ */
+export class TvaDejaDeclareeDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  montant!: number;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  source!: string;
+}
+
 /** La perte sur créance irrécouvrable (fiche du compte 65). */
 export class PerteCreanceDto extends MotifEtPiecesDto {
   @IsUUID('4')
@@ -145,6 +160,11 @@ export class PerteCreanceDto extends MotifEtPiecesDto {
   @ValidateNested()
   @Type(() => RecuperationTvaDto)
   recuperationTva?: RecuperationTvaDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TvaDejaDeclareeDto)
+  tvaDejaDeclaree?: TvaDejaDeclareeDto;
 }
 
 

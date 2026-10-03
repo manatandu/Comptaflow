@@ -51,7 +51,12 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA', creditAnteri
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
     // Le verrou anti-double-liquidation interroge ce marqueur avant tout · ici
     // aucune période n'est liquidée.
-    liquidationTva: {
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+    // La TVA figée et la liquidation s'écrivent dans une transaction.
+    $transaction: (f: (tx: unknown) => unknown) => f(prisma),
+    liquidationTva: { findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn((args: Record<string, unknown>) => {
         traces.push(args.data as Record<string, unknown>);
@@ -238,7 +243,12 @@ function declarant(precedente: { dateDebut: string; dateFin: string; net: number
       ]),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
-    liquidationTva: {
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+    // La TVA figée et la liquidation s'écrivent dans une transaction.
+    $transaction: (f: (tx: unknown) => unknown) => f(prisma),
+    liquidationTva: { findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
         // `dateFin.lt` identifie la recherche du crédit reportable · le verrou
         // de chevauchement, lui, demande un intervalle qui recouvre.

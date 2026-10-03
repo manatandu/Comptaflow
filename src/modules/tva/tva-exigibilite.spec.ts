@@ -147,7 +147,10 @@ function service(
     },
     // La déclaration rend l'état de liquidation de la période ET relit la
     // dernière liquidation pour le crédit reportable (art. 63) · aucune ici.
-    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null) },
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+    liquidationTva: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return new TauxTvaService(prisma, {} as EcritureService);
 }

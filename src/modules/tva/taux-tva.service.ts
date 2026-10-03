@@ -676,9 +676,58 @@ type LignesGroupeLettrage = Array<{
   credit: unknown;
   ecriture?: {
     date: Date;
-    creanceDouteuseReclassement?: { mouvements: Array<{ date: Date; montant: unknown }> } | null;
+    creanceDouteuseReclassement?: { mouvements: Array<{ id?: string; date: Date; montant: unknown }> } | null;
+    /** La pièce rattachée · une note de crédit n'est pas un encaissement (M-c). */
+    facture?: { nature: string } | null;
+    /** Les lignes qui REPRENNENT une TVA (D 443, C 445) · leur écriture est un avoir (M-c). */
+    lignes?: Array<unknown>;
   } | null;
 }>;
+
+/** Une ligne du groupe vient-elle d'un AVOIR (note de crédit, ou écriture qui reprend la TVA) ? */
+function estUnAvoir(e: NonNullable<LignesGroupeLettrage[number]['ecriture']> | null | undefined): boolean {
+  if (!e) return false;
+  return e.facture?.nature === NatureFacture.NOTE_DE_CREDIT || (e.lignes?.length ?? 0) > 0;
+}
+
+/**
+ * La sélection des lignes d'un groupe de lettrage, une seule pour la
+ * déclaration et pour la TVA des ventes d'origine · la date de leur écriture,
+ * les recouvrements d'un reclassement en créance douteuse (K3), et ce qui dit
+ * qu'une ligne est un avoir (M-c).
+ */
+const SELECT_LIGNES_GROUPE = {
+  debit: true,
+  credit: true,
+  ecriture: {
+    select: {
+      date: true,
+      facture: { select: { nature: true } },
+      lignes: {
+        where: {
+          OR: [
+            { compte: { numero: { startsWith: '443' } }, debit: { gt: 0 } },
+            { compte: { numero: { startsWith: '445' } }, credit: { gt: 0 } },
+          ],
+        },
+        select: { id: true },
+        take: 1,
+      },
+      creanceDouteuseReclassement: {
+        select: {
+          mouvements: {
+            where: {
+              type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
+              annuleeLe: null,
+              ecriture: { statut: StatutEcriture.VALIDEE },
+            },
+            select: { id: true, date: true, montant: true },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.LigneEcritureSelect;
 
 @Injectable()
 export class TauxTvaService {
@@ -1335,6 +1384,27 @@ export class TauxTvaService {
    * réglée. C'est l'imputation la plus neutre ; l'imputation « plus ancienne
    * d'abord » du fisc donnerait, sur un groupe multi-factures, un
    * fractionnement différent.
+   *
+   * CE QUE LA FONCTION REND (A7, quatrième relecture, 2026-10-03) · des
+   * TRANCHES `{ date, fraction, recouvrementId? }`, une par encaissement, et
+   * non plus une seule date. Une facture SEULE dans son groupe se découpe
+   * règlement par règlement ; un groupe à plusieurs factures garde la fraction
+   * cumulée au règlement le plus récent (limite dite plus haut). La ligne de
+   * RECLASSEMENT au 416 n'est pas un encaissement · elle sort du groupe, et le
+   * recouvrement VALIDÉ du module des créances douteuses la remplace, porté
+   * par `recouvrementId` pour que la liquidation fige la tranche à son nom.
+   * Un AVOIR lettré (note de crédit, ou écriture portant D 443 / C 445) n'est
+   * pas un encaissement non plus (art. 57) · il réduit la base, jamais il ne
+   * date une exigibilité.
+   *
+   * CE QUE LA FONCTION NE DÉCIDE PAS · ce qui a DÉJÀ été déclaré. Une tranche
+   * qui tombe dans une période liquidée sous la règle du figé se relit sur
+   * `TvaVenteDeclaree`, jamais sur ce calcul (M-a) · un lettrage défait ou
+   * recréé après la liquidation changerait les tranches, pas la taxe déposée.
+   * La déclaration plafonne donc toute tranche nouvelle à la TVA de la vente
+   * moins son figé, et reporte au premier jour de la période ouverte, date de
+   * valeur dite, la tranche qui tomberait dans une période liquidée (M-b,
+   * AUDCIF art. 22, 4°).
    */
   private exigibilite(
     ligne: { debit: unknown; credit: unknown },
@@ -1349,7 +1419,7 @@ export class TauxTvaService {
       } | null;
     }>,
     dateEcriture: Date,
-  ): Array<{ date: Date | null; fraction: number }> {
+  ): Array<{ date: Date | null; fraction: number; recouvrementId?: string }> {
     // Aucune contrepartie de tiers lettrable : rien ne dit quand l'argent est
     // entré. On s'en tient à la date de l'écriture · c'est le cas d'une vente
     // au comptant, où encaissement et écriture coïncident de toute façon.
@@ -1390,24 +1460,39 @@ export class TauxTvaService {
       entre ces factures n'est pas connue, et c'est dit plus haut.
     */
     const seule = engage > EPSILON && factures <= engage + EPSILON;
+    // Les AVOIRS lettrés (M-c) réduisent ce qui reste à encaisser · leur TVA
+    // se reprend par leur propre ligne, jamais par une tranche.
+    const avoirs = (groupe.lignes ?? []).reduce((t, g) => {
+      const sens = Number(g.debit) - Number(g.credit);
+      return Math.abs(sens) > EPSILON && sens > 0 !== sensFacture > 0 && estUnAvoir(g.ecriture) ? t + Math.abs(sens) : t;
+    }, 0);
     if ((seule || reclassement) && reglements.length > 0) {
       const base = seule ? engage : factures;
       if (base <= EPSILON) return [{ date: null, fraction: 0 }];
       const ordre = [...reglements].sort((a, b) => a.date.getTime() - b.date.getTime());
-      const tranches: Array<{ date: Date | null; fraction: number }> = [];
+      const tranches: Array<{ date: Date | null; fraction: number; recouvrementId?: string }> = [];
       let regle = 0;
       for (const r of ordre) {
         const part = Math.min(r.montant, base - regle);
         if (part <= EPSILON) break;
         regle += part;
-        tranches.push({ date: r.date, fraction: part / base });
+        tranches.push({ date: r.date, fraction: part / base, ...(r.recouvrementId ? { recouvrementId: r.recouvrementId } : {}) });
       }
       // Un groupe SOLDÉ sans reclassement est réglé en entier · un écart
-      // (escompte, arrondi) se rattache au dernier règlement, comme avant.
-      if (!reclassement && groupe.statut === 'SOLDE' && regle < base - EPSILON && tranches.length > 0) {
-        tranches[tranches.length - 1].fraction += (base - regle) / base;
+      // (escompte, arrondi) se rattache au dernier règlement, comme avant,
+      // jamais la part qu'un avoir a annulée.
+      const aEncaisser = Math.max(0, base - avoirs);
+      if (!reclassement && groupe.statut === 'SOLDE' && regle < aEncaisser - EPSILON && tranches.length > 0) {
+        tranches[tranches.length - 1].fraction += (aEncaisser - regle) / base;
       }
       return tranches.length > 0 ? tranches : [{ date: null, fraction: 0 }];
+    }
+    // Une facture seule, soldée par un avoir sans aucun règlement · la part non
+    // annulée est exigible à la date de l'écriture (repli d'avant), la part
+    // annulée ne l'est jamais.
+    if (seule && avoirs > EPSILON && groupe.statut === 'SOLDE' && !reclassement) {
+      const f = Math.max(0, (engage - avoirs) / engage);
+      return f > EPSILON ? [{ date: dateEcriture, fraction: f }] : [{ date: null, fraction: 0 }];
     }
 
     /*
@@ -1475,13 +1560,17 @@ export class TauxTvaService {
   private static reglementsDuGroupe(
     lignes: LignesGroupeLettrage | undefined,
     sensFacture: number,
-  ): Array<{ date: Date; montant: number }> {
+  ): Array<{ date: Date; montant: number; recouvrementId?: string }> {
     if (!lignes || lignes.length === 0 || Math.abs(sensFacture) <= EPSILON) return [];
-    const reglements: Array<{ date: Date; montant: number }> = [];
+    const reglements: Array<{ date: Date; montant: number; recouvrementId?: string }> = [];
     for (const l of lignes) {
       const sens = Number(l.debit) - Number(l.credit);
       if (Math.abs(sens) <= EPSILON) continue;
       if (sens > 0 === sensFacture > 0) continue;
+      // UN AVOIR LETTRÉ N'EST PAS UN ENCAISSEMENT (quatrième relecture, M-c) ·
+      // il annule une part de la vente, et sa TVA se reprend par sa propre
+      // ligne (art. 52, décret art. 127), jamais par une tranche.
+      if (estUnAvoir(l.ecriture)) continue;
       const reclassement = l.ecriture?.creanceDouteuseReclassement;
       if (reclassement) {
         let reste = Math.abs(sens);
@@ -1489,7 +1578,7 @@ export class TauxTvaService {
         for (const r of recouvrements) {
           const part = Math.min(reste, Number(r.montant));
           if (part <= EPSILON) continue;
-          reglements.push({ date: r.date, montant: part });
+          reglements.push({ date: r.date, montant: part, recouvrementId: r.id });
           reste -= part;
           if (reste <= EPSILON) break;
         }
@@ -1929,21 +2018,23 @@ export class TauxTvaService {
   }
 
   /**
-   * LA TVA DES VENTES D'ORIGINE D'UNE CRÉANCE DOUTEUSE, ET LA PART QUE LA
-   * DÉCLARATION EN A RENDUE EXIGIBLE (ligne A7, troisième relecture, B-1).
+   * LA TVA DES VENTES D'ORIGINE D'UNE CRÉANCE DOUTEUSE, ET CE QUI EN EST DÉJÀ
+   * DÉCLARÉ (ligne A7, quatrième relecture).
    *
-   * Décider sur la seule NATURE de la vente se trompait · le moteur de la
-   * déclaration lit une prestation de services dont la ligne du client n'est
-   * dans aucun lettrage comme un comptant, exigible à la facture, et une
-   * prestation impayée a pu être déclarée et liquidée en février. Sortie
-   * « jamais exigible » en juin, ses 160 000 versés au Trésor ne se
-   * récupéraient plus. La part est donc lue par le MOTEUR LUI-MÊME
-   * (`baseExigibilite`, puis `exigibilite` à l'encaissement), sur chaque vente
-   * TELLE QU'ELLE A ÉTÉ OU SERAIT DÉCLARÉE · quand la période de la vente est
-   * liquidée, un lettrage posé APRÈS cette liquidation n'existait pas pour
-   * elle, et il est ignoré (la vente était alors lue au comptant). Limite
-   * dite · une ligne ajoutée après coup à un groupe plus ancien que la
-   * liquidation n'est pas distinguée.
+   * « DÉJÀ DÉCLARÉ » SE LIT SUR LE FIGÉ, JAMAIS SUR UNE RECONSTITUTION · la
+   * somme des `TvaVenteDeclaree` de la vente, moins les régularisations en
+   * déduction de ses recouvrements annulés. Chaque passe de relecture
+   * trouvait un cas où la TVA « telle que déclarée » se reconstituait de
+   * travers à partir de lettrages qui avaient bougé ; la liquidation la fige
+   * désormais. À côté, ce que le moteur rend exigible AUJOURD'HUI
+   * (`fractionExigible`, `baseExigibilite` puis `exigibilite` sur le lettrage
+   * actuel) · ce qu'une période encore ouverte déclarera.
+   *
+   * UNE LIQUIDATION ANTÉRIEURE À LA RÈGLE (`tvaVentesFigee` faux) n'a rien
+   * figé · sa TVA se lit RECONSTITUÉE, et quand le groupe de lettrage actuel
+   * est postérieur à cette liquidation et porte un règlement antérieur à sa
+   * fin, ce qu'elle a déclaré ne se lit plus · `ambigu`, et le cabinet
+   * déclare alors la part, avec sa source.
    */
   async tvaDesVentesOrigine(
     tenantId: string,
@@ -1955,62 +2046,67 @@ export class TauxTvaService {
       part: number;
       ttcClient: number;
       tva: Array<{ compteId: string; numero: string; tauxTvaId: string | null; montant: number }>;
-      /** Fraction de la TVA de la vente rendue exigible, telle qu'elle a été ou serait déclarée. */
+      /** Fraction de la TVA de la vente que le moteur rend exigible sur le lettrage actuel (information). */
       fractionExigible: number;
+      /**
+       * Ce qu'une déclaration À VENIR déclarera encore · les tranches hors des
+       * périodes liquidées et figées, et celles qu'une période figée n'a pas
+       * déclarées (reportées, M-b). Jamais une relecture du passé figé.
+       */
+      exigibleAVenir: number;
+      /** TVA de la vente figée par les liquidations, nette des régularisations en déduction. */
+      declareeFigee: number;
+      /** Une liquidation sans figé a pu lire un lettrage qui a bougé depuis. */
+      ambigu: boolean;
+      /** La TVA de la vente dépend de l'encaissement (une part au moins). */
+      aLEncaissement: boolean;
     }>
   > {
     if (origines.length === 0) return [];
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const regime = tenant?.regimeExigibiliteTva ?? 'LIVRAISONS';
     const dateAutorisation = tenant?.dateAutorisationDebitsTva ?? null;
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: { tenantId, id: { in: origines.map((o) => o.ecritureId) } },
-      select: {
-        id: true,
-        date: true,
-        lignes: {
-          select: {
-            compteId: true,
-            tauxTvaId: true,
-            debit: true,
-            credit: true,
-            compte: { select: { numero: true, classe: true } },
-            lettrage: {
-              select: {
-                statut: true,
-                solde: true,
-                soldeAt: true,
-                createdAt: true,
-                lignes: {
-                  select: {
-                    debit: true,
-                    credit: true,
-                    ecriture: {
-                      select: {
-                        date: true,
-                        creanceDouteuseReclassement: {
-                          select: {
-                            mouvements: {
-                              where: {
-                                type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
-                                annuleeLe: null,
-                                ecriture: { statut: StatutEcriture.VALIDEE },
-                              },
-                              select: { date: true, montant: true },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
+    const ids = origines.map((o) => o.ecritureId);
+    const [ecritures, figes, regularisations, liquidations] = await Promise.all([
+      this.prisma.ecriture.findMany({
+        where: { tenantId, id: { in: ids } },
+        select: {
+          id: true,
+          date: true,
+          lignes: {
+            select: {
+              id: true,
+              compteId: true,
+              tauxTvaId: true,
+              debit: true,
+              credit: true,
+              compte: { select: { numero: true, classe: true } },
+              lettrage: { select: { statut: true, solde: true, soldeAt: true, createdAt: true, lignes: { select: SELECT_LIGNES_GROUPE } } },
             },
           },
         },
-      },
-      take: origines.length,
-    });
+        take: ids.length,
+      }),
+      this.prisma.tvaVenteDeclaree.findMany({
+        where: { tenantId, ecritureId: { in: ids } },
+        select: { ecritureId: true, ligneEcritureId: true, liquidationId: true, montant: true },
+      }),
+      this.prisma.regularisationTvaCreance.groupBy({
+        by: ['ecritureVenteId'],
+        where: { tenantId, ecritureVenteId: { in: ids }, sens: 'DEDUCTION' },
+        _sum: { montant: true },
+        orderBy: { ecritureVenteId: 'asc' },
+      }),
+      this.prisma.liquidationTva.findMany({
+        where: { tenantId },
+        select: { id: true, dateDebut: true, dateFin: true, createdAt: true, tvaVentesFigee: true },
+      }),
+    ]);
+    const anciennes = liquidations.filter((L) => !L.tvaVentesFigee);
+    const liquidationsFigees = liquidations.filter((L) => L.tvaVentesFigee);
+    const figeParVente = new Map<string, number>();
+    for (const f of figes) figeParVente.set(f.ecritureId, (figeParVente.get(f.ecritureId) ?? 0) + Number(f.montant));
+    const regulParVente = new Map(regularisations.map((r) => [r.ecritureVenteId ?? '', Number(r._sum?.montant ?? 0)]));
     const resultat = [];
     for (const o of origines) {
       const e = ecritures.find((x) => x.id === o.ecritureId);
@@ -2021,38 +2117,63 @@ export class TauxTvaService {
       const ttcClient = e.lignes.filter((l) => l.compteId === compteClientId).reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
       const regimeVente = regime === 'DEBITS' && dateAutorisation && e.date < dateAutorisation ? 'LIVRAISONS' : regime;
       const contreparties = e.lignes.filter((l) => l.compte.classe === ClasseCompte.CLASSE_7).map((l) => l.compte.numero);
-      // La liquidation qui a couvert la date de la vente, s'il y en a une ·
-      // l'état du lettrage qu'elle a lu est celui d'AVANT elle.
-      const liquidation = await this.prisma.liquidationTva.findFirst({
-        where: { tenantId, dateDebut: { lte: e.date }, dateFin: { gte: e.date } },
-        select: { createdAt: true },
-      });
       const lignesTiers = e.lignes
         .filter((l) => l.compte.classe === ClasseCompte.CLASSE_4 && l.lettrage)
-        .map((l) => ({
-          debit: l.debit,
-          credit: l.credit,
-          lettrage: liquidation && l.lettrage!.createdAt > liquidation.createdAt ? null : l.lettrage,
-        }));
+        .map((l) => ({ debit: l.debit, credit: l.credit, lettrage: l.lettrage }));
       let pese = 0;
       let exigible = 0;
+      let aVenir = 0;
+      let aLEncaissement = false;
       for (const l of e.lignes.filter((x) => x.compte.numero.startsWith(RACINE_COLLECTEE))) {
         const montant = Number(l.credit) - Number(l.debit);
         if (Math.abs(montant) <= EPSILON) continue;
         const { base } = this.baseExigibilite(tenant?.referentiel, regimeVente, l.compte.numero, true, false, contreparties);
-        const f =
-          base === 'FAIT_GENERATEUR'
-            ? 1
-            : Math.min(
-                1,
-                this.exigibilite(l, lignesTiers, e.date)
-                  .filter((t) => t.date)
-                  .reduce((s, t) => s + t.fraction, 0),
-              );
+        if (base === 'ENCAISSEMENT') aLEncaissement = true;
+        const tranches = (base === 'FAIT_GENERATEUR' ? [{ date: e.date as Date | null, fraction: 1 }] : this.exigibilite(l, lignesTiers, e.date)).filter(
+          (t) => t.date,
+        );
+        const f = Math.min(1, tranches.reduce((s, t) => s + t.fraction, 0));
         pese += Math.abs(montant);
         exigible += Math.abs(montant) * f;
+        // CE QUE LES DÉCLARATIONS À VENIR PORTERONT, comme `declaration` le
+        // fait · hors des périodes figées, et, dans une période figée, ce
+        // qu'elle n'a pas déclaré (report M-b).
+        const figeLigne = figes.filter((x) => x.ligneEcritureId === (l as { id?: string }).id);
+        const parL = new Map<string, number>();
+        for (const t of tranches) {
+          const m = Math.abs(montant) * t.fraction;
+          const L = liquidationsFigees.find((x) => t.date! >= x.dateDebut && t.date! <= x.dateFin);
+          if (L) parL.set(L.id, (parL.get(L.id) ?? 0) + m);
+          else aVenir += m;
+        }
+        for (const [id, m] of parL) {
+          const deja = figeLigne.filter((x) => x.liquidationId === id).reduce((s, x) => s + Number(x.montant), 0);
+          aVenir += Math.max(0, m - deja);
+        }
       }
-      resultat.push({ ecritureId: o.ecritureId, part: o.part, ttcClient, tva, fractionExigible: pese > EPSILON ? exigible / pese : 1 });
+      // Le groupe actuel, postérieur à une liquidation SANS figé, qui porte un
+      // règlement antérieur à sa fin · ce qu'elle a déclaré ne se lit plus.
+      const ambigu = aLEncaissement && anciennes.some((L) =>
+        lignesTiers.some((t) => {
+          const g = t.lettrage!;
+          if (g.createdAt <= L.createdAt) return false;
+          return (g.lignes ?? []).some((x) => {
+            const sens = Number(x.debit) - Number(x.credit);
+            return sens < -EPSILON && !estUnAvoir(x.ecriture) && !x.ecriture?.creanceDouteuseReclassement && !!x.ecriture && x.ecriture.date <= L.dateFin;
+          });
+        }),
+      );
+      resultat.push({
+        ecritureId: o.ecritureId,
+        part: o.part,
+        ttcClient,
+        tva,
+        fractionExigible: pese > EPSILON ? exigible / pese : 1,
+        exigibleAVenir: aVenir,
+        declareeFigee: Math.max(0, (figeParVente.get(o.ecritureId) ?? 0) - (regulParVente.get(o.ecritureId) ?? 0)),
+        ambigu,
+        aLEncaissement,
+      });
     }
     return resultat;
   }
@@ -2305,8 +2426,12 @@ export class TauxTvaService {
           debit: true,
           credit: true,
           compte: { select: { numero: true } },
+          // LA TVA DÉJÀ DÉCLARÉE DE CETTE LIGNE, FIGÉE PAR CHAQUE LIQUIDATION
+          // (quatrième relecture) · jamais reconstituée sur des lettrages.
+          tvaVentesDeclarees: { select: { liquidationId: true, montant: true } },
           ecriture: {
             select: {
+              id: true,
               date: true,
               // LA PIÈCE RATTACHÉE À L'ÉCRITURE, lue pour deux questions.
               // Sa NATURE justifie un avoir sur vente (décret n° 011/42,
@@ -2398,34 +2523,10 @@ export class TauxTvaService {
                       statut: true,
                       solde: true,
                       soldeAt: true,
-                      lignes: {
-                        select: {
-                          debit: true,
-                          credit: true,
-                          ecriture: {
-                            select: {
-                              date: true,
-                              // LE RECLASSEMENT EN CRÉANCE DOUTEUSE N'EST PAS UN
-                              // ENCAISSEMENT (ligne A7, K3) · sa ligne au compte du
-                              // client, lettrée avec la facture, ne date rien ; ce
-                              // sont les RECOUVREMENTS validés du module, non
-                              // annulés, qui encaissent la part reclassée.
-                              creanceDouteuseReclassement: {
-                                select: {
-                                  mouvements: {
-                                    where: {
-                                      type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
-                                      annuleeLe: null,
-                                      ecriture: { statut: StatutEcriture.VALIDEE },
-                                    },
-                                    select: { date: true, montant: true },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
+                      // LE RECLASSEMENT EN CRÉANCE DOUTEUSE N'EST PAS UN
+                      // ENCAISSEMENT (ligne A7, K3), UN AVOIR NON PLUS (M-c) ·
+                      // voir `SELECT_LIGNES_GROUPE`.
+                      lignes: { select: SELECT_LIGNES_GROUPE },
                     },
                   },
                 },
@@ -2460,6 +2561,50 @@ export class TauxTvaService {
     // LES PERTES SUR CRÉANCES IRRÉCOUVRABLES QUE CETTE DÉCLARATION RÉCUPÈRE
     // et qu'aucune liquidation n'impute encore · la liquidation de la période
     // les marque (K1). Et celles dont le délai de l'art. 37, al. 2 est expiré.
+    /*
+      LA TVA COLLECTÉE SE FIGE À LA LIQUIDATION (ligne A7, quatrième relecture).
+      Chaque liquidation enregistre, ligne de vente par ligne de vente, ce
+      qu'elle a rendu exigible (`TvaVenteDeclaree`). Trois règles en suivent ·
+      une période LIQUIDÉE ET FIGÉE relue rend son figé, jamais un recalcul ;
+      une période ouverte ne déclare jamais, pour une vente, au-delà de sa TVA
+      moins ce qui est déjà figé (M-a · une vente déclarée au comptant ne
+      recollecte rien au recouvrement) ; une tranche datée dans une période
+      liquidée et figée qui ne l'a pas déclarée se REPORTE ici, sa date de
+      valeur dite (AUDCIF art. 22, 4°, M-b). Une liquidation antérieure à la
+      règle (`tvaVentesFigee` faux) se relit comme avant, et c'est dit.
+    */
+    const liquidations = await this.prisma.liquidationTva.findMany({
+      where: { tenantId },
+      select: { id: true, dateDebut: true, dateFin: true, tvaVentesFigee: true },
+      orderBy: { dateDebut: 'asc' },
+    });
+    const liquidationIci =
+      liquidations.find((x) => x.dateDebut.getTime() === dateDebut.getTime() && x.dateFin.getTime() === dateFin.getTime()) ?? null;
+    const periodeFigee = liquidationIci?.tvaVentesFigee ? liquidationIci : null;
+    const liquidationsFigees = liquidations.filter((x) => x.tvaVentesFigee);
+    const ventesExigibles: Array<{
+      ligneEcritureId: string;
+      ecritureId: string;
+      montant: number;
+      date: Date;
+      recouvrementId: string | null;
+      reportee: boolean;
+    }> = [];
+    let collecteReportee = 0;
+    let periodeRelueFigee = false;
+    // BL-3 · les régularisations des mouvements annulés après liquidation,
+    // imputées une seule fois (marquées par la liquidation qui les porte).
+    const regularisations = await this.prisma.regularisationTvaCreance.findMany({
+      where: {
+        tenantId,
+        date: { lte: dateFin },
+        OR: [{ liquidationImputationId: null }, ...(liquidationIci ? [{ liquidationImputationId: liquidationIci.id }] : [])],
+      },
+      select: { id: true, sens: true, montant: true, compteId: true, tauxTvaId: true, liquidationImputationId: true },
+    });
+    const regularisationsAImputer: string[] = [];
+    let regularisationDeduction = 0;
+    let regularisationReversement = 0;
     const pertesARecuperer = new Set<string>();
     let recuperationCreancesDechue = 0;
     // Pertes qu'aucune liquidation antérieure ne permet de situer (B-3).
@@ -2796,7 +2941,7 @@ export class TauxTvaService {
             base === 'FAIT_GENERATEUR' &&
             nature === 'SERVICES' &&
             (estCollecte ? regimeLigne === 'DEBITS' : fournisseur.autorise);
-          const tranches: Array<{ date: Date | null; fraction: number; auPaiement?: boolean }> =
+          const tranches: Array<{ date: Date | null; fraction: number; auPaiement?: boolean; recouvrementId?: string }> =
             base === 'FAIT_GENERATEUR'
               ? auxDebits
                 ? TauxTvaService.tranchesAuxDebits(lignesTiers, dateEcriture)
@@ -2814,6 +2959,59 @@ export class TauxTvaService {
           // répartissent au centime, la dernière recevant le reste, pour que la
           // somme des parts rende la taxe de la ligne exactement.
           const montants = TauxTvaService.montantsDesTranches(montant, tranches);
+          if (estCollecte) {
+            const figes = (l.tvaVentesDeclarees ?? []).map((f) => ({ liquidationId: f.liquidationId, montant: Number(f.montant) }));
+            const cumulCollecte = (m: number) => {
+              cumul.collecte = TauxTvaService.c(cumul.collecte + m);
+              const v = suivi(l.tauxTvaId!, l.compteId);
+              v.collecte = TauxTvaService.c(v.collecte + m);
+            };
+            // Une période liquidée et figée relue rend SON figé.
+            if (periodeFigee) {
+              periodeRelueFigee = true;
+              const m = TauxTvaService.c(figes.filter((f) => f.liquidationId === periodeFigee.id).reduce((t, f) => t + f.montant, 0));
+              if (m > EPSILON) cumulCollecte(m);
+              return;
+            }
+            // M-a · jamais au-delà de la TVA de la vente moins son figé.
+            let disponible = TauxTvaService.c(montant - figes.reduce((t, f) => t + f.montant, 0));
+            tranches.forEach(({ date, auPaiement, recouvrementId }, i) => {
+              if (!date || date < dateDebut || date > dateFin) return;
+              const exigible = TauxTvaService.c(Math.min(montants[i], Math.max(0, disponible)));
+              if (exigible <= EPSILON) return;
+              disponible = TauxTvaService.c(disponible - exigible);
+              if (auPaiement) collecteServicesPaiementAnterieur = TauxTvaService.c(collecteServicesPaiementAnterieur + exigible);
+              cumulCollecte(exigible);
+              ventesExigibles.push({ ligneEcritureId: l.id, ecritureId: l.ecriture.id, montant: exigible, date, recouvrementId: recouvrementId ?? null, reportee: false });
+            });
+            // M-b · la tranche d'une période liquidée et figée qui ne l'a pas
+            // déclarée (lettrage posé après) se reporte à la première période
+            // non liquidée, sa date de valeur dite · jamais perdue.
+            if (!dejaLiquidee) {
+              for (const L of liquidationsFigees) {
+                if (L.dateFin >= dateDebut) continue;
+                const dansL = tranches
+                  .map((t, i) => ({ t, m: montants[i] }))
+                  .filter(({ t }) => t.date && t.date >= L.dateDebut && t.date <= L.dateFin);
+                const total = dansL.reduce((x, y) => x + y.m, 0);
+                const figeL = figes.filter((f) => f.liquidationId === L.id).reduce((x, f) => x + f.montant, 0);
+                const e = TauxTvaService.c(Math.min(Math.max(0, total - figeL), Math.max(0, disponible)));
+                if (e <= EPSILON) continue;
+                disponible = TauxTvaService.c(disponible - e);
+                collecteReportee = TauxTvaService.c(collecteReportee + e);
+                cumulCollecte(e);
+                ventesExigibles.push({
+                  ligneEcritureId: l.id,
+                  ecritureId: l.ecriture.id,
+                  montant: e,
+                  date: dansL[0].t.date!,
+                  recouvrementId: dansL.find(({ t }) => t.recouvrementId)?.t.recouvrementId ?? null,
+                  reportee: true,
+                });
+              }
+            }
+            return;
+          }
           tranches.forEach(({ date, auPaiement }, i) => {
             const exigible = montants[i];
             if (!estCollecte && date && date < limiteDecheance) {
@@ -2846,6 +3044,24 @@ export class TauxTvaService {
         },
         LOT_ECRITURES,
       );
+    }
+
+    for (const r of regularisations) {
+      const cumul = parTaux.get(r.tauxTvaId);
+      if (!cumul) continue;
+      if (!r.liquidationImputationId && dejaLiquidee) continue;
+      const m = Number(r.montant);
+      const v = suivi(r.tauxTvaId, r.compteId);
+      if (r.sens === 'DEDUCTION') {
+        cumul.recuperationCreance = TauxTvaService.c(cumul.recuperationCreance + m);
+        v.recuperation = TauxTvaService.c(v.recuperation + m);
+        regularisationDeduction = TauxTvaService.c(regularisationDeduction + m);
+      } else {
+        cumul.collecte = TauxTvaService.c(cumul.collecte + m);
+        v.collecte = TauxTvaService.c(v.collecte + m);
+        regularisationReversement = TauxTvaService.c(regularisationReversement + m);
+      }
+      if (!r.liquidationImputationId) regularisationsAImputer.push(r.id);
     }
 
     const lignes = [];
@@ -2951,6 +3167,10 @@ export class TauxTvaService {
         recuperationCreancesIrrecouvrables,
         recuperationCreancesDechue,
         recuperationCreancesNonImputees,
+        collecteReportee,
+        periodeRelueFigee,
+        regularisationDeduction,
+        regularisationReversement,
         avoirsCollecteNonImputes,
         avoirsSansNoteDeCredit,
         tvaExclueArt41,
@@ -2987,6 +3207,16 @@ export class TauxTvaService {
        * n'impute encore · la liquidation de la période les marque (K1).
        */
       pertesCreancesARecuperer: [...pertesARecuperer],
+      /** La TVA collectée rendue exigible ici, vente par vente · figée par la liquidation. */
+      ventesExigibles,
+      /** Tranches d'une période liquidée qui ne les a pas déclarées, reportées ici (M-b). */
+      collecteReportee,
+      /** La période est liquidée et figée · la collecte relue est son figé. */
+      periodeRelueFigee,
+      /** Régularisations de mouvements annulés après liquidation (BL-3). */
+      regularisationsAImputer,
+      regularisationDeduction,
+      regularisationReversement,
       /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
       avoirsCollecteNonImputes,
       /**
@@ -3086,6 +3316,10 @@ export class TauxTvaService {
     recuperationCreancesIrrecouvrables: number;
     recuperationCreancesDechue?: number;
     recuperationCreancesNonImputees?: number;
+    collecteReportee?: number;
+    periodeRelueFigee?: boolean;
+    regularisationDeduction?: number;
+    regularisationReversement?: number;
     avoirsCollecteNonImputes: number;
     avoirsSansNoteDeCredit: number;
     tvaExclueArt41: number;
@@ -3376,6 +3610,26 @@ export class TauxTvaService {
           'vente d’origine, plus tôt ; elle n’est pas appliquée.',
       );
     }
+    if (e.periodeRelueFigee) {
+      phrases.push(
+        'PÉRIODE LIQUIDÉE · la TVA collectée relue ici est celle que la liquidation a FIGÉE vente par vente, jamais un ' +
+          'recalcul sur des lettrages qui ont pu bouger depuis.',
+      );
+    }
+    if ((e.collecteReportee ?? 0) > EPSILON) {
+      phrases.push(
+        `TRANCHES REPORTÉES · ${fc(e.collecteReportee ?? 0)} CDF de TVA devenue exigible dans une période déjà liquidée, qui ` +
+          'ne l’a pas déclarée (règlement lettré après sa liquidation), sont déclarés ici, leur date de valeur gardée ' +
+          '(AUDCIF art. 22, 4° ; décret n° 011/42, art. 57).',
+      );
+    }
+    if ((e.regularisationDeduction ?? 0) > EPSILON || (e.regularisationReversement ?? 0) > EPSILON) {
+      phrases.push(
+        `RÉGULARISATIONS DE CRÉANCES DOUTEUSES · ${fc(e.regularisationDeduction ?? 0)} CDF portés en déduction (recouvrement ` +
+          `annulé après sa liquidation) et ${fc(e.regularisationReversement ?? 0)} CDF reversés (perte annulée après la ` +
+          'liquidation de sa récupération), une seule fois (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126).',
+      );
+    }
     if ((e.recuperationCreancesNonImputees ?? 0) > EPSILON) {
       phrases.push(
         `PERTES SUR CRÉANCES NON IMPUTÉES · ${fc(e.recuperationCreancesNonImputees ?? 0)} CDF de TVA de pertes constatées avant ` +
@@ -3502,6 +3756,33 @@ export class TauxTvaService {
           `(${b.collecte.toLocaleString('fr-FR')} CDF facturée, ${b.deductible.toLocaleString('fr-FR')} CDF ` +
           'récupérable). Validez-les ou supprimez-les avant de liquider · une fois la période liquidée, une ' +
           'ligne validée ensuite ne serait reprise par aucune déclaration (AUDCIF art. 22, 2°).',
+      );
+    }
+
+    /*
+      BL-2 · UN RECOUVREMENT DU MODULE AU BROUILLARD, DATÉ DANS LA PÉRIODE, DONT
+      LA TVA DÉPEND (vente d'origine exigible à l'encaissement) · même règle
+      que F25. Validé après la liquidation, il rendrait exigible une taxe dans
+      une période close, que la liquidation n'aurait pas portée.
+    */
+    const recouvrementsAuBrouillard = await this.prisma.mouvementCreanceDouteuse.findMany({
+      where: {
+        tenantId,
+        type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
+        tvaEnDepend: true,
+        annuleeLe: null,
+        date: { gte: dateDebut, lte: dateFin },
+        ecriture: { statut: StatutEcriture.BROUILLARD },
+      },
+      select: { date: true, montant: true },
+      take: 20,
+    });
+    if (recouvrementsAuBrouillard.length > 0) {
+      throw new BadRequestException(
+        `${recouvrementsAuBrouillard.length} recouvrement(s) de créances douteuses de la période sont encore au brouillard ` +
+          `(${recouvrementsAuBrouillard.map((r) => `${r.date.toISOString().slice(0, 10)} · ${Number(r.montant).toLocaleString('fr-FR')}`).join(' ; ')}), ` +
+          'et la TVA de leur vente n’est exigible qu’à l’encaissement (O.-L. n° 10/001, art. 25, 2°) · validez-les ou annulez-les ' +
+          'avant de liquider, sans quoi la taxe qu’ils rendent exigible échapperait à la période (même règle que le brouillard, F25).',
       );
     }
 
@@ -3685,12 +3966,46 @@ export class TauxTvaService {
         ecritureId: ecriture.id,
         net: decl.net,
         prorataApplique: decl.prorata.pourcentage,
+        // LA TVA COLLECTÉE SE FIGE ICI, vente par vente (quatrième relecture).
+        tvaVentesFigee: true,
         createdBy: userId,
       };
-      // Sans perte à marquer, une écriture seule · nulle transaction à ouvrir.
-      if (pertes.length === 0) await this.prisma.liquidationTva.create({ data: marqueur });
-      else await transactionJournalisee(this.prisma, async (tx) => {
+      const ventes = decl.ventesExigibles ?? [];
+      const regularisations = decl.regularisationsAImputer ?? [];
+      // Rien d'autre à écrire que le marqueur · nulle transaction à ouvrir.
+      if (pertes.length === 0 && ventes.length === 0 && regularisations.length === 0) {
+        await this.prisma.liquidationTva.create({ data: marqueur });
+      } else await transactionJournalisee(this.prisma, async (tx) => {
         const liquidation = await tx.liquidationTva.create({ data: marqueur });
+        // Lignes engendrées en masse, non auditées (`NON_AUDITES_MOTIVES`) ·
+        // leur liquidation l'est, et elles partent avec elle.
+        if (ventes.length > 0) {
+          await tx.tvaVenteDeclaree.createMany({
+            data: ventes.map((v) => ({
+              tenantId,
+              liquidationId: liquidation.id,
+              ligneEcritureId: v.ligneEcritureId,
+              ecritureId: v.ecritureId,
+              recouvrementId: v.recouvrementId,
+              montant: v.montant,
+              dateExigibilite: v.date,
+              reportee: v.reportee,
+            })),
+          });
+        }
+        for (const id of regularisations) {
+          try {
+            await tx.regularisationTvaCreance.update({
+              where: { id, tenantId, liquidationImputationId: null },
+              data: { liquidationImputationId: liquidation.id },
+            });
+          } catch (err) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+              throw new ConflictException('Une régularisation de TVA de cette déclaration a été imputée entre-temps · rechargez la déclaration.');
+            }
+            throw err;
+          }
+        }
         for (const id of pertes) {
           try {
             await tx.mouvementCreanceDouteuse.update({
@@ -3785,6 +4100,15 @@ export class TauxTvaService {
         });
         for (const p of pertes) {
           await tx.mouvementCreanceDouteuse.update({ where: { id: p.id, tenantId }, data: { liquidationRecuperationId: null } });
+        }
+        // Les régularisations qu'elle imputait redeviennent à imputer (BL-3) ;
+        // sa TVA figée vente par vente part avec elle (clé CASCADE).
+        const regularisations = await tx.regularisationTvaCreance.findMany({
+          where: { tenantId, liquidationImputationId: liquidation.id },
+          select: { id: true },
+        });
+        for (const r of regularisations) {
+          await tx.regularisationTvaCreance.update({ where: { id: r.id, tenantId }, data: { liquidationImputationId: null } });
         }
         await tx.liquidationTva.delete({ where: { id: liquidation.id } });
       },

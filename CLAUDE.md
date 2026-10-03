@@ -704,9 +704,9 @@ déclarée à l'ouverture n'ouvre de récupération que si ses ventes d'origine 
 tenues dans OmegaX, et l'écran le dit. TROISIÈME RELECTURE (2026-10-03). (B-1) LA
 PART DÉJÀ EXIGIBLE SE LIT PAR LE MOTEUR DE LA DÉCLARATION, jamais par la nature ·
 `TauxTvaService.tvaDesVentesOrigine` rejoue `baseExigibilite` puis `exigibilite` sur
-chaque vente d'origine TELLE QU'ELLE A ÉTÉ OU SERAIT DÉCLARÉE (un lettrage posé après
-la liquidation qui couvre la vente est ignoré) ; elle s'impute d'abord sur la part
-hors créance (`tvaFactureeDesOrigines`). Une prestation non lettrée, lue au comptant
+chaque vente d'origine, le DÉJÀ DÉCLARÉ se lisant sur le FIGÉ (quatrième relecture,
+ci-dessous ; l'imputation « hors créance d'abord » et le prorata du montant reclassé
+sont RETIRÉS, faux dès qu'un recouvrement existe). Une prestation non lettrée, lue au comptant
 et liquidée, se RÉCUPÈRE avec son taux (art. 52, duplicata) ; seule la part JAMAIS
 exigible sort du 443 d'office, au prorata, sur une ligne SANS TAUX
 (`tvaNonExigible`, montant), sans assujettissement ni duplicata, jamais saisie. La
@@ -718,14 +718,43 @@ une par règlement (le test des deux acomptes est adapté, 40 000 et 80 000) ; g
 factures ordinaires, fraction cumulée au dernier règlement, consigné. (B-3) SANS
 LIQUIDATION ANTÉRIEURE dans OmegaX, la perte ne s'impute que dans la déclaration du
 premier mois civil qui suit, ailleurs « non imputée » (`recuperationCreancesNonImputees`),
-comme les avoirs ; une liquidation antérieure ouvre K1, trou toléré. (B-4) un
-recouvrement VALIDÉ dont la date tombe dans une période liquidée ne s'annule qu'après
-la liquidation. (M1) au plus tôt une période qui commence le premier jour du mois
+comme les avoirs ; une liquidation antérieure ouvre K1, trou toléré. (B-4) remplacé
+par BL-3 ci-dessous. (M1) au plus tôt une période qui commence le premier jour du mois
 civil suivant la perte. (M2) la déchéance dit l'autre lecture en réserve
 (exigibilité de la vente) et le virement en charge par le cabinet. (M4) une vente
 candidate vaut son reste réel (lettrage partiel au prorata des factures), jamais le
 TTC entier, sauf à l'ouverture. (M5) une période liquidée ne montre que ce QU'ELLE a
-imputé.
+imputé. QUATRIÈME RELECTURE (2026-10-03) · ON NE RECONSTITUE PLUS, ON FIGE. (1) LA
+LIQUIDATION FIGE LA TVA DES VENTES, tranche par tranche (`TvaVenteDeclaree` · ligne
+de vente, écriture, recouvrement s'il y en a un, montant, date d'exigibilité, report ;
+supprimée avec sa liquidation, `LiquidationTva.tvaVentesFigee`). « Déjà déclaré » =
+somme du figé ; une période liquidée relue rend SON figé, jamais un recalcul ; une
+tranche nouvelle ne déclare jamais au-delà de la TVA de la vente moins son figé (M-a) ;
+une tranche qui tomberait dans une période liquidée part au premier jour de la
+période ouverte, date de valeur dite (M-b, AUDCIF art. 22, 4°). (2) LA PERTE SE CHIFFRE
+SUR LE RESTE · TVA du reste = TVA facturée × reste ÷ base ; déclarée = figé moins la
+TVA des recouvrements déjà déclarée (jamais négatif) ; récupérable = déclarée au prorata
+de la perte ; le reste du reste sort sans taux d'office (`tvaDeLaPerte`). BL-1 · 580 000
+recouvrés puis 580 000 perdus sur une prestation non encaissée · 80 000 non exigible,
+plafond 0. BL-4 · groupe recréé après la liquidation · 0 récupérable. (3) LIQUIDATION
+ANCIENNE SANS FIGÉ · ses tranches se lisent reconstituées ; si le groupe actuel est
+postérieur à la liquidation avec un règlement antérieur, la récupération d'office est
+REFUSÉE (`motifRefusTvaAmbigue`) et le cabinet DÉCLARE la part avec sa source
+(`tvaDeclareePerte`, `tvaDejaDeclareeSource`). (4) BL-2 · la liquidation est refusée
+tant qu'un recouvrement du module daté dans la période, à TVA dépendant de
+l'encaissement (`tvaEnDepend`), est au brouillard ; symétrique, `valider` refuse ce
+recouvrement daté dans une période liquidée (issue · annuler la liquidation, ou dater
+au premier jour ouvert). (5) BL-3 · l'annulation d'un recouvrement n'est refusée que
+si son figé est dans une liquidation encore AU BROUILLARD (l'annuler d'abord) ; figé
+dans une liquidation VALIDÉE, elle passe AVEC une RÉGULARISATION
+(`RegularisationTvaCreance`, sens DÉDUCTION, D 443 au taux de la vente, négatif du
+figé) ; sans figé, sans régularisation. Même règle pour une perte dont la récupération
+est liquidée et validée (sens REVERSEMENT). Contrôle relu dans la transaction (M-d).
+La déclaration suivante impute la régularisation une fois, la liquidation la marque,
+son annulation la libère. (M-c) un avoir lettré n'est pas un encaissement ;
+l'exigibilité ne le date pas, il réduit la base. LIMITES DITES · groupe de plusieurs
+factures ordinaires à fraction cumulée ; régularisation née d'une liquidation annulée
+ensuite non recalculée ; côté déduction, rien de figé.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
@@ -2835,7 +2864,10 @@ audit final F121, F122).** La taxe va sur la subdivision que la contrepartie app
 4432 créditeur. La déclaration cumule par compte (`parCompte`), la déduction se
 répartit au centime (`repartirAuCentime`), un écart plus grand qu'un arrondi lève.
 Le POURCENTAGE d'un taux porté par des lignes ne change plus · le prorata
-reconstitue la base au taux de la ligne.
+reconstitue la base au taux de la ligne. EXCEPTION D'A7 · la ligne SANS TAUX qui sort
+du 443 la TVA jamais exigible d'une créance perdue (`tvaNonExigible`) sort HORS
+liquidation, et la part déjà déclarée se lit sur le FIGÉ (`TvaVenteDeclaree`), si bien
+que le 443 se solde par la somme des deux, jamais par un recalcul.
 
 **PASSE F2b · ordonnance-loi n° 10/001, chapitres V à X (2026-09-13)** ; F2 close.
 Journal de toutes les passes : `docs/releve-de-manques-fiscal.md`. **L'ART. 41 VAUT

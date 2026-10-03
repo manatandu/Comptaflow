@@ -44,13 +44,21 @@ interface LigneFausse {
   lignes?: unknown[];
 }
 
-function service(lignes: LigneFausse[], dejaLiquidees: Array<[string, string]> = []) {
+function service(
+  lignes: LigneFausse[],
+  dejaLiquidees: Array<[string, string]> = [],
+  options: { regularisations?: Array<Record<string, unknown>>; recouvrementsAuBrouillard?: Array<Record<string, unknown>> } = {},
+) {
   const ecrites: { compteId: string; debit?: number; credit?: number; libelle?: string }[][] = [];
-  const liquidations: Array<{ id: string; dateDebut: Date; dateFin: Date }> = dejaLiquidees.map(([du, au], i) => ({
+  // Les liquidations ANTÉRIEURES semées n'ont rien figé (antérieures à la règle).
+  const liquidations: Array<{ id: string; dateDebut: Date; dateFin: Date; tvaVentesFigee: boolean }> = dejaLiquidees.map(([du, au], i) => ({
     id: `liq-ant-${i}`,
     dateDebut: new Date(du),
     dateFin: new Date(`${au}T23:59:59.999Z`),
+    tvaVentesFigee: false,
   }));
+  // LA TVA FIGÉE · écrite par la liquidation, relue sur la ligne de vente.
+  const figes: Array<{ liquidationId: string; ligneEcritureId: string; montant: number; reportee: boolean; recouvrementId: string | null }> = [];
   const pertes = new Map(lignes.filter((l) => l.perte).map((l) => [l.perte!.id, l.perte!]));
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't1', regimeExigibiliteTva: 'LIVRAISONS', referentiel: 'SYSCOHADA' }) },
@@ -72,7 +80,9 @@ function service(lignes: LigneFausse[], dejaLiquidees: Array<[string, string]> =
             compte: { numero: l.numero },
             debit: l.debit ?? 0,
             credit: l.credit ?? 0,
+            tvaVentesDeclarees: figes.filter((f) => f.ligneEcritureId === `l-${i}`),
             ecriture: {
+              id: `e-${i}`,
               date: new Date(l.date),
               lignes: l.lignes ?? [],
               mouvementCreanceDouteuse: l.perte ? { annuleeLe: null, liquidationRecuperation: null, ...pertes.get(l.perte.id) } : null,
@@ -95,15 +105,27 @@ function service(lignes: LigneFausse[], dejaLiquidees: Array<[string, string]> =
         const c = liquidations.find((l) => l.dateDebut <= where.dateFin.gte && l.dateFin >= where.dateDebut.lte);
         return Promise.resolve(c ? { ...c, ecriture: { id: 'e', libelle: 'liq', date: c.dateFin } } : null);
       }),
+      findMany: jest.fn().mockImplementation(() => Promise.resolve([...liquidations])),
       create: jest.fn().mockImplementation(({ data }) => {
-        const liq = { id: `liq-${liquidations.length + 1}`, dateDebut: data.dateDebut, dateFin: data.dateFin };
+        const liq = { id: `liq-${liquidations.length + 1}`, dateDebut: data.dateDebut, dateFin: data.dateFin, tvaVentesFigee: !!data.tvaVentesFigee };
         liquidations.push(liq);
         return Promise.resolve(liq);
       }),
     },
+    tvaVenteDeclaree: {
+      createMany: jest.fn().mockImplementation(({ data }) => {
+        figes.push(...data.map((d: any) => ({ liquidationId: d.liquidationId, ligneEcritureId: d.ligneEcritureId, montant: d.montant, reportee: d.reportee, recouvrementId: d.recouvrementId })));
+        return Promise.resolve({ count: data.length });
+      }),
+    },
+    regularisationTvaCreance: {
+      findMany: jest.fn().mockResolvedValue(options.regularisations ?? []),
+      update: jest.fn().mockResolvedValue({}),
+    },
     // LA DOUBLURE HONORE LA MISE À JOUR · elle ne marque qu'une perte non
     // marquée et non annulée, comme le `where` le demande.
     mouvementCreanceDouteuse: {
+      findMany: jest.fn().mockResolvedValue(options.recouvrementsAuBrouillard ?? []),
       update: jest.fn().mockImplementation(({ where, data }) => {
         const p = pertes.get(where.id);
         if (!p || p.liquidationRecuperation || p.annuleeLe || where.liquidationRecuperationId !== null) {
@@ -122,7 +144,7 @@ function service(lignes: LigneFausse[], dejaLiquidees: Array<[string, string]> =
       return Promise.resolve({ id: `e-liq-${ecrites.length}` });
     }),
   } as unknown as EcritureService;
-  return { svc: new TauxTvaService(prisma, ecritureService), ecrites, pertes, prisma };
+  return { svc: new TauxTvaService(prisma, ecritureService), ecrites, pertes, prisma, figes };
 }
 
 const periode = (du: string, au: string) => [new Date(du), new Date(`${au}T23:59:59.999Z`)] as const;
@@ -284,6 +306,10 @@ describe('K1 · l’annulation d’une liquidation rend ses pertes à récupére
         update: jest.fn().mockImplementation(({ where }) => (ordre.push(`maj ${where.id}`), Promise.resolve({}))),
       },
       liquidationTva: { delete: jest.fn().mockImplementation(() => (ordre.push('suppression'), Promise.resolve({}))) },
+      regularisationTvaCreance: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'reg-1' }]),
+        update: jest.fn().mockImplementation(({ where }) => (ordre.push(`régul ${where.id}`), Promise.resolve({}))),
+      },
     };
     const prisma = {
       liquidationTva: { findFirst: jest.fn().mockResolvedValue({ id: 'liq-1', ecritureId: 'e-liq' }) },
@@ -294,7 +320,8 @@ describe('K1 · l’annulation d’une liquidation rend ses pertes à récupére
     await new TauxTvaService(prisma, ecritureService).annulerLiquidation('t1', 'liq-1');
     expect(tx.mouvementCreanceDouteuse.findMany.mock.calls[0][0].where).toEqual({ tenantId: 't1', liquidationRecuperationId: 'liq-1' });
     expect(tx.mouvementCreanceDouteuse.update.mock.calls[0][0]).toEqual({ where: { id: 'mv-mars', tenantId: 't1' }, data: { liquidationRecuperationId: null } });
-    expect(ordre).toEqual(['maj mv-mars', 'maj mv-mai', 'suppression']);
+    // BL-3 · ses régularisations redeviennent à imputer · sa TVA figée part avec elle (CASCADE).
+    expect(ordre).toEqual(['maj mv-mars', 'maj mv-mai', 'régul reg-1', 'suppression']);
   });
 });
 
@@ -435,27 +462,32 @@ describe('B-2 · deux recouvrements, deux périodes', () => {
 });
 
 /**
- * B-1 · LA PART DÉJÀ EXIGIBLE SE LIT PAR LE MOTEUR DE LA DÉCLARATION, telle
- * qu'elle a été ou serait déclarée. Prestation de 1 000 000 + 160 000,
- * impayée, dont la ligne du client n'est dans aucun lettrage · le moteur la
- * lit au comptant, exigible à la facture, déclarée et liquidée en février.
+ * B-1 ET QUATRIÈME RELECTURE · « DÉJÀ DÉCLARÉ » SE LIT SUR LE FIGÉ. Prestation
+ * de 1 000 000 + 160 000 · `tvaDesVentesOrigine` rend le figé des
+ * liquidations (net des régularisations en déduction) et, à côté, ce que le
+ * moteur rend exigible sur le lettrage ACTUEL.
  */
 describe('B-1 · tvaDesVentesOrigine', () => {
-  function moteur(options: { lettrage: 'aucun' | 'avant' | 'apres'; liquidee: boolean }) {
-    const reclassement = { mouvements: [] as Array<{ date: Date; montant: number }> };
+  function moteur(options: {
+    lettrage: 'aucun' | 'reclassement' | 'reglementEtReclassement';
+    figee?: number;
+    regularisation?: number;
+    ancienneLiquidation?: boolean;
+  }) {
+    const reclassement = { mouvements: [] as Array<{ id: string; date: Date; montant: number }> };
+    const lignesGroupe: any[] = [
+      { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10'), creanceDouteuseReclassement: null } },
+    ];
+    if (options.lettrage === 'reglementEtReclassement') {
+      lignesGroupe.push({ debit: 0, credit: 580_000, ecriture: { date: new Date('2026-02-20'), creanceDouteuseReclassement: null } });
+      lignesGroupe.push({ debit: 0, credit: 580_000, ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: reclassement } });
+    } else if (options.lettrage === 'reclassement') {
+      lignesGroupe.push({ debit: 0, credit: 1_160_000, ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: reclassement } });
+    }
     const lettrage =
       options.lettrage === 'aucun'
         ? null
-        : {
-            statut: 'SOLDE',
-            solde: 0,
-            soldeAt: null,
-            createdAt: new Date(options.lettrage === 'avant' ? '2026-02-20T10:00:00Z' : '2026-06-30T10:00:00Z'),
-            lignes: [
-              { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10'), creanceDouteuseReclassement: null } },
-              { debit: 0, credit: 1_160_000, ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: reclassement } },
-            ],
-          };
+        : { statut: 'SOLDE', solde: 0, soldeAt: null, createdAt: new Date('2026-06-30T10:00:00Z'), lignes: lignesGroupe };
     const prisma = {
       tenant: { findUnique: jest.fn().mockResolvedValue({ regimeExigibiliteTva: 'LIVRAISONS', referentiel: 'SYSCOHADA' }) },
       ecriture: {
@@ -466,39 +498,206 @@ describe('B-1 · tvaDesVentesOrigine', () => {
             lignes: [
               { compteId: 'cli', tauxTvaId: null, debit: 1_160_000, credit: 0, compte: { numero: '41110001', classe: ClasseCompte.CLASSE_4 }, lettrage },
               { compteId: 'c706', tauxTvaId: null, debit: 0, credit: 1_000_000, compte: { numero: '70610000', classe: ClasseCompte.CLASSE_7 }, lettrage: null },
-              { compteId: 'c4432', tauxTvaId: 'tx16', debit: 0, credit: 160_000, compte: { numero: '44320000', classe: ClasseCompte.CLASSE_4 }, lettrage: null },
+              { id: 'l-tva', compteId: 'c4432', tauxTvaId: 'tx16', debit: 0, credit: 160_000, compte: { numero: '44320000', classe: ClasseCompte.CLASSE_4 }, lettrage: null },
             ],
           },
         ]),
       },
+      tvaVenteDeclaree: {
+        findMany: jest.fn().mockResolvedValue(
+          options.figee ? [{ ecritureId: 'fac', ligneEcritureId: 'l-tva', liquidationId: 'L-fev', montant: options.figee }] : [],
+        ),
+      },
+      regularisationTvaCreance: {
+        groupBy: jest.fn().mockResolvedValue(options.regularisation ? [{ ecritureVenteId: 'fac', _sum: { montant: options.regularisation } }] : []),
+      },
       liquidationTva: {
-        findFirst: jest.fn().mockResolvedValue(options.liquidee ? { createdAt: new Date('2026-03-05T09:00:00Z') } : null),
+        // Février liquidé · figé, ou antérieur à la règle.
+        findMany: jest.fn().mockResolvedValue(
+          options.figee || options.ancienneLiquidation
+            ? [
+                {
+                  id: 'L-fev',
+                  dateDebut: new Date('2026-02-01'),
+                  dateFin: new Date('2026-02-28T23:59:59.999Z'),
+                  createdAt: new Date('2026-03-05T09:00:00Z'),
+                  tvaVentesFigee: !options.ancienneLiquidation,
+                },
+              ]
+            : [],
+        ),
       },
     } as unknown as PrismaService;
     return { svc: new TauxTvaService(prisma, {} as EcritureService), prisma };
   }
+  const lire = async (m: ReturnType<typeof moteur>) => (await m.svc.tvaDesVentesOrigine('t1', 'cli', [{ ecritureId: 'fac', part: 1_160_000 }]))[0];
 
-  it('prestation NON LETTRÉE, liquidée en février · toute sa TVA a été rendue exigible, elle se récupère', async () => {
-    const { svc } = moteur({ lettrage: 'aucun', liquidee: true });
-    const [v] = await svc.tvaDesVentesOrigine('t1', 'cli', [{ ecritureId: 'fac', part: 1_160_000 }]);
-    expect(v).toMatchObject({ ttcClient: 1_160_000, fractionExigible: 1 });
+  it('prestation NON LETTRÉE, liquidée en février au comptant · 160 000 FIGÉS, le moteur la lit aussi exigible', async () => {
+    const v = await lire(moteur({ lettrage: 'aucun', figee: 160_000 }));
+    // Le comptant de février est figé · rien n'est plus « à venir ».
+    expect(v).toMatchObject({ ttcClient: 1_160_000, fractionExigible: 1, declareeFigee: 160_000, exigibleAVenir: 0, ambigu: false, aLEncaissement: true });
   });
 
-  it('VARIANTE · lettrage avec le reclassement posé APRÈS la liquidation de février · elle reste exigible telle que déclarée', async () => {
-    const { svc, prisma } = moteur({ lettrage: 'apres', liquidee: true });
-    const [v] = await svc.tvaDesVentesOrigine('t1', 'cli', [{ ecritureId: 'fac', part: 1_160_000 }]);
-    expect(v.fractionExigible).toBe(1);
-    expect((prisma as any).liquidationTva.findFirst.mock.calls[0][0].where).toEqual({
+  it('lettrée APRÈS la liquidation · le moteur ne la lit plus exigible, le FIGÉ garde les 160 000 déclarés', async () => {
+    const m = moteur({ lettrage: 'reclassement', figee: 160_000 });
+    const v = await lire(m);
+    expect(v).toMatchObject({ fractionExigible: 0, declareeFigee: 160_000, exigibleAVenir: 0 });
+    expect((m.prisma as any).tvaVenteDeclaree.findMany.mock.calls[0][0].where).toEqual({ tenantId: 't1', ecritureId: { in: ['fac'] } });
+  });
+
+  it('aucune liquidation · le comptant est À VENIR, rien de figé', async () => {
+    expect(await lire(moteur({ lettrage: 'aucun' }))).toMatchObject({ declareeFigee: 0, exigibleAVenir: 160_000 });
+  });
+
+  it('la régularisation d’un recouvrement annulé se retranche du figé', async () => {
+    expect((await lire(moteur({ lettrage: 'reclassement', figee: 80_000, regularisation: 80_000 }))).declareeFigee).toBe(0);
+  });
+
+  it('liquidation ANTÉRIEURE au figé, groupe recréé après elle avec un règlement antérieur à sa fin · AMBIGU, à déclarer', async () => {
+    expect((await lire(moteur({ lettrage: 'reglementEtReclassement', ancienneLiquidation: true }))).ambigu).toBe(true);
+    expect((await lire(moteur({ lettrage: 'reclassement', ancienneLiquidation: true }))).ambigu).toBe(false);
+  });
+});
+
+/**
+ * LA TVA COLLECTÉE FIGÉE À LA LIQUIDATION (quatrième relecture, règle 1).
+ * Prestation de 1 000 000 + 160 000 du 10 février, sans lettrage · le moteur
+ * la lit au comptant, la liquidation de février la FIGE.
+ */
+describe('quatrième relecture · la TVA figée', () => {
+  const tiers = (lettrage: unknown) => [
+    { debit: 1_160_000, credit: 0, compte: { numero: '41110001', classe: ClasseCompte.CLASSE_4, tiersCompte: null }, lettrage },
+    { debit: 0, credit: 1_000_000, compte: { numero: '70610000', classe: ClasseCompte.CLASSE_7, tiersCompte: null }, lettrage: null },
+  ];
+  const prestation = (): LigneFausse => ({ numero: '44320000', date: '2026-02-10', credit: 160_000, lignes: tiers(null) });
+  const FEVRIER = periode('2026-02-01', '2026-02-28');
+
+  it('la liquidation fige la TVA rendue exigible, vente par vente ; relue, la période rend son figé, même si le lettrage a bougé', async () => {
+    const vente = prestation();
+    const { svc, figes } = service([vente]);
+    await liquider(svc, '2026-02-01', '2026-02-28');
+    expect(figes).toEqual([{ liquidationId: 'liq-1', ligneEcritureId: 'l-0', montant: 160_000, reportee: false, recouvrementId: null }]);
+    // Le lettrage bouge · la vente est lettrée avec un reclassement.
+    vente.lignes = tiers({
+      statut: 'SOLDE',
+      solde: 0,
+      soldeAt: null,
+      lignes: [
+        { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10') } },
+        { debit: 0, credit: 1_160_000, ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: { mouvements: [] } } },
+      ],
+    });
+    const relue = await svc.declaration('t1', ...FEVRIER);
+    expect(relue.totalCollecte).toBe(160_000);
+    expect(relue.mentionExigibilite).toContain('PÉRIODE LIQUIDÉE');
+  });
+
+  it('M-a · une vente déclarée au comptant ne recollecte RIEN au recouvrement', async () => {
+    const vente = prestation();
+    const { svc } = service([vente]);
+    await liquider(svc, '2026-02-01', '2026-02-28');
+    vente.lignes = tiers({
+      statut: 'SOLDE',
+      solde: 0,
+      soldeAt: null,
+      lignes: [
+        { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10') } },
+        {
+          debit: 0,
+          credit: 1_160_000,
+          ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: { mouvements: [{ id: 'rec-1', date: new Date('2026-08-10'), montant: 580_000 }] } },
+        },
+      ],
+    });
+    expect((await svc.declaration('t1', ...periode('2026-08-01', '2026-08-31'))).totalCollecte).toBe(0);
+  });
+
+  it('les tranches d’un recouvrement figées à son nom · le recouvrement est nommé sur la ligne figée', async () => {
+    const vente = prestation();
+    vente.lignes = tiers({
+      statut: 'SOLDE',
+      solde: 0,
+      soldeAt: null,
+      lignes: [
+        { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10') } },
+        {
+          debit: 0,
+          credit: 1_160_000,
+          ecriture: { date: new Date('2026-06-30'), creanceDouteuseReclassement: { mouvements: [{ id: 'rec-1', date: new Date('2026-08-10'), montant: 580_000 }] } },
+        },
+      ],
+    });
+    const { svc, figes } = service([vente]);
+    await liquider(svc, '2026-08-01', '2026-08-31');
+    expect(figes).toEqual([{ liquidationId: 'liq-1', ligneEcritureId: 'l-0', montant: 80_000, reportee: false, recouvrementId: 'rec-1' }]);
+  });
+
+  it('M-b · un règlement daté dans une période liquidée, lettré après elle, se REPORTE à la première période non liquidée', async () => {
+    const vente = prestation();
+    // Lettrée d'abord avec le reclassement · rien d'exigible en mars, mars liquidé (figé vide pour elle).
+    const groupe = {
+      statut: 'PARTIEL',
+      solde: 580_000,
+      soldeAt: null,
+      lignes: [
+        { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10') } },
+        { debit: 0, credit: 580_000, ecriture: { date: new Date('2026-03-15') } },
+      ],
+    };
+    vente.lignes = tiers({ ...groupe, solde: 1_160_000, lignes: [groupe.lignes[0]] });
+    // Une autre vente de mars, au comptant, pour que mars se liquide.
+    const { svc, figes } = service([vente, { numero: '44310000', date: '2026-03-10', credit: 800_000 }]);
+    await liquider(svc, '2026-03-01', '2026-03-31');
+    expect(figes.filter((f) => f.ligneEcritureId === 'l-0')).toEqual([]);
+    // Le règlement du 15 mars est lettré après la liquidation de mars.
+    vente.lignes = tiers(groupe);
+    const juin = await svc.declaration('t1', ...periode('2026-06-01', '2026-06-30'));
+    expect(juin.collecteReportee).toBe(80_000);
+    expect(juin.totalCollecte).toBe(80_000);
+    expect(juin.mentionExigibilite).toContain('TRANCHES REPORTÉES');
+  });
+
+  it('M-c · un AVOIR lettré n’est pas un encaissement · seule la part réglée devient exigible, à la date du règlement', async () => {
+    const vente = prestation();
+    vente.lignes = tiers({
+      statut: 'SOLDE',
+      solde: 0,
+      soldeAt: null,
+      lignes: [
+        { debit: 1_160_000, credit: 0, ecriture: { date: new Date('2026-02-10') } },
+        { debit: 0, credit: 580_000, ecriture: { date: new Date('2026-03-05'), facture: { nature: 'NOTE_DE_CREDIT' } } },
+        { debit: 0, credit: 580_000, ecriture: { date: new Date('2026-05-20') } },
+      ],
+    });
+    const { svc } = service([vente]);
+    const [mars, mai] = await Promise.all([svc.declaration('t1', ...MARS), svc.declaration('t1', ...MAI)]);
+    expect([mars.totalCollecte, mai.totalCollecte]).toEqual([0, 80_000]);
+  });
+
+  it('BL-2 · la liquidation est REFUSÉE tant qu’un recouvrement dont la TVA dépend est au brouillard dans la période', async () => {
+    const { svc, prisma } = service(jeu(), [], { recouvrementsAuBrouillard: [{ date: new Date('2026-04-20'), montant: 580_000 }] });
+    await expect(liquider(svc, '2026-04-01', '2026-04-30')).rejects.toThrow(/recouvrement\(s\) de créances douteuses de la période sont encore au brouillard/);
+    expect((prisma as any).mouvementCreanceDouteuse.findMany.mock.calls[0][0].where).toMatchObject({
       tenantId: 't1',
-      dateDebut: { lte: new Date('2026-02-10') },
-      dateFin: { gte: new Date('2026-02-10') },
+      type: 'RECOUVREMENT',
+      tvaEnDepend: true,
+      annuleeLe: null,
+      ecriture: { statut: 'BROUILLARD' },
     });
   });
 
-  it('lettrée avec le reclassement AVANT toute liquidation · rien n’a été encaissé ni déclaré, rien ne se récupère', async () => {
-    const avant = moteur({ lettrage: 'avant', liquidee: true });
-    expect((await avant.svc.tvaDesVentesOrigine('t1', 'cli', [{ ecritureId: 'fac', part: 1_160_000 }]))[0].fractionExigible).toBe(0);
-    const sans = moteur({ lettrage: 'apres', liquidee: false });
-    expect((await sans.svc.tvaDesVentesOrigine('t1', 'cli', [{ ecritureId: 'fac', part: 1_160_000 }]))[0].fractionExigible).toBe(0);
+  it('BL-3 · la régularisation d’un recouvrement annulé après liquidation s’impute en DÉDUCTION une seule fois, et la liquidation la marque', async () => {
+    const { svc, prisma, ecrites } = service(jeu(), [], {
+      regularisations: [{ id: 'reg-1', sens: 'DEDUCTION', montant: 80_000, compteId: 'c443', tauxTvaId: 'tx16', liquidationImputationId: null }],
+    });
+    const avril = await svc.declaration('t1', ...AVRIL);
+    expect(avril.regularisationDeduction).toBe(80_000);
+    expect(avril.netAvantImputation).toBe(3_200_000 - 160_000 - 80_000);
+    await liquider(svc, '2026-04-01', '2026-04-30');
+    expect((prisma as any).regularisationTvaCreance.update).toHaveBeenCalledWith({
+      where: { id: 'reg-1', tenantId: 't1', liquidationImputationId: null },
+      data: { liquidationImputationId: 'liq-1' },
+    });
+    expect(ecrites[0].find((l) => /art\. 52/.test(l.libelle ?? ''))).toMatchObject({ compteId: 'c443', credit: 240_000 });
   });
 });

@@ -148,6 +148,7 @@ export const MODELES_AUDITES = new Set<string>([
   'AjustementCreanceDouteuse',
   'MouvementCreanceDouteuse',
   'OrigineCreanceDouteuse',
+  'RegularisationTvaCreance',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
@@ -301,6 +302,8 @@ export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
     "Verrou technique d'un geste sur la provision pour pertes de change (A5) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (déclaration, réévaluation, écritures).",
   VerrouCreancesDouteuses:
     "Verrou technique d'un geste sur les créances douteuses (A7) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (créance, revue, mouvement, écritures).",
+  TvaVenteDeclaree:
+    'TVA collectée figée vente par vente à la liquidation (A7, quatrième relecture) · lignes engendrées en masse par la liquidation, qui est journalisée avec son écriture, et qui partent avec elle.',
   // ── Lignes d'une tête journalisée
   LigneEcriture:
     "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",

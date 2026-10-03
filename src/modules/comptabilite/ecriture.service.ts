@@ -1324,7 +1324,14 @@ export class EcritureService {
   ) {
     const ecritures = await this.prisma.ecriture.findMany({
       where: { id: { in: ecritureIds }, tenantId },
-      include: { lignes: true, exercice: { select: { statut: true } }, journal: { select: { code: true } } },
+      include: {
+        lignes: true,
+        exercice: { select: { statut: true } },
+        journal: { select: { code: true } },
+        // BL-2 (ligne A7) · le recouvrement d'une créance douteuse dont la TVA
+        // n'est exigible qu'à l'encaissement.
+        mouvementCreanceDouteuse: { select: { type: true, tvaEnDepend: true, annuleeLe: true } },
+      },
     });
     if (ecritures.length !== ecritureIds.length) {
       throw new NotFoundException('Une ou plusieurs écritures sont introuvables pour ce dossier.');
@@ -1350,6 +1357,27 @@ export class EcritureService {
           `L'écriture ${e.journal.code} n° ${e.numeroPiece ?? ''} est déséquilibrée (${debit} / ${credit}) : ` +
             'corrigez-la avant de la valider.',
         );
+      }
+      /*
+        BL-2 (ligne A7, quatrième relecture) · UN RECOUVREMENT DONT LA TVA DÉPEND,
+        DATÉ DANS UNE PÉRIODE DÉJÀ LIQUIDÉE · validé, il rendrait exigible une
+        taxe dans une période close, que sa liquidation n'a pas portée. Symétrie
+        du refus de la liquidation (F25).
+      */
+      const mv = e.mouvementCreanceDouteuse;
+      if (mv && mv.type === 'RECOUVREMENT' && mv.tvaEnDepend && !mv.annuleeLe) {
+        const liquidee = await this.prisma.liquidationTva.findFirst({
+          where: { tenantId, dateDebut: { lte: e.date }, dateFin: { gte: e.date } },
+          select: { dateDebut: true, dateFin: true },
+        });
+        if (liquidee) {
+          const j = (d: Date) => d.toISOString().slice(0, 10);
+          throw new BadRequestException(
+            `Le recouvrement n° ${e.numeroPiece ?? '·'} est daté dans la période du ${j(liquidee.dateDebut)} au ${j(liquidee.dateFin)}, ` +
+              'déjà liquidée, et la TVA de sa vente n’est exigible qu’à l’encaissement (O.-L. n° 10/001, art. 25, 2°) · annulez la ' +
+              'liquidation, ou datez le recouvrement au premier jour ouvert, sa date de valeur gardée (AUDCIF art. 22, 4°).',
+          );
+        }
       }
     }
 

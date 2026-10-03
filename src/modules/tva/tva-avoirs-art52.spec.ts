@@ -93,7 +93,12 @@ function service(lignes: LigneFausse[], derniere: Liquidation | null = null) {
       }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
-    liquidationTva: {
+    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+    // La TVA figée et la liquidation s'écrivent dans une transaction.
+    $transaction: (f: (tx: unknown) => unknown) => f(prisma),
+    liquidationTva: { findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
         // Deux lectures distinctes : le VERROU cherche une liquidation qui
         // chevauche la période (`dateFin: { gte }`), le report des avoirs et le
@@ -251,7 +256,12 @@ describe('Comptabilisation · la récupération solde le 443 et l’écriture re
       tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
       compte: { findFirst: jest.fn(({ where }: { where: { numero: string } }) => Promise.resolve({ id: `c-${where.numero}`, numero: where.numero })) },
       journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
-      liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+      regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
+      tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
+      // La TVA figée et la liquidation s'écrivent dans une transaction.
+      $transaction: (f: (tx: unknown) => unknown) => f(prisma),
+      liquidationTva: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     } as unknown as PrismaService;
     const ecritureService = {
       creer: jest.fn((_t: string, _u: string, dto: { lignes: typeof ecrites[number] }) => {
