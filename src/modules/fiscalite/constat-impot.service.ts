@@ -8,6 +8,7 @@ import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi
 import { FiscaliteService } from './fiscalite.service';
 import {
   CONDITIONS_A_DECLARER,
+  LONGUEUR_MIN_ATTESTATION,
   compteDeLaCharge,
   imputationAcomptes,
   lignesConstat,
@@ -92,7 +93,7 @@ export class ConstatImpotService {
       exerciceClos: exercice.statut === StatutExercice.CLOTURE,
       brouillardGestion,
       impotDejaConstate: calcul.impotExerciceAu89,
-      soldeCompte89: calcul.soldeCompte89,
+      impotConstateAu89: calcul.impotConstateAu89,
       reintegrationsImpot: calcul.reintegrationsImpot,
       attestationRegime,
     });
@@ -159,6 +160,9 @@ export class ConstatImpotService {
                 lignes: imputation.montant > 0 ? lignesConstat(calcul.impotDu, calcul.minimumApplique, imputation.montant).slice(2) : [],
               },
               conditionADeclarer,
+              // Servie, jamais recopiée à l'écran · le bouton se ferme sous la
+              // même borne que le refus du serveur.
+              longueurMinAttestation: LONGUEUR_MIN_ATTESTATION,
             },
       motifsRefus: motifs,
       annulees,
@@ -179,14 +183,31 @@ export class ConstatImpotService {
     return c.id;
   }
 
+  /**
+   * Le journal des opérations diverses (code OD) ; à défaut, le PREMIER
+   * journal de type général par code, ordre fixé pour que deux clics ne
+   * choisissent pas deux journaux. Le repli est DIT dans la réponse · le
+   * cabinet qui n'a pas de journal OD doit savoir où la pièce est allée.
+   */
   private async journalOd(tenantId: string) {
-    const journal =
-      (await this.prisma.journal.findFirst({ where: { tenantId, code: 'OD' } })) ??
-      (await this.prisma.journal.findFirst({ where: { tenantId, type: 'GENERAL' } }));
-    if (!journal) {
-      throw new BadRequestException("Aucun journal des opérations diverses (code OD) pour recevoir l'écriture de l'impôt.");
+    const od = await this.prisma.journal.findFirst({
+      where: { tenantId, code: 'OD' },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
+    });
+    if (od) return { journal: od, repli: null as string | null };
+    const general = await this.prisma.journal.findFirst({
+      where: { tenantId, type: 'GENERAL' },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
+    });
+    if (!general) {
+      throw new BadRequestException(
+        "Aucun journal des opérations diverses (code OD) ni journal de type général pour recevoir l'écriture de l'impôt · créez-en un dans Structure > Journaux.",
+      );
     }
-    return journal;
+    return {
+      journal: general,
+      repli: `Aucun journal de code OD dans le dossier · l'écriture est passée au journal général ${general.code}.`,
+    };
   }
 
   /** Le clic du cabinet · rejoue, refuse ou passe au brouillard. */
@@ -210,7 +231,7 @@ export class ConstatImpotService {
     const lignes = lignesConstat(impot, calcul.minimumApplique, impute);
     const ids = new Map<string, string>();
     for (const numero of new Set(lignes.map((l) => l.numero))) ids.set(numero, await this.compte(tenantId, numero));
-    const journal = await this.journalOd(tenantId);
+    const { journal, repli } = await this.journalOd(tenantId);
 
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId,
@@ -238,20 +259,26 @@ export class ConstatImpotService {
           createdBy: userId,
         },
       });
-      return { constat: { id: constat.id, montantImpot: impot, montantImpute: impute }, ecriture: { id: ecriture.id, numeroPiece: ecriture.numeroPiece } };
+      return {
+        constat: { id: constat.id, montantImpot: impot, montantImpute: impute },
+        ecriture: { id: ecriture.id, numeroPiece: ecriture.numeroPiece },
+        journal: { code: journal.code, repli },
+      };
     } catch (err) {
       // L'ÉCRITURE NE RESTE PAS SANS SON CONSTAT · un second clic simultané
       // bute sur l'index unique ; la pièce qu'il vient de créer est retirée,
       // et un retrait manqué est consigné sans masquer l'erreur d'origine.
+      let orpheline: string | null = null;
       try {
         await this.ecritures.retirerCompensation(tenantId, ecriture.id);
       } catch (retrait) {
+        orpheline = ` La pièce n° ${ecriture.numeroPiece ?? ecriture.id} créée par ce geste n'a pas pu être retirée · supprimez-la depuis le journal ${journal.code}, elle n'est rattachée à aucun constat.`;
         this.journal.error(
-          `Écriture ${ecriture.id} de l'impôt sur le résultat non retirée après l'échec du constat : ${(retrait as Error).message}`,
+          `Écriture ${ecriture.id} (pièce ${ecriture.numeroPiece ?? '·'}) de l'impôt sur le résultat non retirée après l'échec du constat : ${(retrait as Error).message}`,
         );
       }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new ConflictException("L'impôt de cet exercice vient d'être constaté par un autre geste · relisez la fenêtre.");
+        throw new ConflictException(`L'impôt de cet exercice vient d'être constaté par un autre geste · relisez la fenêtre.${orpheline ?? ''}`);
       }
       throw err;
     }
@@ -259,6 +286,10 @@ export class ConstatImpotService {
 
   /** AUDCIF art. 20, al. 2 · brouillard supprimé, validé inscrit en négatif, constat marqué. */
   async annuler(tenantId: string, userId: string, exerciceId: string, dto: AnnulerConstatImpotDto) {
+    // Même barrière que lire et passer · un dossier SYCEBNL n'a pas d'impôt
+    // constaté. Le RÉGIME n'est pas relu · un constat passé reste annulable
+    // même si la forme ou le calcul ont changé depuis.
+    await this.fiscalite.tenantSyscohada(tenantId);
     const motif = dto.motif.trim();
     if (motif.length < 3) throw new BadRequestException("Le motif de l'annulation est obligatoire (AUDCIF art. 20).");
     const enPlace = await this.prisma.constatImpotResultat.findFirst({
@@ -292,7 +323,9 @@ export class ConstatImpotService {
         const tenues = motifLignesTenues(relues, objet, 'annuler', ", puis annulez l'impôt constaté");
         if (tenues) throw new BadRequestException(tenues);
         const statut = await tx.ecriture.findFirst({ where: { id: e.id, tenantId }, select: { statut: true } });
-        if (!statut) throw new ConflictException(`L'écriture ${e.id} n'existe plus · relisez la fenêtre avant d'annuler.`);
+        if (!statut) {
+          throw new ConflictException(`L'écriture de l'impôt (pièce n° ${e.numeroPiece ?? e.id}) n'existe plus · relisez la fenêtre avant d'annuler.`);
+        }
         if (statut.statut === StatutEcriture.BROUILLARD) {
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {

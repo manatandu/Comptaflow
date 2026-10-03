@@ -22,6 +22,7 @@ import {
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
 import { qualifierExemptionIs } from './exemption-is-ebnl';
 import { arrondirImpotArt150 } from './arrondi-article-150';
+import { montantFiscal } from './ecriture-impot-resultat';
 import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 // Le chiffre d'affaires n'est plus écrit ici : il se DÉRIVE du poste XB du
 // modèle du ch. 4 (voir correspondance-compte-resultat-syscohada.ts). Une
@@ -160,7 +161,12 @@ export class FiscaliteService {
    * manquement (art. 5). Affirmer l'exemption à un tel dossier, c'est lui
    * dire qu'il est en règle sans en rien savoir.
    */
-  private async tenantSyscohada(tenantId: string) {
+  /**
+   * Le dossier, refusé s'il n'est pas tenu en SYSCOHADA · seconde barrière
+   * après `ReferentielGuard`. Publique pour que les gestes voisins qui ne
+   * calculent rien (annuler l'impôt constaté) la passent aussi.
+   */
+  async tenantSyscohada(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Dossier introuvable');
     if (tenant.referentiel !== Referentiel.SYSCOHADA) {
@@ -374,15 +380,36 @@ export class FiscaliteService {
    * d'où l'observation, dans les deux sens. Rien n'est inscrit d'office (le
    * logiciel se souvient, il ne qualifie pas).
    */
-  static observationImpotNonReintegre(soldeCompte89: number, reintegrations: number): string | null {
-    const ecart = arrondir(soldeCompte89 - reintegrations);
+  static observationImpotNonReintegre(impotConstateAu89: number, reintegrations: number): string | null {
+    const ecart = arrondir(impotConstateAu89 - reintegrations);
     if (Math.abs(ecart) < 0.005) return null;
+    // Mêmes montants, même formateur que le motif jumeau du constat
+    // (`motifsRefusConstat`) · un écran ne doit pas lire 180 ici et 180,00 là.
     return (
-      `IMPÔT NON RÉINTÉGRÉ À SA MESURE · le compte 89 porte ${soldeCompte89} au livre-journal, la réintégration ` +
-      `« Impôt sur les sociétés et impôt minimum comptabilisés en charges » vaut ${reintegrations} (écart ${ecart}). ` +
-      "L'impôt sur les sociétés et le minimum forfaitaire de perception ne sont pas déductibles (loi n° 23/053, art. 45 " +
-      "et art. 50, 2°) · tant que la réintégration n'égale pas le 89, le résultat fiscal et l'impôt calculés ici sont " +
-      "faux de cet écart. Ajustez la réintégration."
+      `IMPÔT NON RÉINTÉGRÉ À SA MESURE · les comptes 891, 892 et 895 portent ${montantFiscal(impotConstateAu89)} au débit ` +
+      `du livre-journal, la réintégration « Impôt sur les sociétés et impôt minimum comptabilisés en charges » vaut ` +
+      `${montantFiscal(reintegrations)} (écart ${montantFiscal(ecart)}). L'impôt sur les sociétés et le minimum forfaitaire de ` +
+      "perception ne sont pas déductibles (loi n° 23/053, art. 45 et art. 50, 2°) · tant que la réintégration n'égale pas " +
+      "l'impôt constaté, le résultat fiscal et l'impôt calculés ici sont faux de cet écart. Ajustez la réintégration ; un " +
+      "impôt comptabilisé hors du 89 et réintégré à raison se range sous une ligne libre, ou sa charge se reclasse au 89."
+    );
+  }
+
+  /**
+   * LE DÉGRÈVEMENT AU 899, NOMMÉ ET JAMAIS DÉDUIT · ligne A11. L'art. 45 de la
+   * loi n° 23/053 ne fait entrer dans les recettes que les dégrèvements
+   * accordés « sur les impôts déductibles » · lu a contrario, celui de l'IS
+   * resterait hors de l'assiette, mais aucun texte ne le dit expressément. Le
+   * cabinet en décide (une déduction en ligne libre, motivée) ; OmegaX le
+   * montre seulement.
+   */
+  static observationDegrevement(degrevementsAu899: number): string | null {
+    if (Math.abs(degrevementsAu899) < 0.005) return null;
+    return (
+      `DÉGRÈVEMENT AU 899 · ${montantFiscal(degrevementsAu899)} crédités en « Dégrèvements et annulations d'impôts sur ` +
+      "résultats antérieurs ». Son traitement fiscal relève du cabinet · l'art. 45 de la loi n° 23/053 ne fait entrer en " +
+      "recette que les dégrèvements « sur les impôts déductibles », et aucun texte ne dit expressément le sort de celui de " +
+      "l'impôt sur les sociétés. Rien n'est déduit d'office ; une déduction se saisit en ligne libre, avec son fondement."
     );
   }
 
@@ -459,10 +486,28 @@ export class FiscaliteService {
     // 89 validée, le résultat comptable baisse d'autant, et seule la
     // réintégration IMPOT_SUR_LE_RESULTAT le rétablit. Lire le 89 ici permet
     // de dire l'écart au lieu de laisser l'impôt se recalculer, en silence,
-    // sur une base amputée de lui-même. 891 et 895 à part · ce sont l'impôt
-    // et l'impôt minimum DE L'EXERCICE (fiche du compte 89), un 892 ou un 899
-    // portant les exercices antérieurs.
-    const soldeCompte89 = gestion.filter((l) => l.numero.startsWith('89')).reduce((s, l) => s + l.solde, 0);
+    // sur une base amputée de lui-même.
+    //
+    // L'IMPÔT CONSTATÉ, ET LUI SEUL · les DÉBITS des 891 (impôt de
+    // l'exercice), 892 (rappels sur exercices antérieurs) et 895 (impôt
+    // minimum), plan du compte 89, AUDCIF Titre VII. Le 899 « Dégrèvements et
+    // annulations d'impôts sur résultats antérieurs » est un CRÉDIT · l'additionner
+    // au solde faisait qu'une réintégration (toujours positive, code en
+    // REINTEGRATION) ne l'égalait jamais, et le constat restait refusé pour
+    // toujours. Il est lu À PART (`degrevementsAu899`) et seulement nommé ·
+    // l'art. 45 ne fait entrer en recette que les dégrèvements « sur les
+    // impôts déductibles », ce qui, lu a contrario, laisse hors de l'assiette
+    // celui de l'IS ; aucun texte ne le dit expressément, et rien n'est déduit
+    // d'office. Débits relus APRÈS le retrait de la colonne de clôture ; une
+    // annulation par inscription en négatif y vient en débit négatif.
+    const impotConstateAu89 = gestion
+      .filter((l) => ['891', '892', '895'].some((p) => l.numero.startsWith(p)))
+      .reduce((s, l) => s + l.totalDebit, 0);
+    const degrevementsAu899 = gestion
+      .filter((l) => l.numero.startsWith('899'))
+      .reduce((s, l) => s - l.solde, 0);
+    // 891 et 895 à part · l'impôt et l'impôt minimum DE L'EXERCICE ; un 892
+    // porte un exercice antérieur.
     const impotExerciceAu89 = gestion
       .filter((l) => l.numero.startsWith('891') || l.numero.startsWith('895'))
       .reduce((s, l) => s + l.solde, 0);
@@ -471,7 +516,8 @@ export class FiscaliteService {
       sourceResultat: avantCloture ? ('CLASSES_6_7_8' as const) : ('COMPTE_13' as const),
       chiffreAffaires: arrondir(chiffreAffaires),
       acomptesAu4492: arrondir(acomptesAu4492),
-      soldeCompte89: arrondir(soldeCompte89),
+      impotConstateAu89: arrondir(impotConstateAu89),
+      degrevementsAu899: arrondir(degrevementsAu899),
       impotExerciceAu89: arrondir(impotExerciceAu89),
     };
   }
@@ -1378,8 +1424,10 @@ export class FiscaliteService {
     observations.push(...this.avertissementsReportDeficitaire(deficitAnterieur));
     observations.push(...this.avertissementsPerimetreLoi(exercice.dateDebut));
     const reintegrationsImpot = FiscaliteService.reintegrationsImpot(brut.retraitements);
-    const ecartImpotNonReintegre = FiscaliteService.observationImpotNonReintegre(brut.soldeCompte89, reintegrationsImpot);
+    const ecartImpotNonReintegre = FiscaliteService.observationImpotNonReintegre(brut.impotConstateAu89, reintegrationsImpot);
     if (ecartImpotNonReintegre) observations.push(ecartImpotNonReintegre);
+    const degrevement = FiscaliteService.observationDegrevement(brut.degrevementsAu899);
+    if (degrevement) observations.push(degrevement);
 
     // Plafonds exprimés en francs pour cet exercice · l'écran s'en sert pour
     // calculer l'excédent à réintégrer à partir de la charge engagée.
@@ -1451,7 +1499,8 @@ export class FiscaliteService {
       totalDeductions: brut.totalDeductions,
       // Le 89 au livre-journal et sa réintégration · servis pour l'écriture
       // de l'impôt (ligne A11), jamais recalculés à l'écran.
-      soldeCompte89: brut.soldeCompte89,
+      impotConstateAu89: brut.impotConstateAu89,
+      degrevementsAu899: brut.degrevementsAu899,
       impotExerciceAu89: brut.impotExerciceAu89,
       reintegrationsImpot,
       acomptesAu4492: brut.acomptesAu4492,

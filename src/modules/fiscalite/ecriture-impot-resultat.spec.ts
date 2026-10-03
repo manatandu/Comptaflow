@@ -8,6 +8,7 @@ import {
   compteDeLaCharge,
   imputationAcomptes,
   lignesConstat,
+  montantFiscal,
   motifsRefusConstat,
 } from './ecriture-impot-resultat';
 import { FiscaliteService } from './fiscalite.service';
@@ -28,7 +29,7 @@ const base: EntreeConstatImpot = {
   exerciceClos: false,
   brouillardGestion: 0,
   impotDejaConstate: 0,
-  soldeCompte89: 0,
+  impotConstateAu89: 0,
   reintegrationsImpot: 0,
   attestationRegime: null,
 };
@@ -121,13 +122,21 @@ describe('motifs de refus · un impôt non chiffré n’est jamais zéro', () =>
   });
 
   it('un impôt déjà au 891 ou au 895 hors module refuse (pas deux fois pour un exercice)', () => {
-    expect(motifsRefusConstat({ ...base, impotDejaConstate: 500, soldeCompte89: 500 }).join(' ')).toMatch(/déjà constaté/);
+    expect(motifsRefusConstat({ ...base, impotDejaConstate: 500, impotConstateAu89: 500 }).join(' ')).toMatch(/déjà constaté/);
   });
 
   it('un 89 non réintégré à sa mesure fausse la base · refus dans les deux sens', () => {
-    expect(motifsRefusConstat({ ...base, soldeCompte89: 40 }).join(' ')).toMatch(/réintégration/);
+    expect(motifsRefusConstat({ ...base, impotConstateAu89: 40 }).join(' ')).toMatch(/réintégration/);
     expect(motifsRefusConstat({ ...base, reintegrationsImpot: 40 }).join(' ')).toMatch(/réintégration/);
-    expect(motifsRefusConstat({ ...base, soldeCompte89: 40, reintegrationsImpot: 40 })).toEqual([]);
+    expect(motifsRefusConstat({ ...base, impotConstateAu89: 40, reintegrationsImpot: 40 })).toEqual([]);
+  });
+
+  it('personne physique · le refus renvoie au 1043 (AUDCIF, compte 104)', () => {
+    expect(motifsRefusConstat({ ...base, formeJuridique: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE }).join(' ')).toMatch(/1043/);
+  });
+
+  it('acomptes passés au 441 selon le Guide · le refus d’imputation le dit, rien à imputer', () => {
+    expect(imputationAcomptes({ declares: 160, solde4492: 0, impot: 180 }).motifRefus).toMatch(/Acomptes passés au 441[^·]*rien à imputer/);
   });
 
   it('forme dont l’assujettissement tient à un fait · attestation exigée au clic, pas à la lecture', () => {
@@ -149,8 +158,26 @@ describe('observation · l’impôt déduit de son propre calcul (art. 45 et 50,
   it('se tait quand le 89 égale sa réintégration, parle dans les deux sens sinon', () => {
     expect(FiscaliteService.observationImpotNonReintegre(0, 0)).toBeNull();
     expect(FiscaliteService.observationImpotNonReintegre(180, 180)).toBeNull();
-    expect(FiscaliteService.observationImpotNonReintegre(180, 0)).toMatch(/écart 180/);
-    expect(FiscaliteService.observationImpotNonReintegre(0, 180)).toMatch(/écart -180/);
+    expect(FiscaliteService.observationImpotNonReintegre(180, 0)).toMatch(/écart 180,00/);
+    expect(FiscaliteService.observationImpotNonReintegre(0, 180)).toMatch(/écart -180,00/);
+  });
+
+  it('le même formateur que le motif jumeau du constat (montants à deux décimales)', () => {
+    const motif = motifsRefusConstat({ ...base, impotConstateAu89: 180 }).join(' ');
+    expect(motif).toContain(montantFiscal(180));
+    expect(FiscaliteService.observationImpotNonReintegre(180, 0)).toContain(montantFiscal(180));
+    // L'autre issue est nommée, pas seulement « ajustez ».
+    expect(motif).toMatch(/ligne libre/);
+    expect(motif).toMatch(/reclasse au 89/);
+  });
+
+  it('le dégrèvement au 899 est NOMMÉ, jamais déduit · son sort fiscal est au cabinet (art. 45 a contrario)', () => {
+    expect(FiscaliteService.observationDegrevement(0)).toBeNull();
+    const obs = FiscaliteService.observationDegrevement(500)!;
+    expect(obs).toMatch(/DÉGRÈVEMENT AU 899/);
+    expect(obs).toContain(montantFiscal(500));
+    expect(obs).toMatch(/relève du cabinet/);
+    expect(obs).toMatch(/Rien n'est déduit d'office/);
   });
 
   it('ne compte que les réintégrations du code IMPOT_SUR_LE_RESULTAT', () => {

@@ -41,6 +41,14 @@ import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'
  * fiscal (art. 57 ter LPF, « PEUVENT, À SA DEMANDE, servir au paiement
  * d'autres impôts et droits dus »).
  *
+ * DEUX PRATIQUES, ET OMEGAX EN SUIT UNE. Le Guide, Partie 1 ch. 3 § 2.3 et
+ * Application 8, inscrit les acomptes de l'année AU DÉBIT DU 441 lui-même
+ * (« Acomptes en cours d'année = créance sur l'État, débit 441 ») ; la fiche
+ * du compte 44 ouvre le 4492 pour les avances et acomptes versés sur impôts,
+ * et c'est lui qu'OmegaX lit (`suiviAcomptes`, art. 98 bis LPF). Le dossier
+ * qui a suivi le Guide n'a rien au 4492 · ses acomptes soldent déjà le 441,
+ * l'imputation n'a rien à faire, et le refus le dit.
+ *
  * (2) L'IMPÔT MINIMUM RETENU VA AU 895, L'IMPÔT AU TAUX AU 891. Loi
  * n° 23/053, art. 57 · « Les sociétés sont assujetties à un impôt minimum
  * fixé à 1 % du chiffre d'affaires déclaré, lorsque les résultats sont
@@ -49,7 +57,10 @@ import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'
  * forfaitaire de perception » et le DISTINGUE de l'impôt sur les sociétés à
  * son art. 45 · « Sont déductibles les impôts, droits et taxes […], à
  * l'exception de l'Impôt sur les Sociétés ET du minimum forfaitaire de
- * perception ». Le plan lui ouvre un compte propre, 895 « Impôt minimum
+ * perception ». Elle les NOMME deux encore · art. 42, al. 2, 2° (« l'Impôt
+ * sur les Sociétés et l'impôt minimum forfaitaire », ajoutés au résultat
+ * retraité) et art. 150 (« le montant de l'Impôt sur les Sociétés, de
+ * l'Impôt minimum […] »). Le plan lui ouvre un compte propre, 895 « Impôt minimum
  * forfaitaire (I.M.F.) », à côté du 891 « Impôts sur les bénéfices de
  * l'exercice ». La subdivision spéciale l'emporte sur le commentaire général
  * du 891 (« montant total de l'impôt dû ») · quand l'art. 57 joue
@@ -58,12 +69,20 @@ import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'
  * le 89 et sous le même poste du compte de résultat · le résultat net est le
  * même, seule la nature de la charge se lit. TÉMOIN concordant, pas source ·
  * le séminaire CPCC (« perte fiscale, paiement de l'impôt minimum
- * forfaitaire », D 895 / C 441), sous l'ancien régime de l'IBP.
+ * forfaitaire », D 895 / C 441), sous l'ancien régime de l'IBP. LECTURE
+ * D'OMEGAX, et dite telle · le séminaire ne vise que la PERTE fiscale ; le
+ * 895 pour le bénéfice dont l'impôt au taux reste sous le minimum suit de ce
+ * que l'art. 57 pose UN SEUL impôt minimum pour les deux cas, qu'aucun texte
+ * ne range ailleurs.
  *
  * LE SOUS-COMPTE DU 891 · 89110000 « Activités exercées dans l'État ».
  * L'impôt que calcule OmegaX est assis sur les bénéfices réalisés en RDC (loi
  * n° 23/053, art. 7, « UNIQUEMENT ») ; 8912 et 8913 visent des impôts levés
- * ailleurs, hors de ce calcul. Numéros vérifiés au semis
+ * ailleurs, hors de ce calcul. La fiche du 89 subdivise donc le 891 par le
+ * LIEU DE L'ACTIVITÉ (8912 autres États de la Région, 8913 hors Région) ·
+ * l'impôt congolais assis sur une activité exercée hors de la RDC qu'une
+ * convention fiscale attribuerait à la RDC (art. 7) n'est pas tranché ici,
+ * et OmegaX ne le calcule pas. Numéros vérifiés au semis
  * (`compte-seed-syscohada.ts` · 891 en TOTAL, 89110000, 89500000, 44100000,
  * 44920000).
  */
@@ -118,15 +137,20 @@ export interface EntreeConstatImpot {
   brouillardGestion: number;
   /** Solde débiteur net des 891 et 895 au livre-journal · un impôt déjà constaté hors module. */
   impotDejaConstate: number;
-  /** Solde débiteur net du 89 entier au livre-journal (rappels et dégrèvements compris). */
-  soldeCompte89: number;
+  /**
+   * DÉBITS des 891, 892 et 895 au livre-journal · l'impôt constaté en charge,
+   * que les réintégrations doivent égaler. Le 899 (dégrèvements) n'y entre
+   * pas · son sort fiscal est au cabinet, lu à part (`observationDegrevement`).
+   */
+  impotConstateAu89: number;
   /** Total des réintégrations IMPOT_SUR_LE_RESULTAT saisies sur l'exercice. */
   reintegrationsImpot: number;
   /** `undefined` à la LECTURE (la condition est servie à part), une chaîne ou `null` au clic. */
   attestationRegime: string | null | undefined;
 }
 
-const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Le format des montants des messages fiscaux · un seul, pour les motifs et leurs jumeaux d'observation. */
+export const montantFiscal = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * LES MOTIFS QUI EMPÊCHENT DE PROPOSER L'ÉCRITURE · tous, dans l'ordre où le
@@ -143,7 +167,7 @@ export function motifsRefusConstat(e: EntreeConstatImpot): string[] {
   }
   if (FORMES_PERSONNES_PHYSIQUES.includes(e.formeJuridique)) {
     motifs.push(
-      "Une personne physique (entreprise individuelle, entreprenant) n'est pas redevable de l'impôt sur les sociétés (loi n° 23/053, art. 3) · son bénéfice entre dans le revenu de l'exploitant à l'impôt sur le revenu des personnes physiques, qui n'est pas une charge de l'entreprise au compte 89.",
+      "Une personne physique (entreprise individuelle, entreprenant) n'est pas redevable de l'impôt sur les sociétés (loi n° 23/053, art. 3) · son bénéfice entre dans le revenu de l'exploitant à l'impôt sur le revenu des personnes physiques, qui n'est pas une charge de l'entreprise au compte 89 · l'impôt personnel de l'exploitant payé par l'entreprise va au 1043 « Rémunérations, impôts et autres charges personnelles » (AUDCIF, Titre VII, compte 104).",
     );
     return motifs;
   }
@@ -172,11 +196,11 @@ export function motifsRefusConstat(e: EntreeConstatImpot): string[] {
   }
   if (Math.abs(e.impotDejaConstate) >= 0.005) {
     motifs.push(
-      `Le 891 ou le 895 porte déjà ${fmt(e.impotDejaConstate)} au livre-journal hors de cette fenêtre · l'impôt de l'exercice semble déjà constaté. Une seconde écriture le doublerait ; corrigez la première (AUDCIF art. 20) avant de passer par ici.`,
+      `Le 891 ou le 895 porte déjà ${montantFiscal(e.impotDejaConstate)} au livre-journal hors de cette fenêtre · l'impôt de l'exercice semble déjà constaté. Une seconde écriture le doublerait ; corrigez la première (AUDCIF art. 20) avant de passer par ici.`,
     );
-  } else if (Math.abs(e.soldeCompte89 - e.reintegrationsImpot) >= 0.005) {
+  } else if (Math.abs(e.impotConstateAu89 - e.reintegrationsImpot) >= 0.005) {
     motifs.push(
-      `Le compte 89 porte ${fmt(e.soldeCompte89)} au livre-journal et les réintégrations « Impôt sur les sociétés et impôt minimum comptabilisés en charges » valent ${fmt(e.reintegrationsImpot)} · l'impôt n'est pas déductible de son propre calcul (loi n° 23/053, art. 45 et art. 50, 2°), et l'écart de ${fmt(e.soldeCompte89 - e.reintegrationsImpot)} fausse la base. Ajustez la réintégration pour qu'elle égale le 89.`,
+      `Les 891, 892 et 895 portent ${montantFiscal(e.impotConstateAu89)} au débit du livre-journal et les réintégrations « Impôt sur les sociétés et impôt minimum comptabilisés en charges » valent ${montantFiscal(e.reintegrationsImpot)} · l'impôt n'est pas déductible de son propre calcul (loi n° 23/053, art. 45 et art. 50, 2°), et l'écart de ${montantFiscal(Math.abs(e.impotConstateAu89 - e.reintegrationsImpot))} fausse la base. Ajustez la réintégration pour qu'elle égale ces débits ; un impôt comptabilisé hors du 89 et réintégré à raison se range sous une ligne libre, ou sa charge se reclasse au 89.`,
     );
   }
   if (e.impotDu === null) {
@@ -205,13 +229,13 @@ export function imputationAcomptes(e: { declares: number; solde4492: number; imp
     return {
       montant: 0,
       motifRefus:
-        "Le compte 4492 n'a pas de solde débiteur au livre-journal · aucun acompte versé n'y est inscrit, rien ne s'impute (fiche du compte 44).",
+        "Le compte 4492 n'a pas de solde débiteur au livre-journal · aucun acompte versé n'y est inscrit, rien ne s'impute (fiche du compte 44). Acomptes passés au 441 (Guide, Partie 1 ch. 3 § 2.3) : rien à imputer, ils soldent déjà la dette.",
     };
   }
   if (e.declares - e.solde4492 >= 0.005) {
     return {
       montant: 0,
-      motifRefus: `Les acomptes déclarés (${fmt(e.declares)}) dépassent le solde débiteur du 4492 (${fmt(e.solde4492)}) · imputer le déclaré rendrait le 4492 créditeur. Rapprochez d'abord la déclaration du compte.`,
+      motifRefus: `Les acomptes déclarés (${montantFiscal(e.declares)}) dépassent le solde débiteur du 4492 (${montantFiscal(e.solde4492)}) · imputer le déclaré rendrait le 4492 créditeur. Rapprochez d'abord la déclaration du compte.`,
     };
   }
   const montant = Math.round(Math.min(e.declares, e.impot) * 100) / 100;

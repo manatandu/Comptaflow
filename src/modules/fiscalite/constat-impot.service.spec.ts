@@ -14,6 +14,8 @@ function monter(options: {
   enPlace?: unknown;
   brouillard?: number;
   creationEchoue?: unknown;
+  sansOd?: boolean;
+  retraitEchoue?: boolean;
 }) {
   const calcul = {
     formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE',
@@ -24,7 +26,7 @@ function monter(options: {
     dateFin: new Date('2026-12-31'),
     acomptesVerses: 160,
     acomptesAu4492: 160,
-    soldeCompte89: 0,
+    impotConstateAu89: 0,
     impotExerciceAu89: 0,
     reintegrationsImpot: 0,
     ...options.calcul,
@@ -52,13 +54,19 @@ function monter(options: {
         comptes[where.numero] ? { id: comptes[where.numero], typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true } : null,
       ),
     },
-    journal: { findFirst: jest.fn().mockResolvedValue({ id: 'jod' }) },
+    journal: {
+      findFirst: jest.fn().mockImplementation(async ({ where }) =>
+        options.sansOd ? (where.code === 'OD' ? null : { id: 'jgen', code: 'GEN' }) : { id: 'jod', code: 'OD' },
+      ),
+    },
     tenant: { findUnique: jest.fn().mockResolvedValue({ formeJuridiqueSyscohada: calcul.formeJuridiqueSyscohada }) },
   };
-  const fiscalite = { resultatFiscal: jest.fn().mockResolvedValue(calcul) };
+  const fiscalite = { resultatFiscal: jest.fn().mockResolvedValue(calcul), tenantSyscohada: jest.fn().mockResolvedValue({}) };
   const ecritures = {
     creer: jest.fn().mockResolvedValue({ id: 'e1', numeroPiece: 7 }),
-    retirerCompensation: jest.fn().mockResolvedValue(undefined),
+    retirerCompensation: options.retraitEchoue
+      ? jest.fn().mockRejectedValue(new Error('panne'))
+      : jest.fn().mockResolvedValue(undefined),
   };
   const service = new ConstatImpotService(prisma as never, fiscalite as never, ecritures as never);
   return { service, prisma, fiscalite, ecritures };
@@ -91,6 +99,28 @@ describe('ConstatImpotService.passer', () => {
     const lignes = ecritures.creer.mock.calls[0][2].lignes;
     expect(lignes).toHaveLength(4);
     expect(lignes[3]).toMatchObject({ compteId: 'c4492', credit: 160 });
+  });
+
+  it('sans journal OD, le repli sur le premier journal général par code est DIT dans la réponse', async () => {
+    const { service, prisma } = monter({ sansOd: true });
+    const r = await service.passer('t', 'u', 'ex', {});
+    expect(r.journal).toEqual({ code: 'GEN', repli: expect.stringMatching(/Aucun journal de code OD/) });
+    const appelGeneral = prisma.journal.findFirst.mock.calls.find((c: any[]) => c[0].where.type === 'GENERAL')![0];
+    expect(appelGeneral.orderBy).toEqual([{ code: 'asc' }, { id: 'asc' }]);
+  });
+
+  it('avec un journal OD, aucun repli annoncé', async () => {
+    const { service } = monter({});
+    const r = await service.passer('t', 'u', 'ex', {});
+    expect(r.journal).toEqual({ code: 'OD', repli: null });
+  });
+
+  it('second clic dont le retrait échoue · le 409 nomme la pièce orpheline', async () => {
+    const { service } = monter({
+      creationEchoue: new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
+      retraitEchoue: true,
+    });
+    await expect(service.passer('t', 'u', 'ex', {})).rejects.toThrow(/pièce n° 7 [^]*n'a pas pu être retirée/);
   });
 
   it('l’impôt minimum retenu va au 895', async () => {
@@ -148,5 +178,22 @@ describe('ConstatImpotService.etat', () => {
     const etat = await service.etat('t', 'ex');
     expect(etat.constat?.ecartAvecCalcul).toBe(20);
     expect(etat.proposition).toBeNull();
+  });
+});
+
+describe('ConstatImpotService.annuler', () => {
+  it('passe la barrière SYSCOHADA comme lire et passer · refusée avant toute lecture du constat', async () => {
+    const { service, fiscalite, prisma } = monter({});
+    fiscalite.tenantSyscohada.mockRejectedValue(new BadRequestException('SYSCOHADA seul'));
+    await expect(service.annuler('t', 'u', 'ex', { motif: 'erreur de base' })).rejects.toThrow(/SYSCOHADA seul/);
+    expect(prisma.constatImpotResultat.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('ne relit pas le régime · un constat passé reste annulable même si la forme a changé depuis', async () => {
+    const { service, fiscalite } = monter({ calcul: { formeJuridiqueSyscohada: 'ENTREPRISE_INDIVIDUELLE', regime: 'IRPP' } });
+    // Aucun constat en place dans la doublure · le refus attendu est
+    // « aucun impôt à annuler », jamais un refus de régime.
+    await expect(service.annuler('t', 'u', 'ex', { motif: 'erreur de base' })).rejects.toThrow(/Aucun impôt constaté/);
+    expect(fiscalite.resultatFiscal).not.toHaveBeenCalled();
   });
 });
