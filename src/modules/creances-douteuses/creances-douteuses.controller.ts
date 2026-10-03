@@ -133,7 +133,13 @@ export class CreancesDouteusesController {
     return this.service.annulerMouvement(user.tenantId, user.userId, id, mouvementId, dto);
   }
 
+  /**
+   * Le retrait d'un mouvement · réservé au comptable, la route entière (A7
+   * ter, m7) · elle ne distingue pas la perte, réservée (M-d), du
+   * recouvrement, et retirer une perte défait la décision du comptable.
+   */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Delete(':id/mouvements/:mouvementId')
   retirerMouvement(
     @CurrentUser() user: AuthenticatedUser,

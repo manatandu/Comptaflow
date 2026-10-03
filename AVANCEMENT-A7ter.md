@@ -9,14 +9,16 @@ Fiche retirée à l'intégration.
 - [x] B3 · la ligne C 411 d'un reclassement hors du lettrage (automatique, pré-lettrage, manuel)
 - [x] B2 (a) · `TIERS_ANCIEN_NON_LETTRE` écarte les écritures tenues par une créance douteuse
 - [x] B2 (b) · le module lettre ses lignes 416 à l'extinction, et défait ce lettrage à l'annulation
-- [ ] m3 · SYCEBNL, le 651 croisé refusé comme le 416 (E3)
-- [ ] m4 · déclaration d'ouverture · devise, compte non détail ou inactif refusés
-- [ ] m5 · listes 416 et 491 · `tronque` et total
-- [ ] m6 · bouton « Retirer » servi par le serveur
-- [ ] m7 · retrait d'un mouvement réservé au comptable
-- [ ] m8 · rapprochement du 491 · part hors module nommée
-- [ ] m9 · SYCEBNL, méthode des cotisations à l'encaissement · reclassement d'adhérent refusé
-- [ ] m10 · rapprochement par exercice, jamais `null` pour toujours
+- [x] m3 · SYCEBNL, le 651 croisé refusé comme le 416 (E3)
+- [x] m4 · déclaration d'ouverture · devise, compte non détail ou inactif refusés
+- [x] m5 · listes 416 et 491 · `tronque` et total
+- [x] m6 · bouton « Retirer » servi par le serveur
+- [x] m7 · retrait d'un mouvement réservé au comptable
+- [x] m8 · rapprochement du 491 · part hors module nommée
+- [x] m9 · SYCEBNL, méthode des cotisations à l'encaissement · reclassement d'adhérent refusé
+- [x] m10 · rapprochement par exercice, jamais `null` pour toujours
+- [ ] Écran · rapprochement (report provisoire, hors module), `retirable`, `listes416491`, cotisations,
+  `lettrage416`, retrait d'un mouvement sous `peutValider`
 - [ ] Bloc du § 3 des deux côtés, `npx jest --maxWorkers=2` en fin
 
 ## Fait
@@ -39,6 +41,11 @@ Fiche retirée à l'intégration.
   (`lettrage416`), jamais d'échec du geste ; `annulerMouvement` et `retirerMouvement` défont le groupe du module
   (`groupeDuModule`, `defaireLettrageDuModule`) ; un groupe manuel avec une ligne étrangère n'est jamais défait.
 
+- Mineurs, serveur · m3 `motifRefus651Croise` ; m4 refus devise, regroupement, sommeil à la déclaration ; m5
+  `listes416491` (plafond 200, totaux) ; m6 `motifNonRetirable` + `retirable` servi ; m7 `@ReserveAuComptable` sur
+  `DELETE :id/mouvements/:mouvementId` ; m8 `horsModule491` ; m9 refus ENCAISSEMENT (reclassement et déclaration),
+  avertissement si non déclarée ; m10 `rapprochementDuModule` par agrégat. Écran à aligner (reste à faire).
+
 ## Décisions prises, avec leur source
 
 - B1 · même parti que la ligne A5 (`DevisesService.ouverturesDe`) · seul l'à-nouveau provisoire, calculé sur le
@@ -47,6 +54,12 @@ Fiche retirée à l'intégration.
   porte la créance qu'il solde). Rien n'est lettré pour une créance déclarée (montant dans l'à-nouveau, sans ligne
   à elle) ni à travers deux exercices (passé la clôture, la ligne se lettre sur son report Détail, que la liaison
   ne désigne pas) · le motif le dit. Le module ne lettre que le 416, sans TVA (aucune ligne 443).
+- m3 · fiche SYCEBNL du compte 65 (« 6511 Clients - usagers, 6512 Adhérents, 6515 Autres débiteurs ») · règle par
+  ANALOGIE avec E3 (fiche du compte 41), dite dans le message ; rien au SYSCOHADA.
+- m9 · cadre conceptuel SYCEBNL § 5.4.2.1 · ENCAISSEMENT = pas de droit d'agir, une cotisation impayée n'est pas une
+  créance · refus au reclassement ET à la déclaration (jumeau) ; non déclarée · avertissement, jamais un refus.
+- m8 · « hors module » = lignes de la chaîne sur les 491 du module, hors à-nouveau, hors écritures de revue et leurs
+  négatifs ; l'à-nouveau mêle les deux, son reliquat reste nommé comme tel à l'écran.
 
 ## Vérification
 
