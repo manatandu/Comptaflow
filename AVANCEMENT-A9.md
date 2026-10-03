@@ -54,13 +54,69 @@ Ligne A9 de `docs/suivi-immobilisations-verrouille.md` · relevé CPCC C5
   l'art. 66 ne le dit pas).
 - « Sept jours » de l'art. 67 · jours de calendrier (l'art. 64 écrit « jours
   ouvrables » quand il les veut).
-- Départ AVANT la moitié d'un préavis reçu · non réglé expressément par le
-  Code ; l'art. 66, al. 1 fixant à la moitié le délai à observer, seuls les
-  jours d'avant elle sont imputés (art. 63, al. 3), et l'art. 66, al. 2 ne
-  joue pas. Lecture d'OmegaX, écrite sur la ligne.
 - Aucune migration · le décompte n'est stocké que figé dans le bulletin (JSON).
 
-## Bloc du § 3 (2026-10-03)
+## Premier tour de relecture (2026-10-03), corrigé
+
+- B1 · l'art. 67 lit les jours restant à courir CONTRE LA MOITIÉ de l'art. 66
+  (lecture protectrice retenue par le coordinateur, CLAUDE.md P5 · « une
+  règle de protection ne se tranche pas contre celui qu'elle protège ») · le
+  texte ne dit pas à quoi le délai est « moindre », c'est écrit en
+  commentaire. Jours restants exigés (`null` s'ils manquent) ; à la moitié
+  ou après, `null` et renvoi au départ à mi-préavis (28 jours, 8 restants,
+  10 000 FC · 80 000 FC sous l'art. 66, jamais zéro).
+- M1 à M8 · étiquette et aide des avantages des jours d'avant la moitié ;
+  ventilation et champ des avantages du préavis là où sa rubrique en porte,
+  refus du serveur qui nomme le champ ; réserve des allocations familiales
+  bornée à la rubrique effective, « non dues » avant la moitié, aide
+  conditionnelle, départs refusés hors préavis de licenciement ; somme de
+  l'art. 66 sous sa propre clé (`remuneration-preavis-restant`) et sa réserve
+  de rémunération (loi n° 23/053, art. 68, al. 1er et 1°, le 6° y menant
+  aussi) ; moitié tirée du plancher dite (art. 64, al. 1 et 3) ; exclusions
+  complètes de l'art. 7, point 8 et avantages non fournis ; délai en jours de
+  calendrier ; art. 65, al. 3 dans la réserve du départ avant la moitié.
+
+## Ce que le corpus ne tranche pas (à remonter à Manasse)
+
+Lu · Code du travail, art. 7 (points 8 et 9), 63 à 68, 138, 141, 142, 144.
+Rien de plus n'est codé pour ces quatre points.
+
+- (4) / T2 · LE DÉPART AVANT LA MOITIÉ D'UN PRÉAVIS REÇU. L'art. 66, al. 1
+  ouvre la cessation « à l'expiration de la moitié » ; l'art. 63, al. 3 fait
+  indemniser « le délai de préavis qui n'a pas été effectivement respecté »
+  par la partie responsable ; aucun texte ne dit lequel des deux délais le
+  travailleur parti trop tôt n'a pas respecté. Trois lectures, sur un préavis
+  de 28 jours (moitié au jour 14).
+  (a) Retenue par OmegaX · il doit les seuls jours d'avant la moitié, et
+  l'employeur ne doit pas le temps restant (art. 66, al. 2 sans départ à la
+  moitié). Parti au jour 13 · il doit 1 jour ; au jour 14 · l'employeur lui
+  doit 14 jours. Saut de 15 jours entre deux départs à un jour d'écart.
+  (b) Lecture littérale de l'art. 63, al. 3 · il doit tout ce qui n'est pas
+  observé. Jour 13 · il doit 15 jours ; jour 14 · on lui doit 14 jours. Saut
+  de 29 jours.
+  (c) L'art. 66 lui reste acquis, diminué de la faute · il doit le jour
+  manquant avant la moitié, et l'employeur lui doit les 14 jours d'après.
+  Continu, mais le texte ne garde l'al. 2 qu'à qui cesse « à l'expiration de
+  la moitié ».
+  L'art. 65, al. 3 (aucun délai imposable à la partie dont les obligations
+  n'ont pas été respectées) est rappelé dans la réserve, rien n'est calculé.
+- T3 · LES AVANTAGES EN NATURE DU TEMPS RESTANT. L'art. 66, al. 2 dit « la
+  rémunération » ; l'art. 7, point 8 y compte « la valeur des avantages en
+  nature » et en sort soins de santé, logement, allocations familiales,
+  transport, frais de voyage et avantages de fonction. Aucun texte ne dit si
+  l'employeur doit continuer de FOURNIR un avantage en nature (véhicule,
+  logement) jusqu'au terme, ou en payer la valeur · OmegaX demande la valeur
+  des seuls avantages non fournis jusqu'au terme (sinon payés deux fois).
+- T4 · LA DATE DE FIN DU CONTRAT SOUS L'ART. 66. Le contrat finit-il au
+  départ du travailleur ou à l'expiration du préavis ? Le texte se tait. En
+  dépendent · le logement de l'art. 138 (obligation du contrat, due ou non
+  pendant le temps restant) ; le MOIS DE CESSATION que le décompte remplace
+  (`motifRefusMoisDeCessation` lit la date de fin du registre) ; les « mois
+  entiers de service » du congé (art. 141, al. 2, services pris en
+  considération) et l'indemnité compensatoire de l'art. 144. OmegaX prend la
+  date de fin déclarée au registre, sans la déduire.
+
+## Bloc du § 3 (2026-10-03, premier passage, avant le premier tour)
 
 - Serveur · `tsc` vert, `nest build` vert, `jest --maxWorkers=2` · 704 suites,
   9 731 tests ; 6 suites tombées au premier passage pour une cause
