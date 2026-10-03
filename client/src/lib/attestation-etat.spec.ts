@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+// Aucun import de « vitest » · convention du dépôt, le spec tourne aussi sous jest.
 import { AVERTISSEMENT_ATTESTATION, MOTIF_ATTESTATION_MAX, MOTIF_ATTESTATION_MIN, motifRefusAttestation } from './attestation-etat';
 
 describe("l'attestation de l'état de l'écart · la règle du serveur, avant l'envoi", () => {

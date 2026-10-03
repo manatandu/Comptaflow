@@ -343,10 +343,66 @@ tests (`npx jest --maxWorkers=2`), typage et construction ; client 209
 fichiers, 1709 tests, typage et construction. Aucun changement de schéma
 ni de migration à ce tour.
 
+## Vérification finale (2026-10-03) · corrigé
+
+Relu · AUDCIF art. 34 et SYCEBNL art. 16, 4) (correspondance des bilans) ;
+AUDCIF art. 69 et SYCEBNL art. 16, 2) (« l'entité détermine, sous sa
+responsabilité, les procédures nécessaires ») ; AUDCIF art. 57 (écart des
+disponibilités réalisé) ; art. 20, al. 2 (inscription en négatif) ; Guide,
+Partie 2 ch. 22, Applications 84 et 85 (contre-passation à la réouverture).
+
+1. BLOQUANT · UNE FENÊTRE, UNE OUVERTURE. `lu47` se lisait par la chaîne de
+   la cible jusqu'à sa dernière ouverture fiable ; `ecartTiers` par l'écart
+   de cette SEULE ouverture. N+1 clôturé repris sans l'écart puis N+2 ouvert
+   par l'à-nouveau de N+1 · 47 sans écart, tiers avec, refus « aucune
+   correction ne se déduit ». Une lecture (`lireLaFenetreDeLEcart`) · base
+   = clôture reconstituée de N avant la date de la réévaluation, puis les
+   mouvements de la fenêtre (`dansLaFenetre`, borne partagée avec la liste
+   hors module), chaque ouverture fiable de la fenêtre confrontée au solde
+   qui la précède et ces écarts SOMMÉS, pour le 47 comme pour le tiers. Le
+   solde du 47 est inchangé (même nombre que la chaîne). Spec · omission
+   dans N+1 clôturé · « rétablissez … par une OD à l'ouverture de la
+   cible, puis contre-passez », échouait avant. Doublures des specs de
+   contre-passation et de report honorant la fenêtre ; doublure du contrôle
+   d'ancienneté (A7 ter) complétée (`reevaluation.findMany`).
+2. ATTESTATION · `POST` / `DELETE /devises/reevaluations/:id/attestation-etat`
+   (`@Roles` comptable et administrateur, `@ReserveAuComptable()`, verrou du
+   dossier, `update` unitaire filtré au journal d'audit), motif de 10 à 500
+   caractères, auteur et date posés par le serveur ; retrait motivé, trace
+   dans `retraitsAttestation`, refusé si une contre-passation, une
+   déclaration ou une réévaluation postérieure a été passée depuis
+   l'attestation. Attestée · les refus de la règle d'état deviennent des
+   avertissements (contre-passation, portillon, déclaration, candidates),
+   SAUF · la banque seule (art. 57, B-I), la seconde contre-passation par le
+   module (état CONTRE_PASSEE ou AMBIGU, ouverture qui omet l'écart
+   comprise), la déclaration d'une inscription en négatif. Écran · bouton
+   « Attester l'état de l'écart » / « Retirer l'attestation » sous
+   `peutValider`, modale par `PortailModale`, Échap par `ecouterEchap`,
+   avertissement affiché (`lib/attestation-etat.ts`).
+3. L1 · une réévaluation du module passée dans la cible avec l'écart en
+   place (son écart sur le 478 / 479) · le jugement est rejoué sans elle ;
+   s'il rend la contre-passation juste, le message dit dans l'ordre ·
+   (1) annuler la réévaluation postérieure (D6), (2) contre-passer,
+   (3) réévaluer de nouveau. Lecture d'éditeur · L1 n'était pas écrit ici,
+   interprété comme ce cas.
+4. m5 · Échap ferme « Ventiler » (sauf pendant l'envoi) et « Annuler ».
+
+Bloc du § 3 · `prisma generate`, typage, serveur 719 suites, 10168 tests
+(`npx jest --maxWorkers=3`, specs du client compris), construction ; client
+210 fichiers, 1719 tests, typage et construction. `prisma migrate diff` sur
+base jetable · « No difference detected ».
+
+POUSSÉE · le premier commit de cette vérification (4bb7bed) est sur
+`travail/a5bis` ; les suivants n'ont pas pu être poussés (refus de
+l'environnement), ils sont dans la copie locale.
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
   à l'intégration.
+- Scénario sur vraie base à travers une clôture pour l'attestation et L1
+  (§ 10) · non rejoué à cette vérification.
+- Pousser 6c21d6b et la suite sur `travail/a5bis`.
 - `reglements/reevaluation-et-ecart-realise.ts` (avertissement
   d'extourne manquante, A6) ne lit que `ecritureExtourneId` · une
   contre-passation déclarée n'y compte pas encore pour faite. Laissé à
