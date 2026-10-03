@@ -265,7 +265,10 @@ describe('un règlement en devise d’une facture déjà réévaluée', () => {
  */
 describe('la contre-passation de la réévaluation précédente oubliée', () => {
   const EX = { ex0: ['2025-01-01', '2025-12-31'], ex: ['2026-01-01', '2026-12-31'], ex2: ['2027-01-01', '2027-12-31'] } as const;
-  function monterN1(p: { reevaluations: Array<{ exerciceId: 'ex0' | 'ex'; extournee: boolean; passe: number }>; lignes: Ligne[] }) {
+  function monterN1(p: {
+    reevaluations: Array<{ exerciceId: 'ex0' | 'ex'; extournee: boolean; passe: number; declaree?: boolean }>;
+    lignes: Ligne[];
+  }) {
     return {
       exercice: {
         findFirst: jest.fn(async ({ where }: { where: { id?: keyof typeof EX; dateFin?: { lt: Date } } }) => {
@@ -279,9 +282,12 @@ describe('la contre-passation de la réévaluation précédente oubliée', () =>
       reevaluation: {
         // Les réévaluations antérieures non annulées et non contre-passées (M5) ·
         // la doublure honore la borne de date et le drapeau d'extourne.
-        findMany: jest.fn(async ({ where }: { where: { ecritureExtourneId: null; exercice: { dateFin: { lt: Date } } } }) =>
+        // Elle honore aussi la contre-passation DÉCLARÉE (A5 bis) · un filtre
+        // qui l'oublierait laisserait passer la réévaluation déclarée.
+        findMany: jest.fn(async ({ where }: { where: { contrePassationDeclareeId?: null; exercice: { dateFin: { lt: Date } } } }) =>
           p.reevaluations
             .filter((r) => !r.extournee && new Date(EX[r.exerciceId][1]) < where.exercice.dateFin.lt)
+            .filter((r) => !(r.declaree && 'contrePassationDeclareeId' in where && where.contrePassationDeclareeId === null))
             .sort((a, b) => EX[a.exerciceId][1].localeCompare(EX[b.exerciceId][1]))
             .map((r) => ({ exerciceId: r.exerciceId })),
         ),
@@ -319,6 +325,14 @@ describe('la contre-passation de la réévaluation précédente oubliée', () =>
     const an = aNouveau();
     const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: true, passe: -75_000 }], lignes: [enN(), an] });
     expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [an.id] })).toBeNull();
+  });
+
+  it('contre-passée à la main et DÉCLARÉE (A5 bis) · aucun avertissement', async () => {
+    const an = aNouveau();
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: false, declaree: true, passe: -75_000 }], lignes: [enN(), an] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [an.id] })).toBeNull();
+    const lue = (prisma.reevaluation.findMany as jest.Mock).mock.calls[0][0] as { where: unknown };
+    expect(lue.where).toMatchObject({ ecritureExtourneId: null, contrePassationDeclareeId: null });
   });
 
   it('une facture ORDINAIRE du 1er janvier · aucun avertissement', async () => {

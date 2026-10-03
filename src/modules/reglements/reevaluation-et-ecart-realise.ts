@@ -362,8 +362,19 @@ export async function avertissementExtourneManquante(
   const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
   if (!exercice) return null;
   // Les réévaluations antérieures restées en place · bornées (une par exercice).
+  // Une contre-passation faite à la main et DÉCLARÉE (A5 bis,
+  // `contrePassationDeclareeId`) vaut celle du module · le portillon de la
+  // réévaluation la compte faite (`motifContrePassationManquante`), et
+  // l'avertir ici inviterait à contre-passer une seconde fois le 478 ou le
+  // 479 que l'écriture du cabinet a déjà inversés (A6 bis, après A5 bis).
   const enPlace = await prisma.reevaluation.findMany({
-    where: { tenantId: p.tenantId, annuleeLe: null, ecritureExtourneId: null, exercice: { dateFin: { lt: exercice.dateDebut } } },
+    where: {
+      tenantId: p.tenantId,
+      annuleeLe: null,
+      ecritureExtourneId: null,
+      contrePassationDeclareeId: null,
+      exercice: { dateFin: { lt: exercice.dateDebut } },
+    },
     select: { exerciceId: true },
     orderBy: { dateReevaluation: 'asc' },
     take: 50,
