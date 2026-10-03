@@ -6,7 +6,7 @@ Fiche retirée à l'intégration.
 ## Reste à faire
 
 - [x] B1 · l'à-nouveau PROVISOIRE n'arrête plus la chaîne ni ne sert de solde
-- [ ] B3 · la ligne C 411 d'un reclassement hors du lettrage (automatique, pré-lettrage, manuel)
+- [x] B3 · la ligne C 411 d'un reclassement hors du lettrage (automatique, pré-lettrage, manuel)
 - [ ] B2 (a) · `TIERS_ANCIEN_NON_LETTRE` écarte les écritures tenues par une créance douteuse
 - [ ] B2 (b) · le module lettre ses lignes 416 à l'extinction, et défait ce lettrage à l'annulation
 - [ ] m3 · SYCEBNL, le 651 croisé refusé comme le 416 (E3)
@@ -24,6 +24,11 @@ Fiche retirée à l'intégration.
 - B1 · `A_NOUVEAU` exclut `estANouveauProvisoire` ; `solde`, `comptes`, le contrôle de devise et la borne de la
   déclaration (`soldesALOuverture`, report reconstitué brouillard compris) l'excluent ; refus et écran disent
   « report provisoire, relancez-le après validation » (`motifSoldeReconstitue`, `rapprochement.reportProvisoire`).
+
+- B3 · `lettrage/ligne-de-reclassement.ts` · la ligne du compte d'ORIGINE d'un reclassement en vigueur, reconnue par
+  liaison, est écartée de `calculerPropositions` et refusée par `lettrerManuel`, `completer`, `confirmerPreLettrage`
+  (une ligne d'appel chacun, rien d'autre de réécrit · fusion simple avec A6 bis). Tests à part
+  (`ligne-de-reclassement.spec.ts`).
 
 ## Décisions prises, avec leur source
 

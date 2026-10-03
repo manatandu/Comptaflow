@@ -5,6 +5,7 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
 import { referentielDuDossier } from '../reglements/compte-ecart-change';
+import { lignesReclasseesDuCompte, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
 
 const EPSILON = 0.005;
 
@@ -472,6 +473,7 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
+        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds);
         // Le lettrage reste possible après une clôture PARTIELLE (Sage i7 :
         // « le lettrage et la ventilation analytique […] pourront tout de même
         // être effectués »), et SEULEMENT après elle · une clôture totale, de
@@ -550,6 +552,7 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(nouvelles, { compteId: groupe.compteId, tenantId, nombre: ligneIds.length });
+        await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds);
         // Les lignes DÉJÀ du groupe comptent aussi · le compléter pose la
         // lettre sur toutes, et en change le statut.
         const dejaDuGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId }, select: { id: true } });
@@ -931,7 +934,11 @@ export class LettrageService {
     // proposée · le lettrage automatique la poserait, et le pré-lettrage
     // proposerait un groupe que sa confirmation refuserait.
     const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
-    const nonLettrees = candidates.filter((l) => !figees.has(l.id));
+    // A7 ter, B3 · la ligne du compte client d'un reclassement en créance
+    // douteuse n'est jamais proposée · la paire facture-reclassement, de même
+    // montant, rendait la TVA exigible (`ligne-de-reclassement.ts`).
+    const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
+    const nonLettrees = candidates.filter((l) => !figees.has(l.id) && !reclassees.has(l.id));
 
     // Ce qui compte pour le lettrage est l'EFFET NET d'une ligne sur le
     // compte, pas la colonne dans laquelle elle est écrite. Sur toutes les
@@ -1140,6 +1147,7 @@ export class LettrageService {
             include: { ecriture: { select: { tenantId: true, date: true } } },
           });
           this.verifierLignes(lignes, { compteId, tenantId, nombre: g.ligneIds.length });
+          await refuserLignesDuCompteClientReclasse(tx, tenantId, g.ligneIds);
           // Une clôture peut être intervenue entre la proposition et la
           // confirmation · la proposition ne se croit pas, elle se rejoue.
           await refuserSiLignesFigees(tx, tenantId, g.ligneIds, 'lettrer');
