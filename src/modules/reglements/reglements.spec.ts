@@ -68,6 +68,8 @@ describe('l’écriture du règlement', () => {
 function monter(
   clotures: { granularite: string; journalId: string | null; dateLimite: Date }[] = [],
   creancesReclassees: Array<{ compteCreanceId: string; dateReclassement: Date; compte416: { numero: string } }> = [],
+  /** m-d · les crédits de reclassement au compte du client, ouverts (la facture reste, sa valeur est au 416). */
+  reclassements: Record<string, number> = {},
 ) {
   const lignes = [
     { id: 'f1', compteId: 'c401', debit: 0, credit: 600, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
@@ -79,6 +81,16 @@ function monter(
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'BQ', type: 'TRESORERIE', compteTresorerieId: 'c521' })) },
     ligneEcriture: {
       findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => lignes.filter((l) => where.id.in.includes(l.id))),
+      // m-d · le solde net du compte, toutes ses lignes de l'exercice (la doublure honore le compte).
+      aggregate: jest.fn(async ({ where }: { where: { compteId: string } }) => {
+        const siennes = lignes.filter((l) => l.compteId === where.compteId);
+        return {
+          _sum: {
+            debit: siennes.reduce((t, l) => t + l.debit, 0),
+            credit: siennes.reduce((t, l) => t + l.credit, 0) + (reclassements[where.compteId] ?? 0),
+          },
+        };
+      }),
     },
     cloture: { findMany: jest.fn(async () => clotures) },
     // A7 ter, mineur 1 · les créances reclassées en vigueur des comptes réglés (la doublure honore les comptes).
@@ -196,6 +208,26 @@ describe('enregistrer', () => {
     const f = monter([], [{ compteCreanceId: 'c401', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }]);
     const rf = await f.service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] });
     expect(rf.avertissements).toEqual([]);
+  });
+
+  // SECOND TOUR, m-d · la facture reclassée réglée ici en entier laissait le
+  // client créditeur, le 416 plein et la dépréciation sur une créance
+  // encaissée · le règlement se borne au solde NET du compte.
+  it('m-d · au-delà du solde net d’un compte qui porte une créance reclassée, refus nommé AVANT toute pièce', async () => {
+    const reclassee = [{ compteCreanceId: 'c411', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }];
+    // La facture de 500 est reclassée · net 0.
+    const { service, creer } = monter([], reclassee, { c411: 500 });
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] }),
+    ).rejects.toThrow(/41110000 porte une créance reclassée au 41620000 le 2026-11-15 · son solde net n'est que de 0\.00.*« Recouvrement »/);
+    expect(creer).not.toHaveBeenCalled();
+    // Une part reclassée seulement · 300 restent dus, 300 se règlent, 301 non.
+    const partiel = monter([], reclassee, { c411: 200 });
+    await expect(
+      partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 301 }] }),
+    ).rejects.toThrow(/solde net n'est que de 300\.00/);
+    await partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 300 }] });
+    expect(partiel.creer).toHaveBeenCalledTimes(1);
   });
 
   it('le contrôleur réserve l’enregistrement aux rôles qui écrivent', () => {

@@ -25,6 +25,7 @@ import {
   avertissementCreanceReclassee,
   estEcheanceAReglerSur,
   motifHorsEcheance,
+  motifReglementAuDelaDuNet,
   lignesDuReglement,
   montantDu,
   motifRefusMontant,
@@ -283,10 +284,20 @@ export class ReglementsService {
     // recompterait la perte. Refus avant la première pièce.
     const avertissements: string[] = [];
     // A7 ter, mineur 1 · le compte d'une créance reclassée en vigueur se dit ·
-    // son encaissement est le « Recouvrement » du module.
+    // son encaissement est le « Recouvrement » du module. Second tour, m-d ·
+    // le règlement se BORNE au solde net du compte (toutes ses lignes de
+    // l'exercice), refus nommé au-delà, avant la première pièce.
     for (const c of dto.sens === 'CLIENT' ? await this.creancesReclasseesDesComptes(tenantId, idsComptes) : []) {
       const x = prepares.find((p) => p.r.compteId === c.compteId);
-      if (x) avertissements.push(avertissementCreanceReclassee(x.compte.numero, c.compte416, c.date));
+      if (!x) continue;
+      const s = await this.prisma.ligneEcriture.aggregate({
+        where: { compteId: c.compteId, ecriture: { tenantId, exerciceId: dto.exerciceId } },
+        _sum: { debit: true, credit: true },
+      });
+      const net = Number(s._sum.debit ?? 0) - Number(s._sum.credit ?? 0);
+      const refus = motifReglementAuDelaDuNet(x.compte.numero, c.compte416, c.date, net, x.montant);
+      if (refus) throw new BadRequestException(refus);
+      avertissements.push(avertissementCreanceReclassee(x.compte.numero, c.compte416, c.date));
     }
     for (const x of prepares) {
       if (!x.enDevise) continue;

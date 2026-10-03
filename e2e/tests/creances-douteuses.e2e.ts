@@ -34,8 +34,8 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     // SYSCOHADA · le client (411) ; SYCEBNL · le client-usager (412).
     const client = detail(referentiel === 'SYSCOHADA' ? '411' : '412');
     const produit = detail('7');
-    // A7 ter, mineur 6 · la vente porte sa TVA facturée (443, « TVA facturée » aux deux plans) ·
-    // c'est elle qui interdit de lettrer la facture avec le reclassement.
+    // La vente porte sa TVA facturée (443, « TVA facturée » aux deux plans) · le lettrage de la
+    // facture avec le reclassement est refusé avec ou sans elle (règle d'A7, B3).
     const tvaFacturee = detail('443');
     const debut = exercice.dateDebut.slice(0, 10);
     const annee = debut.slice(0, 4);
@@ -160,7 +160,7 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(fin.rapprochement?.solde416).toBe(1_060_000);
 
     // A7 ter, B3 · le lettrage automatique du compte client n'apparie plus la
-    // facture TAXÉE et le reclassement, de même montant (la TVA deviendrait
+    // facture et le reclassement, de même montant (la TVA deviendrait
     // exigible) ; le lettrage manuel est refusé par le motif nommé.
     const auto = await appelApi<{ groupes: number }>(page, 'POST', `/comptes/${client.id}/lettrage/auto`, {});
     expect(auto.groupes).toBe(0);

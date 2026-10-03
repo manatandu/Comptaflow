@@ -5,11 +5,7 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
 import { referentielDuDossier } from '../reglements/compte-ecart-change';
-import {
-  lignesReclasseesDuCompte,
-  lignesTaxeesDuCompte,
-  refuserLignesDuCompteClientReclasse,
-} from './ligne-de-reclassement';
+import { lignesReclasseesDuCompte, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
 
 const EPSILON = 0.005;
 
@@ -559,7 +555,7 @@ export class LettrageService {
         // Les lignes DÉJÀ du groupe comptent aussi · le compléter pose la
         // lettre sur toutes, et en change le statut.
         const dejaDuGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId }, select: { id: true } });
-        // A7 ter, B3 · le groupe complété ne réunit pas un reclassement et une facture taxée.
+        // A7 ter, B3 · ni la ligne d'un reclassement ajoutée, ni un groupe qui la porte déjà complété.
         await refuserLignesDuCompteClientReclasse(tx, tenantId, ligneIds, dejaDuGroupe.map((l) => l.id));
         await refuserSiLignesFigees(tx, tenantId, [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
 
@@ -936,33 +932,20 @@ export class LettrageService {
     // proposée · le lettrage automatique la poserait, et le pré-lettrage
     // proposerait un groupe que sa confirmation refuserait.
     const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
-    // A7 ter, B3 et mineur 6 · la ligne du compte client d'un reclassement en
-    // créance douteuse n'est jamais proposée AVEC une pièce qui porte de la
-    // TVA facturée (443) · la paire facture-reclassement, de même montant,
-    // rendait la TVA exigible (`ligne-de-reclassement.ts`). Sans TVA facturée,
-    // la paire se propose comme une autre.
+    // A7 ter, B3 (règle d'A7 rétablie au second tour, B-2) · la ligne du
+    // compte client d'un reclassement en créance douteuse n'est JAMAIS
+    // proposée · la paire facture-reclassement, de même montant, rendait la
+    // TVA exigible (`ligne-de-reclassement.ts`). UNE passe, sur les autres
+    // lignes · deux passes (sans le reclassement, puis avec lui sans les
+    // pièces taxées) appariaient de travers. Qu'une paire facture-règlement
+    // par montant reste ambiguë (deux factures de même montant, un seul
+    // règlement), c'est l'ambiguïté connue du lettrage par montant, une
+    // PRÉSOMPTION du logiciel que le pré-lettrage rend au comptable, pas un
+    // défaut propre au reclassement.
     const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
-    const taxees = reclassees.size > 0 ? await lignesTaxeesDuCompte(this.prisma, tenantId, compteId) : new Set<string>();
-    const nonLettrees = candidates.filter((l) => !figees.has(l.id));
-
-    // A7 ter, B3 et mineur 6 · DEUX PASSES DE RECHERCHE quand le compte porte
-    // la ligne d'un reclassement · d'abord sans elle, puis, sur ce qui reste,
-    // avec elle mais SANS les pièces taxées. Un groupe proposé ne réunit donc
-    // jamais un reclassement et une facture qui porte de la TVA facturée, et
-    // la facture taxée reste appariable au vrai règlement · filtrer après coup
-    // perdait la paire facture-règlement, prise d'abord avec le reclassement.
-    if (reclassees.size === 0) {
-      const { parPiece, parMontant } = this.apparier(nonLettrees);
-      return { parPiece, parMontant, lignes: nonLettrees };
-    }
-    const sansReclassement = this.apparier(nonLettrees.filter((l) => !reclassees.has(l.id)));
-    const prises = new Set([...sansReclassement.parPiece, ...sansReclassement.parMontant].flat());
-    const avecReclassement = this.apparier(nonLettrees.filter((l) => !prises.has(l.id) && !taxees.has(l.id)));
-    return {
-      parPiece: [...sansReclassement.parPiece, ...avecReclassement.parPiece],
-      parMontant: [...sansReclassement.parMontant, ...avecReclassement.parMontant],
-      lignes: nonLettrees,
-    };
+    const nonLettrees = candidates.filter((l) => !figees.has(l.id) && !reclassees.has(l.id));
+    const { parPiece, parMontant } = this.apparier(nonLettrees);
+    return { parPiece, parMontant, lignes: nonLettrees };
   }
 
   /**

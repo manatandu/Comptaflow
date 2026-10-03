@@ -209,10 +209,10 @@ describe('créances douteuses · A7 scindée à l’écran', () => {
     expect(page).toContain('Pour l\'instant, le cabinet la déclare lui-même.');
   });
 
-  it('le reclassement dit, dans sa bulle, de ne pas lettrer la facture TAXÉE avec lui (A7 ter, mineur 6)', () => {
-    expect(page).toContain('Ne lettrez pas la facture avec le reclassement si elle porte de la TVA facturée');
-    expect(page).toContain('Une facture qui porte de la TVA facturée (443) ne se lettre pas avec la pièce du reclassement');
-    expect(page).toContain('Une facture sans TVA facturée se lettre avec son reclassement');
+  it('le reclassement dit, dans sa bulle, de ne pas lettrer la facture avec lui · TOUJOURS (règle d’A7, rétablie au second tour d’A7 ter)', () => {
+    expect(page).toContain('Ne lettrez pas la facture avec le reclassement');
+    expect(page).toContain('Ne lettrez pas la facture avec la pièce du reclassement');
+    expect(page).not.toContain('se lettre avec son reclassement');
   });
 });
 

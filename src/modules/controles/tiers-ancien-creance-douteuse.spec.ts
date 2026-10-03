@@ -110,10 +110,10 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
     expect(a!.occurrences).toHaveLength(3);
   });
 
-  // MINEUR 9 · seule la facture TAXÉE antérieure au reclassement est nommée ·
-  // une vente postérieure, ou sans TVA facturée, du même client est une
-  // créance ordinaire, à lettrer avec son règlement.
-  it('mineur 9 · une vente postérieure au reclassement, ou sans TVA facturée, n’est pas annotée', async () => {
+  // MINEUR 9 · seule la facture antérieure au reclassement est nommée · une
+  // vente postérieure du même client est une créance ordinaire, à lettrer avec
+  // son règlement. Aucun critère de TVA (règle d'A7, rétablie au second tour).
+  it('mineur 9 · une vente postérieure au reclassement n’est pas annotée ; une facture antérieure l’est, taxée ou non (règle d’A7)', async () => {
     const posterieure = ecriture(
       'Facture F-130',
       [ligne('41110001', 580_000, 0, true), ligne('70100000', 0, 500_000), ligne('44310000', 0, 80_000)],
@@ -125,7 +125,7 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
     expect(a!.occurrences.map((o) => o.detail)).toEqual([
       "Facture F-118 · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement",
       'Facture F-130',
-      'Facture F-119',
+      "Facture F-119 · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement",
     ]);
   });
 
@@ -138,11 +138,11 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
   // client (Règlement des tiers) après le reclassement le rend CRÉDITEUR · le
   // chemin juste n'est pas le 4191 de TIERS_SOLDE_INVERSE, c'est le
   // recouvrement du module · constat propre, en information.
-  it('mineur 1 · le compte d’origine d’une créance reclassée devenu créditeur a son constat, hors du solde inversé', async () => {
+  it('mineur 1 et m-d · le compte d’origine d’une créance reclassée devenu créditeur a son constat, en AVERTISSEMENT, hors du solde inversé', async () => {
     const reglement = ecriture('Règlement client', [ligne('52110000', 400_000), ligne('41110001', 0, 400_000, true)]);
     const r = await service([facture(), reclassement(), reglement]).analyser('t', 'ex');
     const constat = r.anomalies.find((a) => a.code === 'COMPTE_CREANCE_RECLASSEE_CREDITEUR');
-    expect(constat).toMatchObject({ gravite: 'INFORMATION' });
+    expect(constat).toMatchObject({ gravite: 'AVERTISSEMENT' });
     expect(constat!.occurrences).toEqual([expect.objectContaining({ reference: '41110001', montant: -400_000 })]);
     expect(constat!.action).toMatch(/passez l’encaissement par « Recouvrement » dans « Créances douteuses ou litigieuses »/);
     const inverse = r.anomalies.find((a) => a.code === 'TIERS_SOLDE_INVERSE');

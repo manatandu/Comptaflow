@@ -118,11 +118,11 @@ function monter(lignes: Ligne[]) {
 // La facture (D 411, avec sa TVA facturée au 44310000), le reclassement (C 411
 // de la créance en vigueur), et un autre règlement de même montant, ordinaire.
 const facture = () => ligne('fac', '411', 1_160_000, 0, null, ['41110001', '70610000', '44310000']);
-// Mineur 6 · la facture d'une association exonérée, sans TVA facturée.
+// La facture d'une association exonérée, sans TVA facturée.
 const factureSansTva = () => ligne('fac', '411', 1_160_000, 0, null, ['41110001', '70610000']);
 const reclassement = (annuleeLe: Date | null = null) => ligne('rcl', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe });
 
-describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du lettrage d’une facture TAXÉE', () => {
+describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du lettrage, TOUJOURS (règle d’A7)', () => {
   it('le lettrage automatique n’apparie plus la facture et le reclassement de même montant', async () => {
     const { service, groupes } = monter([facture(), reclassement()]);
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
@@ -154,28 +154,47 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     ).rejects.toThrow(/ligne A7 bis/);
   });
 
-  // MINEUR 6 · SEULEMENT AVEC UNE TVA FACTURÉE · une facture sans 443 n'a
-  // aucune TVA que le lettrage rendrait exigible · la lettrer avec son
-  // reclassement solde le compte du client, le refuser bloquait un geste juste.
-  it('mineur 6 · sans TVA facturée, la facture et son reclassement se lettrent, à la main comme en automatique', async () => {
+  // B-2 (second tour) · LA RÈGLE D'A7 RÉTABLIE · le mineur 6 laissait lettrer
+  // une facture SANS TVA avec son reclassement · figé par une clôture de
+  // période, ce groupe enfermait la créance (annulation du reclassement et
+  // délettrage refusés, scénario c2 sur base réelle). Refusé, toujours.
+  it('B-2 · sans TVA facturée aussi, la facture et son reclassement ne se lettrent pas, ni à la main ni en automatique', async () => {
     const auto = monter([factureSansTva(), reclassement()]);
-    await auto.service.lettrageAutomatique('t1', '411', 'u1');
-    expect(auto.groupes).toHaveLength(1);
-    expect(auto.groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_MONTANT);
+    const r = await auto.service.lettrageAutomatique('t1', '411', 'u1');
+    expect(r.groupes).toBe(0);
+    expect(auto.groupes).toHaveLength(0);
     const manuel = monter([factureSansTva(), reclassement()]);
-    await expect(manuel.service.lettrerManuel('t1', '411', ['fac', 'rcl'], 'u1')).resolves.toBeDefined();
-    expect(manuel.groupes).toHaveLength(1);
+    await expect(manuel.service.lettrerManuel('t1', '411', ['fac', 'rcl'], 'u1')).rejects.toThrow(MOTIF_LETTRAGE_RECLASSEMENT);
+    expect(manuel.groupes).toHaveLength(0);
   });
 
-  it('mineur 6 · la TVA se lit sur la pièce de l’AUTRE ligne · un règlement non taxé avec le reclassement passe, la facture taxée complétée refuse', async () => {
+  it('B-2 · avec n’importe quelle autre pièce · un groupe partiel qui porte le reclassement ne se complète pas', async () => {
     const { service, groupes } = monter([facture(), reclassement(), ligne('avr', '411', 1_160_000, 0)]);
-    // Le reclassement avec une pièce sans 443 (une avance remboursée) · rien à refuser.
-    await service.lettrerManuel('t1', '411', ['avr', 'rcl'], 'u1');
+    await expect(service.lettrerManuel('t1', '411', ['avr', 'rcl'], 'u1')).rejects.toThrow(MOTIF_LETTRAGE_RECLASSEMENT);
+    expect(groupes).toHaveLength(0);
+  });
+
+  // Scénario e4 · U (la facture reclassée, sans TVA), T (service taxé), R (le
+  // reclassement de U), P (le règlement de T), tous de 1 160 000. Une passe
+  // sans R · U et T, de même montant, face à P · la passe apparie le premier
+  // débit, U avec P, exactement comme l'ancienne passe unique d'A7 · c'est
+  // l'ambiguïté connue du lettrage par MONTANT (une présomption, que le
+  // pré-lettrage rend au comptable), pas une paire que le reclassement crée.
+  it('B-2 · e4 · une seule passe sans le reclassement · aucune paire nouvelle, R reste ouvert', async () => {
+    const lignesE4 = [
+      ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
+      ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000', '44320000']),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
+      ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
+    ];
+    const { service, groupes, lignes } = monter(lignesE4);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(r.groupes).toBe(1);
     expect(groupes).toHaveLength(1);
-    const partiel = monter([facture(), reclassement(), ligne('acp', '411', 0, 100_000)]);
-    await partiel.service.lettrerManuel('t1', '411', ['rcl', 'acp'], 'u1', { autoriserPartiel: true });
-    // Compléter le groupe du reclassement par la facture taxée refuse · les lignes déjà du groupe comptent.
-    await expect(partiel.service.completer('t1', partiel.groupes[0].id, ['fac'])).rejects.toThrow(MOTIF_LETTRAGE_RECLASSEMENT);
+    // Le reclassement n'entre dans aucun groupe.
+    expect(lignes.find((l) => l.id === 'R')!.lettrageId).toBeNull();
+    // La paire est celle de l'ancienne passe unique · le premier débit de même montant que P.
+    expect(lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort()).toEqual(['P', 'U']);
   });
 
   it('un reclassement ANNULÉ ne retient plus rien · sa ligne se lettre comme une autre', async () => {

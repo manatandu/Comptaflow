@@ -57,7 +57,6 @@ import {
   type JournalEcrit,
 } from './banque-et-cloture-informatique';
 import { jourDeKinshasa } from '../../common/echeance';
-import { RACINE_TVA_FACTUREE } from '../lettrage/ligne-de-reclassement';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -420,17 +419,16 @@ function estTenueParUneCreanceDouteuse(e: EcritureControlee): boolean {
 
 /**
  * LA FACTURE D'UNE CRÉANCE RECLASSÉE (B2 ; relecture adverse, mineur 9) ·
- * une ligne ouverte d'un compte client d'ORIGINE d'une créance en vigueur,
- * dans une écriture qui porte de la TVA facturée (443, la seule que le
- * lettrage refuse avec le reclassement, mineur 6) et datée AU PLUS TARD du
- * reclassement le plus récent. Toutes les anciennes factures du compte
- * étaient annotées · une vente postérieure, ou sans TVA, est une créance
- * ordinaire, à laquelle « Lettrez ce qui est réglé » s'applique. Nommer le
- * compte une seule fois perdait la pièce que le cabinet doit retrouver ;
- * restreindre garde la pièce et ne nomme qu'elle.
+ * une ligne DÉBITRICE ouverte d'un compte client d'ORIGINE d'une créance en
+ * vigueur, datée AU PLUS TARD du reclassement le plus récent. Toutes les
+ * anciennes factures du compte étaient annotées · une vente postérieure est
+ * une créance ordinaire, à laquelle « Lettrez ce qui est réglé » s'applique.
+ * Nommer le compte une seule fois perdait la pièce que le cabinet doit
+ * retrouver ; restreindre garde la pièce et ne nomme qu'elle. Aucun critère de
+ * TVA · le reclassement ne lettre jamais le compte du client (règle d'A7,
+ * rétablie au second tour).
  */
 function estFactureDUneCreanceReclassee(e: EcritureControlee): boolean {
-  if (!e.lignes.some((l) => l.compte.numero.startsWith(RACINE_TVA_FACTUREE))) return false;
   return e.lignes.some((l) => {
     const derniere = l.compte.creancesDouteusesSource?.[0]?.dateReclassement;
     return (
@@ -1686,8 +1684,10 @@ export class ControlesService {
     const inverses = inversesTous.filter(([numero]) => !origineCreditrice.some(([n]) => n === numero));
     if (origineCreditrice.length > 0) {
       anomalies.push({
+        // Second tour d'A7 ter, m-d · AVERTISSEMENT · le 416 garde une créance
+        // encaissée, et la revue la déprécie · le résultat est faussé.
         code: 'COMPTE_CREANCE_RECLASSEE_CREDITEUR',
-        gravite: 'INFORMATION',
+        gravite: 'AVERTISSEMENT',
         libelle: 'Compte d’une créance reclassée au 416 devenu créditeur',
         consequence:
           'Le compte du client porte une créance reclassée au 416 (« Créances douteuses ou litigieuses »), et il est créditeur · ' +
@@ -1759,7 +1759,7 @@ export class ControlesService {
         action:
           'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire. Les pièces d’une créance ' +
           'reclassée au 416 dans « Créances douteuses ou litigieuses » ne sont pas listées, le module les suit ; la facture ' +
-          'taxée d’une telle créance, antérieure à son reclassement, est nommée comme telle et ne se lettre pas avec le ' +
+          'd’une telle créance, antérieure à son reclassement, est nommée comme telle et ne se lettre pas avec le ' +
           'reclassement (la TVA deviendrait exigible).',
         occurrences: anciennes.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
