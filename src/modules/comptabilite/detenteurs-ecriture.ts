@@ -89,6 +89,9 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'CreanceDouteuse.ecritureReclassementId',
   'AjustementCreanceDouteuse.ecritureId',
   'MouvementCreanceDouteuse.ecritureId',
+  // L'impôt sur le résultat (ligne A11) · retirée seule, l'écriture laisserait
+  // l'exercice se dire constaté sans la pièce qui porte le 89 et le 441.
+  'ConstatImpotResultat.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

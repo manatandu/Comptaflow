@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { EcritureImpotResultat } from '../components/EcritureImpotResultat';
 import { mentionCalendrierPaiement } from '../lib/calendrier-paiement-fiscal';
 import type {
   CatalogueRetraitements,
@@ -824,7 +825,21 @@ export function FiscalitePage() {
               </div>
             )}
           </section>
+
         </div>
+      )}
+      {/* L'ÉCRITURE DE L'IMPÔT (ligne A11) · proposée par le serveur, passée au
+          seul clic, relue avec le résultat fiscal. Montrée sur l'EXERCICE seul,
+          jamais sous condition du régime ni du résultat · un constat passé
+          reste visible et annulable quand la forme ou le calcul ont changé
+          depuis, ou quand le résultat fiscal ne se lit pas ; c'est le serveur
+          qui dit pourquoi rien ne se propose. */}
+      {exerciceId && (
+        <EcritureImpotResultat
+          exerciceId={exerciceId}
+          version={resultat}
+          apresChangement={() => charger(exerciceId)}
+        />
       )}
     </div>
   );
