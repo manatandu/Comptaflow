@@ -680,7 +680,23 @@ la TVA le lirait comme un ENCAISSEMENT (décret n° 011/42, art. 57), et la TVA 
 prestation deviendrait exigible au reclassement (art. 25, 2°) · dit en commentaire
 et dans la bulle (« ne lettrez pas la facture avec le reclassement »). La TVA des
 créances irrécouvrables et l'exigibilité à l'encaissement vont à la ligne A7 bis du
-suivi, avec le travail retiré et les constats ouverts.
+suivi, avec le travail retiré et les constats ouverts. SIXIÈME RELECTURE (2026-10-03).
+(B-α) UN GESTE ANTIDATÉ EST BORNÉ PAR CE QUI EST POSTÉRIEUR · un mouvement par le plus
+petit du reste à sa date et du reste après TOUS les mouvements non annulés
+(`resteFinalDeLaCreance` · 1 000 000, recouvrement de 800 000 au 30 juin, perte de
+1 000 000 au 31 mars refusée, 200 000 admis) ; un reclassement par le plus petit du
+solde du client à la date et de son solde au plus tard enregistré, brouillard compris
+(chaîne de l'exercice toutes dates, et chaîne du dernier exercice du dossier). Un
+dossier déjà au reste NÉGATIF n'est pas enfermé · la clôture (B1, revue ou non, dès N)
+et la revue le nomment avec son issue (`motifResteNegatif` · annuler le mouvement en
+trop, report à nouveau s'il est clos). (m1) la borne d'ouverture ne compte que les
+créances DÉCLARÉES et celles RECLASSÉES AVANT l'ouverture. (m2) un reclassement
+S'ANNULE comme une revue (brouillard supprimé, validé en négatif, `update` unitaire,
+motif), refusé tant qu'une revue ou un mouvement non annulé porte sur lui ; annulé, il
+ne retient plus son écriture et sort de la liste, des bornes et de la clôture. (m3)
+liste des plus récentes d'abord, `tronque` et `total` le disent. (m4) le 416 du
+rapprochement est celui des créances du module, comme le 491. (m5) le 491 se choisit
+sous la racine de sa nature (`motifRefus491`).
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

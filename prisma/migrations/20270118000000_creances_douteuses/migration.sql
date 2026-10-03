@@ -34,6 +34,10 @@ CREATE TABLE "creances_douteuses" (
     "declareeOuverture" BOOLEAN NOT NULL DEFAULT false,
     "sourceDeclaration" TEXT,
     "depreciationOuverture" DECIMAL(18,2) NOT NULL DEFAULT 0,
+    "annuleeLe" TIMESTAMP(3),
+    "annuleePar" TEXT,
+    "motifAnnulation" TEXT,
+    "annulation" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdBy" TEXT NOT NULL,
 

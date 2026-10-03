@@ -291,6 +291,36 @@ describe('créances douteuses · règles de la relecture adverse (B1, B2, M3)', 
     expect(prisma.creanceDouteuse.findMany.mock.calls[0][0].select.ajustements.where).toEqual({ annuleeLe: null });
   });
 
+  it('B-α · la clôture nomme une créance au reste NÉGATIF avec son issue, revue ou non, sans quoi N se clôturait sans un mot', async () => {
+    const ex = { id: 'ex-26', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
+    const prisma: any = {
+      exercice: { findFirst: jest.fn().mockResolvedValue(ex) },
+      creanceDouteuse: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'n',
+            montant: 1_000_000,
+            dateReclassement: new Date('2026-01-15'),
+            declareeOuverture: false,
+            depreciationOuverture: 0,
+            compteCreance: { numero: '41110001', intitule: 'Kasa' },
+            // Revue de l'exercice passée · la créance serait sinon dispensée.
+            ajustements: [{ exerciceId: 'ex-26', ecart: 0, exercice: { dateFin: ex.dateFin } }],
+            // Perte de N en mars, recouvrement passé en N+1 · le reste final est -800 000.
+            mouvements: [
+              { date: new Date('2026-03-31'), montant: 1_000_000 },
+              { date: new Date('2027-02-10'), montant: 800_000 },
+            ],
+          },
+        ]),
+      },
+    };
+    const r = await depreciationsOrphelines(prisma, { tenantId: 't', exerciceId: 'ex-26' });
+    expect(r).toEqual([{ creance: '41110001 Kasa', enPlace: 0, reste: -800_000, resteFinal: -800_000 }]);
+    expect(motifClotureDepreciationsOrphelines(r)).toMatch(/reste négatif au 416 après tous ses mouvements \(-800000\.00\).*Annulez le mouvement en trop/);
+    expect(prisma.creanceDouteuse.findMany.mock.calls[0][0].where).toMatchObject({ annuleeLe: null });
+  });
+
   it('B2 · l’annulation exige un exercice ouvert, la plus récente d’abord, et un motif de 3 à 500 caractères', () => {
     const ok = { dejaAnnulee: null, exerciceClos: false, posterieureNonAnnulee: null, motif: 'Revue passée sur un reste faux' };
     expect(motifRefusAnnulationRevue(ok)).toBeNull();
@@ -460,6 +490,7 @@ describe('créances douteuses · service', () => {
         findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockImplementation(({ data }) => (options.creationEchoue ? echec() : Promise.resolve({ id: 'cd-1', ...data }))),
         delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
         aggregate: jest.fn().mockResolvedValue({ _sum: { montant: 0, depreciationOuverture: 0 } }),
       },
       ajustementCreanceDouteuse: {
@@ -887,9 +918,154 @@ describe('créances douteuses · service', () => {
     expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
     expect(prisma.creanceDouteuse.findMany.mock.calls[0][0].where).toMatchObject({
       tenantId: 't',
-      dateReclassement: { lte: exercices[0].dateDebut },
-      OR: [{ compte416Id: 'c4162' }, { compte491Id: 'c4912' }],
+      annuleeLe: null,
+      AND: [
+        { OR: [{ compte416Id: 'c4162' }, { compte491Id: 'c4912' }] },
+        {
+          OR: [
+            { declareeOuverture: true, dateReclassement: { lte: exercices[0].dateDebut } },
+            { declareeOuverture: false, dateReclassement: { lt: exercices[0].dateDebut } },
+          ],
+        },
+      ],
     });
+  });
+
+  it('m1 · une créance RECLASSÉE le premier jour de l’exercice n’est pas dans l’à-nouveau · elle ne consomme pas la borne', async () => {
+    const { service, prisma } = monter();
+    // La doublure honore le filtre · reclassée au 1er janvier 2026 (dans N),
+    // 600 000 · déclarée à la même ouverture, 300 000.
+    const reclassee = creance([], [], { id: 'cd-r', compte416Id: 'c4162', dateReclassement: new Date('2026-01-01'), montant: 600_000 });
+    const declaree = creance([], [], { id: 'cd-d', compte416Id: 'c4162', dateReclassement: new Date('2026-01-01'), montant: 300_000, declareeOuverture: true });
+    prisma.creanceDouteuse.findMany.mockImplementation(({ where }: any) => {
+      const debut = where.AND[1].OR[1].dateReclassement.lt as Date;
+      return Promise.resolve(
+        [reclassee, declaree].filter((c: any) =>
+          c.declareeOuverture ? c.dateReclassement <= debut : c.dateReclassement < debut,
+        ),
+      );
+    });
+    prisma.ligneEcriture.aggregate
+      .mockResolvedValueOnce({ _sum: { debit: 1_000_000, credit: 0 } })
+      .mockResolvedValueOnce({ _sum: { debit: 0, credit: 0 } });
+    // À-nouveau 1 000 000 · déjà porté 300 000 (la déclarée), jamais 900 000.
+    await service.declarer('t', 'u', {
+      exerciceId: 'ex-26',
+      compteCreanceId: 'cli',
+      compte416Id: 'c4162',
+      nature: NatureCreanceDouteuse.DOUTEUSE,
+      montant: 700_000,
+      depreciationOuverture: 0,
+      source: 'Balance de reprise',
+    });
+    expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
+  });
+
+  // B-α · LA CRÉANCE DU RELECTEUR · 1 000 000 reclassés au 15 janvier, un
+  // recouvrement de 800 000 au 30 juin.
+  const creanceBalpha = (mouvements: unknown[]) =>
+    creance([], mouvements, { dateReclassement: new Date('2026-01-15'), montant: 1_000_000 });
+  const recouvrementJuin = { id: 'mv-j', type: TypeMouvementCreanceDouteuse.RECOUVREMENT, date: new Date('2026-06-30'), montant: 800_000, ecritureId: 'ecr-j', annuleeLe: null };
+  const pertePerdue = { exerciceId: 'ex-26', journalId: 'od', motif: 'Irrécouvrable', pieces: [{ nature: 'PV de carence', reference: 'H-12' }] };
+
+  it('B-α · une perte ANTIDATÉE ne passe pas sous un recouvrement enregistré après elle · 1 000 000 au 31 mars refusés, 200 000 passent', async () => {
+    const { service, creer } = monter({ referentiel: Referentiel.SYCEBNL, creance: creanceBalpha([recouvrementJuin]) });
+    // Au 31 mars, le reste lu à la date est 1 000 000 ; après tous les mouvements, 200 000.
+    await expect(service.perte('t', 'u', 'cd-1', { ...pertePerdue, date: '2026-03-31', montant: 1_000_000 })).rejects.toThrow(
+      /après tous ses mouvements \(200000\.00\).*laisserait le 416 créditeur/,
+    );
+    expect(creer).not.toHaveBeenCalled();
+    await service.perte('t', 'u', 'cd-1', { ...pertePerdue, date: '2026-03-31', montant: 200_000 });
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c6512', debit: 200_000, credit: 0 },
+      { compteId: 'c4161', debit: 0, credit: 200_000 },
+    ]);
+  });
+
+  it('B-α · un reclassement ANTIDATÉ ne reprend pas ce qu’un règlement postérieur a soldé · 1 160 000 refusés, 160 000 passent', async () => {
+    const { service, creer, prisma } = monter();
+    // Au 15 novembre le client doit 1 160 000 ; son solde au plus tard enregistré
+    // (brouillard compris, toutes dates) n'est plus que 160 000.
+    prisma.ligneEcriture.aggregate.mockImplementation(({ where }: any) =>
+      Promise.resolve({
+        _sum: { debit: where.ecriture?.date?.lte?.getUTCFullYear() === 9999 ? 160_000 : 1_160_000, credit: 0 },
+      }),
+    );
+    await expect(service.reclasser('t', 'u', dtoReclassement)).rejects.toThrow(/au plus tard enregistré \(160000\.00, brouillard compris\)/);
+    expect(creer).not.toHaveBeenCalled();
+    await service.reclasser('t', 'u', { ...dtoReclassement, montant: 160_000 });
+    expect(creer.mock.calls[0][2].lignes).toEqual([
+      { compteId: 'c4162', debit: 160_000, credit: 0 },
+      { compteId: 'cli', debit: 0, credit: 160_000 },
+    ]);
+  });
+
+  it('B-α · un dossier déjà au reste NÉGATIF a une issue · la revue la nomme (annuler le mouvement en trop), au lieu d’un refus sans issue', async () => {
+    const perteMars = { id: 'mv-m', type: TypeMouvementCreanceDouteuse.PERTE, date: new Date('2026-03-31'), montant: 1_000_000, ecritureId: 'ecr-m', annuleeLe: null };
+    const { service, creer } = monter({ creance: creanceBalpha([perteMars, recouvrementJuin]) });
+    await expect(service.revoir('t', 'u', 'cd-1', { ...dtoRevue, depreciationNecessaire: 0 })).rejects.toThrow(
+      /reste négatif au 416 après tous ses mouvements \(-800000\.00\).*Annulez le mouvement en trop/,
+    );
+    expect(creer).not.toHaveBeenCalled();
+    const p = await service.propositionRevue('t', 'cd-1', 'ex-26');
+    expect(p.resteNegatif).toMatch(/Annuler une perte ou un recouvrement/);
+  });
+
+  it('m2 · un reclassement VALIDÉ s’annule · inscrit en négatif, marqué par un update unitaire avec motif', async () => {
+    const enBase = {
+      ...creance(),
+      annuleeLe: null,
+      exercice: { statut: StatutExercice.OUVERT },
+      ecritureReclassement: { id: 'ecr-r', statut: 'VALIDEE', numeroPiece: 3, lignes: [{ lettre: null, lettrageId: null, rapprochementId: null }] },
+    };
+    const { service, prisma, inscrireEnNegatifPourAnnulation } = monter({ creance: enBase });
+    const r = await service.annulerReclassement('t', 'u', 'cd-1', { motif: 'Créance reclassée sur le mauvais client' });
+    expect(inscrireEnNegatifPourAnnulation).toHaveBeenCalledWith('t', 'u', 'ecr-r', 'Créance reclassée sur le mauvais client', prisma);
+    expect(prisma.creanceDouteuse.update.mock.calls[0][0]).toMatchObject({
+      where: { id: 'cd-1', tenantId: 't', annuleeLe: null },
+      data: { annuleePar: 'u', motifAnnulation: 'Créance reclassée sur le mauvais client', annulation: { traitement: 'INSCRITE_EN_NEGATIF', negatifId: 'neg-1' } },
+    });
+    expect(r).toMatchObject({ annule: true });
+  });
+
+  it('m2 · refus · une revue ou un mouvement non annulé porte sur la créance ; au brouillard, l’écriture est supprimée', async () => {
+    const enBase = (statut: string) => ({
+      ...creance(),
+      annuleeLe: null,
+      exercice: { statut: StatutExercice.OUVERT },
+      ecritureReclassement: { id: 'ecr-r', statut, numeroPiece: 3, lignes: [{ lettre: null, lettrageId: null, rapprochementId: null }] },
+    });
+    const tenue = monter({ creance: enBase('VALIDEE') });
+    tenue.prisma.mouvementCreanceDouteuse.count.mockResolvedValue(1);
+    await expect(tenue.service.annulerReclassement('t', 'u', 'cd-1', { motif: 'Erreur' })).rejects.toThrow(/0 revue\(s\) et 1 perte\(s\).*Annulez-les d’abord/);
+    expect(tenue.prisma.creanceDouteuse.update).not.toHaveBeenCalled();
+    const brouillard = monter({ creance: enBase('BROUILLARD') });
+    await brouillard.service.annulerReclassement('t', 'u', 'cd-1', { motif: 'Erreur' });
+    expect(brouillard.prisma.creanceDouteuse.update.mock.calls[0][0].data).toMatchObject({ ecritureReclassementId: null });
+    expect(brouillard.prisma.ecriture.deleteMany).toHaveBeenCalledWith({ where: { id: 'ecr-r', tenantId: 't' } });
+  });
+
+  it('m5 · le 491 se choisit sous la racine de sa nature · 4911 refusé pour une créance douteuse, 4912 admis', async () => {
+    const { service, creer, prisma } = monter();
+    await expect(service.reclasser('t', 'u', { ...dtoReclassement, compte491Id: 'c4911' })).rejects.toThrow(/n'est pas un compte de détail du 4912/);
+    expect(creer).not.toHaveBeenCalled();
+    await service.reclasser('t', 'u', { ...dtoReclassement, compte491Id: 'c4912' });
+    expect(prisma.creanceDouteuse.create.mock.calls[0][0].data.compte491Id).toBe('c4912');
+  });
+
+  it('m3 et m4 · la liste part des plus récentes ; le rapprochement lit le 416 du module seul', async () => {
+    const { service, prisma } = monter({ creance: null });
+    prisma.creanceDouteuse.count = jest.fn().mockResolvedValue(1);
+    prisma.creanceDouteuse.findMany = jest.fn().mockResolvedValue([creance()]);
+    prisma.ajustementCreanceDouteuse.findMany = jest.fn().mockResolvedValue([]);
+    await service.lister('t', 'ex-26');
+    expect(prisma.creanceDouteuse.findMany.mock.calls[0][0]).toMatchObject({
+      where: { annuleeLe: null },
+      orderBy: [{ dateReclassement: 'desc' }, { id: 'desc' }],
+    });
+    const comptes = prisma.ligneEcriture.aggregate.mock.calls.map((c: any[]) => c[0].where.compte);
+    expect(comptes).toContainEqual({ tenantId: 't', id: { in: ['c4161'] } });
+    expect(comptes).not.toContainEqual({ tenantId: 't', numero: { startsWith: '416' } });
   });
 
   it('M-b et M-c · le rapprochement lit le 491 du module seul ; un mouvement de l’exercice sans revue est compté', async () => {

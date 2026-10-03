@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   annonceRevue,
+  compte491Initial,
+  comptes491DeLaNature,
+  racine491,
   compte416Initial,
   motifAnnulationValide,
   motifListe651Vide,
@@ -98,5 +101,27 @@ describe('créances douteuses · A7 scindée à l’écran', () => {
   it('le reclassement dit, dans sa bulle, de ne pas lettrer la facture avec lui', () => {
     expect(page).toContain('Ne lettrez pas la facture avec le reclassement');
     expect(page).toContain('Ne lettrez pas la facture avec la pièce du reclassement');
+  });
+});
+
+describe('créances douteuses · cinquième relecture à l’écran (m2, m3, m5)', () => {
+  it('m5 · le 491 se propose sous la racine de la nature, présélectionné s’il est seul', () => {
+    const comptes = [
+      { id: 'a', numero: '49110000' },
+      { id: 'b', numero: '49120000' },
+      { id: 'c', numero: '49121000' },
+    ];
+    expect(racine491('LITIGIEUSE')).toBe('4911');
+    expect(compte491Initial('LITIGIEUSE', comptes)).toBe('a');
+    expect(comptes491DeLaNature('DOUTEUSE', comptes).map((c) => c.id)).toEqual(['b', 'c']);
+    expect(compte491Initial('DOUTEUSE', comptes)).toBe('');
+    expect(page).toContain('compte491Id: form.compte491Id || undefined,');
+  });
+
+  it('m2 et m3 · le reclassement s’annule dans sa modale ; la liste tronquée dit lesquelles manquent', () => {
+    const corps = page.slice(page.indexOf('async function annuler'));
+    expect(corps).toContain('`/creances-douteuses/${annulation.creance.id}/annuler`');
+    expect(page).toContain('Annuler le reclassement');
+    expect(page).toContain('les plus anciennes ne sont pas montrées');
   });
 });

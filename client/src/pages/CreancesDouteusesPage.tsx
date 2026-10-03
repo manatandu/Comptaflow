@@ -12,6 +12,9 @@ import { montantSaisi } from '../lib/montant-saisi';
 import {
   annonceRevue,
   compte416Initial,
+  compte491Initial,
+  comptes491DeLaNature,
+  racine491,
   LIBELLE_NATURE,
   motifAnnulationValide,
   motifListe651Vide,
@@ -44,6 +47,7 @@ interface ComptesFormulaire {
   creances: CreanceCandidate[];
   tronque: boolean;
   comptes416: { id: string; numero: string; intitule: string }[];
+  comptes491: { id: string; numero: string; intitule: string }[];
 }
 interface CreanceDouteuse {
   id: string;
@@ -97,6 +101,7 @@ interface Formulaire {
   compteCreanceId: string;
   nature: NatureCreance;
   compte416Id: string;
+  compte491Id: string;
   comptePerteId: string;
   journalId: string;
   date: string;
@@ -132,7 +137,7 @@ export function CreancesDouteusesPage() {
   const [erreurForm, setErreurForm] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   // L'annulation d'une revue ou d'un mouvement (AUDCIF art. 20, al. 2) · motif de 3 à 500 caractères.
-  const [annulation, setAnnulation] = useState<{ creance: CreanceDouteuse; motif: string; mouvementId?: string } | null>(null);
+  const [annulation, setAnnulation] = useState<{ creance: CreanceDouteuse; motif: string; mouvementId?: string; reclassement?: boolean } | null>(null);
   const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
   useGardeFermeture(form || annulation ? 'Un geste sur une créance douteuse est en cours de saisie · il serait perdu.' : null);
 
@@ -162,6 +167,7 @@ export function CreancesDouteusesPage() {
       compteCreanceId: '',
       nature: 'DOUTEUSE',
       compte416Id: '',
+      compte491Id: '',
       comptePerteId: '',
       journalId: choix.length === 1 ? choix[0].id : '',
       date: liste ? liste.exercice.dateFin.slice(0, 10) : '',
@@ -199,6 +205,7 @@ export function CreancesDouteusesPage() {
             compteCreanceId: id,
             nature,
             compte416Id: compte416Initial(c?.propose416, nature, comptes?.comptes416 ?? []),
+            compte491Id: compte491Initial(nature, comptes?.comptes491 ?? []),
             montant: c && f.compteCreanceId !== id ? String(c.solde) : f.montant,
           }
         : f,
@@ -222,6 +229,7 @@ export function CreancesDouteusesPage() {
           exerciceId,
           compteCreanceId: form.compteCreanceId,
           compte416Id: form.compte416Id,
+          compte491Id: form.compte491Id || undefined,
           nature: form.nature,
           montant: valeur,
           depreciationOuverture: deprec,
@@ -235,6 +243,7 @@ export function CreancesDouteusesPage() {
           date: form.date,
           compteCreanceId: form.compteCreanceId,
           compte416Id: form.compte416Id || undefined,
+          compte491Id: form.compte491Id || undefined,
           nature: form.nature,
           montant: valeur,
         });
@@ -263,7 +272,9 @@ export function CreancesDouteusesPage() {
   async function annuler(ev: React.FormEvent) {
     ev.preventDefault();
     if (!annulation) return;
-    const chemin = annulation.mouvementId
+    const chemin = annulation.reclassement
+      ? `/creances-douteuses/${annulation.creance.id}/annuler`
+      : annulation.mouvementId
       ? `/creances-douteuses/${annulation.creance.id}/mouvements/${annulation.mouvementId}/annuler`
       : annulation.creance.revue
         ? `/creances-douteuses/${annulation.creance.id}/revues/${annulation.creance.revue.id}/annuler`
@@ -352,7 +363,7 @@ export function CreancesDouteusesPage() {
               {Math.abs(ecart491) >= 0.01 && <div>Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)}).</div>}
             </div>
           )}
-          {liste.tronque && <div className="text-[11.5px] text-text-dim">{liste.creances.length} créances affichées sur {liste.total}.</div>}
+          {liste.tronque && <div className="text-[11.5px] text-text-dim">{liste.creances.length} créances affichées sur {liste.total} · les plus récentes, les plus anciennes ne sont pas montrées.</div>}
 
           <div className="border border-bord rounded-[3px] overflow-x-auto">
             <table className="w-full text-[11.5px] whitespace-nowrap">
@@ -439,6 +450,18 @@ export function CreancesDouteusesPage() {
                               }}
                             >
                               Annuler un mouvement
+                            </button>
+                          )}
+                          {ouvert && !c.revue && c.revues.length === 0 && c.mouvements.length === 0 && (
+                            <button
+                              type="button"
+                              className="text-rouge hover:underline"
+                              onClick={() => {
+                                setErreurAnnulation(null);
+                                setAnnulation({ creance: c, motif: '', reclassement: true });
+                              }}
+                            >
+                              Annuler le reclassement
                             </button>
                           )}
                           {c.mouvements.length > 0 && (
@@ -539,6 +562,21 @@ export function CreancesDouteusesPage() {
                         <>
                           <span />
                           <span className="text-text-dim">Aucun compte 416 de détail au plan · ouvrez-le dans Plan comptable.</span>
+                        </>
+                      )}
+                      <label className="text-right">Compte 491 :</label>
+                      <select required value={form.compte491Id} onChange={(e) => champ('compte491Id', e.target.value)} className="border border-border-dark px-2 py-1">
+                        <option value="">Choisir</option>
+                        {comptes491DeLaNature(form.nature, comptes?.comptes491 ?? []).map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.numero} · {c.intitule}
+                          </option>
+                        ))}
+                      </select>
+                      {comptes && comptes491DeLaNature(form.nature, comptes.comptes491).length === 0 && (
+                        <>
+                          <span />
+                          <span className="text-text-dim">Aucun compte {racine491(form.nature)} de détail au plan · ouvrez-le dans Plan comptable.</span>
                         </>
                       )}
                       {form.geste === 'reclasser' && (
@@ -702,7 +740,7 @@ export function CreancesDouteusesPage() {
           <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
             <form onSubmit={annuler} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
               <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
-                <span>{annulation.mouvementId ? 'Annuler une perte ou un recouvrement' : 'Annuler la revue de la dépréciation'}</span>
+                <span>{annulation.reclassement ? 'Annuler le reclassement' : annulation.mouvementId ? 'Annuler une perte ou un recouvrement' : 'Annuler la revue de la dépréciation'}</span>
                 <button type="button" onClick={() => setAnnulation(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
                   ✕
                 </button>
@@ -712,9 +750,11 @@ export function CreancesDouteusesPage() {
                 <div className="flex items-center gap-1.5">
                   {annulation.creance.compteCreance.numero} · {annulation.creance.tiers ?? annulation.creance.compteCreance.intitule}
                   <Aide
-                    titre={annulation.mouvementId ? "Annulation d'un mouvement" : "Annulation d'une revue"}
+                    titre={annulation.reclassement ? "Annulation d'un reclassement" : annulation.mouvementId ? "Annulation d'un mouvement" : "Annulation d'une revue"}
                     texte={
-                      annulation.mouvementId
+                      annulation.reclassement
+                        ? "Au brouillard, l'écriture du reclassement est supprimée ; validée, elle est inscrite en négatif. La créance reste au dossier, marquée annulée avec son motif, et sort de la liste. Une revue ou un mouvement qui porte sur elle s'annule d'abord."
+                        : annulation.mouvementId
                         ? "Au brouillard, l'écriture est supprimée ; validée, elle est inscrite en négatif. Le mouvement reste au dossier, marqué annulé avec son motif, et sort du reste de la créance. Une revue qui l'a compté s'annule d'abord. Passez ensuite le bon montant."
                         : "Au brouillard, l'écriture de la revue est supprimée ; validée, elle est inscrite en négatif. La revue reste au dossier, marquée annulée avec son motif. Passez ensuite le mouvement, puis refaites la revue."
                     }
@@ -752,7 +792,7 @@ export function CreancesDouteusesPage() {
                     Fermer
                   </button>
                   <button type="submit" disabled={envoi || !motifAnnulationValide(annulation.motif)} className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50">
-                    {annulation.mouvementId ? 'Annuler le mouvement' : 'Annuler la revue'}
+                    {annulation.reclassement ? 'Annuler le reclassement' : annulation.mouvementId ? 'Annuler le mouvement' : 'Annuler la revue'}
                   </button>
                 </div>
               </div>

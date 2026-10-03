@@ -8938,6 +8938,14 @@ model CreanceDouteuse {
   /// première revue.
   depreciationOuverture Decimal @default(0) @db.Decimal(18, 2)
 
+  /// ANNULATION DU RECLASSEMENT (m2 · AUDCIF art. 20, al. 2) · la créance est
+  /// MARQUÉE, jamais supprimée une fois validée ; son écriture est supprimée
+  /// au brouillard (le lien est alors effacé) ou inscrite en négatif.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
   ajustements AjustementCreanceDouteuse[]
   mouvements  MouvementCreanceDouteuse[]
 

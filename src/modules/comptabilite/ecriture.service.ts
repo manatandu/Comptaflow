@@ -1208,8 +1208,10 @@ export class EcritureService {
       ['la reprise de la provision spéciale de réévaluation', this.prisma.repriseProvisionReevaluation.count({ where: { tenantId, ecritureId } })],
       ['la provision pour démantèlement', this.prisma.mouvementDemantelement.count({ where: { tenantId, ecritureId } })],
       // Les créances douteuses (ligne A7) · elles se retirent depuis leur
-      // fenêtre, qui libère sa ligne dans la même transaction.
-      [DETENTEUR_RECLASSEMENT_CREANCE, this.prisma.creanceDouteuse.count({ where: { tenantId, ecritureReclassementId: ecritureId } })],
+      // fenêtre, qui libère sa ligne dans la même transaction. Un reclassement
+      // ANNULÉ (m2) ne retient plus · son écriture validée est neutralisée par
+      // l'inscription en négatif.
+      [DETENTEUR_RECLASSEMENT_CREANCE, this.prisma.creanceDouteuse.count({ where: { tenantId, ecritureReclassementId: ecritureId, annuleeLe: null } })],
       // Une revue ANNULÉE ne retient plus son écriture (B2) · validée, elle est
       // neutralisée par son inscription en négatif.
       [DETENTEUR_REVUE_CREANCE, this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],

@@ -1,6 +1,6 @@
 import type { PrismaService } from '../../common/prisma.service';
 import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
-import { DepreciationOrpheline, enPlaceAvant, resteDeLaCreance } from './creances-douteuses';
+import { DepreciationOrpheline, enPlaceAvant, resteDeLaCreance, resteFinalDeLaCreance } from './creances-douteuses';
 
 type Lecteur = Pick<PrismaService, 'exercice' | 'creanceDouteuse'>;
 
@@ -13,6 +13,12 @@ type Lecteur = Pick<PrismaService, 'exercice' | 'creanceDouteuse'>;
  * dépréciation laissent au 491 une dépréciation sans créance, et le résultat
  * minoré de la reprise que la fiche du compte 49 veut « à la clôture de
  * l'exercice ». Lu par tranches, sans borne (§ 8 bis).
+ *
+ * B-α · une créance dont le reste APRÈS TOUS SES MOUVEMENTS est négatif (perte
+ * ou recouvrement antidaté passé avant la borne) est nommée aussi, revue ou
+ * non, avec son issue (annuler le mouvement en trop) · sans quoi N se
+ * clôturait sans un mot et N+1 restait enfermé. Une créance ANNULÉE (m2) ne
+ * compte plus.
  */
 export async function depreciationsOrphelines(
   prisma: Lecteur,
@@ -27,7 +33,7 @@ export async function depreciationsOrphelines(
   await lireParLots(
     (curseur) =>
       prisma.creanceDouteuse.findMany({
-        where: { tenantId: p.tenantId, dateReclassement: { lte: ex.dateFin } },
+        where: { tenantId: p.tenantId, dateReclassement: { lte: ex.dateFin }, annuleeLe: null },
         select: {
           id: true,
           montant: true,
@@ -44,6 +50,12 @@ export async function depreciationsOrphelines(
         ...pageApres(curseur, LOT_ECRITURES),
       }),
     (c) => {
+      const creance = `${c.compteCreance.numero} ${c.compteCreance.intitule}`;
+      const resteFinal = resteFinalDeLaCreance(Number(c.montant), c.mouvements.map((m) => ({ montant: Number(m.montant) })));
+      if (resteFinal < -0.005) {
+        orphelines.push({ creance, enPlace: 0, reste: resteFinal, resteFinal });
+        return;
+      }
       if (c.ajustements.some((a) => a.exerciceId === ex.id)) return;
       const enPlace = enPlaceAvant(
         { declareeOuverture: c.declareeOuverture, depreciationOuverture: Number(c.depreciationOuverture), dateReclassement: c.dateReclassement },
@@ -56,7 +68,7 @@ export async function depreciationsOrphelines(
         ex.dateFin,
       );
       if (enPlace > reste + 0.005) {
-        orphelines.push({ creance: `${c.compteCreance.numero} ${c.compteCreance.intitule}`, enPlace, reste });
+        orphelines.push({ creance, enPlace, reste });
       }
     },
     LOT_ECRITURES,

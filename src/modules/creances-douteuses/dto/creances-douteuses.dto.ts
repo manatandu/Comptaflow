@@ -65,6 +65,11 @@ export class ReclasserCreanceDto extends MotifEtPiecesDto {
   @IsUUID('4')
   compte416Id?: string;
 
+  /** m5 · le 491 choisi sous la racine de la nature · absent, le premier de détail. */
+  @IsOptional()
+  @IsUUID('4')
+  compte491Id?: string;
+
   @IsEnum(NatureCreanceDouteuse)
   nature!: NatureCreanceDouteuse;
 
@@ -134,6 +139,9 @@ export class AnnulerRevueDto {
 /** L'annulation d'une perte ou d'un recouvrement (K4 · AUDCIF art. 20, al. 2) · même motif. */
 export class AnnulerMouvementDto extends AnnulerRevueDto {}
 
+/** m2 · l'annulation d'un reclassement (AUDCIF art. 20, al. 2). */
+export class AnnulerReclassementDto extends AnnulerRevueDto {}
+
 /**
  * DOSSIER REPRIS · la créance déjà au 416 et sa dépréciation déjà au 491
  * avant OmegaX, déclarées au premier jour de l'exercice choisi, sans écriture.
@@ -147,6 +155,11 @@ export class DeclarerCreanceOuvertureDto {
 
   @IsUUID('4')
   compte416Id!: string;
+
+  /** m5 · le 491 choisi sous la racine de la nature · absent, le premier de détail. */
+  @IsOptional()
+  @IsUUID('4')
+  compte491Id?: string;
 
   @IsEnum(NatureCreanceDouteuse)
   nature!: NatureCreanceDouteuse;

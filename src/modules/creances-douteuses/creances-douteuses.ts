@@ -212,6 +212,12 @@ export interface EntreeReclassement {
   montant: number;
   /** Solde débiteur du compte d'origine à la date du reclassement. */
   soldeDebiteur: number;
+  /**
+   * Son solde au plus tard enregistré, brouillard compris (B-α) · un
+   * règlement daté après le reclassement a déjà soldé une part que le
+   * reclassement antidaté reprendrait.
+   */
+  soldeDernier?: number;
   /** Une ligne en devise non lettrée sur le compte d'origine. */
   ligneEnDevise: boolean;
   motif: string | null | undefined;
@@ -252,6 +258,13 @@ export function motifRefusReclassement(e: EntreeReclassement): string | null {
       `(${centimes(Math.max(0, e.soldeDebiteur)).toFixed(2)}) · on ne reclasse qu'une créance inscrite.`
     );
   }
+  if (e.soldeDernier != null && centimes(e.montant) > centimes(e.soldeDernier) + 0.005) {
+    return (
+      `Le montant (${centimes(e.montant).toFixed(2)}) dépasse ce que le client doit au plus tard enregistré ` +
+      `(${centimes(Math.max(0, e.soldeDernier)).toFixed(2)}, brouillard compris) · des règlements datés après le reclassement en ont ` +
+      'déjà soldé une part ; reclassée, elle laisserait le compte du client créditeur et le 416 porterait une créance réglée.'
+    );
+  }
   return motifEtPieces(e.motif, e.pieces);
 }
 
@@ -265,6 +278,27 @@ export function resteDeLaCreance(montant: number, mouvements: readonly { date: D
   return centimes(montant - mouvements.filter((m) => m.date.getTime() <= au.getTime()).reduce((s, m) => s + m.montant, 0));
 }
 
+/** Ce qui reste de la créance après TOUS ses mouvements, quelle que soit leur date (B-α). */
+export function resteFinalDeLaCreance(montant: number, mouvements: readonly { montant: number }[]): number {
+  return centimes(montant - mouvements.reduce((s, m) => s + m.montant, 0));
+}
+
+/**
+ * UN RESTE NÉGATIF A UNE ISSUE (B-α) · une perte ou un recouvrement antidaté,
+ * passé avant cette borne, a sorti du 416 plus que la créance. Le 416 est
+ * créditeur d'autant et le 651 (ou la trésorerie) faux · ni la revue ni la
+ * clôture ne le corrigent, l'annulation du mouvement en trop le fait.
+ */
+export function motifResteNegatif(creance: string, resteFinal: number): string | null {
+  if (!(resteFinal < -0.005)) return null;
+  return (
+    `La créance ${creance} a un reste négatif au 416 après tous ses mouvements (${centimes(resteFinal).toFixed(2)}) · une perte ou un ` +
+    'recouvrement dépasse la créance. Annulez le mouvement en trop (« Annuler une perte ou un recouvrement », AUDCIF art. 20, ' +
+    "al. 2), dans un exercice ouvert ; un mouvement d'un exercice clôturé se corrige par le report à nouveau (art. 20, al. 3). " +
+    'Repassez ensuite le bon montant, puis la revue.'
+  );
+}
+
 /** L'écart à passer · positif, dotation (659) ; négatif, reprise (759). Rien d'autre n'entre dans le calcul. */
 export function ecartDeDepreciation(enPlace: number, necessaire: number): number {
   return centimes(necessaire - enPlace);
@@ -275,6 +309,8 @@ export interface EntreeRevue {
   enPlace: number;
   /** Reste de la créance au 416 à la clôture. */
   reste: number;
+  /** B-α · un reste négatif nommé avec son issue (`motifResteNegatif`). */
+  resteNegatif?: string | null;
   motif: string | null | undefined;
   pieces: PieceJustificative[];
   exerciceOuvert: boolean;
@@ -304,6 +340,7 @@ export function motifRefusRevue(e: EntreeRevue): string | null {
       '« à la clôture de l’exercice » (fiche du compte 49), et revoir N+1 avant N doterait deux fois la même perte.'
     );
   }
+  if (e.resteNegatif) return e.resteNegatif;
   if (!e.journalGeneral) return "La revue passe une opération diverse · choisissez un journal d'opérations diverses.";
   if (!Number.isFinite(e.necessaire) || e.necessaire < 0) return 'La dépréciation nécessaire est un montant positif ou nul.';
   if (centimes(e.necessaire) > centimes(e.reste) + 0.005) {
@@ -324,6 +361,12 @@ export interface EntreeMouvement {
   montant: number;
   /** Reste de la créance au 416 à la date du mouvement. */
   reste: number;
+  /**
+   * B-α · ce qui reste après TOUS les mouvements non annulés, quelle que
+   * soit leur date · un mouvement antidaté ne passe pas sous celui qui a été
+   * enregistré après lui.
+   */
+  resteFinal?: number;
   motif: string | null | undefined;
   pieces: PieceJustificative[];
   exerciceOuvert: boolean;
@@ -356,6 +399,13 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
   if (!(e.montant > 0)) return 'Le montant doit être positif.';
   if (centimes(e.montant) > centimes(e.reste) + 0.005) {
     return `Le montant (${centimes(e.montant).toFixed(2)}) dépasse ce qui reste de la créance au 416 (${centimes(e.reste).toFixed(2)}).`;
+  }
+  if (e.resteFinal != null && centimes(e.montant) > centimes(e.resteFinal) + 0.005) {
+    return (
+      `Le montant (${centimes(e.montant).toFixed(2)}) dépasse ce qui reste de la créance après tous ses mouvements ` +
+      `(${centimes(Math.max(0, e.resteFinal)).toFixed(2)}) · une perte ou un recouvrement datés après celui-ci en ont déjà sorti ` +
+      'une part du 416 ; passé, il laisserait le 416 créditeur. Annulez d’abord le mouvement postérieur s’il est faux.'
+    );
   }
   if (e.type === TypeMouvementCreanceDouteuse.PERTE) {
     if (!e.numeroPerte) {
@@ -402,6 +452,8 @@ export interface DepreciationOrpheline {
   creance: string;
   enPlace: number;
   reste: number;
+  /** B-α · le reste après tous les mouvements, quand il est négatif · l'issue est nommée. */
+  resteFinal?: number;
 }
 
 /**
@@ -414,6 +466,14 @@ export interface DepreciationOrpheline {
  */
 export function motifClotureDepreciationsOrphelines(liste: readonly DepreciationOrpheline[]): string | null {
   if (liste.length === 0) return null;
+  // B-α · un reste négatif ne se répare pas par la revue · son issue d'abord.
+  const negatifs = liste.filter((o) => o.resteFinal != null && o.resteFinal < -0.005);
+  if (negatifs.length > 0) {
+    return negatifs
+      .slice(0, 20)
+      .map((o) => motifResteNegatif(o.creance, o.resteFinal!))
+      .join(' ') + (negatifs.length > 20 ? ` (${negatifs.length} créances en tout.)` : '');
+  }
   const detail = liste
     .slice(0, 20)
     .map((o) => `${o.creance} (dépréciation en place ${o.enPlace.toFixed(2)}, reste au 416 ${o.reste.toFixed(2)})`)
@@ -451,6 +511,49 @@ export function motifRefusAnnulationRevue(p: {
     return `Le motif de l'annulation est exigé, de ${MOTIF_ANNULATION_MIN} à ${MOTIF_ANNULATION_MAX} caractères (AUDCIF art. 20, al. 2).`;
   }
   return null;
+}
+
+/**
+ * L'ANNULATION D'UN RECLASSEMENT (m2) · même règle que la revue (B2) et le
+ * mouvement (K4) · AUDCIF art. 20, al. 2. Refusée tant qu'une revue ou un
+ * mouvement NON ANNULÉ porte sur la créance · ils ont lu le montant reclassé ;
+ * on annule du plus récent au plus ancien.
+ */
+export function motifRefusAnnulationReclassement(p: {
+  dejaAnnulee: string | null;
+  exerciceClos: boolean;
+  revuesNonAnnulees: number;
+  mouvementsNonAnnules: number;
+  motif: string | null | undefined;
+}): string | null {
+  if (p.dejaAnnulee) return `Ce reclassement est déjà annulé, le ${p.dejaAnnulee}.`;
+  if (p.exerciceClos) {
+    return "L'exercice du reclassement est clôturé · son erreur se corrige par le report à nouveau (AUDCIF art. 20, al. 3), hors de ce geste.";
+  }
+  if (p.revuesNonAnnulees > 0 || p.mouvementsNonAnnules > 0) {
+    return (
+      `La créance porte ${p.revuesNonAnnulees} revue(s) et ${p.mouvementsNonAnnules} perte(s) ou recouvrement(s) non annulés · ` +
+      'ils ont lu le montant reclassé. Annulez-les d’abord, du plus récent au plus ancien, puis le reclassement.'
+    );
+  }
+  const m = (p.motif ?? '').trim();
+  if (m.length < MOTIF_ANNULATION_MIN || m.length > MOTIF_ANNULATION_MAX) {
+    return `Le motif de l'annulation est exigé, de ${MOTIF_ANNULATION_MIN} à ${MOTIF_ANNULATION_MAX} caractères (AUDCIF art. 20, al. 2).`;
+  }
+  return null;
+}
+
+/**
+ * LE 491 SE CHOISIT SOUS LA RACINE DE SA NATURE (m5) · 4911 pour une créance
+ * litigieuse, 4912 pour une douteuse (aux deux plans), un compte de détail.
+ */
+export function motifRefus491(nature: NatureCreanceDouteuse, numero491: string, estDetail: boolean): string | null {
+  const racine = compte491(nature);
+  if (numero491.startsWith(racine) && estDetail) return null;
+  return (
+    `Le compte ${numero491} n'est pas un compte de détail du ${racine} · une créance ` +
+    `${nature === NatureCreanceDouteuse.LITIGIEUSE ? 'litigieuse' : 'douteuse'} se déprécie au ${racine} (fiche du compte 49).`
+  );
 }
 
 export interface EntreeDeclaration {

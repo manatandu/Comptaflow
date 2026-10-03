@@ -78,6 +78,24 @@ export function mouvementAAnnulerParDefaut(mouvements: readonly { id: string; da
   return [...mouvements].sort((a, b) => a.date.localeCompare(b.date)).at(-1)!.id;
 }
 
+/**
+ * m5 · LE 491 SE CHOISIT SOUS LA RACINE DE SA NATURE · 4911 pour une créance
+ * litigieuse, 4912 pour une douteuse (fiche du compte 49, aux deux plans) ;
+ * le serveur refuse toute autre racine. Un choix unique se présélectionne.
+ */
+export function racine491(nature: NatureCreance): string {
+  return nature === 'LITIGIEUSE' ? '4911' : '4912';
+}
+
+export function comptes491DeLaNature<T extends { numero: string }>(nature: NatureCreance, comptes: readonly T[]): T[] {
+  return comptes.filter((c) => c.numero.startsWith(racine491(nature)));
+}
+
+export function compte491Initial(nature: NatureCreance, comptes: readonly { id: string; numero: string }[]): string {
+  const possibles = comptes491DeLaNature(nature, comptes);
+  return possibles.length === 1 ? possibles[0].id : '';
+}
+
 export const LIBELLE_NATURE: Record<NatureCreance, string> = {
   LITIGIEUSE: 'Litigieuse (le client conteste)',
   DOUTEUSE: 'Douteuse (le client se dérobe)',

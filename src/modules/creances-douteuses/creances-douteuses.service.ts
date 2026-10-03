@@ -30,6 +30,10 @@ import {
   enPlaceAvant,
   motifRefusAnnulationMouvement,
   motifRefusAnnulationRevue,
+  motifRefusAnnulationReclassement,
+  motifRefus491,
+  motifResteNegatif,
+  resteFinalDeLaCreance,
   mouvementsSansRevue,
   motifRefusDeclaration,
   motifRefusMouvement,
@@ -41,6 +45,7 @@ import {
 } from './creances-douteuses';
 import {
   AnnulerMouvementDto,
+  AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
   PerteCreanceDto,
@@ -248,6 +253,8 @@ export class CreancesDouteusesService {
   private async creance(tenantId: string, id: string): Promise<Creance> {
     const c = await this.prisma.creanceDouteuse.findFirst({ where: { id, tenantId }, include: INCLURE_CREANCE });
     if (!c) throw new NotFoundException('Créance douteuse introuvable pour ce dossier.');
+    // Un reclassement ANNULÉ (m2) n'admet plus aucun geste · il ne porte plus rien au 416.
+    if (c.annuleeLe) throw new BadRequestException(`Le reclassement de cette créance est annulé, le ${jour(c.annuleeLe)}.`);
     return c;
   }
 
@@ -261,6 +268,42 @@ export class CreancesDouteusesService {
 
   private reste(c: Creance, au: Date) {
     return resteDeLaCreance(n(c.montant), c.mouvements.map((m) => ({ date: m.date, montant: n(m.montant) })), au);
+  }
+
+  /** B-α · ce qui reste après TOUS les mouvements non annulés, quelle que soit leur date. */
+  private resteFinal(c: Creance) {
+    return resteFinalDeLaCreance(n(c.montant), c.mouvements.map((m) => ({ montant: n(m.montant) })));
+  }
+
+  /**
+   * B-α · LE SOLDE DU CLIENT AU PLUS TARD ENREGISTRÉ, brouillard compris · le
+   * plus petit de son solde sur la chaîne de l'exercice du reclassement, toutes
+   * dates (un règlement daté APRÈS le reclassement antidaté), et sur la chaîne
+   * de l'exercice le plus récent du dossier (N+1 déjà ouvert).
+   */
+  private async soldeAuPlusTard(tenantId: string, compteId: string, ex: { id: string; dateDebut: Date }, ids: string[]) {
+    const fin = new Date('9999-12-31');
+    const ici = await this.solde(tenantId, { id: compteId }, ids, fin);
+    const dernier = await this.prisma.exercice.findFirst({
+      where: { tenantId },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateDebut: true },
+    });
+    if (!dernier || dernier.id === ex.id) return ici;
+    const chaineDernier = await this.chaine(tenantId, dernier);
+    return Math.min(ici, await this.solde(tenantId, { id: compteId }, chaineDernier.ids, fin));
+  }
+
+  /**
+   * m5 · LE 491 SE CHOISIT sous la racine de la nature (4911 ou 4912) · absent,
+   * le premier compte de détail de cette racine.
+   */
+  private async compte491Choisi(tenantId: string, nature: NatureCreanceDouteuse, choisi: string | undefined) {
+    if (!choisi) return this.compteDetail(tenantId, compte491(nature));
+    const k = await this.compteParId(tenantId, choisi);
+    const refus = motifRefus491(nature, k.numero, k.typeCompte === TypeCompteDetailTotal.DETAIL);
+    if (refus) throw new BadRequestException(refus);
+    return k;
   }
 
   /**
@@ -286,7 +329,7 @@ export class CreancesDouteusesService {
     const debiteurs = groupes
       .map((g) => ({ compteId: g.compteId, solde: centimes(n(g._sum?.debit) - n(g._sum?.credit)) }))
       .filter((g) => g.solde > 0.005);
-    const [comptesCreances, comptes416] = await Promise.all([
+    const [comptesCreances, comptes416, comptes491] = await Promise.all([
       this.prisma.compte.findMany({
         where: { tenantId, id: { in: debiteurs.map((d) => d.compteId) } },
         select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } },
@@ -295,6 +338,13 @@ export class CreancesDouteusesService {
       }),
       this.prisma.compte.findMany({
         where: { tenantId, numero: { startsWith: COMPTES_CREANCES_DOUTEUSES.creances416 }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
+        select: { id: true, numero: true, intitule: true },
+        orderBy: { numero: 'asc' },
+        take: 50,
+      }),
+      // m5 · les 491 de détail, que l'écran filtre par la racine de la nature.
+      this.prisma.compte.findMany({
+        where: { tenantId, numero: { startsWith: '491' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
         select: { id: true, numero: true, intitule: true },
         orderBy: { numero: 'asc' },
         take: 50,
@@ -317,6 +367,7 @@ export class CreancesDouteusesService {
       })),
       tronque: groupes.length > PLAFOND_COMPTES_CANDIDATS,
       comptes416,
+      comptes491,
     };
   }
 
@@ -331,11 +382,14 @@ export class CreancesDouteusesService {
   async lister(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
     const [total, lignes, regime, annulees, mouvementsAnnules] = await Promise.all([
-      this.prisma.creanceDouteuse.count({ where: { tenantId, dateReclassement: { lte: ex.dateFin } } }),
+      this.prisma.creanceDouteuse.count({ where: { tenantId, dateReclassement: { lte: ex.dateFin }, annuleeLe: null } }),
+      // m3 · LES PLUS RÉCENTES D'ABORD · une tranche bornée n'écarte jamais
+      // une créance de l'exercice ; au-delà du plafond, ce sont les plus
+      // anciennes qui ne sont pas montrées, et `tronque` et `total` le disent.
       this.prisma.creanceDouteuse.findMany({
-        where: { tenantId, dateReclassement: { lte: ex.dateFin } },
+        where: { tenantId, dateReclassement: { lte: ex.dateFin }, annuleeLe: null },
         include: INCLURE_CREANCE,
-        orderBy: [{ dateReclassement: 'asc' }, { id: 'asc' }],
+        orderBy: [{ dateReclassement: 'desc' }, { id: 'desc' }],
         take: PLAFOND_CREANCES_LISTEES,
       }),
       this.regime(tenantId),
@@ -365,8 +419,11 @@ export class CreancesDouteusesService {
     // dépréciée hors module, autre nature) fabriquait un écart qui n'est pas
     // celui du module.
     const comptes491 = [...new Set(lignes.map((c) => c.compte491Id))];
+    // m4 · LE 416 DU MODULE SEUL, comme le 491 · une créance reclassée à la
+    // main sur un autre 416 fabriquait un écart qui n'est pas celui du module.
+    const comptes416 = [...new Set(lignes.map((c) => c.compte416Id))];
     const [solde416, solde491] = await Promise.all([
-      this.solde(tenantId, { numero: { startsWith: COMPTES_CREANCES_DOUTEUSES.creances416 } }, ids, ex.dateFin),
+      comptes416.length > 0 ? this.solde(tenantId, { id: { in: comptes416 } }, ids, ex.dateFin) : Promise.resolve(0),
       comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
     ]);
     return {
@@ -478,12 +535,13 @@ export class CreancesDouteusesService {
     const c416 = dto.compte416Id ? await this.compteParId(tenantId, dto.compte416Id) : await this.compteDetail(tenantId, propose!);
     const pieces = this.pieces(dto.pieces);
     const { ids, provisoire } = await this.chaine(tenantId, ex);
-    const [soldeDebiteur, enDevise, c491] = await Promise.all([
+    const [soldeDebiteur, soldeDernier, enDevise, c491] = await Promise.all([
       this.solde(tenantId, { id: source.id }, ids, date),
+      this.soldeAuPlusTard(tenantId, source.id, ex, ids),
       this.prisma.ligneEcriture.count({
         where: { compteId: source.id, deviseId: { not: null }, lettre: null, ecriture: { tenantId, exerciceId: { in: ids } } },
       }),
-      this.compteDetail(tenantId, compte491(dto.nature)),
+      this.compte491Choisi(tenantId, dto.nature, dto.compte491Id),
     ]);
     let motif = motifRefusReclassement({
       referentiel,
@@ -494,6 +552,7 @@ export class CreancesDouteusesService {
       numero416EstDetail: c416.typeCompte === TypeCompteDetailTotal.DETAIL,
       montant: dto.montant,
       soldeDebiteur,
+      soldeDernier,
       ligneEnDevise: enDevise > 0,
       motif: dto.motif,
       pieces,
@@ -572,7 +631,7 @@ export class CreancesDouteusesService {
       this.compteParId(tenantId, dto.compteCreanceId),
       this.compteParId(tenantId, dto.compte416Id),
     ]);
-    const c491 = await this.compteDetail(tenantId, compte491(dto.nature));
+    const c491 = await this.compte491Choisi(tenantId, dto.nature, dto.compte491Id);
     const date = ex.dateDebut;
     const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
     const [an416, an491, existe, dejaPorte] = await Promise.all([
@@ -637,12 +696,28 @@ export class CreancesDouteusesService {
     await lireParLots(
       (curseur) =>
         this.prisma.creanceDouteuse.findMany({
-          where: { tenantId, dateReclassement: { lte: ouverture }, OR: [{ compte416Id }, { compte491Id }] },
+          // m1 · les créances DÉCLARÉES à une ouverture au plus tard celle-ci,
+          // et les créances RECLASSÉES AVANT l'ouverture · un reclassement daté
+          // du premier jour se passe DANS l'exercice, il n'est pas dans
+          // l'à-nouveau qui borne la déclaration.
+          where: {
+            tenantId,
+            annuleeLe: null,
+            AND: [
+              { OR: [{ compte416Id }, { compte491Id }] },
+              {
+                OR: [
+                  { declareeOuverture: true, dateReclassement: { lte: ouverture } },
+                  { declareeOuverture: false, dateReclassement: { lt: ouverture } },
+                ],
+              },
+            ],
+          },
           include: INCLURE_CREANCE,
           ...pageApres(curseur, LOT_ECRITURES),
         }),
       (c) => {
-        const aLOuverture = c.dateReclassement.getTime() === ouverture.getTime();
+        const aLOuverture = c.declareeOuverture && c.dateReclassement.getTime() === ouverture.getTime();
         if (c.compte416Id === compte416Id) {
           sur416 += aLOuverture ? n(c.montant) : this.reste(c, veille);
         }
@@ -662,6 +737,12 @@ export class CreancesDouteusesService {
     const [c, ex, regime] = await Promise.all([this.creance(tenantId, id), this.exercice(tenantId, exerciceId), this.regime(tenantId)]);
     const enPlace = this.enPlace(c, ex.dateDebut);
     const reste = this.reste(c, ex.dateFin);
+    // B-α · un reste négatif (mouvement antidaté passé avant la borne) se dit
+    // avec son issue, au lieu d'un refus sans issue.
+    const resteNegatif = motifResteNegatif(
+      `${c.compteCreance.numero} ${c.compteCreance.intitule}`,
+      Math.min(reste, this.resteFinal(c)),
+    );
     const posterieure = c.ajustements.find((a) => a.exercice.dateDebut.getTime() > ex.dateFin.getTime()) ?? null;
     // Les exercices ouverts entre le reclassement et celui-ci, sans revue ·
     // on revoit dans l'ordre (fiche du compte 49, « à la clôture de
@@ -678,6 +759,7 @@ export class CreancesDouteusesService {
       ex,
       enPlace,
       reste,
+      resteNegatif,
       posterieure,
       anterieursSansRevue: anterieurs.filter((e) => !revus.has(e.id)).map((e) => `l'exercice clos le ${jour(e.dateFin)}`),
       refusSmt: motifRefusDepreciationSmt(regime),
@@ -705,6 +787,7 @@ export class CreancesDouteusesService {
       necessaire: dto.depreciationNecessaire,
       enPlace: e.enPlace,
       reste: e.reste,
+      resteNegatif: e.resteNegatif,
       motif: dto.motif,
       pieces,
       exerciceOuvert: e.ex.statut === StatutExercice.OUVERT,
@@ -774,6 +857,7 @@ export class CreancesDouteusesService {
       depreciationEnPlace: e.enPlace,
       resteALaCloture: e.reste,
       dateRevue: jour(e.ex.dateFin),
+      resteNegatif: e.resteNegatif,
       dejaRevue: e.c.ajustements.some((a) => a.exerciceId === e.ex.id),
       revuePosterieure: e.posterieure ? jour(e.posterieure.date) : null,
       anterieursSansRevue: e.anterieursSansRevue,
@@ -910,6 +994,8 @@ export class CreancesDouteusesService {
       type,
       montant: dto.montant,
       reste,
+      // B-α · borné aussi par ce que laissent TOUS les mouvements, quelle que soit leur date.
+      resteFinal: this.resteFinal(c),
       motif: dto.motif,
       pieces,
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
@@ -1009,6 +1095,100 @@ export class CreancesDouteusesService {
         liberer: retirer,
       });
       return { retire: true };
+    });
+  }
+
+  /**
+   * L'ANNULATION D'UN RECLASSEMENT (m2) · sur le modèle de `annulerRevue` (B2)
+   * et de `annulerMouvement` (K4), AUDCIF art. 20, al. 2 · au brouillard,
+   * l'écriture est supprimée ; validée, elle est inscrite en négatif ; une
+   * ligne lettrée ou pointée refuse ; la créance est MARQUÉE annulée par un
+   * `update` unitaire (journal d'audit), jamais supprimée. Refusée tant
+   * qu'une revue ou un mouvement non annulé porte sur elle. Une créance
+   * déclarée à l'ouverture, sans écriture, s'annule de même.
+   */
+  annulerReclassement(tenantId: string, userId: string, id: string, dto: AnnulerReclassementDto) {
+    return this.sousVerrou(tenantId, 'ANNULATION DE RECLASSEMENT', () => this.annulerReclassementSousVerrou(tenantId, userId, id, dto.motif));
+  }
+
+  private async annulerReclassementSousVerrou(tenantId: string, userId: string, id: string, motifSaisi: string) {
+    const c = await this.prisma.creanceDouteuse.findFirst({
+      where: { id, tenantId },
+      include: {
+        exercice: { select: { statut: true } },
+        ecritureReclassement: {
+          select: { id: true, statut: true, numeroPiece: true, lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } } },
+        },
+      },
+    });
+    if (!c) throw new NotFoundException('Créance douteuse introuvable pour ce dossier.');
+    const [revues, mouvements] = await Promise.all([
+      this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id, annuleeLe: null } }),
+      this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id, annuleeLe: null } }),
+    ]);
+    const refus = motifRefusAnnulationReclassement({
+      dejaAnnulee: c.annuleeLe ? jour(c.annuleeLe) : null,
+      exerciceClos: c.exercice.statut === StatutExercice.CLOTURE,
+      revuesNonAnnulees: revues,
+      mouvementsNonAnnules: mouvements,
+      motif: motifSaisi,
+    });
+    if (refus) throw new BadRequestException(refus);
+    const motif = motifSaisi.trim();
+    const objet = `l'écriture du reclassement n° ${c.ecritureReclassement?.numeroPiece ?? '·'}`;
+    if (c.ecritureReclassement) {
+      const tenues = motifLignesTenues(c.ecritureReclassement.lignes, objet, 'annuler', ', puis annulez le reclassement');
+      if (tenues) throw new BadRequestException(tenues);
+    }
+    return transactionJournalisee(this.prisma, async (tx) => {
+      // Relu dans la transaction · une revue ou un mouvement passé entre-temps refuse aussi.
+      const [r, m] = await Promise.all([
+        tx.ajustementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id, annuleeLe: null } }),
+        tx.mouvementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id, annuleeLe: null } }),
+      ]);
+      if (r > 0 || m > 0) {
+        throw new BadRequestException(
+          motifRefusAnnulationReclassement({ dejaAnnulee: null, exerciceClos: false, revuesNonAnnulees: r, mouvementsNonAnnules: m, motif })!,
+        );
+      }
+      const e = c.ecritureReclassement;
+      let annulation: Record<string, unknown> = { traitement: 'SANS_ECRITURE' };
+      if (e) {
+        const relues = await tx.ligneEcriture.findMany({
+          where: { ecritureId: e.id, ecriture: { tenantId } },
+          select: { lettre: true, lettrageId: true, rapprochementId: true },
+        });
+        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le reclassement');
+        if (tenues) throw new BadRequestException(tenues);
+        if (e.statut === StatutEcriture.BROUILLARD) {
+          annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
+        } else {
+          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+          annulation = { traitement: 'INSCRITE_EN_NEGATIF', ecritureId: e.id, numeroPiece: e.numeroPiece, negatifId: negatif.id, negatifNumeroPiece: negatif.numeroPiece };
+        }
+      }
+      try {
+        await tx.creanceDouteuse.update({
+          where: { id: c.id, tenantId, annuleeLe: null },
+          data: {
+            annuleeLe: new Date(),
+            annuleePar: userId,
+            motifAnnulation: motif,
+            annulation: annulation as Prisma.InputJsonValue,
+            ...(annulation.traitement === 'SUPPRIMEE' ? { ecritureReclassementId: null } : {}),
+          },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException('Ce reclassement est déjà annulé.');
+        }
+        throw err;
+      }
+      if (e && annulation.traitement === 'SUPPRIMEE') {
+        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id } });
+        await tx.ecriture.deleteMany({ where: { id: e.id, tenantId } });
+      }
+      return { annule: true, annulation };
     });
   }
 

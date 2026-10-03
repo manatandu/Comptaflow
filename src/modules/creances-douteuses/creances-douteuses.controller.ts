@@ -10,6 +10,7 @@ import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonne
 import { CreancesDouteusesService } from './creances-douteuses.service';
 import {
   AnnulerMouvementDto,
+  AnnulerReclassementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
   PerteCreanceDto,
@@ -105,6 +106,14 @@ export class CreancesDouteusesController {
     @Body() dto: AnnulerRevueDto,
   ) {
     return this.service.annulerRevue(user.tenantId, user.userId, id, revueId, dto);
+  }
+
+  /** L'annulation d'un reclassement (m2 · AUDCIF art. 20, al. 2) · réservée au comptable, comme la revue. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  @Post(':id/annuler')
+  annulerReclassement(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: AnnulerReclassementDto) {
+    return this.service.annulerReclassement(user.tenantId, user.userId, id, dto);
   }
 
   /** L'annulation d'une perte ou d'un recouvrement (K4 · AUDCIF art. 20, al. 2) · réservée au comptable. */
