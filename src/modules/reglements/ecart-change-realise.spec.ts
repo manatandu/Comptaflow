@@ -574,6 +574,22 @@ describe('le règlement d’une facture déjà réévaluée', () => {
   });
 });
 
+describe('le règlement en N+1, réévaluation de N non contre-passée', () => {
+  it('l’avertissement revient avec les règlements, la pièce est passée', async () => {
+    const { service, creer, prisma } = monter();
+    (prisma.reevaluation.findFirst as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ dateReevaluation: new Date('2025-12-31'), ecritureExtourneId: null, ecritureEcarts: { lignes: [{ id: 'r' }] } });
+    const r = await service.enregistrer('t', 'u', {
+      ...base,
+      sens: 'FOURNISSEUR',
+      reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 }],
+    });
+    expect(creer).toHaveBeenCalled();
+    expect(r.avertissements).toEqual([expect.stringMatching(/n'a pas été contre-passée/)]);
+  });
+});
+
 describe('la trésorerie en devise', () => {
   const regl = { compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 };
 

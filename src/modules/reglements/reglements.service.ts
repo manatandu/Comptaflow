@@ -19,7 +19,7 @@ import {
   type Referentiel,
 } from './ecart-change-realise';
 import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
-import { issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
+import { avertissementExtourneManquante, issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
@@ -241,6 +241,7 @@ export class ReglementsService {
     // (relecture adverse, bloquant 1) · la réévaluation de l'exercice qui l'a
     // lue a porté son écart au 478 et en provision ; le 656 du règlement
     // recompterait la perte. Refus avant la première pièce.
+    const avertissements: string[] = [];
     for (const x of prepares) {
       if (!x.enDevise) continue;
       const motif = await motifReglementDejaReevalue(this.prisma, {
@@ -251,6 +252,14 @@ export class ReglementsService {
         ligneIds: x.r.ligneIds,
       });
       if (motif) throw new ConflictException(motif);
+      const avertissement = await avertissementExtourneManquante(this.prisma, {
+        tenantId,
+        exerciceId: dto.exerciceId,
+        compteId: x.r.compteId,
+        compteNumero: x.compte.numero,
+        ligneIds: x.r.ligneIds,
+      });
+      if (avertissement) avertissements.push(avertissement);
     }
 
     // Le lettrage vient APRÈS la pièce · une facture figée par une clôture
@@ -336,7 +345,7 @@ export class ReglementsService {
     const ordre = preparation
       ? await this.ordres.creer(tenantId, email, dto.journalId, dto.date, preparation, aOrdonner)
       : null;
-    return { reglements: resultats, ordre };
+    return { reglements: resultats, ordre, avertissements };
   }
 
   /**
@@ -477,7 +486,6 @@ export class ReglementsService {
       compteId: proposition.compteId,
       compteNumero: proposition.compteNumero,
       lettrageId: dto.lettrageId,
-      denouement: new Date(proposition.date!),
     });
     if (dejaReevalue && 'refus' in dejaReevalue) throw new ConflictException(dejaReevalue.refus);
     const avertissement = dejaReevalue && 'avertissement' in dejaReevalue ? dejaReevalue.avertissement : null;

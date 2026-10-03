@@ -576,9 +576,13 @@ le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL 
 toutes devises, avec et sans le groupe · écritures datées et SAISIES avant elle, sauf
 l'à-nouveau du début d'exercice, qui se recrée ; lignes lettrées après elle ouvertes ;
 un groupe CRÉÉ après elle n'existait pas) ; sans concordance, avertissement et l'écart
-passe, jamais « déjà porté ». Le RÈGLEMENT d'une facture que la réévaluation a lue est
-refusé de même (409, `motifReglementDejaReevalue`). Aucun geste ne retire une
-réévaluation passée · le refus le dit et nomme la décision attendue de Manasse. Des
+passe, jamais « déjà porté ». Aucune dispense par la date · une réévaluation datée
+avant le dénouement qui a lu la facture refuse aussi. Le RÈGLEMENT en devise d'une
+facture qu'elle a lue est refusé (409, `motifReglementDejaReevalue`), dans les seules
+devises dont la position ET l'écart reconstitués sont non nuls ; en N+1, une
+réévaluation de N non contre-passée AVERTIT (`avertissementExtourneManquante`), sans
+refuser. Aucun geste ne retire une réévaluation passée · le refus le dit et nomme la
+décision attendue de Manasse. Des
 francs sans montant en devise sont refusés ; un lot de virements ne rappelle pas une
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.

@@ -78,6 +78,9 @@ export function ReglementsPage() {
   const referentiel: Referentiel = utilisateur?.tenant?.referentiel === 'SYCEBNL' ? 'SYCEBNL' : 'SYSCOHADA';
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Les avertissements du serveur sur un règlement PASSÉ (réévaluation de
+  // l'exercice précédent non contre-passée, ligne A6) · jamais un refus.
+  const [avertissements, setAvertissements] = useState<string[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [onglet, setOnglet] = useState<'reglements' | 'ordres'>('reglements');
   const [avecOrdre, setAvecOrdre] = useState(false);
@@ -215,6 +218,7 @@ export function ReglementsPage() {
     if (!exerciceCourant || !journalId || aRegler.length === 0) return;
     setErreur(null);
     setInfo(null);
+    setAvertissements([]);
     // Les tiers en devise se vérifient AVANT l'envoi · un cours manquant
     // est dit sur le tiers, plutôt qu'au retour du serveur.
     const corps: Record<string, unknown>[] = [];
@@ -262,6 +266,7 @@ export function ReglementsPage() {
       const r = await api.post<{
         reglements: { compte: string; montant: number; partiel: boolean; lettre: string; ecartChange?: number }[];
         ordre: { id: string; numero: number } | null;
+        avertissements?: string[];
       }>(
         '/reglements',
         {
@@ -274,6 +279,7 @@ export function ReglementsPage() {
           reglements: corps,
         },
       );
+      setAvertissements(r.avertissements ?? []);
       const partiels = r.reglements.filter((x) => x.partiel).length;
       const ecarts = r.reglements
         .filter((x) => x.ecartChange !== undefined && x.ecartChange !== 0)
@@ -489,6 +495,11 @@ export function ReglementsPage() {
         </div>
       )}
       {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">{info}</div>}
+      {avertissements.map((a) => (
+        <div key={a} className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2">
+          {a}
+        </div>
+      ))}
       {peutEcrire && journaux.length === 0 && (
         <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2">
           Aucun journal de trésorerie rattaché à un compte de banque ou de caisse · créez-en un dans Codes journaux.

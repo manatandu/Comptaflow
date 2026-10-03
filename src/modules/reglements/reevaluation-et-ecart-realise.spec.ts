@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
+import { avertissementExtourneManquante, issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 
 /**
  * PAS DEUX FOIS LA MÊME PERTE, ET JAMAIS UN FAUX 409 (ligne A6, relectures
@@ -99,7 +99,7 @@ function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, numb
   } as unknown as PrismaService;
 }
 
-const params = { tenantId: 't', exerciceId: 'ex', compteId: 'c401', compteNumero: '40110000', lettrageId: 'L', denouement: new Date('2026-11-30') };
+const params = { tenantId: 't', exerciceId: 'ex', compteId: 'c401', compteNumero: '40110000', lettrageId: 'L' };
 
 describe('l’écart proposé et la réévaluation de l’exercice', () => {
   it('la réévaluation a lu le groupe (198 200) · refus nommé, honnête sur le retrait', async () => {
@@ -112,10 +112,38 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
     expect(await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -75_000 }), params)).toBeNull();
   });
 
-  it('une réévaluation antérieure au dénouement · rien ne s’oppose', async () => {
+  // Quatrième relecture · le retour anticipé sur la date du dénouement
+  // laissait passer le réalisé d'un groupe dont la facture avait été lue par
+  // une réévaluation datée AVANT la fin de l'exercice.
+  it('une réévaluation antérieure au dénouement qui a lu ses lignes · refus', async () => {
     expect(
       await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -198_200, dateReevaluation: '2026-06-30' }), params),
-    ).toBeNull();
+    ).toHaveProperty('refus');
+  });
+
+  it('le scénario de la relecture · facture 1 000 USD à 2 000, réévaluée le 30/09 à 2 100 (100 000), réglée le 15/11 à 2 150 · refus', async () => {
+    const G = { id: 'G', creeLe: new Date('2026-11-15') };
+    const lignes = [
+      ligne('usd', 0, 2_000_000, 1000, G, { date: new Date('2026-06-01'), createdAt: new Date('2026-06-01') }),
+      ligne('usd', 2_150_000, 0, 1000, G, { date: new Date('2026-11-15'), createdAt: new Date('2026-11-15') }),
+    ];
+    const prisma = monter({ lignes, passe: -100_000, dateReevaluation: '2026-09-30', cours: { usd: 2100 } });
+    (prisma.reevaluation.findFirst as jest.Mock).mockResolvedValue({
+      dateReevaluation: new Date('2026-09-30'),
+      createdAt: new Date('2026-10-01'),
+      ecritureEcarts: { lignes: [{ debit: 0, credit: 100_000 }] },
+    });
+    expect(await issueReevaluationDejaPassee(prisma, { ...params, lettrageId: 'G' })).toHaveProperty('refus');
+  });
+
+  it('une facture POSTÉRIEURE à la réévaluation · elle n’y était pas, l’écart passe', async () => {
+    const G = { id: 'G', creeLe: new Date('2027-01-06') };
+    const lignes = [
+      factureB(),
+      ligne('usd', 0, 1_700_000, 1000, G, { date: new Date('2026-10-15') }),
+      ligne('usd', 1_800_000, 0, 1000, G, { date: new Date('2026-11-15') }),
+    ];
+    expect(await issueReevaluationDejaPassee(monter({ lignes, passe: -75_000, dateReevaluation: '2026-09-30' }), { ...params, lettrageId: 'G' })).toBeNull();
   });
 
   it('tiers à deux devises · 75 000 en USD et 10 000 en EUR passés · rien ne s’oppose, et 208 200 refusent', async () => {
@@ -178,10 +206,66 @@ describe('un règlement en devise d’une facture déjà réévaluée', () => {
     expect(motif).toMatch(/Aucun geste d’OmegaX ne retire aujourd’hui/);
   });
 
+  // M1 · seules les devises RÉELLEMENT réévaluées · l'EUR porte 10 000.
+  it('une facture au cours de clôture (écart nul) · rien ne s’oppose', async () => {
+    const usd = ligne('usd', 0, 1_850_000, 1000, null);
+    const eur = ligne('eur', 0, 100_000, 100, null);
+    expect(await motifReglementDejaReevalue(monter({ lignes: [usd, eur], passe: -10_000 }), { ...params, ligneIds: [usd.id] })).toBeNull();
+    expect(await motifReglementDejaReevalue(monter({ lignes: [usd, eur], passe: -10_000 }), { ...params, ligneIds: [eur.id] })).toMatch(/a lu une facture choisie/);
+  });
+
+  it('une devise dont la position était soldée pendant qu’une autre était réévaluée · rien ne s’oppose', async () => {
+    const facture = ligne('usd', 0, 850_000, 500, null);
+    const avance = ligne('usd', 900_000, 0, 500, null);
+    const eur = ligne('eur', 0, 100_000, 100, null);
+    expect(await motifReglementDejaReevalue(monter({ lignes: [facture, avance, eur], passe: -10_000 }), { ...params, ligneIds: [facture.id] })).toBeNull();
+  });
+
   it('une facture saisie après la réévaluation, ou une devise sans cours · rien ne s’oppose', async () => {
     const tardive = factureB({ date: new Date('2026-12-20'), createdAt: new Date('2027-01-08') });
     expect(await motifReglementDejaReevalue(monter({ lignes: [tardive], passe: -75_000 }), { ...params, ligneIds: [tardive.id] })).toBeNull();
     const b = factureB();
     expect(await motifReglementDejaReevalue(monter({ lignes: [b], passe: -75_000, cours: {} }), { ...params, ligneIds: [b.id] })).toBeNull();
+  });
+});
+
+/**
+ * M3 (quatrième relecture) · le règlement en N+1 d'une facture réévaluée en
+ * N, réévaluation de N non contre-passée · AVERTISSEMENT, jamais un refus.
+ */
+describe('la contre-passation de la réévaluation précédente oubliée', () => {
+  function monterN1(p: { extournee: boolean; surLeCompte?: boolean; aNouveau?: boolean }) {
+    return {
+      exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2027-01-01') })) },
+      reevaluation: {
+        findFirst: jest.fn(async ({ where }: { where: { dateReevaluation: { lt: Date } } }) =>
+          new Date('2026-12-31') < where.dateReevaluation.lt
+            ? {
+                dateReevaluation: new Date('2026-12-31'),
+                ecritureExtourneId: p.extournee ? 'x' : null,
+                ecritureEcarts: { lignes: p.surLeCompte === false ? [] : [{ id: 'r' }] },
+              }
+            : null,
+        ),
+      },
+      ligneEcriture: {
+        findMany: jest.fn(async ({ where }: { where: { ecriture: { date: Date } } }) =>
+          (p.aNouveau ?? true) && where.ecriture.date.getTime() === new Date('2027-01-01').getTime() ? [{ id: 'an' }] : [],
+        ),
+      },
+    } as unknown as PrismaService;
+  }
+  const n1 = { tenantId: 't', exerciceId: 'ex2', compteId: 'c401', compteNumero: '40110000', ligneIds: ['an'] };
+
+  it('non contre-passée · l’avertissement nomme la réévaluation et le geste', async () => {
+    expect(await avertissementExtourneManquante(monterN1({ extournee: false }), n1)).toMatch(
+      /40110000 · la réévaluation des devises du 2026-12-31 n'a pas été contre-passée.*Passez la contre-passation/,
+    );
+  });
+
+  it('contre-passée, rien sur le compte, ou une facture qui n’est pas l’à-nouveau · aucun avertissement', async () => {
+    expect(await avertissementExtourneManquante(monterN1({ extournee: true }), n1)).toBeNull();
+    expect(await avertissementExtourneManquante(monterN1({ extournee: false, surLeCompte: false }), n1)).toBeNull();
+    expect(await avertissementExtourneManquante(monterN1({ extournee: false, aNouveau: false }), n1)).toBeNull();
   });
 });

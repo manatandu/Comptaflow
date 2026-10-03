@@ -33,15 +33,31 @@ export function ecartReconstitue(
   cours: ReadonlyMap<string, number | null>,
   inclus: string | null,
 ): number {
-  const retenues = lignes.filter((l) => !l.lettrageId || l.lettrageId === inclus || !denoues.has(l.lettrageId));
   let total = 0;
+  for (const e of ecartsParDevise(lignes, denoues, cours, inclus).values()) total += e.ecart;
+  return centimes(total);
+}
+
+/**
+ * LA MÊME RECONSTITUTION, DEVISE PAR DEVISE · le montant en devise de la
+ * position et son écart. Une devise que la réévaluation n'a pas réévaluée
+ * (position soldée dans sa devise, ou sans cours) rend un écart NUL.
+ */
+export function ecartsParDevise(
+  lignes: LigneAReconstituer[],
+  denoues: ReadonlySet<string>,
+  cours: ReadonlyMap<string, number | null>,
+  inclus: string | null,
+): Map<string, { montantDevise: number; ecart: number }> {
+  const retenues = lignes.filter((l) => !l.lettrageId || l.lettrageId === inclus || !denoues.has(l.lettrageId));
+  const parDevise = new Map<string, { montantDevise: number; ecart: number }>();
   for (const deviseId of new Set(retenues.map((l) => l.deviseId))) {
     const p = positionDesLignes(retenues.filter((l) => l.deviseId === deviseId));
     const c = cours.get(deviseId) ?? null;
-    if (Math.abs(p.montantDevise) < 0.005 || c === null) continue;
-    total += centimes(centimes(p.montantDevise * c) - p.valeurComptable);
+    const ecart = Math.abs(p.montantDevise) < 0.005 || c === null ? 0 : centimes(centimes(p.montantDevise * c) - p.valeurComptable);
+    parDevise.set(deviseId, { montantDevise: p.montantDevise, ecart });
   }
-  return centimes(total);
+  return parDevise;
 }
 
 /** Ce que la réévaluation de l'exercice a lu et passé sur un compte. */
@@ -201,12 +217,17 @@ export async function issueReevaluationDejaPassee(
     compteId: string;
     compteNumero: string;
     lettrageId: string;
-    denouement: Date;
   },
 ): Promise<IssueReevaluation> {
+  // AUCUN RETOUR SUR LA DATE DU DÉNOUEMENT (quatrième relecture) · une
+  // réévaluation datée AVANT la fin de l'exercice (30/09) a pu lire la
+  // facture d'un groupe dénoué ensuite (15/11) · elle a porté son écart au
+  // 478 et en provision, et l'écart proposé le compterait une seconde fois.
+  // La reconstitution suffit · un dénouement postérieur dont la facture
+  // était déjà là se lit en (b) ; une facture postérieure à la réévaluation
+  // n'y est pas, et (a) concorde.
   const lu = await lireLaReevaluation(prisma, { ...p, cible: p.lettrageId });
   if (!lu) return null;
-  if (jour(lu.date) < jour(p.denouement)) return null;
   const tolerance = 0.01 * Math.max(1, lu.cours.size);
   // La cible se bascule · écartée en (a), lue en (b), qu'elle ait existé ou non.
   const avecCible = new Set([...lu.denoues, p.lettrageId]);
@@ -238,7 +259,15 @@ export async function motifReglementDejaReevalue(
 ): Promise<string | null> {
   const lu = await lireLaReevaluation(prisma, { tenantId: p.tenantId, exerciceId: p.exerciceId, compteId: p.compteId, cible: null });
   if (!lu) return null;
-  const lues = lu.lignes.filter((l) => l.id && p.ligneIds.includes(l.id) && (lu.cours.get(l.deviseId) ?? null) !== null);
+  // Seules les devises que la réévaluation a RÉELLEMENT réévaluées · position
+  // non nulle dans sa devise ET écart non nul (quatrième relecture, M1) · une
+  // facture au cours de clôture, ou une devise soldée pendant qu'une autre
+  // l'était, n'a rien porté au 478.
+  const reevaluees = ecartsParDevise(lu.lignes, lu.denoues, lu.cours, null);
+  const lues = lu.lignes.filter((l) => {
+    const e = reevaluees.get(l.deviseId);
+    return l.id && p.ligneIds.includes(l.id) && e !== undefined && Math.abs(e.montantDevise) >= 0.005 && Math.abs(e.ecart) >= 0.005;
+  });
   if (lues.length === 0) return null;
   return motifDejaReevalue({
     date: lu.date,
@@ -246,4 +275,41 @@ export async function motifReglementDejaReevalue(
     compteNumero: p.compteNumero,
     objet: lues.length > 1 ? `${lues.length} des factures choisies` : 'une facture choisie',
   });
+}
+
+/**
+ * LE RÈGLEMENT EN N+1 D'UNE FACTURE RÉÉVALUÉE EN N, réévaluation NON
+ * CONTRE-PASSÉE (quatrième relecture, M3) · l'écart de conversion se
+ * contre-passe à l'ouverture de l'exercice suivant (`DevisesService.extourner`) ;
+ * oubliée, le 478 ou le 479 de la facture et sa provision restent pendant que
+ * le réalisé passe au 656 ou 676. Un AVERTISSEMENT, jamais un refus · la
+ * contre-passation se passe encore, et le règlement est juste. Les lignes
+ * choisies sont celles de l'à-nouveau, datées du début de l'exercice.
+ */
+export async function avertissementExtourneManquante(
+  prisma: Lecteur,
+  p: { tenantId: string; exerciceId: string; compteId: string; compteNumero: string; ligneIds: string[] },
+): Promise<string | null> {
+  const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
+  if (!exercice) return null;
+  const reeval = await prisma.reevaluation.findFirst({
+    where: { tenantId: p.tenantId, dateReevaluation: { lt: exercice.dateDebut } },
+    orderBy: { dateReevaluation: 'desc' },
+    select: {
+      dateReevaluation: true,
+      ecritureExtourneId: true,
+      ecritureEcarts: { select: { lignes: { where: { compteId: p.compteId }, select: { id: true } } } },
+    },
+  });
+  if (!reeval || reeval.ecritureExtourneId !== null || !reeval.ecritureEcarts || reeval.ecritureEcarts.lignes.length === 0) return null;
+  const ouverture = await prisma.ligneEcriture.findMany({
+    where: { id: { in: p.ligneIds }, deviseId: { not: null }, ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId, date: exercice.dateDebut } },
+    select: { id: true },
+  });
+  if (ouverture.length === 0) return null;
+  return (
+    `${p.compteNumero} · la réévaluation des devises du ${jour(reeval.dateReevaluation)} n'a pas été contre-passée à l'ouverture · ` +
+    'le 478 ou le 479 de cette facture et sa provision restent en place pendant que le règlement passe le réalisé. ' +
+    'Passez la contre-passation de cette réévaluation (Devises).'
+  );
 }

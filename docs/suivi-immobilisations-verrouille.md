@@ -52,7 +52,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 | # | Objet | État |
 |---|---|---|
-| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position ou un groupe partiel soldé dans sa devise n'est plus réévalué, et l'écart déjà repris par une réévaluation est refusé ; relecture adverse reprise (trésorerie en devise déclarée, comptes admis sur une table, débit réel en francs, réalisé total au groupe) ; seconde relecture reprise (réévaluation reconstituée toutes devises, à sa date, refus seulement si elle a lu le groupe, sinon avertissement ; groupe borné à l'exercice ; francs sans devise refusés ; lot sans facture en devise) ; troisième relecture reprise (règlement d'une facture déjà réévaluée refusé en 409, groupes lus tels qu'ils existaient à la réévaluation, à-nouveau recréé lu à sa date) ; questions à Manasse · bornes 65 / 75 du SYCEBNL (admis aujourd'hui sous le 65 hors 659 et le 75 hors 759, donc aussi 651, 652, 657 et 752), blocage de la réévaluation, anciens règlements partiels, retrait d'une réévaluation passée |
+| A6 | Écart de change réalisé au règlement d'une créance ou d'une dette en devise (656/756, 676/776 ; SYCEBNL sans 656/756) (AUDCIF art. 55, ch. 22 § 2.3) · relevé CPCC C2 | livré, à intégrer · règlement en devise au coût historique, écart sur sa ligne (656/756 au SYSCOHADA, compte choisi sous le 65 ou le 75 au SYCEBNL, qui n'en donne aucun), écart PROPOSÉ au lettrage puis passé sur confirmation (`reglements/ecart-change-realise.ts`) ; emprunts lus au 16 du SYSCOHADA et au 18 du SYCEBNL (son 16 est un fonds) ; avec A5, une position ou un groupe partiel soldé dans sa devise n'est plus réévalué, et l'écart déjà repris par une réévaluation est refusé ; relecture adverse reprise (trésorerie en devise déclarée, comptes admis sur une table, débit réel en francs, réalisé total au groupe) ; seconde relecture reprise (réévaluation reconstituée toutes devises, à sa date, refus seulement si elle a lu le groupe, sinon avertissement ; groupe borné à l'exercice ; francs sans devise refusés ; lot sans facture en devise) ; troisième relecture reprise (règlement d'une facture déjà réévaluée refusé en 409, groupes lus tels qu'ils existaient à la réévaluation, à-nouveau recréé lu à sa date) ; quatrième relecture reprise (plus de dispense par la date du dénouement, refus du règlement borné aux devises réellement réévaluées, avertissement au règlement en N+1 quand la réévaluation de N n'est pas contre-passée) ; non codés, consignés · une ligne délettrée après la réévaluation se lit comme non lettrée alors qu'elle était lettrée (M2) ; une facture tardive incluse dans un à-nouveau recréé après la réévaluation se lit comme si elle y avait été (M5) ; questions à Manasse · cours corrigé depuis la réévaluation, avertissement plutôt que refus (M4) ; bornes 65 / 75 du SYCEBNL (admis aujourd'hui sous le 65 hors 659 et le 75 hors 759, donc aussi 651, 652, 657 et 752), blocage de la réévaluation, anciens règlements partiels, retrait d'une réévaluation passée |
 
 ## À faire, dans l'ordre
 
@@ -95,10 +95,13 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
   ni sa provision avant la clôture (une seule réévaluation par exercice).
   A6 L'AGGRAVE (troisième relecture) · le réalisé est passé au 656 ou au 676
   contre le coût historique pendant que le 478 et sa provision restent en
-  place · la même perte est comptée deux fois dans l'exercice. Le règlement
-  et l'écart proposé refusent désormais (409) une facture ou un dénouement
-  que la réévaluation a lu, ce qui borne le défaut sans le corriger ; la
-  sortie attend la décision de Manasse sur le retrait d'une réévaluation.
+  place · la même perte est comptée deux fois dans l'exercice. Depuis la
+  quatrième relecture, quelle que soit la date de la réévaluation, le
+  règlement en devise refuse (409) une facture choisie qu'elle a lue dans une
+  devise dont la position et l'écart reconstitués sont non nuls, et l'écart
+  proposé refuse (409) quand le compte reconstitué à sa date concorde avec le
+  groupe lu ; cela borne le défaut sans le corriger, la sortie attend la
+  décision de Manasse sur le retrait d'une réévaluation.
 
   textes, ni proposée ni virée au 29x définitif à la mise en service, faute de
   texte.

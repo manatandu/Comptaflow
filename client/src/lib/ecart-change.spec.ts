@@ -160,3 +160,17 @@ describe('le refus du règlement s’affiche tel quel', () => {
     expect(corps).not.toMatch(/status === 409/);
   });
 });
+
+/**
+ * Quatrième relecture, M3 · l'avertissement « réévaluation non contre-passée »
+ * revient avec un règlement PASSÉ · l'écran l'affiche, il ne le jette pas.
+ */
+describe('les avertissements d’un règlement passé s’affichent', () => {
+  it('enregistrer garde les avertissements du serveur et l’écran les rend', () => {
+    const source = readFileSync(join(__dirname, '../pages/ReglementsPage.tsx'), 'utf8');
+    const debut = source.indexOf('const enregistrer = async () => {');
+    const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
+    expect(corps).toContain('setAvertissements(r.avertissements ?? [])');
+    expect(source).toMatch(/\{avertissements\.map\(\(a\) => \(/);
+  });
+});
