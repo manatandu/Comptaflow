@@ -239,6 +239,110 @@ tests (`npx jest --maxWorkers=2`), typage et construction ; client 209
 fichiers, 1709 tests, typage et construction. `prisma migrate diff` · « No
 difference detected ».
 
+## Cinquième tour (2026-10-03) · une seule règle, fondée sur l'état réel
+
+Relu · AUDCIF art. 34 et SYCEBNL art. 16, 4) (correspondance du bilan
+d'ouverture et de clôture) ; AUDCIF art. 20, al. 2 (inscription en
+négatif) ; Guide, Partie 2 ch. 22, « Écarts de conversion à la clôture
+(478 actif / 479 passif), contrepassés à la réouverture », Applications 84
+(« 411 · 4781 », « 4791 · 411 ») et 85 (« 4793 · 4812 »).
+
+Décision du coordinateur · la reconnaissance d'écritures (`manuellesSurLEcart`,
+`porteLEcart` sur le seul 47, branches « exactes » et « rétablissement »)
+est RETIRÉE. Une règle (`etatDeLEcart`, jugée par `jugerLEtat`,
+`contre-passation-manuelle.ts`) sert `extourner`, le portillon, la
+déclaration et l'écran (`motifHorsModule`) ; le contrôle 34 nomme une issue
+que « Contre-passer » rejuge sur elle.
+
+- LE LU · le 478 et le 479 de l'écart à leur SOLDE dans la cible, à
+  l'instant du geste · ouverture fiable de la cible (à-nouveau de clôture
+  ou bilan importé) et ses écritures, sinon la clôture reconstituée de
+  l'exercice précédent, brouillard compris, en remontant jusqu'à une
+  ouverture fiable (même lecture que `ouverturesDe`), jamais l'à-nouveau
+  provisoire. Le TIERS par sa seule part qui ne soit pas une opération
+  (`ecartTiers`) · l'écart entre son ouverture fiable et la clôture
+  précédente (art. 34), plus les mouvements des écritures hors module qui
+  touchent le 478 ou le 479 de l'écart depuis la réévaluation.
+- L'ATTENDU · les écarts du module en place (non annulés, ni contre-passés
+  ni déclarés au plus tard dans la cible), plus les écarts passés HORS du
+  module avant la cible, dans le sens de l'écart, qui ne l'inversent pas
+  (un autre écart, légitime, sur le même 4791 · X1).
+- LE JUGEMENT · l'état comparé compte par compte à l'attendu moins un
+  sous-ensemble d'écarts déjà contre-passés (recherche exhaustive, douze
+  écarts au plus) · EN_PLACE (le module passe), CONTRE_PASSEE (le module
+  refuse, la déclaration de l'écriture exacte est admise), AMBIGU (deux
+  écarts de mêmes comptes et montants · l'écriture exacte se déclare pour
+  l'un ou l'autre), ANOMALIE.
+- L'ISSUE PROUVÉE · essayés dans l'ordre, rejugés · aucun geste ;
+  rétablir l'écart quand l'ouverture l'omet exactement, sur tous ses
+  comptes ; corriger les écritures qui portent le 478 ou le 479 contre un
+  compte étranger, puis toutes celles qui n'inversent pas, puis toutes
+  sauf une exacte, puis toutes, avec et sans rétablissement. Le message
+  chiffre l'attendu et le solde du 47, la part du tiers, et ne dit que
+  l'issue qui mène à EN_PLACE (« contre-passez ») ou à CONTRE_PASSEE avec
+  une écriture exacte (« déclarez la pièce n° … ») ; à défaut,
+  « rapprochez » (art. 34 nommé si l'ouverture ne correspond pas).
+- LA DÉCLARATION · admise seulement si l'état, l'écriture comprise, se lit
+  CONTRE_PASSEE (ou AMBIGU) et qu'elle inverse exactement, tiers compris,
+  en montants positifs ; elle peut être DANS l'exercice réévalué, au plus
+  tôt à la date de la réévaluation (X3), et le portillon la tient alors
+  pour à sa place. Négatifs, écritures corrigées, retrait · inchangés.
+
+ÉCART ASSUMÉ, RAISONNÉ · le coordinateur demandait le SOLDE du tiers. Il
+mêle l'écart aux factures et règlements de l'exercice, que rien ne
+sépare · comparé à l'attendu, il ferait refuser tout dossier qui facture
+en N+1. Le tiers est donc lu par sa part d'écart (ouverture contre
+clôture, écritures qui touchent le 47 de l'écart) · ce qui l'a attrapé
+dans X4 (rétablissement contre la banque ou un autre client) et X2
+(ouverture nette).
+
+Chiffré sur base réelle (ma grappe 55439, serveur 8192, base a5bis_t5),
+fin N+1 puis N+2 :
+
+- X1 (autre écart EUR sur le même 4791) · CP EUR puis module ; CP EUR et
+  CP USD déclarée ; OD groupée refusée, corrigée, puis module ; module
+  d'abord (X1 bis inverse) ; CP EUR corrigée puis module (X1 bis cachée) ·
+  411 3 400 000, 479 −400 000 ; N+2 · 3 600 000, −600 000. X1c (EUR au
+  4781) · 3 400 000, −400 000, 478 0.
+- X2 seule · refus « rétablissez, puis déclarez la pièce » ; suivi ·
+  3 200 000, −100 000. X2 rétablie · déclarée · 3 200 000, −100 000.
+- X3 (CP passée dans N, N ouvert ou clos) · module refusé « déclarez-la » ;
+  déclarée · 2 400 000, −400 000 ; N+2 · 2 600 000, −600 000.
+- X4 (banque, autre client) · refus « corrigez la pièce, rétablissez,
+  puis contre-passez » ; suivi · 41110000 3 200 000, 479 −100 000,
+  banque 0.
+- X5 · limite CHIFFRÉE · import qui omet l'écart USD et porte un écart
+  EUR que N ne connaît pas · le module REFUSE (« rapprochez », ouverture
+  4791 −100 000 et 411 +3 100 000 contre la clôture de N) ; après la CP
+  EUR à la main, 411 5 000 000 et 479 0 (le 4 500 000 du tour précédent
+  ne se produit plus) ; N complété (vente et écart EUR en N), l'issue
+  devient « rétablissez, puis contre-passez », suivie · 5 000 000, 0.
+  N clos, reprise USD à la main dans N · « déclarez » ; déclarée ·
+  5 400 000, −400 000 ; N+2 · 5 600 000, −600 000.
+- X6 (D6, CP annulée) · rien de proposé, négatifs refusés, module ·
+  2 400 000, −400 000. X7 · 16 sur 16. X8 (deux OD séparées, dans les
+  deux ordres) · déclarées tour à tour · 2 600 000, −600 000.
+- Tours précédents · sh1, sm, sk (refus « corrigez la pièce n° 21 »,
+  sk-t5 · 9 sur 9, 2 600 000, −600 000 ; les expressions de sk.mjs
+  attendaient le libellé du quatrième tour), sr, s11, sf (net puis
+  rétablissement · 3 200 000, −100 000 ; net puis contre-passation ·
+  refusée, issue « rétablissez » ; brut), sf3 · justes.
+- Bords · doublon exact (refus « corrigez la pièce n° 3, puis déclarez
+  la pièce n° 2 », suivi · 2 400 000, −400 000) ; CP partielle de
+  300 000 dans N (« inversez-la à l'ouverture, puis contre-passez »,
+  suivi · 2 400 000, −400 000) ; écart EUR de N+1 passé AVANT la
+  contre-passation de N (refus, issue suivie · 3 500 000, −500 000) ;
+  SYCEBNL (41200000, 47911000) · déclarée, 2 400 000, −400 000.
+
+En tout, 33 scénarios et 174 vérifications passées (script `tout.sh` du
+répertoire de travail), plus le refus attendu de sf « net puis
+contre-passation » ; serveur arrêté, base supprimée.
+
+Bloc du § 3 passé après le cinquième tour · serveur 715 suites, 10080
+tests (`npx jest --maxWorkers=2`), typage et construction ; client 209
+fichiers, 1709 tests, typage et construction. Aucun changement de schéma
+ni de migration à ce tour.
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
@@ -254,10 +358,18 @@ difference detected ».
   au quatrième tour (m1, rétablissement puis contre-passation). Hors ligne,
   au suivi du coordinateur · la double reprise de l'à-nouveau importé, la
   balance importée sans devise.
-- `motifManuellesSurLEcart` juge l'ouverture « porte l'écart » compte par
-  compte (même sens, au moins le montant) · un 4791 qui porterait aussi
-  d'autres écarts non contre-passés passe pour la porter ; et le
-  rétablissement n'est reconnu qu'au montant exact.
+- Limites de la règle d'état (cinquième tour), écrites · (1) un écart
+  hors module de l'exercice cible, passé AVANT de contre-passer N, se lit
+  comme un mouvement à corriger · refus, l'issue dit de le corriger et de
+  le repasser après la contre-passation (chiffré · 3 500 000, −500 000) ;
+  (2) un écart hors module de N daté AVANT la date de la réévaluation, ou
+  d'un exercice antérieur non contre-passé, n'est pas tenu pour en place ·
+  refus « rapprochez » ; (3) une ouverture qui ne correspond pas à la
+  clôture précédente autrement qu'en omettant l'écart (X5, import d'une
+  créance que N ne connaît pas) · refus « rapprochez », jamais un montant
+  faux ; (4) au-delà de deux cents écritures hors module sur l'écart, ou
+  de douze écarts en place sur ces comptes, la lecture se dit bornée et
+  aucune issue n'est déduite.
 - A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
   pas la part reportée en francs par l'à-nouveau · une caisse en devise
   réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la
