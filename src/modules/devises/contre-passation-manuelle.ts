@@ -151,3 +151,181 @@ export function disponibilitesInversees(
   }
   return inversees;
 }
+
+/**
+ * L'ÉTAT RÉEL DE L'ÉCART, JUGÉ CONTRE CE QU'ATTEND LE MODULE (cinquième tour,
+ * décision du coordinateur · une seule règle, fondée sur les soldes et non
+ * plus sur la reconnaissance d'écritures, servie à `extourner`, au portillon,
+ * à la déclaration et à l'écran).
+ *
+ * LE VECTEUR · un montant, en centimes, par compte de l'écart de la
+ * réévaluation (le 478 ou le 479, et le compte de tiers ou de dette) :
+ *  · sur le 478 et le 479, le SOLDE réel dans l'exercice qui reçoit la
+ *    contre-passation, à l'instant du geste · ils ne portent que des écarts
+ *    de conversion (fiches des comptes 478 et 479), leur solde se lit sans
+ *    rien deviner ;
+ *  · sur le tiers, dont le solde mêle l'écart aux opérations de l'entité,
+ *    l'attendu PLUS l'écart d'ouverture (AUDCIF art. 34) et les mouvements
+ *    des écritures hors module qui touchent le 478 ou le 479 de l'écart
+ *    (`ecartTiers`) · la seule part du tiers qui ne soit pas une opération.
+ * L'ATTENDU · la somme des écarts encore en place · ceux du module
+ * (réévaluations non contre-passées) et ceux passés hors du module dans un
+ * exercice antérieur à la contre-passation, dans le sens de l'écart (un autre
+ * écart, légitime, sur le même 4791 · X1).
+ *
+ * Le lu se lit comme l'attendu moins les écarts d'un SOUS-ENSEMBLE des écarts
+ * en place, déjà contre-passés hors du module · la recherche est exhaustive,
+ * bornée à douze écarts qui touchent ces comptes.
+ *  · aucun sous-ensemble ne rend le lu · ANOMALIE ;
+ *  · tous ceux qui le rendent contiennent la réévaluation · CONTRE_PASSEE ;
+ *  · aucun ne la contient (le vide compris, lu = attendu) · EN_PLACE ;
+ *  · sinon · AMBIGU (deux écarts de mêmes comptes et mêmes montants).
+ */
+export type VerdictDeLEtat = 'EN_PLACE' | 'CONTRE_PASSEE' | 'ANOMALIE' | 'AMBIGU';
+
+export const PLAFOND_SOUS_ENSEMBLES = 12;
+
+export function verdictDeLEtat(p: {
+  comptes: string[];
+  lu: Map<string, number>;
+  enPlace: Array<{ id: string; ecart: Map<string, number> }>;
+  reevaluationId: string;
+}): { verdict: VerdictDeLEtat; attendu: Map<string, number>; trop: boolean } {
+  const attendu = new Map<string, number>();
+  for (const c of p.comptes) attendu.set(c, p.enPlace.reduce((t, r) => t + (r.ecart.get(c) ?? 0), 0));
+  const manque = p.comptes.map((c) => (attendu.get(c) ?? 0) - (p.lu.get(c) ?? 0));
+  // Seuls comptent les écarts qui touchent ces comptes · les autres n'entrent
+  // dans aucune somme.
+  const utiles = p.enPlace.filter((r) => p.comptes.some((c) => (r.ecart.get(c) ?? 0) !== 0));
+  if (utiles.length > PLAFOND_SOUS_ENSEMBLES) return { verdict: 'ANOMALIE', attendu, trop: true };
+  let avec = 0;
+  let sans = 0;
+  for (let masque = 0; masque < 1 << utiles.length; masque++) {
+    const somme = p.comptes.map((c) => utiles.reduce((t, r, i) => (masque & (1 << i) ? t + (r.ecart.get(c) ?? 0) : t), 0));
+    if (!somme.every((s, i) => s === manque[i])) continue;
+    if (utiles.some((r, i) => masque & (1 << i) && r.id === p.reevaluationId)) avec++;
+    else sans++;
+  }
+  const verdict: VerdictDeLEtat =
+    avec === 0 && sans === 0 ? 'ANOMALIE' : avec > 0 && sans > 0 ? 'AMBIGU' : avec > 0 ? 'CONTRE_PASSEE' : 'EN_PLACE';
+  return { verdict, attendu, trop: false };
+}
+
+/** Une écriture HORS MODULE qui touche le 478 ou le 479 de l'écart, depuis la réévaluation. */
+export interface EcritureSurLEcart {
+  id: string;
+  numeroPiece: number | null;
+  date: Date;
+  /** Dans l'exercice qui reçoit la contre-passation · elle s'y corrige. Avant lui, son effet s'inverse à son ouverture. */
+  dansLaCible: boolean;
+  /** Elle inverse exactement l'écart de la réévaluation, tiers compris (`motifRefusInversion`). */
+  exacte: boolean;
+  /** Elle porte le 478 ou le 479 contre un compte étranger à l'écart (une banque, un autre client). */
+  horsDeLEcart: boolean;
+  /** Débit moins crédit, en centimes, sur chaque compte de l'écart. */
+  effet: Map<string, number>;
+}
+
+/** Un geste que l'issue demande, dans l'ordre. */
+export type GesteDIssue = { type: 'RETABLIR' } | { type: 'NEUTRALISER'; ecritures: EcritureSurLEcart[] };
+
+/** L'issue PROUVÉE · après ces gestes, l'état rejugé dit ce qui reste à faire. */
+export type IssueDeLEtat =
+  | { gestes: GesteDIssue[]; fin: 'CONTRE_PASSER' }
+  | { gestes: GesteDIssue[]; fin: 'DECLARER'; ecriture: EcritureSurLEcart };
+
+export interface JugementDeLEtat {
+  verdict: VerdictDeLEtat;
+  /** L'attendu, compte par compte (écarts en place). */
+  attendu: Map<string, number>;
+  /** Le lu, compte par compte (le solde sur le 478 et le 479 ; l'attendu plus `ecartTiers` sur le tiers). */
+  lu: Map<string, number>;
+  trop: boolean;
+  /** `null` · aucune issue que le calcul prouve juste · « rapprochez ». */
+  issue: IssueDeLEtat | null;
+}
+
+/**
+ * LE JUGEMENT, ET L'ISSUE QUE LE CALCUL PROUVE. Chaque message n'annonce
+ * qu'une issue dont l'état, rejugé après ses gestes, rend le module juste
+ * (EN_PLACE · « contre-passez ») ou la déclaration admise (CONTRE_PASSEE avec
+ * une écriture qui inverse exactement l'écart · « déclarez-la »). Les gestes
+ * essayés, dans l'ordre, du moindre au plus lourd :
+ *  · aucun ;
+ *  · RÉTABLIR l'écart, quand l'ouverture l'omet exactement, sur tous ses
+ *    comptes (`retablissable` · AUDCIF art. 34 ; SYCEBNL art. 16, 4)) ;
+ *  · NEUTRALISER les écritures qui portent le 478 ou le 479 contre un compte
+ *    étranger à l'écart, puis toutes celles qui ne l'inversent pas
+ *    exactement, puis toutes sauf une exacte, puis toutes · chacune avec et
+ *    sans rétablissement.
+ * Aucune ne convient · `issue` vaut `null`, le message chiffre et dit de
+ * rapprocher. Une lecture tronquée (`ecritures` à `null`) n'essaie que le
+ * rétablissement.
+ */
+export function jugerLEtat(p: {
+  comptes47: string[];
+  comptesTiers: string[];
+  /** Le solde réel de chaque 478 ou 479 de l'écart. */
+  lu47: Map<string, number>;
+  /** Sur chaque compte de tiers · écart d'ouverture plus mouvements des écritures hors module non tenues pour en place. */
+  ecartTiers: Map<string, number>;
+  enPlace: Array<{ id: string; ecart: Map<string, number> }>;
+  reevaluationId: string;
+  /** L'écart de la réévaluation sur chacun de ses comptes (débit moins crédit, centimes). */
+  ecartX: Map<string, number>;
+  retablissable: boolean;
+  /** Les écritures hors module tenues dans `lu47` et `ecartTiers` · `null` si la lecture est tronquée. */
+  ecritures: EcritureSurLEcart[] | null;
+}): JugementDeLEtat {
+  const comptes = [...p.comptes47, ...p.comptesTiers];
+  const attendu = new Map<string, number>();
+  for (const c of comptes) attendu.set(c, p.enPlace.reduce((t, r) => t + (r.ecart.get(c) ?? 0), 0));
+  const lu = new Map<string, number>();
+  for (const c of p.comptes47) lu.set(c, p.lu47.get(c) ?? 0);
+  for (const c of p.comptesTiers) lu.set(c, (attendu.get(c) ?? 0) + (p.ecartTiers.get(c) ?? 0));
+  const juger = (gestes: GesteDIssue[]) => {
+    const apres = new Map(lu);
+    for (const g of gestes) {
+      if (g.type === 'RETABLIR') {
+        for (const c of comptes) apres.set(c, (apres.get(c) ?? 0) + (p.ecartX.get(c) ?? 0));
+      } else {
+        for (const e of g.ecritures) for (const c of comptes) apres.set(c, (apres.get(c) ?? 0) - (e.effet.get(c) ?? 0));
+      }
+    }
+    return verdictDeLEtat({ comptes, lu: apres, enPlace: p.enPlace, reevaluationId: p.reevaluationId });
+  };
+  const premier = juger([]);
+  const essais: GesteDIssue[][] = [[]];
+  const avecRetablissement = (gestes: GesteDIssue[]) => {
+    essais.push(gestes);
+    if (p.retablissable) essais.push([...gestes, { type: 'RETABLIR' }]);
+  };
+  if (p.retablissable) essais.push([{ type: 'RETABLIR' }]);
+  if (p.ecritures && p.ecritures.length > 0) {
+    const vus = new Set<string>();
+    const lot = (liste: EcritureSurLEcart[]) => {
+      if (liste.length === 0) return;
+      const cle = liste.map((e) => e.id).sort().join(',');
+      if (vus.has(cle)) return;
+      vus.add(cle);
+      avecRetablissement([{ type: 'NEUTRALISER', ecritures: liste }]);
+    };
+    const toutes = p.ecritures;
+    lot(toutes.filter((e) => e.horsDeLEcart && !e.exacte));
+    lot(toutes.filter((e) => !e.exacte));
+    for (const gardee of toutes.filter((e) => e.exacte).slice(0, 3)) lot(toutes.filter((e) => e.id !== gardee.id));
+    lot(toutes);
+  }
+  for (const gestes of essais) {
+    const j = gestes.length === 0 ? premier : juger(gestes);
+    if (j.verdict === 'EN_PLACE') {
+      return { verdict: premier.verdict, attendu, lu, trop: premier.trop, issue: { gestes, fin: 'CONTRE_PASSER' } };
+    }
+    if (j.verdict === 'CONTRE_PASSEE' || j.verdict === 'AMBIGU') {
+      const neutralisees = new Set(gestes.flatMap((g) => (g.type === 'NEUTRALISER' ? g.ecritures.map((e) => e.id) : [])));
+      const exacte = (p.ecritures ?? []).find((e) => e.exacte && !neutralisees.has(e.id));
+      if (exacte) return { verdict: premier.verdict, attendu, lu, trop: premier.trop, issue: { gestes, fin: 'DECLARER', ecriture: exacte } };
+    }
+  }
+  return { verdict: premier.verdict, attendu, lu, trop: premier.trop, issue: null };
+}
