@@ -13,8 +13,11 @@ import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../li
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 import { montant } from '../lib/montants';
 import {
+  allocationsDuTempsRestant,
+  avantagesDesSeulsJoursAvantLaMoitie,
   corpsEmissionDecompte,
   motifDecompteNonEmissible,
+  preavisPorteDesAvantages,
   totalVentile,
   ventilationDesAvantages,
   type SaisieVentilation,
@@ -987,8 +990,13 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
     const n = Number(v.replace(/\s/g, '').replace(',', '.'));
     return v.trim() === '' || Number.isNaN(n) ? 0 : n;
   };
+  // A9 (M2) · la ventilation ne vise le préavis que là où sa rubrique porte
+  // des avantages DUS AU travailleur (non observé à la charge de l'employeur,
+  // dispense par l'employeur) · le serveur refuse toute autre.
+  const preavisAvecAvantages = preavisPorteDesAvantages(dec.executionPreavis, dec.partieResponsable, dec.initiative);
+  const avantagesDuPreavisFc = preavisAvecAvantages ? lireMontantSaisi(dec.avantagesPendantPreavisFc) : 0;
   const rubriqueAvantages =
-    lireMontantSaisi(dec.avantagesPendantPreavisFc) > 0
+    avantagesDuPreavisFc > 0
       ? ('preavis' as const)
       : lireMontantSaisi(dec.avantagesJusquAuTermeFc) > 0
         ? ('dommages-interets-art-70' as const)
@@ -1005,7 +1013,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
     moisNonCouvertsParUnConge: dec.moisNonCouvertsParUnConge,
     arrieresFc: dec.arrieresFc,
     nombreElementsDuMois: lignesDuMois,
-    avantagesFc: lireMontantSaisi(dec.avantagesPendantPreavisFc) + lireMontantSaisi(dec.avantagesJusquAuTermeFc),
+    avantagesFc: avantagesDuPreavisFc + lireMontantSaisi(dec.avantagesJusquAuTermeFc),
     avantagesVentilesFc: totalVentile(ventilation),
   });
 
@@ -3406,7 +3414,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                       Avantages en nature restants (FC)
                       <Aide
                         titre="Avantages en nature du temps restant"
-                        texte="La valeur des avantages en nature dont le travailleur aurait bénéficié pendant le temps restant à courir, pour toute la période, zéro compris. Le logement ou son indemnité et le transport n’entrent pas dans la rémunération et ne se saisissent pas ici."
+                        texte="La valeur des avantages en nature dont le travailleur aurait bénéficié pendant le temps restant à courir et que l’employeur ne lui fournit plus en nature jusqu’au terme, pour toute la période, zéro compris (un avantage encore fourni serait payé deux fois). Les soins de santé, le logement ou son indemnité, les allocations familiales, le transport, les frais de voyage et les avantages accordés pour l’accomplissement des fonctions n’entrent pas dans la rémunération et ne se saisissent pas ici."
                         source="Code du travail, art. 66 et art. 7, point 8"
                       />
                     </span>
@@ -3440,8 +3448,23 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     </select>
                   </label>
                   <label className="flex flex-col gap-0.5">
+                    <span className={`${etiquette} flex items-center gap-1`}>
+                      Jours restant à courir
+                      <Aide
+                        titre="Départ avant la moitié du préavis"
+                        texte="Les jours ouvrables du préavis restant à courir au départ. Le départ pour un nouvel emploi ne se lit qu’avant la moitié du préavis · à la moitié ou après, le travailleur garde la rémunération du temps restant, et c’est un départ à mi-préavis."
+                        source="Code du travail, art. 66 et 67"
+                      />
+                    </span>
+                    <input
+                      value={dec.joursPreavisNonObserves}
+                      onChange={(e) => setDec({ ...dec, joursPreavisNonObserves: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
                     <span className={etiquette} title="Code du travail, art. 67 · au plus sept jours">
-                      Délai convenu (jours)
+                      Délai convenu (jours de calendrier)
                     </span>
                     <input
                       value={dec.delaiDepartNouvelEmploiJours}
@@ -3475,21 +3498,34 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   </label>
                 </>
               )}
-              <label className="flex flex-col gap-0.5">
-                <span className={`${etiquette} flex items-center gap-1`}>
-                  Avantages pendant le préavis (FC)
-                  <Aide
-                    titre="Avantages de toute nature"
-                    texte="Logement, transport, avantages en nature dont le travailleur aurait bénéficié pendant le préavis non observé, pour toute la période. L’indemnité est « la rémunération et les avantages de toute nature »."
-                    source="Code du travail, art. 63, al. 3"
+              {/* A9 (M1, M2) · le champ ne sert qu'au préavis indemnisé (art. 63,
+                  al. 3) · non observé, à la charge de l'une ou l'autre partie,
+                  ou dispensé par l'employeur. Pour le travailleur parti avant
+                  la moitié d'un préavis reçu, le moteur ne lui impute que les
+                  avantages des jours d'avant la moitié · l'étiquette le dit. */}
+              {(dec.executionPreavis === 'NON_OBSERVE' || dec.executionPreavis === 'DISPENSE_PAR_EMPLOYEUR') && (
+                <label className="flex flex-col gap-0.5">
+                  <span className={`${etiquette} flex items-center gap-1`}>
+                    {avantagesDesSeulsJoursAvantLaMoitie(dec.executionPreavis, dec.partieResponsable, dec.initiative)
+                      ? 'Avantages des jours non observés avant la moitié (FC)'
+                      : 'Avantages pendant le préavis (FC)'}
+                    <Aide
+                      titre="Avantages de toute nature"
+                      texte={
+                        avantagesDesSeulsJoursAvantLaMoitie(dec.executionPreavis, dec.partieResponsable, dec.initiative)
+                          ? 'Logement, transport, avantages en nature dont le travailleur aurait bénéficié pendant les seuls jours non observés avant la moitié du préavis · il pouvait cesser le travail à la moitié, et seuls ces jours lui sont imputés.'
+                          : 'Logement, transport, avantages en nature dont le travailleur aurait bénéficié pendant le préavis non observé, pour toute la période. L’indemnité est « la rémunération et les avantages de toute nature ».'
+                      }
+                      source="Code du travail, art. 63, al. 3 et 66, al. 1"
+                    />
+                  </span>
+                  <input
+                    value={dec.avantagesPendantPreavisFc}
+                    onChange={(e) => setDec({ ...dec, avantagesPendantPreavisFc: e.target.value })}
+                    className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
                   />
-                </span>
-                <input
-                  value={dec.avantagesPendantPreavisFc}
-                  onChange={(e) => setDec({ ...dec, avantagesPendantPreavisFc: e.target.value })}
-                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
-                />
-              </label>
+                </label>
+              )}
               {dec.motif === 'FORCE_MAJEURE' && (
                 <>
                   <label className="flex items-center gap-1 pb-1" title="Code du travail, art. 57">
@@ -3623,8 +3659,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   Enfants bénéficiaires
                   <Aide
                     titre="Allocations familiales"
-                    texte="Dues pendant toute la durée du congé et pendant le préavis restant à courir. Taux de la colonne 19 de la grille du mois de cessation ; les jours se saisissent."
-                    source="Code du travail, art. 66, al. 2 et 142, al. 3"
+                    texte={`Dues pendant toute la durée du congé. ${allocationsDuTempsRestant(dec.executionPreavis, dec.partieResponsable, dec.initiative)} Taux de la colonne 19 de la grille du mois de cessation ; les jours se saisissent.`}
+                    source="Code du travail, art. 66, al. 2, 67 et 142, al. 3"
                   />
                 </span>
                 <input

@@ -28,6 +28,20 @@ describe('A9 · les deux départs anticipés du travailleur qui reçoit le préa
     expect(corps).toContain("nouvelEmploiJustifie: dec.nouvelEmploiJustifie === '' ? undefined : dec.nouvelEmploiJustifie === 'OUI'");
   });
 
+  it('demande les jours restant à courir au départ pour un nouvel emploi, et le délai en jours de calendrier (B1, M7)', () => {
+    const bloc67 = bloc(page, "dec.executionPreavis === 'DEPART_POUR_NOUVEL_EMPLOI' && (", '</>');
+    expect(bloc67).toContain('Jours restant à courir');
+    expect(bloc67).toContain('value={dec.joursPreavisNonObserves}');
+    expect(bloc67).toContain('Délai convenu (jours de calendrier)');
+  });
+
+  it('ne ventile les avantages du préavis que là où sa rubrique en porte (M2)', () => {
+    expect(page).toContain(
+      'const preavisAvecAvantages = preavisPorteDesAvantages(dec.executionPreavis, dec.partieResponsable, dec.initiative);',
+    );
+    expect(page).toContain('avantagesDuPreavisFc > 0');
+  });
+
   it('demande la justification sans réponse présélectionnée', () => {
     const choix = bloc(page, 'value={dec.nouvelEmploiJustifie}', '</select>');
     expect(choix).toContain('<option value="">Non déclaré</option>');
