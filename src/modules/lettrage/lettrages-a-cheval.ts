@@ -4,20 +4,24 @@ import { type ClotureActive, motifLigneFigee } from '../exercice/gel-cloture';
 import { comptesPrescrits, natureDuCompte, type Referentiel } from '../reglements/ecart-change-realise';
 
 /**
- * LES LETTRAGES À CHEVAL DE DEUX EXERCICES (ligne A6 bis, B2, refait au
- * premier tour de relecture).
+ * LES LETTRAGES À CHEVAL DE DEUX EXERCICES (ligne A6 bis, B2, refait aux deux
+ * tours de relecture).
  *
- * LA DOCTRINE est en tête de `lettrage.service.ts` et au § 3 de
- * `docs/organisation-comptable-cpcc.md` · « un règlement de mars qui solde
- * une facture de décembre se lettre contre la ligne de REPORT À-NOUVEAU de
- * l'exercice ouvert (MODE DÉTAIL des comptes de tiers), jamais contre la
- * ligne de l'exercice clos ». Elle vise les comptes au DÉTAIL, dont le report
- * reprend un à un les mouvements ouverts ; un compte au SOLDE ne reporte que
- * son solde, et un salaire de décembre payé en janvier se lettre librement.
+ * UNE CONVENTION D'OMEGAX, PAS UNE DOCTRINE DU CPCC (second tour, m7). Le
+ * cours du CPCC dit l'inverse (§ 2.3, la clôture informatique « autorise : le
+ * lettrage et le pointage ») ; OmegaX fige le lettrage avec la clôture,
+ * lecture du manuel Sage i7 (`exercice/gel-cloture.ts`), et tient autrement
+ * le besoin que le cours protège · un règlement de mars qui solde une facture
+ * de décembre se lettre contre la ligne de REPORT À-NOUVEAU de l'exercice
+ * ouvert. L'écart et son motif sont écrits au § 3 de
+ * `docs/organisation-comptable-cpcc.md`. La convention vise les comptes au
+ * DÉTAIL, dont le report reprend un à un les mouvements ouverts ; un compte
+ * au SOLDE ne reporte que son solde, et un salaire de décembre payé en
+ * janvier se lettre librement.
  *
  * TROIS RÈGLES.
  *
- * (1) LE REPORT LIT CHAQUE EXERCICE POUR LUI-MÊME (`lireComptesDuReport`,
+ * (1) CHAQUE EXERCICE SE LIT POUR LUI-MÊME (`lireComptesDuReport`,
  * exercice.service.ts) · une ligne lettrée par un groupe qui touche un AUTRE
  * exercice se lit comme NON lettrée pour le report de son exercice. Soldé,
  * un tel groupe posait sa lettre sur des lignes de N qui ne se soldent pas
@@ -26,23 +30,25 @@ import { comptesPrescrits, natureDuCompte, type Referentiel } from '../reglement
  * d'A6 bis la REFUSAIT, ce qui ENFERMAIT le dossier dès qu'une clôture de
  * période ou d'exercice figeait le groupe (relecture adverse, B-1). Lu ainsi,
  * le report est équilibré par construction, figé ou non, et rien n'est à
- * délettrer pour clôturer. Les groupes déjà en base ne sont pas réécrits
- * (AUDCIF art. 20).
+ * délettrer pour clôturer. Dans l'exercice suivant, la même lecture apparie
+ * la ligne d'à-nouveau de la facture et le règlement du groupe
+ * (`paires-a-cheval.ts`, règlement des tiers et relances, second tour, m1).
+ * Les groupes déjà en base ne sont pas réécrits (AUDCIF art. 20).
  *
  * (2) UN NOUVEAU GROUPE ENTRE EXERCICES N'EST REFUSÉ QU'AU DÉTAIL
  * (`motifLettrageADeuxExercices`) · au lettrage manuel, au complément, au
  * pré-lettrage confirmé ; le lettrage automatique n'y apparie qu'à
  * l'intérieur d'un exercice. Le refus nomme l'issue · lettrer contre la
  * ligne d'à-nouveau DÉFINITIF une fois l'exercice antérieur clôturé, sinon
- * attendre sa clôture.
+ * attendre sa clôture. L'écart de change réalisé d'un groupe déjà à cheval
+ * le complète sans ouvrir d'exercice nouveau (`groupeTolere`).
  *
  * (3) CE QUI RESTE D'UN GROUPE DÉJÀ À CHEVAL se dit au contrôle des comptes
- * (`lettragesACheval`), jamais à la clôture · au DÉTAIL, la ligne d'à-nouveau
- * de la facture reste ouverte dans l'exercice suivant pendant que son
- * règlement est lettré avec la ligne d'origine (INFORMATION) ; en devise, un
+ * (`lettragesACheval`), jamais à la clôture · au DÉTAIL, le groupe et la
+ * lecture qui reste ouverte (INFORMATION, rien à défaire) ; en devise, un
  * groupe soldé dans sa devise et non en francs dont l'écart réalisé n'est
- * pas passé (AVERTISSEMENT, AUDCIF art. 55), avec son issue, l'écriture à la
- * main dans l'exercice du dénouement quand le groupe est figé.
+ * pas passé (AVERTISSEMENT, AUDCIF art. 55), avec son issue · passer l'écart
+ * proposé, sur le groupe, figé ou non (second tour, B2).
  */
 
 type Lecteur = Pick<PrismaService, 'lettrage' | 'ligneEcriture' | 'cloture'>;
@@ -232,21 +238,27 @@ export function nommerLettrageACheval(g: LettrageACheval): string {
 }
 
 /**
- * L'issue d'un groupe à cheval d'un compte au DÉTAIL · ce qui reste de lui
- * après la règle (1) est une ligne d'à-nouveau ouverte d'un côté, un
- * règlement lettré de l'autre.
+ * L'issue d'un groupe à cheval d'un compte au DÉTAIL · RIEN À DÉFAIRE (A6 bis,
+ * second tour, m2). Le délettrer, comme le disait le premier tour, contredit
+ * la règle d'A6 (D3, « jamais un délettrage ») · un groupe soldé dans sa
+ * devise rouvrirait ses lignes, et la réévaluation porterait le réalisé au
+ * 478 ou au 479. Chaque exercice se lit pour lui-même · le report (règle 1),
+ * la réévaluation, le règlement des tiers et les relances (`paires-a-cheval.ts`)
+ * compensent la ligne d'à-nouveau de la facture avec le règlement lettré.
+ * La balance âgée et les notes par échéance lisent encore « ouverte » toute
+ * ligne sans lettre (`ouverteALaCloture`) · le groupe SOLDÉ y laisse la ligne
+ * d'à-nouveau ouverte, ce que le message nomme, relevé de l'éditeur.
  */
 export function issueLettrageACheval(g: LettrageACheval): string {
-  if (!g.fige) {
-    return (
-      `${nommerLettrageACheval(g)} · délettrez-le (Interrogation et lettrage), lettrez entre elles les lignes de chaque exercice, ` +
-      "puis, l'exercice antérieur clôturé, le règlement avec la ligne d'à-nouveau définitif."
-    );
-  }
+  const lecturesOuvertes =
+    g.statut === 'SOLDE'
+      ? " La balance âgée et les notes par échéance de l'exercice suivant la lisent encore ouverte · justifiez-la par ce groupe au dossier de travail."
+      : '';
   return (
-    `${nommerLettrageACheval(g)} · figé (une de ses lignes est dans un exercice, un journal ou une période clôturés), il ne se délettre plus, ` +
-    "et aucun geste d'OmegaX ne le défait · il s'est formé avant que le lettrage entre exercices ne soit refusé au Détail, ou sur un compte " +
-    "passé au mode de report Détail après coup. Relevez-le au dossier de travail pour justifier le détail du compte."
+    `${nommerLettrageACheval(g)} · rien à défaire, et il ne se délettre pas (un groupe soldé dans sa devise rouvrirait ses lignes, ` +
+    "et la réévaluation porterait le réalisé au 478 ou au 479). Dans l'exercice suivant, la ligne d'à-nouveau qui reporte sa facture " +
+    "se lit réglée par ce groupe au règlement des tiers, aux relances et à la réévaluation · ne la lettrez avec aucun autre règlement." +
+    lecturesOuvertes
   );
 }
 
@@ -254,7 +266,11 @@ export function issueLettrageACheval(g: LettrageACheval): string {
  * L'issue d'un écart de change réalisé resté sur un groupe à cheval
  * (AUDCIF art. 55 ; Titre VIII ch. 22 § 2.3) · le compte de change PRESCRIT
  * par la nature du compte et le référentiel (`comptesPrescrits`, D2 au
- * SYCEBNL), jamais un numéro écrit ici.
+ * SYCEBNL), jamais un numéro écrit ici. L'issue est la même, figé ou non
+ * (A6 bis, second tour, B2) · l'écart proposé se passe sur le groupe, sa
+ * propre ligne seule entrant dans un groupe figé (`groupeTolere` de
+ * `LettrageService.completer`). Aucune écriture libre n'est prescrite · hors
+ * du groupe, la réévaluation la recompterait.
  */
 export function issueEcartACheval(g: LettrageACheval, referentiel: Referentiel): string {
   const ecart = g.ecartNonPasse ?? 0;
@@ -262,21 +278,15 @@ export function issueEcartACheval(g: LettrageACheval, referentiel: Referentiel):
   const prescrits = comptesPrescrits(referentiel, natureDuCompte(g.compteNumero, referentiel));
   const compte =
     prescrits.perte === null
-      ? "au compte de change que le cabinet choisit (la nature du compte, commerciale ou financière, ne se lit pas sur son numéro)"
+      ? 'au compte de change que le cabinet choisit (la nature du compte, commerciale ou financière, ne se lit pas sur son numéro)'
       : `au ${sens === 'perte' ? prescrits.perte : prescrits.gain}`;
   const montant = `${sens} de change réalisée de ${Math.abs(ecart).toFixed(2)}`;
-  if (g.fige) {
-    return (
-      `${nommerLettrageACheval(g)} · ${montant} non passée, et le groupe, figé, ne se complète plus · passez-la par une écriture ` +
-      `manuelle ${compte}, contre le compte ${g.compteNumero}, datée dans l'exercice du dénouement (au plus tôt le ${jour(g.denouement)}), ` +
-      "si elle ne l'est pas déjà."
-    );
-  }
-  if (g.auDetail) {
-    return (
-      `${nommerLettrageACheval(g)} · ${montant} non passée · délettrez le groupe, lettrez le règlement avec la ligne d'à-nouveau définitif ` +
-      `une fois l'exercice antérieur clôturé, et l'écart se proposera sur ce groupe ; à défaut, écriture manuelle ${compte} datée au plus tôt le ${jour(g.denouement)}.`
-    );
-  }
-  return `${nommerLettrageACheval(g)} · ${montant} non passée · passez l'écart proposé sur le groupe (Interrogation et lettrage, « Écart de change »).`;
+  const fige = g.fige
+    ? ` Figé, le groupe la reçoit quand même · si le dénouement du ${jour(g.denouement)} tombe dans une période close, cochez le report ` +
+      'au premier jour non clôturé, sa date de valeur gardée (AUDCIF art. 22, 4°).'
+    : '';
+  return (
+    `${nommerLettrageACheval(g)} · ${montant} non passée · passez l'écart proposé sur le groupe ${compte} ` +
+    `(Interrogation et lettrage, « Écart de change »), jamais par une écriture hors du groupe, que la réévaluation recompterait.${fige}`
+  );
 }

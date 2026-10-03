@@ -33,6 +33,9 @@ interface PropositionEcartChange {
   nature?: NatureCreanceDette | null;
   comptePrescrit?: { id: string; numero: string; intitule: string } | null;
   numeroPrescrit?: string | null;
+  /** Le groupe mêle deux exercices, ou une clôture fige l'une de ses lignes · l'écart s'y passe quand même (A6 bis, B2). */
+  aCheval?: boolean;
+  fige?: boolean;
   motif: string | null;
 }
 
@@ -131,6 +134,8 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const [journalEcart, setJournalEcart] = useState('');
   const [dateEcart, setDateEcart] = useState('');
   const [compteEcart, setCompteEcart] = useState('');
+  // AUDCIF art. 22, 4° · une demande expresse, jamais d'office.
+  const [reporterEcart, setReporterEcart] = useState(false);
 
   const charger = async () => {
     // Sans compte choisi (fenêtre ouverte depuis le menu Traitement), la
@@ -257,6 +262,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       setJournalEcart((id) => id || (ods.length === 1 ? ods[0].id : ods.find((j) => j.type === 'GENERAL')?.id ?? ''));
       setDateEcart(p.date ? p.date.slice(0, 10) : '');
       setCompteEcart('');
+      setReporterEcart(false);
       setEcart(p);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "L'écart de change n'a pas pu être lu");
@@ -266,16 +272,28 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const passerEcart = () =>
     executer(async () => {
       if (!ecart || ecart.ecart === null || !ecart.exerciceId) return '';
-      const r = await api.post<{ ecart: number; compte: string; lettre: string; statut: string; avertissement: string | null }>('/reglements/ecart-change', {
+      const r = await api.post<{
+        ecart: number;
+        compte: string;
+        lettre: string;
+        statut: string;
+        date?: string;
+        dateValeur?: string | null;
+        avertissement: string | null;
+      }>('/reglements/ecart-change', {
         lettrageId: ecart.lettrageId,
         exerciceId: ecart.exerciceId,
         journalId: journalEcart,
         date: dateEcart,
         ...(compteEcart ? { compteEcartChangeId: compteEcart } : {}),
+        ...(reporterEcart ? { reporterAuPremierJourOuvert: true } : {}),
       });
       setEcart(null);
+      const reporte =
+        r.dateValeur && r.date ? ` Enregistrée le ${r.date.slice(0, 10)}, date de valeur ${r.dateValeur.slice(0, 10)}.` : '';
       return (
         `${libelleEcartRealise(r.ecart)} de ${montant(Math.abs(r.ecart))} · passé${r.ecart > 0 ? 'e' : ''} au ${r.compte}, lettrage ${r.lettre} soldé.` +
+        reporte +
         (r.avertissement ? ` ${r.avertissement}` : '')
       );
     });
@@ -832,6 +850,13 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                   <span className="text-text-dim">Date</span>
                   <input type="date" value={dateEcart} onChange={(e) => setDateEcart(e.target.value)} className="border border-border px-2 py-[2px]" />
                 </label>
+                <label
+                  className="flex items-center gap-1.5 pb-[3px]"
+                  title="AUDCIF art. 22, 4° · la date tombe dans une période clôturée : l'écart s'enregistre au premier jour non clôturé, sa date de valeur gardée."
+                >
+                  <input type="checkbox" checked={reporterEcart} onChange={(e) => setReporterEcart(e.target.checked)} />
+                  <span>Reporter au premier jour non clôturé</span>
+                </label>
                 <button
                   onClick={passerEcart}
                   disabled={envoi || !journalEcart || !dateEcart || (!ecart.comptePrescrit && !compteEcart)}
@@ -844,6 +869,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 </button>
               </div>
               {ecart.motif && <div className="text-warning">{ecart.motif}</div>}
+              {ecart.fige && <div className="text-text-dim">Lettrage figé par une clôture · seule la ligne de l'écart y entre.</div>}
               {!ecart.comptePrescrit && comptesProposablesEcart(comptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif), { referentiel, nature: ecart.nature ?? null, sens: ecart.sens ?? null }).length === 0 && (
                 <div className="text-warning">
                   {motifAucunCompteRetenu([], ecart.sens === 'PERTE' ? "de change (656, 658 ou 676)" : "de change (756, 7588 ou 776)")}

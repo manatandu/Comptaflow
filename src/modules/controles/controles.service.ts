@@ -4385,13 +4385,16 @@ export class ControlesService {
     // Rien ne BLOQUE (premier tour de relecture) · le report lit chaque
     // exercice pour lui-même (règle 1 de `lettrages-a-cheval.ts`), et la
     // clôture passe, figé ou non. Restent deux effets réels, nommés avec leur
-    // issue. INFORMATION · au Détail, la ligne d'à-nouveau de la facture
-    // reste ouverte dans l'exercice suivant pendant que son règlement est
-    // lettré avec la ligne d'origine (balance âgée, relances, lettrage la
-    // montrent due) ; un compte au SOLDE n'en garde aucun. AVERTISSEMENT · un
-    // groupe soldé dans sa devise et non en francs, dénoué dans cet exercice,
-    // dont l'écart réalisé n'est pas passé (AUDCIF art. 55) · la clôture ne le
-    // refuse pas (D3 ne lit pas les groupes à cheval), le contrôle le dit.
+    // issue. INFORMATION · au Détail, le groupe ne se délettre pas (second
+    // tour, m2) ; le règlement des tiers, les relances et la réévaluation
+    // apparient la ligne d'à-nouveau de la facture avec le règlement lettré,
+    // la balance âgée et les notes par échéance la lisent encore ouverte quand
+    // le groupe est soldé, et le message le nomme (second tour, m1) ; un
+    // compte au SOLDE n'en garde aucun. AVERTISSEMENT · un groupe soldé dans
+    // sa devise et non en francs, dénoué dans cet exercice, dont l'écart
+    // réalisé n'est pas passé (AUDCIF art. 55) · l'écart proposé se passe sur
+    // le groupe, figé compris (second tour, B2), et le contrôle s'éteint ;
+    // la clôture ne le refuse pas (D3 ne lit pas les groupes à cheval).
     // Sans ligne lettrée dans l'exercice (relevé au parcours), aucun groupe
     // n'y touche · la lecture des lettrages n'a pas lieu d'être.
     if (parcours.lettrageVu) {
@@ -4407,11 +4410,11 @@ export class ControlesService {
           libelle: 'Lettrage qui mêle deux exercices sur un compte au Détail',
           consequence:
             "Le report à-nouveau lit chaque exercice pour lui-même · ces lignes y passent comme ouvertes, et la ligne d'à-nouveau de la facture " +
-            "reste due dans l'exercice suivant pendant que son règlement est lettré avec la ligne d'origine. Le solde du compte est juste ; " +
-            'son détail ouvert (balance âgée, relances, lettrage) ne l’est pas.',
+            "se lit réglée par le groupe dans l'exercice suivant au règlement des tiers, aux relances et à la réévaluation. Le solde du compte est " +
+            'juste ; la balance âgée et les notes par échéance lisent encore ouverte la ligne d’à-nouveau d’un groupe soldé.',
           action:
-            "Groupe non figé · délettrez-le, lettrez entre elles les lignes de chaque exercice, puis le règlement avec la ligne d'à-nouveau " +
-            'définitif une fois l’exercice antérieur clôturé. Groupe figé · relevez-le au dossier de travail.',
+            "Rien à défaire · ne délettrez pas le groupe (soldé dans sa devise, il rouvrirait ses lignes à la réévaluation), et ne lettrez la " +
+            'ligne d’à-nouveau de sa facture avec aucun autre règlement. Justifiez au dossier de travail la ligne que la balance âgée montre ouverte.',
           occurrences: [...borne, ...auDetail.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueLettrageACheval(g) }))],
         });
       }
@@ -4425,8 +4428,8 @@ export class ControlesService {
             "Le groupe est soldé dans sa devise et pas en francs · l'écart de change réalisé « est constaté » à la date du règlement " +
             '(AUDCIF art. 55) ; non passé, il reste au compte du tiers comme un reste qui n’est plus une créance ni une dette, et manque au résultat.',
           action:
-            "Groupe non figé · passez l'écart proposé, ou, au Détail, refaites le lettrage contre la ligne d'à-nouveau. Groupe figé · " +
-            "écriture manuelle au compte de change prescrit, datée dans l'exercice du dénouement.",
+            "Passez l'écart proposé sur le groupe (Interrogation et lettrage, « Écart de change »), figé ou non · jamais par une écriture hors " +
+            "du groupe, que la réévaluation recompterait. Dénouement dans une période close · report au premier jour non clôturé (AUDCIF art. 22, 4°).",
           occurrences: [
             ...borne,
             ...ecarts.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueEcartACheval(g, tenant.referentiel), montant: g.ecartNonPasse! })),

@@ -1101,9 +1101,37 @@ describe('passer l’écart de change proposé au lettrage', () => {
       ['c656', 123200, 0],
       ['c401', 0, 123200],
     ]);
-    expect(completer).toHaveBeenCalledWith('t', 'L', ['p1-1']);
+    // Sa propre ligne complète le groupe, sous la tolérance nommée (B2).
+    expect(completer).toHaveBeenCalledWith('t', 'L', ['p1-1'], { groupeTolere: 'L' });
     expect(r).toMatchObject({ ecart: 123200, compte: '65600000', statut: 'SOLDE' });
     expect(creer.mock.calls[0][2].libelle).toBe('Perte de change réalisée · 40110000 a');
+    // Le report au premier jour ouvert n'est jamais demandé d'office.
+    expect(creer.mock.calls[0][2]).not.toHaveProperty('reporterAuPremierJourOuvert');
+  });
+
+  // A6 bis, second tour, B2 · le dénouement dans une période close · l'écart
+  // s'enregistre au premier jour non clôturé SUR DEMANDE, sa date de valeur
+  // gardée (AUDCIF art. 22, 4°), et la réponse dit les deux dates.
+  it('période close · la demande expresse passe à la saisie, la date posée et la date de valeur reviennent', async () => {
+    const { service, creer, propositionEcartChange, prisma } = monter();
+    propositionEcartChange.mockResolvedValueOnce(proposition);
+    (prisma.journal.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'od', code: 'OD', type: 'GENERAL' });
+    creer.mockImplementationOnce(async (_t: string, _u: string, dto: { lignes: { compteId: string }[] }) => ({
+      id: 'e1',
+      numeroPiece: 1,
+      date: new Date('2026-12-01'),
+      dateValeur: new Date('2026-11-30'),
+      lignes: dto.lignes.map((l, i) => ({ ...l, id: `p1-${i}` })),
+    }));
+    const r = await service.passerEcartChange('t', 'u', {
+      lettrageId: 'L',
+      exerciceId: 'ex',
+      journalId: 'od',
+      date: '2026-11-30',
+      reporterAuPremierJourOuvert: true,
+    });
+    expect(creer.mock.calls[0][2]).toMatchObject({ date: '2026-11-30', reporterAuPremierJourOuvert: true });
+    expect(r).toMatchObject({ date: new Date('2026-12-01'), dateValeur: new Date('2026-11-30') });
   });
 
   // Mineur 1 · l'écart se constate « à la date d'encaissement ou de

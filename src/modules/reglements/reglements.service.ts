@@ -512,6 +512,20 @@ export class ReglementsService {
    * jamais reçue du client, puis la ligne du tiers complète le lettrage, qui
    * passe SOLDE. Rien n'est posté sans ce geste · le lettrage PROPOSE
    * (`LettrageService.propositionEcartChange`), le comptable confirme.
+   *
+   * UN GROUPE FIGÉ REÇOIT SON ÉCART (A6 bis, second tour, B2) · le groupe
+   * qu'une clôture de période, de journal ou d'exercice a figé, à cheval de
+   * deux exercices ou non, ne se complétait plus, et l'écriture manuelle que
+   * le contrôle prescrivait ne pouvait pas y entrer · l'avertissement ne
+   * s'éteignait jamais, et dans l'exercice suivant l'à-nouveau et le
+   * règlement d'un groupe resté partiel entraient dans la position
+   * réévaluée, le réalisé provisionné une seconde fois (AUDCIF art. 55 · le
+   * gel est une convention de Sage i7, l'article ne connaît que la date du
+   * règlement). La ligne du tiers de l'écart complète le groupe sous la
+   * tolérance nommée de `completer` (`groupeTolere`) · elle seule doit être
+   * libre, aucune ligne figée n'est déplacée. Le dénouement daté dans une
+   * période close s'enregistre, sur demande, au premier jour non clôturé,
+   * sa date de valeur gardée (art. 22, 4°, `reporterAuPremierJourOuvert`).
    */
   async passerEcartChange(tenantId: string, userId: string, dto: PasserEcartChangeDto) {
     const proposition = await this.lettrage.propositionEcartChange(tenantId, dto.lettrageId);
@@ -584,6 +598,7 @@ export class ReglementsService {
       journalId: dto.journalId,
       date: dto.date,
       libelle,
+      ...(dto.reporterAuPremierJourOuvert === true ? { reporterAuPremierJourOuvert: true } : {}),
       lignes: lignesEcartDuGroupe({
         compteTiersId: proposition.compteId,
         compteEcartId: compteEcart.id,
@@ -594,7 +609,7 @@ export class ReglementsService {
     const ligneTiers = ecriture.lignes.find((l) => l.compteId === proposition.compteId)!;
     let lettre: Awaited<ReturnType<LettrageService['completer']>>;
     try {
-      lettre = await this.lettrage.completer(tenantId, dto.lettrageId, [ligneTiers.id]);
+      lettre = await this.lettrage.completer(tenantId, dto.lettrageId, [ligneTiers.id], { groupeTolere: dto.lettrageId });
     } catch (e) {
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
       throw e;
@@ -622,6 +637,10 @@ export class ReglementsService {
       compte: compteEcart.numero,
       lettre: lettre.lettre,
       statut: lettre.statut,
+      // Reportée au premier jour non clôturé (art. 22, 4°) · la date posée
+      // et la date de valeur, que l'écran dit.
+      date: ecriture.date,
+      dateValeur: ecriture.dateValeur ?? null,
       avertissement,
     };
   }

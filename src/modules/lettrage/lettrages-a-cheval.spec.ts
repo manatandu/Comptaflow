@@ -176,28 +176,35 @@ describe('les issues nommées', () => {
     denouement: new Date('2027-03-02'),
   };
 
-  it('au Détail · non figé, délettrer puis l’à-nouveau définitif ; figé, aucun geste, et la cause dite (mode de report changé après coup)', () => {
-    expect(issueLettrageACheval(base)).toMatch(/délettrez-le .*le règlement avec la ligne d'à-nouveau définitif/);
-    const fige = issueLettrageACheval({ ...base, fige: true });
-    expect(fige).toMatch(/aucun geste d'OmegaX ne le défait/);
-    expect(fige).toMatch(/passé au mode de report Détail après coup/);
+  it('au Détail · rien à défaire, jamais « délettrez » (second tour, m2) ; la lecture ouverte nommée pour un groupe soldé (m1)', () => {
+    for (const g of [base, { ...base, fige: true }]) {
+      const issue = issueLettrageACheval(g);
+      expect(issue).toMatch(/rien à défaire, et il ne se délettre pas/);
+      expect(issue).toMatch(/se lit réglée par ce groupe au règlement des tiers, aux relances et à la réévaluation/);
+      expect(issue).not.toMatch(/délettrez/i);
+    }
+    expect(issueLettrageACheval(base)).not.toMatch(/balance âgée/);
+    expect(issueLettrageACheval({ ...base, statut: 'SOLDE', code: 'A' })).toMatch(
+      /La balance âgée et les notes par échéance de l'exercice suivant la lisent encore ouverte/,
+    );
   });
 
-  it('écart figé · écriture manuelle au compte PRESCRIT par le référentiel et la nature, dans l’exercice du dénouement', () => {
+  it('écart · passé sur le groupe, au compte PRESCRIT par le référentiel et la nature, figé ou non, jamais par une écriture libre (B2)', () => {
     const fige = { ...base, fige: true };
     expect(issueEcartACheval(fige, 'SYSCOHADA')).toMatch(
-      /perte de change réalisée de 123200\.00 non passée.*écriture manuelle au 65600000, contre le compte 40110000, datée dans l'exercice du dénouement \(au plus tôt le 2027-03-02\)/,
+      /perte de change réalisée de 123200\.00 non passée · passez l'écart proposé sur le groupe au 65600000 .*jamais par une écriture hors du groupe, que la réévaluation recompterait/,
     );
+    // Figé · le report au premier jour non clôturé, date de valeur gardée.
+    expect(issueEcartACheval(fige, 'SYSCOHADA')).toMatch(/si le dénouement du 2027-03-02 tombe dans une période close, cochez le report .*art\. 22, 4°/);
+    expect(issueEcartACheval(base, 'SYSCOHADA')).not.toMatch(/période close/);
     // Au SYCEBNL, le résidu de la fiche 65 (décision D2), un gain au 7588.
     expect(issueEcartACheval(fige, 'SYCEBNL')).toMatch(/au 65800000/);
     expect(issueEcartACheval({ ...fige, ecartNonPasse: -500 }, 'SYCEBNL')).toMatch(/gain de change réalisée de 500\.00.*au 75880000/);
     // Une dette financière · 676 aux deux plans.
     expect(issueEcartACheval({ ...fige, compteNumero: '48100000' }, 'SYSCOHADA')).toMatch(/au 67600000/);
-  });
-
-  it('écart non figé · au SOLDE, l’écart proposé ; au Détail, refaire le lettrage contre l’à-nouveau', () => {
-    expect(issueEcartACheval({ ...base, auDetail: false }, 'SYSCOHADA')).toMatch(/passez l'écart proposé sur le groupe/);
-    expect(issueEcartACheval(base, 'SYSCOHADA')).toMatch(/délettrez le groupe, lettrez le règlement avec la ligne d'à-nouveau définitif/);
+    for (const g of [base, fige, { ...base, auDetail: false }]) {
+      expect(issueEcartACheval(g, 'SYSCOHADA')).not.toMatch(/délettrez|écriture manuelle/i);
+    }
   });
 });
 
@@ -253,7 +260,7 @@ describe('le contrôle 35 · lettrage à cheval de deux exercices', () => {
     const r = await svc.analyser('t', 'n');
     const a = r.anomalies.find((x) => x.code === 'LETTRAGE_A_CHEVAL_D_EXERCICES');
     expect(a).toMatchObject({ gravite: 'INFORMATION' });
-    expect(a!.occurrences).toEqual([{ reference: '40110000 · lettrage a', detail: expect.stringMatching(/figé .* aucun geste d'OmegaX ne le défait/) }]);
+    expect(a!.occurrences).toEqual([{ reference: '40110000 · lettrage a', detail: expect.stringMatching(/rien à défaire, et il ne se délettre pas/) }]);
     expect(r.anomalies.some((x) => x.gravite === 'BLOQUANT' && x.code.includes('CHEVAL'))).toBe(false);
   });
 
@@ -264,7 +271,7 @@ describe('le contrôle 35 · lettrage à cheval de deux exercices', () => {
     expect(r.anomalies.find((x) => x.code.includes('CHEVAL'))).toBeUndefined();
   });
 
-  it('un écart réalisé resté sur un groupe figé, dénoué dans l’exercice · AVERTISSEMENT chiffré, écriture manuelle', async () => {
+  it('un écart réalisé resté sur un groupe figé, dénoué dans l’exercice · AVERTISSEMENT chiffré, l’écart proposé sur le groupe', async () => {
     const lignes = [
       ligne('d1', 'g1', N0, '2025-11-20', 0, 1_948_800, { statut: StatutExercice.CLOTURE, usd: 1160 }),
       ligne('d2', 'g1', N, '2026-03-02', 2_072_000, 0, { usd: 1160 }),
@@ -274,7 +281,24 @@ describe('le contrôle 35 · lettrage à cheval de deux exercices', () => {
     const a = r.anomalies.find((x) => x.code === 'ECART_CHANGE_A_CHEVAL_NON_CONSTATE');
     expect(a).toMatchObject({ gravite: 'AVERTISSEMENT' });
     expect(a!.occurrences[0]).toMatchObject({ reference: '40110000 · lettrage a', montant: 123_200 });
-    expect(a!.occurrences[0]!.detail).toMatch(/écriture manuelle au .*datée dans l'exercice du dénouement/);
+    expect(a!.occurrences[0]!.detail).toMatch(/passez l'écart proposé sur le groupe au 65800000/);
+    expect(a!.action).not.toMatch(/écriture manuelle/);
+  });
+
+  // B2 · une fois l'écart passé sur le groupe (sa propre ligne, sous la
+  // tolérance de `completer`), le groupe est SOLDÉ et l'avertissement
+  // s'éteint · la même scène, avec la ligne d'écart de 123 200.
+  it('l’écart passé sur le groupe figé, l’avertissement s’éteint', async () => {
+    const avant = [
+      ligne('d1', 'g1', N0, '2025-11-20', 0, 1_948_800, { statut: StatutExercice.CLOTURE, usd: 1160 }),
+      ligne('d2', 'g1', N, '2026-03-02', 2_072_000, 0, { usd: 1160 }),
+    ];
+    const apres = [...avant, ligne('e', 'g1', N, '2026-03-02', 0, 123_200)];
+    const { svc } = service([{ ...auDetail, statut: 'SOLDE' }], apres, true);
+    const r = await svc.analyser('t', 'n');
+    expect(r.anomalies.find((x) => x.code === 'ECART_CHANGE_A_CHEVAL_NON_CONSTATE')).toBeUndefined();
+    // Le groupe à cheval reste nommé, en INFORMATION, rien à défaire.
+    expect(r.anomalies.find((x) => x.code === 'LETTRAGE_A_CHEVAL_D_EXERCICES')).toMatchObject({ gravite: 'INFORMATION' });
   });
 
   it('aucune ligne lettrée dans l’exercice · les lettrages ne sont pas interrogés', async () => {

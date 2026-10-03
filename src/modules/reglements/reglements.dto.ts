@@ -142,4 +142,14 @@ export class PasserEcartChangeDto {
   @FacultatifNonNul("Omettez le compte d'écart de change quand le texte le donne.")
   @IsUUID('4')
   compteEcartChangeId?: string;
+
+  /**
+   * AUDCIF art. 22, 4° · le dénouement tombe dans une période clôturée ·
+   * l'écart s'enregistre au premier jour de la période non encore clôturée,
+   * sa date de valeur gardée (A6 bis, second tour, B2). Une demande
+   * expresse, jamais d'office, comme à la saisie.
+   */
+  @FacultatifNonNul('Omettez le report au premier jour ouvert, ou cochez-le.')
+  @IsBoolean()
+  reporterAuPremierJourOuvert?: boolean;
 }

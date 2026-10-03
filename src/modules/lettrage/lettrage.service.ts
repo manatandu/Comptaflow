@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
+import { OrigineLettrage, Prisma, StatutExercice, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
@@ -87,17 +87,21 @@ function lettreVersIndex(lettre: string): number {
  * effectués »), qui n'ouvre cette exception qu'à la partielle.
  *
  * Le cours CPCC (§ 2.3, clôture informatique) écrit que « la clôture
- * AUTORISE : le lettrage et le pointage » · son souci est le compte de tiers
- * qui ne se justifierait plus. Il est tenu autrement · un règlement de mars
+ * AUTORISE : le lettrage et le pointage » · OmegaX trace une autre ligne, et
+ * ce n'est pas une doctrine du cours mais une CONVENTION D'OMEGAX (A6 bis,
+ * second tour, m7 ; l'écart et son motif au § 3 de
+ * docs/organisation-comptable-cpcc.md). Le souci du cours, un compte de
+ * tiers qui ne se justifierait plus, est tenu ainsi · un règlement de mars
  * qui solde une facture de décembre se lettre contre la ligne de REPORT
  * À-NOUVEAU de l'exercice ouvert (mode Détail des comptes de tiers), jamais
- * contre la ligne de l'exercice clos. Voir docs/organisation-comptable-cpcc.md
- * § 3. ELLE EST TENUE AU DÉTAIL (A6 bis) · sur un compte reporté au Détail, un
- * groupe ne mêle jamais deux exercices, au lettrage manuel, au complément, au
- * pré-lettrage confirmé comme au lettrage automatique ; un compte au SOLDE
- * lettre librement d'un exercice à l'autre (le salaire de décembre payé en
- * janvier). Les groupes à cheval déjà en base ne bloquent rien · le report
- * lit chaque exercice pour lui-même (`lettrages-a-cheval.ts`).
+ * contre la ligne de l'exercice clos. Sur un compte reporté au Détail, un
+ * NOUVEAU groupe ne mêle pas deux exercices, au lettrage manuel, au
+ * complément, au pré-lettrage confirmé comme au lettrage automatique ; un
+ * compte au SOLDE lettre librement d'un exercice à l'autre (le salaire de
+ * décembre payé en janvier). Les groupes à cheval déjà en base ne bloquent
+ * rien et ne se délettrent pas · chaque exercice se lit pour lui-même
+ * (`lettrages-a-cheval.ts`), et l'écart de change réalisé d'un tel groupe,
+ * figé compris, le complète par sa seule ligne (`completer`, `groupeTolere`).
  */
 /** Une ligne du groupe a été lettrée par un autre geste entre le calcul et l'écriture. */
 function lignesPrisesEntreTemps() {
@@ -539,8 +543,29 @@ export class LettrageService {
    * solde restant. Si le groupe tombe à zéro, il passe SOLDE, sa `lettre` est
    * posée sur TOUTES ses lignes (les anciennes comme les nouvelles) et
    * l'écart de change est calculé sur l'ensemble.
+   *
+   * `groupeTolere` · le SEUL groupe que l'appelant complète de SA propre
+   * ligne alors qu'une clôture l'a figé (même nom et même portée qu'à la
+   * ligne A7 ter, `motifLignesTenues`). C'est l'écart de change réalisé de
+   * `ReglementsService.passerEcartChange` (A6 bis, second tour, B2) · le
+   * groupe soldé dans sa devise reste PARTIEL en francs tant que l'écart
+   * n'y est pas, et l'AUDCIF art. 55 veut cet écart « constaté » à la date
+   * du règlement ; le gel (une convention de Sage i7, `gel-cloture.ts`)
+   * l'interdisait, et la réévaluation de l'exercice suivant comptait le
+   * groupe comme une position ouverte, réalisé provisionné deux fois.
+   * Toléré, le groupe reçoit la ligne nouvelle, qui seule doit être libre ;
+   * aucune ligne figée n'est déplacée, délettrée ni modifiée dans ses
+   * montants. La lettre du groupe soldé se pose sur ses lignes, sauf celles
+   * d'un exercice CLÔTURÉ, qu'aucun geste ne touche plus (« on ne peut pas
+   * modifier les enregistrements d'exercice clôturé ») · une ligne figée par
+   * une clôture de période ou de journal d'un exercice OUVERT la reçoit, sans
+   * quoi le report Détail de cet exercice la lirait ouverte et reprendrait
+   * une facture réglée (F50 · `lettre` est le signe du groupe soldé). Le
+   * groupe peut déjà mêler deux exercices (règle 2 de `lettrages-a-cheval.ts`)
+   * · toléré, il ne refuse que la ligne d'un exercice qu'il ne touchait pas.
    */
-  async completer(tenantId: string, lettrageId: string, ligneIds: string[]) {
+  async completer(tenantId: string, lettrageId: string, ligneIds: string[], options: { groupeTolere?: string | null } = {}) {
+    const tolere = (options.groupeTolere ?? null) !== null && options.groupeTolere === lettrageId;
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
@@ -564,15 +589,22 @@ export class LettrageService {
         // lettre sur toutes, et en change le statut.
         const dejaDuGroupe = await tx.ligneEcriture.findMany({
           where: { lettrageId },
-          select: { id: true, ecriture: { select: { exerciceId: true, date: true } } },
+          select: { id: true, ecriture: { select: { exerciceId: true, date: true, exercice: { select: { statut: true } } } } },
         });
         // AU DÉTAIL, UN GROUPE NE MÊLE PAS DEUX EXERCICES (A6 bis) · les
         // lignes déjà du groupe comptent, l'écart de change passé par
         // `passerEcartChange` aussi.
         const compte = await this.trouverCompte(tenantId, groupe.compteId);
-        const aCheval = motifLettrageADeuxExercices([...nouvelles, ...dejaDuGroupe], compte);
-        if (aCheval) throw new BadRequestException(aCheval);
-        await refuserSiLignesFigees(tx, tenantId, [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
+        const exercicesDuGroupe = new Set(dejaDuGroupe.map((l) => l.ecriture.exerciceId));
+        const ajouteUnExercice = nouvelles.some((l) => !exercicesDuGroupe.has(l.ecriture.exerciceId));
+        if (!tolere || ajouteUnExercice) {
+          const aCheval = motifLettrageADeuxExercices([...nouvelles, ...dejaDuGroupe], compte);
+          if (aCheval) throw new BadRequestException(aCheval);
+        }
+        // Toléré, seules les lignes NOUVELLES doivent être libres · les lignes
+        // figées du groupe restent où la clôture les a laissées.
+        await refuserSiLignesFigees(tx, tenantId, tolere ? ligneIds : [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
+        const dExerciceClos = dejaDuGroupe.filter((l) => l.ecriture.exercice?.statut === StatutExercice.CLOTURE).map((l) => l.id);
 
         await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettrageId } });
 
@@ -597,7 +629,10 @@ export class LettrageService {
           },
         });
         if (soldeNul) {
-          await tx.ligneEcriture.updateMany({ where: { lettrageId }, data: { lettre: groupe.code } });
+          await tx.ligneEcriture.updateMany({
+            where: { lettrageId, ...(dExerciceClos.length > 0 ? { id: { notIn: dExerciceClos } } : {}) },
+            data: { lettre: groupe.code },
+          });
         }
 
         return {
@@ -646,39 +681,19 @@ export class LettrageService {
         ecriture: { select: { date: true, exerciceId: true } },
       },
     });
-    // UN GROUPE À CHEVAL DE DEUX EXERCICES (A6 bis) · l'écart se passe dans
-    // l'exercice de sa dernière ligne et COMPLÈTE le groupe. Deux cas ne le
-    // peuvent pas, et le motif dit l'issue · le groupe FIGÉ (une ligne dans
-    // un exercice, un journal ou une période clôturés), que `completer`
-    // refuserait · l'écriture manuelle dans l'exercice du dénouement, que le
-    // contrôle des comptes chiffre (`ECART_CHANGE_A_CHEVAL_NON_CONSTATE`) ;
-    // et le compte au DÉTAIL, où un groupe ne mêle pas deux exercices ·
-    // délettrer, puis lettrer contre la ligne d'à-nouveau. Au SOLDE, il se
-    // passe comme pour tout groupe.
-    if (new Set(lignes.map((l) => l.ecriture.exerciceId)).size > 1) {
-      const figees = await lignesFigees(this.prisma, tenantId, lignes.map((l) => l.id));
-      const premiere = [...figees.values()][0];
-      if (premiere) {
-        return {
-          ...base,
-          ecart: null,
-          motif:
-            `Le lettrage ${groupe.code.toLowerCase()} mêle deux exercices et l'une de ses lignes est figée (${premiere.motif}) · il ne se complète plus, ` +
-            "et l'écart de change ne se passe pas sur lui. S'il est soldé dans sa devise, passez l'écart par une écriture manuelle au compte de " +
-            "change prescrit, contre le compte du tiers, datée dans l'exercice du dénouement · le contrôle des comptes le chiffre.",
-        };
-      }
-      const aCheval = motifLettrageADeuxExercices(lignes, groupe.compte);
-      if (aCheval) {
-        return {
-          ...base,
-          ecart: null,
-          motif:
-            `Le lettrage ${groupe.code.toLowerCase()} mêle deux exercices · aucun écart de change ne se passe sur lui. ${aCheval} ` +
-            "Délettrez-le d'abord (Interrogation et lettrage) ; l'écart se proposera sur le groupe refait avec la ligne d'à-nouveau.",
-        };
-      }
-    }
+    // UN GROUPE FIGÉ OU À CHEVAL DE DEUX EXERCICES (A6 bis, second tour, B2)
+    // reçoit son écart comme tout groupe · `passerEcartChange` le complète
+    // sous la tolérance de `completer` (`groupeTolere`), sa propre ligne
+    // seule devant être libre, et l'exercice du dénouement est celui de la
+    // dernière ligne. La proposition le DIT (`fige`, `aCheval`) · si la date
+    // du dénouement tombe dans une période close, l'écart s'enregistre au
+    // premier jour non clôturé sur demande, sa date de valeur gardée (AUDCIF
+    // art. 22, 4°). Il ne se délettre pas · délettré, un groupe soldé dans sa
+    // devise rouvrirait ses lignes, et la réévaluation porterait le réalisé
+    // au 478 ou au 479 (D3 d'A6).
+    const aCheval = new Set(lignes.map((l) => l.ecriture.exerciceId)).size > 1;
+    const figees = await lignesFigees(this.prisma, tenantId, lignes.map((l) => l.id));
+    const fige = figees.size > 0;
     const change = ecartDuGroupe(
       lignes.map((l) => ({
         debit: Number(l.debit),
@@ -718,6 +733,8 @@ export class LettrageService {
       lu && lu.typeCompte === 'DETAIL' && lu.estActif !== false ? { id: lu.id, numero: lu.numero, intitule: lu.intitule } : null;
     return {
       ...base,
+      aCheval,
+      fige,
       ecart: change.ecart,
       sens: change.ecart > 0 ? ('PERTE' as const) : ('GAIN' as const),
       devise: lignes.find((l) => l.deviseId === change.deviseId)?.devise?.code ?? null,

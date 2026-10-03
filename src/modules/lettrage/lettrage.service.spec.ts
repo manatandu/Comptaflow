@@ -99,6 +99,7 @@ function service(
   const filtrer = (where: any) =>
     lignes.filter((l) => {
       if (where?.id?.in && !where.id.in.includes(l.id)) return false;
+      if (where?.id?.notIn && where.id.notIn.includes(l.id)) return false;
       if (where?.compteId && l.compteId !== where.compteId) return false;
       if (where?.lettrageId !== undefined) {
         if (where.lettrageId === null && l.lettrageId !== null) return false;
@@ -824,39 +825,117 @@ describe('Au Détail, un nouveau lettrage ne mêle pas deux exercices (A6 bis, r
     return monte;
   }
 
-  it('au Détail, l’écart de change d’un groupe à cheval n’est pas proposé · le motif nomme l’issue, délettrer', async () => {
-    const { service: s, prisma } = groupeExistant('PARTIEL');
+  it('au Détail, l’écart de change d’un groupe à cheval SE PROPOSE · rien à délettrer (second tour, m2)', async () => {
+    const { service: s } = groupeExistant('PARTIEL');
     const r = await s.propositionEcartChange('t1', 'g9');
-    expect(r.ecart).toBeNull();
-    expect(r.motif).toMatch(/Le lettrage a mêle deux exercices · aucun écart de change ne se passe sur lui/);
-    expect(r.motif).toMatch(/Délettrez-le d'abord/);
-    // Rien n'est lu au-delà · ni référentiel, ni compte d'écart.
-    expect((prisma as any).tenant.findFirst).not.toHaveBeenCalled();
+    // 2 030 000 − 1 948 800 = 81 200 de perte, à la date et dans l'exercice du règlement.
+    expect(r).toMatchObject({ ecart: 81_200, sens: 'PERTE', exerciceId: 'N1', aCheval: true, fige: false });
+    expect(r.motif ?? '').not.toMatch(/élettrez/);
   });
 
   it('au SOLDE, un groupe à cheval non figé · l’écart se propose, daté du dénouement, dans son exercice', async () => {
     const { service: s } = groupeExistant('PARTIEL', { mode: 'SOLDE' });
     const r = await s.propositionEcartChange('t1', 'g9');
-    // 2 030 000 − 1 948 800 = 81 200 de perte, à la date et dans l'exercice du règlement.
-    expect(r).toMatchObject({ ecart: 81_200, sens: 'PERTE', exerciceId: 'N1' });
+    expect(r).toMatchObject({ ecart: 81_200, sens: 'PERTE', exerciceId: 'N1', aCheval: true, fige: false });
   });
 
-  it('un groupe à cheval FIGÉ (exercice clôturé), au SOLDE comme au Détail · l’écart ne se passe pas sur lui, écriture manuelle (m4)', async () => {
+  it('un groupe à cheval FIGÉ (exercice clôturé), au SOLDE comme au Détail · l’écart se propose quand même, le gel dit (B2)', async () => {
     for (const mode of ['SOLDE', 'DETAIL'] as const) {
       const { service: s } = groupeExistant('PARTIEL', { mode, factureClose: true });
       const r = await s.propositionEcartChange('t1', 'g9');
-      expect(r.ecart).toBeNull();
-      expect(r.motif).toMatch(/mêle deux exercices et l'une de ses lignes est figée \(son exercice est clôturé/);
-      expect(r.motif).toMatch(/écriture manuelle au compte de change prescrit, contre le compte du tiers, datée dans l'exercice du dénouement/);
+      expect(r).toMatchObject({ ecart: 81_200, exerciceId: 'N1', aCheval: true, fige: true });
+      expect(r.motif ?? '').not.toMatch(/écriture manuelle/);
     }
   });
 
-  it('un groupe à cheval déjà en base se DÉLETTRE tant que ses exercices sont ouverts · c’est son issue', async () => {
+  it('un groupe à cheval déjà en base reste délettrable tant que ses exercices sont ouverts · aucun geste ne l’interdit', async () => {
     const { service: s, groupes, lignes } = groupeExistant('SOLDE');
     const r = await s.delettrer('t1', 'c1', 'A');
     expect(r.nombreLignes).toBe(2);
     expect(groupes).toHaveLength(0);
     expect(lignes.every((l) => l.lettrageId === null && l.lettre === null)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, second tour, B2 · le groupe figé reçoit l'écart de change réalisé
+// sous la tolérance nommée de `completer` (`groupeTolere`)
+// ---------------------------------------------------------------------------
+
+describe('Un groupe figé reçoit son écart de change (A6 bis, second tour, B2)', () => {
+  /** La facture de N (exercice CLÔTURÉ), le règlement de N1, l'écart de N1 à rattacher. */
+  function figeAvecEcart(options: { mode?: 'DETAIL' | 'SOLDE'; ecart?: Partial<{ exercice: string; exerciceClos: boolean }> } = {}) {
+    const lignes = [
+      ligne('f', 0, 1_948_800, { date: '2026-12-15', exercice: 'N', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9', exerciceClos: true }),
+      ligne('r', 2_030_000, 0, { date: '2027-01-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      // La ligne du tiers de l'écriture d'écart · perte de 81 200, C 401.
+      ligne('e', 0, 81_200, { date: '2027-01-10', exercice: options.ecart?.exercice ?? 'N1', exerciceClos: options.ecart?.exerciceClos }),
+    ];
+    const monte = service(lignes, { mode: options.mode });
+    monte.groupes.push({
+      id: 'g9',
+      tenantId: 't1',
+      compteId: 'c1',
+      code: 'A',
+      statut: 'PARTIEL',
+      solde: 81_200,
+      origine: 'MANUEL',
+      verrouille: false,
+      ecartChange: null,
+      createdAt: new Date('2027-01-10'),
+      createdBy: 'u1',
+      soldeAt: null,
+    });
+    return monte;
+  }
+
+  it('sans tolérance · refusé comme avant · au SOLDE la facture de N est figée, au Détail le groupe mêle deux exercices', async () => {
+    const auSolde = figeAvecEcart({ mode: 'SOLDE' });
+    await expect(auSolde.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/est figée, son exercice est clôturé/);
+    expect(auSolde.groupes[0].statut).toBe('PARTIEL');
+    expect(auSolde.lignes.find((l) => l.id === 'e')!.lettrageId).toBeNull();
+    const auDetail = figeAvecEcart();
+    await expect(auDetail.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/appartiennent à 2 exercices/);
+  });
+
+  it('toléré · le groupe passe SOLDE, la ligne de l’exercice clôturé n’est pas touchée, les autres reçoivent la lettre', async () => {
+    for (const mode of ['DETAIL', 'SOLDE'] as const) {
+      const { service: s, groupes, lignes } = figeAvecEcart({ mode });
+      const r = await s.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' });
+      expect(r).toMatchObject({ statut: 'SOLDE', lettre: 'A', solde: 0 });
+      expect(groupes[0].statut).toBe('SOLDE');
+      const par = (id: string) => lignes.find((l) => l.id === id)!;
+      expect(par('e')).toMatchObject({ lettrageId: 'g9', lettre: 'A' });
+      expect(par('r')).toMatchObject({ lettrageId: 'g9', lettre: 'A' });
+      // La facture de l'exercice clôturé · ni lettre posée, ni rattachement changé.
+      expect(par('f')).toMatchObject({ lettrageId: 'g9', lettre: null });
+    }
+  });
+
+  it('une ligne figée par une PÉRIODE close d’un exercice OUVERT reçoit la lettre · sinon le report la lirait ouverte', async () => {
+    const lignes = [
+      ligne('f', 0, 1_948_800, { date: '2027-01-15', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      ligne('r', 2_030_000, 0, { date: '2027-04-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      ligne('e', 0, 81_200, { date: '2027-04-10', exercice: 'N1' }),
+    ];
+    const monte = service(lignes, { clotures: [{ granularite: 'PERIODE', journalId: null, dateLimite: new Date('2027-03-31') }] });
+    monte.groupes.push({ ...monte.groupes[0], id: 'g9', tenantId: 't1', compteId: 'c1', code: 'B', statut: 'PARTIEL', solde: 81_200, origine: 'MANUEL', verrouille: false, ecartChange: null, createdAt: new Date(), createdBy: 'u1', soldeAt: null });
+    await expect(monte.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/est figée/);
+    const r = await monte.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' });
+    expect(r.statut).toBe('SOLDE');
+    expect(monte.lignes.map((l) => l.lettre)).toEqual(['B', 'B', 'B']);
+  });
+
+  it('la tolérance ne vaut que pour SON groupe, ni pour une ligne nouvelle figée, ni pour un exercice que le groupe ne touchait pas', async () => {
+    const autre = figeAvecEcart({ mode: 'SOLDE' });
+    await expect(autre.service.completer('t1', 'g9', ['e'], { groupeTolere: 'gAutre' })).rejects.toThrow(/est figée/);
+    const nouvelleFigee = figeAvecEcart({ ecart: { exercice: 'N', exerciceClos: true } });
+    await expect(nouvelleFigee.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' })).rejects.toThrow(/est figée/);
+    const exerciceNeuf = figeAvecEcart({ ecart: { exercice: 'N2' } });
+    await expect(exerciceNeuf.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' })).rejects.toThrow(
+      /est reporté en mode Détail, et ces lignes appartiennent à 3 exercices/,
+    );
+    expect(exerciceNeuf.groupes[0].statut).toBe('PARTIEL');
   });
 });
 
