@@ -93,6 +93,7 @@ describe('F134 · le premier comptage ouvre le recensement', () => {
       sousCommissionId: 'sc1',
       dateComptage: '2025-12-31',
       especesComptees: 100,
+      modeComparaison: 'FRANCS',
     } as never);
     expect(m.campagne.statut).toBe(StatutCampagneInventaire.RECENSEMENT);
   });
@@ -100,7 +101,7 @@ describe('F134 · le premier comptage ouvre le recensement', () => {
   it('une campagne déjà en arbitrage ne revient pas au recensement', async () => {
     const m = monter(StatutCampagneInventaire.ARBITRAGE);
     await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', {
-      compteId: 'c57', sousCommissionId: 'sc1', dateComptage: '2025-12-31', especesComptees: 100,
+      compteId: 'c57', sousCommissionId: 'sc1', dateComptage: '2025-12-31', especesComptees: 100, modeComparaison: 'FRANCS',
     } as never);
     expect(m.campagne.statut).toBe(StatutCampagneInventaire.ARBITRAGE);
   });

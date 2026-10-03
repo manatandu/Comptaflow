@@ -4065,6 +4065,7 @@ export type ApercuPvCaisse =
       lisible: true;
       soldeComptable: number;
       modeComparaison: 'FRANCS' | 'DEVISE' | 'FRANCS_COURS_HISTORIQUES';
+      deviseId: string | null;
       devise: string | null;
       dateCloture: string;
       reconstitution: {

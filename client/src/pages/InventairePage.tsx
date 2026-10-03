@@ -1178,6 +1178,9 @@ function FormulairePvCaisse({
   // pour une autre date est jetée.
   const [apercu, setApercu] = useState<ApercuPvCaisse | null>(null);
   const [erreurApercu, setErreurApercu] = useState<string | null>(null);
+  // Un envoi refusé fait relire l'aperçu · l'unité ou le solde ont pu changer
+  // depuis (409 « la caisse a changé depuis l'aperçu »).
+  const [relecture, setRelecture] = useState(0);
   useEffect(() => {
     let perime = false;
     setApercu(null);
@@ -1195,7 +1198,7 @@ function FormulairePvCaisse({
     return () => {
       perime = true;
     };
-  }, [campagne.id, caisse.compteId, dateComptage]);
+  }, [campagne.id, caisse.compteId, dateComptage, relecture]);
   const unite = apercu?.lisible && apercu.devise ? apercu.devise : null;
 
   const e = lireNombre(especes);
@@ -1216,6 +1219,9 @@ function FormulairePvCaisse({
     apercu?.lisible === true;
 
   const etablir = async () => {
+    if (apercu?.lisible !== true) return;
+    // L'unité de l'aperçu part avec le corps · le serveur la confronte à sa
+    // propre lecture et refuse en 409 si la caisse a changé depuis.
     const ok = await agir(() =>
       api.post(`/inventaire/${campagne.id}/pv-caisse`, {
         compteId: caisse.compteId,
@@ -1223,6 +1229,8 @@ function FormulairePvCaisse({
         dateComptage,
         heureComptage: heure.trim() || undefined,
         especesComptees: lireNombre(especes),
+        modeComparaison: apercu.modeComparaison,
+        deviseId: apercu.deviseId,
         coupures:
           coupures.length > 0
             ? coupures.map((c) => ({ valeurUnitaire: lireNombre(c.valeur), nombre: lireNombre(c.nombre) }))
@@ -1233,6 +1241,7 @@ function FormulairePvCaisse({
       }),
     );
     if (ok) fermer();
+    else setRelecture((n) => n + 1);
   };
 
   return (

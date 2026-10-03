@@ -104,6 +104,16 @@ type Ligne = {
 
 const J = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
+// L'horloge du service · `etabliLe` est posé par l'application juste après la
+// lecture (second tour A10). Le PV s'établit le 5 février 2026, après
+// l'inscription du paiement reporté au 1er.
+beforeEach(() => {
+  jest.useFakeTimers({ now: new Date('2026-02-05T00:00:00.000Z'), doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate'] });
+});
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 let rang = 0;
 function ligne(
   exerciceId: string,
@@ -374,8 +384,8 @@ function monter(lignes: Ligne[], exercices = [EX25, EX26]) {
         if (pvs.some((p) => p.compteId === data.compteId)) {
           throw new Prisma.PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '5' });
         }
-        // Établi le 5 février, après l'inscription du paiement reporté au 1er.
-        const pv = { id: 'pv1', etabliLe: J('2026-02-05'), ...data };
+        // `etabliLe` vient du service (second tour A10), jamais du défaut de la base.
+        const pv = { id: 'pv1', ...data };
         pvs.push(pv);
         return pv;
       }),
@@ -392,8 +402,18 @@ function monter(lignes: Ligne[], exercices = [EX25, EX26]) {
   };
 }
 
-const corps = (date: string, especes: number) =>
-  ({ compteId: 'caisse', sousCommissionId: 'sc1', dateComptage: date, especesComptees: especes }) as never;
+// L'unité annoncée par l'aperçu voyage avec le corps (second tour A10).
+const corps = (date: string, especes: number, unite: { mode: ModeComparaisonCaisse; deviseId?: string | null } = FRANCS_LU) =>
+  ({
+    compteId: 'caisse',
+    sousCommissionId: 'sc1',
+    dateComptage: date,
+    especesComptees: especes,
+    modeComparaison: unite.mode,
+    deviseId: unite.deviseId ?? null,
+  }) as never;
+const FRANCS_LU = { mode: ModeComparaisonCaisse.FRANCS };
+const USD_LU = { mode: ModeComparaisonCaisse.DEVISE, deviseId: 'usd' };
 
 describe('le PV fige le solde lu et sa reconstitution', () => {
   it('compté le 10 janvier · solde 880 000 et les quatre colonnes de la reconstitution', async () => {
@@ -538,6 +558,7 @@ describe('le solde comptable ne se reçoit plus de l’écran', () => {
       sousCommissionId: '6f1c8a2e-3b4d-4c5e-8f9a-0b1c2d3e4f5b',
       dateComptage: '2026-01-10',
       especesComptees: 870_000,
+      modeComparaison: 'FRANCS',
       soldeComptable: 0,
     };
     await expect(pipe.transform(corpsAvecSolde, { type: 'body', metatype: EtablirPvCaisseDto })).rejects.toBeInstanceOf(
@@ -619,7 +640,7 @@ describe('B1 · une caisse en devises se compare dans SA devise', () => {
 
   it('le PV fige l’unité et la devise, et l’écart se compte en dollars', async () => {
     const m = monter(livreUsd());
-    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350));
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350, USD_LU));
     expect(m.pvs[0]).toMatchObject({
       soldeComptableFige: 2_400,
       ecart: -50,
@@ -706,6 +727,7 @@ describe('(e) la date du comptage est une date civile AAAA-MM-JJ', () => {
     sousCommissionId: '6f1c8a2e-3b4d-4c5e-8f9a-0b1c2d3e4f5b',
     dateComptage,
     especesComptees: 1,
+    modeComparaison: 'FRANCS',
   });
 
   it.each(['2026-01-10T23:30:00+01:00', '2026-01-10T00:00:00Z', '10/01/2026', ''])('refuse « %s » en 400 nommé', async (d) => {
@@ -781,7 +803,7 @@ describe('une inscription en NÉGATIF se compte dans son sens (AUDCIF art. 20, `
 
   it('les mouvements ligne à ligne gardent le négatif dans SA colonne, et leurs sommes rendent les totaux', async () => {
     const m = monter([...livreUsd(), negatif('ex26', '2026-01-06', 900_000, 300)]);
-    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_100));
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_100, USD_LU));
     const r = await m.svc.mouvementsReconstitution('t1', 'pv1');
     if (!r.applicable) throw new Error('applicable attendu');
     expect(r.lignes.map((x) => [x.encaissement, x.decaissement])).toEqual([
@@ -800,5 +822,58 @@ describe('une inscription en NÉGATIF se compte dans son sens (AUDCIF art. 20, `
     if (!r.applicable) throw new Error('applicable attendu');
     expect(r.lignes.find((x) => x.encaissement === -300_000)).toBeDefined();
     expect(r.lignes.every((x) => x.decaissement >= 0)).toBe(true);
+  });
+});
+
+describe('second tour · l’unité de l’aperçu et l’heure d’établissement', () => {
+  it('l’unité a basculé depuis l’aperçu · 409 nommé, rien d’écrit', async () => {
+    // L'aperçu annonçait des dollars ; une ligne en francs validée depuis fait
+    // tomber la caisse en lignes mêlées.
+    const m = monter([...livreUsd(), ligne('ex26', '2026-01-09', { debit: 100_000 })]);
+    const envoi = m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350, USD_LU));
+    await expect(envoi).rejects.toBeInstanceOf(ConflictException);
+    await expect(m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350, USD_LU))).rejects.toThrow(
+      /la caisse a changé depuis l'aperçu, relisez/i,
+    );
+    expect(m.pvs).toHaveLength(0);
+  });
+
+  it('une autre devise que celle de l’aperçu · 409', async () => {
+    const m = monter(livreUsd());
+    await expect(
+      m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350, { mode: ModeComparaisonCaisse.DEVISE, deviseId: 'eur' })),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('des francs annoncés pour une caisse en dollars · 409', async () => {
+    const m = monter(livreUsd());
+    await expect(m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_350))).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('`etabliLe` est posé par l’application après la lecture, jamais laissé au défaut de la base', async () => {
+    const m = monter(livre());
+    jest.setSystemTime(new Date('2026-02-05T10:00:00.000Z'));
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 870_000));
+    expect(m.pvs[0].etabliLe).toEqual(new Date('2026-02-05T10:00:00.000Z'));
+  });
+
+  it('`luesParLePv` sur cette heure · validée avant, lue ; validée après, dite « depuis le PV »', async () => {
+    const l = livre();
+    const m = monter(l);
+    jest.setSystemTime(new Date('2026-02-05T10:00:00.000Z'));
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 870_000));
+    const avant = new Date('2026-02-05T09:59:59.000Z');
+    const apres = new Date('2026-02-05T10:00:01.000Z');
+    l.push(ligne('ex26', '2026-01-09', { credit: 2_000 }, { valideeAt: avant, createdAt: avant }));
+    l.push(ligne('ex26', '2026-01-09', { credit: 3_000 }, { valideeAt: apres, createdAt: apres }));
+    const r = await m.svc.mouvementsReconstitution('t1', 'pv1');
+    if (!r.applicable) throw new Error('applicable attendu');
+    // Validée avant l'heure figée mais absente de la lecture · elle n'est pas
+    // tue, le PV dit qu'il ne concorde plus.
+    expect(r.decaissements).toBe(472_000);
+    expect(r.concorde).toBe(false);
+    expect(r.saisiesDepuisLePv).toEqual({ nombre: 1, net: -3_000 });
   });
 });

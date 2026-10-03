@@ -14,7 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DecisionEcartInventaire, RoleMembreInventaire } from '@prisma/client';
+import { DecisionEcartInventaire, ModeComparaisonCaisse, RoleMembreInventaire } from '@prisma/client';
 
 export class CreerCampagneDto {
   @IsUUID()
@@ -196,6 +196,19 @@ export class EtablirPvCaisseDto {
   // livre-journal à la date du comptage et le fige. Reçu de l'écran, il
   // laissait figer n'importe quel chiffre ; envoyé quand même, il est refusé
   // par la liste blanche du pipe de validation.
+
+  // L'UNITÉ LUE À L'APERÇU (second tour A10) · les espèces sont saisies dans
+  // l'unité que l'aperçu a annoncée. Une ligne validée entre l'aperçu et la
+  // création peut faire basculer la caisse de la devise aux francs · les
+  // espèces comptées en dollars seraient alors figées contre un solde en
+  // francs, écart faux sans un mot. Le serveur compare et refuse en 409.
+  @IsEnum(ModeComparaisonCaisse)
+  modeComparaison!: ModeComparaisonCaisse;
+
+  /** La devise annoncée par l'aperçu, `null` hors comparaison en devise. */
+  @IsOptional()
+  @IsUUID()
+  deviseId?: string | null;
 
   @IsNumber()
   @Min(0)

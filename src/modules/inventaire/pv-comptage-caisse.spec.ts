@@ -104,6 +104,8 @@ const pv = (extra: Record<string, unknown> = {}) => ({
   sousCommissionId: 'sc1',
   dateComptage: '2025-12-31',
   especesComptees: 1_250_000,
+  // L'unité annoncée par l'aperçu (second tour A10) · une caisse en francs.
+  modeComparaison: 'FRANCS',
   ...extra,
 });
 

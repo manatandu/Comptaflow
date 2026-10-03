@@ -1012,9 +1012,15 @@ export class InventaireService {
     // solde proposé était celui de l'exercice entier, brouillard compris · une
     // caisse comptée le 10 janvier se comparait au 31 décembre, et chaque
     // mouvement de janvier devenait un écart. Voir `solde-caisse-au-comptage.ts`.
-    // LECTURE ET CRÉATION DANS UNE SEULE TRANSACTION (b) · une écriture
-    // validée entre les deux ferait figer un solde qui n'est plus celui du
-    // livre-journal au moment où le PV naît.
+    // LECTURE ET CRÉATION DANS UNE SEULE TRANSACTION (b) · le PV ne naît pas
+    // si la lecture échoue, et rien d'une lecture faite ailleurs n'est figé.
+    // Ce que la transaction NE GARANTIT PAS · en lecture validée (le niveau
+    // par défaut de PostgreSQL), une écriture validée par un autre poste
+    // pendant la lecture peut ne pas avoir été lue. `etabliLe` est donc posé
+    // par l'application JUSTE APRÈS la lecture (jamais `now()`, l'heure du
+    // DÉBUT de la transaction), et une pièce validée dans cet intervalle
+    // n'est pas tue · relue par `mouvementsReconstitution`, elle fait dire
+    // « ne concorde pas » au PV.
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: campagne.exerciceId, tenantId },
       select: { id: true, dateDebut: true, dateFin: true },
@@ -1026,6 +1032,16 @@ export class InventaireService {
       return await transactionJournalisee(this.prisma, async (tx) => {
         const lecture = await lireSoldeCaisseAuComptage(tx, tenantId, compte.id, exercice, dateComptage);
         if (!lecture.lisible) throw new BadRequestException(lecture.motif);
+        const etabliLe = new Date();
+        const deviseLue = lecture.unite.devise?.id ?? null;
+        if (dto.modeComparaison !== lecture.unite.mode || (dto.deviseId ?? null) !== deviseLue) {
+          throw new ConflictException(
+            "La caisse a changé depuis l'aperçu, relisez · l'aperçu annonçait une comparaison " +
+              `${InventaireService.unitePourMessage(dto.modeComparaison)}, le livre-journal en rend une ` +
+              `${InventaireService.unitePourMessage(lecture.unite.mode, lecture.unite.devise?.code)}. Les espèces ` +
+              "comptées s'entendent dans l'unité de l'aperçu · figées contre un solde d'une autre unité, l'écart serait faux.",
+          );
+        }
         const r = lecture.reconstitution;
         // Espèces, écart et coupures sont dans l'UNITÉ du PV · la devise de la
         // caisse quand toutes ses lignes la portent (B1).
@@ -1054,6 +1070,7 @@ export class InventaireService {
             attestationPar: dto.attestationPar?.trim() || null,
             observations: dto.observations?.trim() || null,
             etabliPar: userId,
+            etabliLe,
             coupures: {
               create: coupures.map((c) => ({
                 tenantId,
@@ -1125,6 +1142,8 @@ export class InventaireService {
       lisible: true as const,
       soldeComptable: lecture.soldeComptable,
       modeComparaison: lecture.unite.mode,
+      // Renvoyée avec le PV · le serveur refuse en 409 si l'unité a changé.
+      deviseId: lecture.unite.devise?.id ?? null,
       devise: lecture.unite.devise?.code ?? null,
       dateCloture: exercice.dateFin,
       reconstitution: r,
@@ -1448,6 +1467,13 @@ export class InventaireService {
         net: a(depuisExercice.debit - depuisExercice.credit + depuisSuivants.debit - depuisSuivants.credit),
       },
     };
+  }
+
+  /** L'unité d'un PV de caisse, dite dans un refus. */
+  static unitePourMessage(mode: ModeComparaisonCaisse, code?: string | null): string {
+    if (mode === ModeComparaisonCaisse.DEVISE) return code ? `en ${code}` : 'en devise';
+    if (mode === ModeComparaisonCaisse.FRANCS_COURS_HISTORIQUES) return 'en francs au cours historique';
+    return 'en francs';
   }
 
   /** Une tranche de travail qui se dit (§ 8 bis) · total et `tronque` servis. */

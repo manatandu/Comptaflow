@@ -62,6 +62,37 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    suite tuée ; client `tsc`, 204 fichiers et 1 665 tests verts,
    `npm run build` vert.
 
+## Second tour (2026-10-03)
+
+7. BLOQUANT · en devise, `sommesDansLUnite` filtrait `debit > 0` et
+   `credit > 0`, or une inscription en négatif (AUDCIF art. 20,
+   `EcritureService.lignesEnNegatif`) porte un débit ou un crédit NÉGATIF et
+   un montant en devise sans signe · un encaissement corrigé ou réimputé
+   restait au solde et le PV figeait un manquant inexistant. Règle de sens de
+   `positionDesLignes` · débit effectif = Σ montant en devise des débits
+   positifs − Σ des débits négatifs, crédit de même ; solde à la clôture,
+   intercalés, valeur avant clôture, concordance et saisies depuis le PV
+   passent par elle. `mouvementsReconstitution` garde le négatif dans SA
+   colonne, en négatif (les colonnes somment les totaux). Tests ·
+   encaissement USD puis négatif, réimputation vers le 5211, décaissement
+   négatif, francs inchangés, lignes.
+8. L'unité de l'aperçu voyage avec le corps (`modeComparaison` exigé,
+   `deviseId`) · 409 « La caisse a changé depuis l'aperçu, relisez » si la
+   lecture dans la transaction diffère ; l'écran relit l'aperçu après un
+   refus. `etabliLe` posé par l'application juste après la lecture (le
+   défaut `now()` est l'heure du DÉBUT de la transaction) ; commentaire
+   ramené à ce que la transaction garantit · une pièce validée pendant la
+   lecture n'est pas tue, le PV dit « ne concorde pas ». Commentaire de la
+   route des mouvements remis au-dessus d'elle. Schéma inchangé.
+
+## Relevés en attente (second tour, non codés)
+
+- B1 rarement atteint au-delà de la première année · le report SOLDE pose une
+  ligne en francs sans devise, et les négatifs d'une réévaluation annulée ne
+  sont pas reliés à ses écarts (`ReevalEcarts`) · la caisse tombe alors en
+  comparaison en francs au cours historique, AVEC la mention sur le PV,
+  jamais un montant faux en silence.
+
 ## Reste
 
 - Rien côté construction · relecture adverse et intégration.
