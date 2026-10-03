@@ -67,10 +67,31 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 - M7 · le message dit que la contre-passation ne touche que le 478 et le
   479, et que la provision s'ajuste à la réévaluation de l'exercice en cours
   (ch. 22 § 2.3).
+- M6 · VÉRIFIÉ, confirmé · le report Détail lit les lignes sans lettre
+  (`OR: [{ lettre: null }, { lettre: '' }]`), et un groupe PARTIEL n'en pose
+  aucune · la facture de 1 160 USD et le règlement de 600 USD passent en N+1
+  chacun de son côté, sans lien (test de `lignesReportANouveau`). Le
+  règlement en devise se borne · (1) au dû des factures choisies moins les
+  règlements, acomptes et avoirs REPORTÉS par l'à-nouveau hors de tout
+  groupe (colonne du règlement, signe compris · une inscription en négatif
+  annule), refus nommé avec l'issue (régler au plus le reste, compléter le
+  lettrage avec la ligne d'à-nouveau, ou la lettrer d'abord avec son autre
+  facture) ; (2) au reste dû du COMPTE dans la devise (lignes non soldées de
+  l'exercice, groupes partiels compris). Tests · six (vérification du
+  report, fournisseur et client, clôture et provisoire, lettrée ou annulée,
+  compte entier, requête).
 
 ## Reste
 
-- M1 à M7.
+- Bloc du § 3 complet des deux côtés, suite entière une fois.
+
+## Relevés (hors périmètre, non traités)
+
+- Le règlement EN FRANCS d'une facture reportée entière en N+1 après un
+  règlement partiel en N (même défaut que M6, sans devise) · le dû en
+  francs n'est borné que par les factures choisies. Même remède possible,
+  hors de la ligne A6.
+- La trésorerie en devise sur facture en francs (B3) · refusée, non ouverte.
 
 ## Décisions prises
 
@@ -88,6 +109,13 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   et dont la part de l'exercice n'est pas nulle (atteignable seulement si le
   compte a changé de mode de report après coup) · refus nommé, aucune issue
   dans OmegaX, dit tel quel.
+- M6 · aucun lien ne relie une ligne d'à-nouveau à sa facture d'origine
+  (`report-a-nouveau.ts` ne recopie ni groupe ni référence) · la borne est
+  PROTECTRICE (lecture du § 10 bis) · tout règlement reporté non lettré est
+  lu contre la facture réglée, l'issue étant de le lettrer d'abord avec la
+  sienne. Aucune migration (le schéma ne bouge pas).
+- M4 · écart à la consigne · l'« ordre de `ligneIds` » n'est gardé nulle
+  part, D4 ne pourrait pas le rejouer ; l'identifiant de ligne, si.
 
 ## Vérification
 

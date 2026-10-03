@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { StatutLettrage, TypeJournal } from '@prisma/client';
+import { Prisma, StatutLettrage, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
@@ -208,7 +208,7 @@ export class ReglementsService {
         continue;
       }
       if (referentiel === null) referentiel = await referentielDuDossier(this.prisma, tenantId);
-      const enDevise = await this.preparerEnDevise(tenantId, referentiel, dto.sens, p.r, numero, p.siennes);
+      const enDevise = await this.preparerEnDevise(tenantId, dto.exerciceId, referentiel, dto.sens, p.r, numero, p.siennes);
       prepares.push({ r: p.r, compte: p.compte, du: p.du, montant: enDevise.francsPayes, enDevise });
     }
 
@@ -362,6 +362,7 @@ export class ReglementsService {
    */
   private async preparerEnDevise(
     tenantId: string,
+    exerciceId: string,
     referentiel: Referentiel,
     sens: SensReglement,
     r: ReglementTiersDto,
@@ -404,6 +405,71 @@ export class ReglementsService {
           `(${duDevise.toFixed(2)}) · l'excédent est une avance ou un trop-perçu, à comptabiliser à part.`,
       );
     }
+    // LE RESTE DÛ DANS LA DEVISE, ACOMPTES DE N COMPRIS (A6 bis, M6,
+    // vérifié) · un lettrage PARTIEL de N passe au report Détail ligne à
+    // ligne, la facture ENTIÈRE d'un côté, le règlement partiel de l'autre
+    // (`exercice/report-a-nouveau.ts`, aucune des deux n'a de lettre, et le
+    // groupe ne passe pas l'exercice) · en N+1 la facture ressortait due en
+    // entier, et 1 160 USD se payaient sur 560 dus (le tiers soldé à tort,
+    // l'écart réalisé calculé sur 600 USD déjà réglés). AUCUN LIEN ne relie
+    // la ligne d'à-nouveau à sa facture d'origine (ni groupe, ni référence)
+    // · deux bornes, toutes deux protectrices, lues sur les lignes du compte
+    // dans la devise, de l'exercice, hors factures choisies.
+    const deviseId = [...devises][0]!;
+    const autres = {
+      compteId: r.compteId,
+      deviseId,
+      id: { notIn: r.ligneIds },
+      ecriture: { tenantId, exerciceId },
+    } satisfies Prisma.LigneEcritureWhereInput;
+    // (1) Les règlements, acomptes et avoirs REPORTÉS par l'à-nouveau, hors
+    // de tout groupe · rien ne dit à quelle facture ils reviennent, ils sont
+    // donc lus contre celle-ci. C'est la colonne du RÈGLEMENT qui les dit
+    // (débit pour un fournisseur, crédit pour un client), signe compris · une
+    // ligne inscrite en négatif (art. 20) annule celle qu'elle contre-passe,
+    // et le montant en devise est stocké SANS signe (`lignesEnNegatif`).
+    const reportees = {
+      ...autres,
+      lettrageId: null,
+      ecriture: {
+        tenantId,
+        exerciceId,
+        OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+      },
+    } satisfies Prisma.LigneEcritureWhereInput;
+    const colonne = (signe: 'gt' | 'lt') => (sens === 'FOURNISSEUR' ? { debit: { [signe]: 0 } } : { credit: { [signe]: 0 } });
+    const credit = this.prisma.ligneEcriture.fields.credit;
+    const [reporteesPositives, reporteesNegatives, auDebit, auCredit] = await Promise.all([
+      this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('gt') }, _sum: { montantDevise: true } }),
+      this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('lt') }, _sum: { montantDevise: true } }),
+      // (2) Le COMPTE entier, lignes non soldées (groupes partiels compris,
+      // leur solde net étant ce qui reste dû) · payer au-delà ferait du tiers
+      // un débiteur dans la devise, une avance qui n'est pas ce règlement.
+      this.prisma.ligneEcriture.aggregate({ where: { ...autres, lettre: null, debit: { gte: credit } }, _sum: { montantDevise: true } }),
+      this.prisma.ligneEcriture.aggregate({ where: { ...autres, lettre: null, debit: { lt: credit } }, _sum: { montantDevise: true } }),
+    ]);
+    const centimes = (x: number) => Math.round(x * 100);
+    const reglesAuReport = Number(reporteesPositives._sum.montantDevise ?? 0) - Number(reporteesNegatives._sum.montantDevise ?? 0);
+    const resteApresReport = Math.round((duDevise - Math.max(0, reglesAuReport)) * 100) / 100;
+    if (centimes(montantDevise) > centimes(resteApresReport)) {
+      throw new BadRequestException(
+        `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
+          "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
+          `Réglez au plus ${Math.max(0, resteApresReport).toFixed(2)}, puis complétez le lettrage de la facture avec ces lignes d'à-nouveau ` +
+          "(Interrogation et lettrage) ; si elles reviennent à une autre facture, lettrez-les d'abord avec elle.",
+      );
+    }
+    const devisesAuDebit = Number(auDebit._sum.montantDevise ?? 0);
+    const devisesAuCredit = Number(auCredit._sum.montantDevise ?? 0);
+    const autresDus = sens === 'FOURNISSEUR' ? devisesAuCredit - devisesAuDebit : devisesAuDebit - devisesAuCredit;
+    const resteDuCompte = Math.round((duDevise + autresDus) * 100) / 100;
+    if (centimes(montantDevise) > centimes(resteDuCompte)) {
+      throw new BadRequestException(
+        `${numero} · le compte ne doit plus que ${Math.max(0, resteDuCompte).toFixed(2)} dans la devise des factures choisies, et non ` +
+          `${montantDevise.toFixed(2)} · des règlements, acomptes ou avoirs dans cette devise y sont passés sans être lettrés. ` +
+          `Réglez au plus ${Math.max(0, resteDuCompte).toFixed(2)}, ou lettrez d'abord ces lignes avec les factures qu'elles règlent (Interrogation et lettrage).`,
+      );
+    }
     // Le débit RÉEL saisi en francs prime, le cours s'en déduit · même règle
     // que toute ligne en devise (comptabilite/ligne-en-devise.ts).
     const lu = coursEtFrancsDuReglement({
@@ -427,7 +493,7 @@ export class ReglementsService {
             choisiId: r.compteEcartChangeId,
           });
     return {
-      deviseId: [...devises][0]!,
+      deviseId,
       montantDevise,
       coursReglement: lu.cours,
       francsPayes,

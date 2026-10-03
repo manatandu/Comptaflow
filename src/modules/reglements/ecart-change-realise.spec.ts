@@ -27,6 +27,7 @@ import type { EcritureService } from '../comptabilite/ecriture.service';
 import type { LettrageService } from '../lettrage/lettrage.service';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { lignesReportANouveau } from '../exercice/report-a-nouveau';
 
 /**
  * ÉCART DE CHANGE RÉALISÉ AU RÈGLEMENT (ligne A6, relevé CPCC C2). Ce qui
@@ -400,6 +401,51 @@ describe('l’écart d’un groupe de lettrage soldé dans sa devise', () => {
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
+/** La référence de colonne que la doublure rend pour `fields.credit`. */
+const CHAMP_CREDIT = { colonne: 'credit' };
+type Borne = { gt?: unknown; lt?: unknown; gte?: unknown; lte?: unknown };
+type FiltreLigne = {
+  compteId?: string;
+  deviseId?: string;
+  id?: { notIn?: string[] };
+  lettre?: null;
+  lettrageId?: null;
+  debit?: Borne;
+  credit?: Borne;
+  ecriture?: { exerciceId?: string; OR?: Array<Record<string, boolean>> };
+};
+type LigneDouble = {
+  id: string;
+  compteId: string;
+  debit: number;
+  credit: number;
+  deviseId: string | null;
+  montantDevise: number | null;
+  lettre?: string | null;
+  lettrageId?: string | null;
+  ecriture: Record<string, unknown> & { exerciceId: string };
+};
+function ligneRetenue(l: LigneDouble, where: FiltreLigne): boolean {
+  if (where.compteId !== undefined && l.compteId !== where.compteId) return false;
+  if (where.deviseId !== undefined && l.deviseId !== where.deviseId) return false;
+  if (where.id?.notIn?.includes(l.id)) return false;
+  if ('lettre' in where && (l.lettre ?? null) !== null) return false;
+  if ('lettrageId' in where && (l.lettrageId ?? null) !== null) return false;
+  if (where.ecriture?.exerciceId !== undefined && l.ecriture.exerciceId !== where.ecriture.exerciceId) return false;
+  if (where.ecriture?.OR && !where.ecriture.OR.some((c) => Object.entries(c).every(([k, v]) => (l.ecriture[k] ?? false) === v))) return false;
+  const valeur = (b: unknown) => (b === CHAMP_CREDIT ? l.credit : Number(b));
+  for (const colonne of ['debit', 'credit'] as const) {
+    const borne = where[colonne];
+    if (!borne) continue;
+    const x = l[colonne];
+    if (borne.gt !== undefined && !(x > valeur(borne.gt))) return false;
+    if (borne.lt !== undefined && !(x < valeur(borne.lt))) return false;
+    if (borne.gte !== undefined && !(x >= valeur(borne.gte))) return false;
+    if (borne.lte !== undefined && !(x <= valeur(borne.lte))) return false;
+  }
+  return true;
+}
+
 function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus: unknown[] = []) {
   const date = new Date('2026-05-15');
   const ecriture = { exerciceId: 'ex', date, journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
@@ -423,6 +469,14 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'CA', type: 'TRESORERIE', compteTresorerieId: 'c571' })) },
     ligneEcriture: {
       findMany: jest.fn(async ({ where }: { where: { id?: { in: string[] } } }) => (where.id ? lignes.filter((l) => where.id!.in.includes(l.id)) : [])),
+      // M6 · la doublure HONORE la requête (F4b) · compte, devise, factures
+      // écartées, lettre, groupe, exercice, drapeaux d'à-nouveau, colonne et
+      // signe, et la comparaison d'une colonne à l'autre (`fields.credit`).
+      fields: { credit: CHAMP_CREDIT },
+      aggregate: jest.fn(async ({ where }: { where: FiltreLigne }) => {
+        const retenues = (lignes as LigneDouble[]).filter((l) => ligneRetenue(l, where));
+        return { _sum: { montantDevise: retenues.length > 0 ? retenues.reduce((s, l) => s + Number(l.montantDevise ?? 0), 0) : null } };
+      }),
     },
     cloture: { findMany: jest.fn(async () => []) },
     tenant: { findFirst: jest.fn(async () => ({ referentiel })) },
@@ -744,6 +798,138 @@ describe('le règlement en N+1, réévaluation de N non contre-passée', () => {
     expect(creer).toHaveBeenCalled();
     expect(espion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ compteId: 'c401', ligneIds: ['fm'] }));
     expect(r.avertissements).toEqual(['40110000 · non contre-passée']);
+  });
+});
+
+/**
+ * A6 bis, M6 · LA FACTURE DE N PAYÉE EN PARTIE, REPORTÉE ENTIÈRE EN N+1.
+ * Vérifié · le report Détail lit les lignes sans lettre, et un groupe
+ * PARTIEL n'en pose aucune · la facture de 1 160 USD et le règlement de
+ * 600 USD passent en N+1 chacun de son côté, sans lien. Le règlement en
+ * devise se borne au reste dû, acomptes de N compris, et le dit.
+ */
+describe('la facture de N payée en partie, reportée entière en N+1', () => {
+  const aNouveau = (drapeaux: Record<string, boolean>) => ({
+    exerciceId: 'ex',
+    date: new Date('2026-01-01'),
+    journalId: 'jAN',
+    journal: { code: 'AN' },
+    exercice: { statut: 'OUVERT' },
+    ...drapeaux,
+  });
+  const cloture = aNouveau({ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false });
+  const ordinaire = { exerciceId: 'ex', date: new Date('2026-02-10'), journalId: 'jBQ', journal: { code: 'BQ' }, exercice: { statut: 'OUVERT' } };
+  const ligne = (id: string, compteId: string, debit: number, credit: number, devise: number, ecriture: object, enPlus: object = {}) => ({
+    id,
+    compteId,
+    debit,
+    credit,
+    deviseId: 'usd',
+    montantDevise: devise,
+    lettre: null,
+    lettrageId: null,
+    compte: { numero: compteId === 'c401' ? '40110000' : '41110000', intitule: 'Tiers', lettrable: true },
+    ecriture,
+    ...enPlus,
+  });
+  const reglerTout = { ...base, sens: 'FOURNISSEUR' as const, reglements: [{ compteId: 'c401', ligneIds: ['fm'], coursReglement: 1750 }] };
+
+  it('le report Détail reprend la facture entière et le règlement partiel, chacun sans lettre (la vérification)', () => {
+    const report = lignesReportANouveau(
+      [
+        {
+          id: 'c401',
+          numero: '40110000',
+          intitule: 'NZUZI',
+          modeReportANouveau: 'DETAIL',
+          lignes: [
+            // Le groupe PARTIEL de N · aucune lettre posée, les deux lignes sont lues.
+            { debit: 0, credit: 1_948_800, lettre: null, libelle: 'Facture', dateEcheance: null, deviseId: 'usd', montantDevise: 1160 },
+            { debit: 1_008_000, credit: 0, lettre: null, libelle: 'Règlement', dateEcheance: null, deviseId: 'usd', montantDevise: 600 },
+          ],
+        },
+      ],
+      null,
+    );
+    expect(report.map((l) => [l.debit, l.credit, l.montantDevise])).toEqual([
+      [0, 1_948_800, 1160],
+      [1_008_000, 0, 600],
+    ]);
+  });
+
+  it('le dû entier (1 160 USD) contre 600 USD reportés · refusé avant toute pièce, l’issue nommée ; 560 USD passent', async () => {
+    for (const drapeaux of [{ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }, { estANouveauProvisoire: true }] as Array<Record<string, boolean>>) {
+      // Une autre facture ouverte sur le compte ne desserre pas la borne.
+      const enPlus = [ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau(drapeaux)), ligne('f3', 'c401', 0, 925_000, 500, ordinaire)];
+      const { service, creer } = monter('SYSCOHADA', enPlus);
+      await expect(service.enregistrer('t', 'u', reglerTout)).rejects.toThrow(
+        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*Réglez au plus 560\.00, puis complétez le lettrage/,
+      );
+      await expect(
+        service.enregistrer('t', 'u', { ...reglerTout, reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 560.01, coursReglement: 1750 }] }),
+      ).rejects.toThrow(/au plus 560\.00/);
+      expect(creer).not.toHaveBeenCalled();
+    }
+    const { service, creer, lettrerManuel } = monter('SYSCOHADA', [ligne('ranP', 'c401', 1_008_000, 0, 600, cloture)]);
+    await service.enregistrer('t', 'u', { ...reglerTout, reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 560, coursReglement: 1750 }] });
+    // 560 USD au coût historique de la facture · 1 948 800 × 560 / 1 160 = 940 800.
+    expect(resume(creer.mock.calls[0][2].lignes)).toEqual([
+      ['c401', 940_800, 0],
+      ['c656', 39_200, 0],
+      ['c571', 0, 980_000],
+    ]);
+    expect(lettrerManuel).toHaveBeenCalledWith('t', 'c401', ['fm', 'p1-0'], 'u', { autoriserPartiel: true, ecartChangeRealise: 39_200 });
+  });
+
+  it('côté client, l’encaissement reporté borne de même', async () => {
+    const { service, creer } = monter('SYSCOHADA', [ligne('ranE', 'c411', 0, 1_008_000, 600, cloture)]);
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['fn'], coursReglement: 1750 }] }),
+    ).rejects.toThrow(/Réglez au plus 560\.00/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('une ligne reportée déjà lettrée avec SA facture, ou annulée par son inscription en négatif · ne borne rien', async () => {
+    // Le règlement reporté, rendu en N+1 à la facture qu'il réglait (groupe partiel G).
+    const lettree = monter('SYSCOHADA', [
+      ligne('f3', 'c401', 0, 1_850_000, 1000, cloture, { lettrageId: 'G' }),
+      ligne('ranP', 'c401', 1_008_000, 0, 600, cloture, { lettrageId: 'G' }),
+    ]);
+    await lettree.service.enregistrer('t', 'u', reglerTout);
+    expect(lettree.creer).toHaveBeenCalled();
+    // Le montant en devise est stocké SANS signe · c'est le débit négatif qui annule.
+    const annulee = monter('SYSCOHADA', [
+      ligne('ranP', 'c401', 1_008_000, 0, 600, cloture),
+      ligne('ranN', 'c401', -1_008_000, 0, 600, cloture),
+    ]);
+    await annulee.service.enregistrer('t', 'u', reglerTout);
+    expect(annulee.creer).toHaveBeenCalled();
+  });
+
+  it('le compte entier · un règlement non lettré de l’exercice borne ; le solde net d’un groupe partiel d’une autre facture, non', async () => {
+    const { service, creer } = monter('SYSCOHADA', [ligne('p', 'c401', 1_050_000, 0, 600, ordinaire)]);
+    await expect(service.enregistrer('t', 'u', reglerTout)).rejects.toThrow(/le compte ne doit plus que 560\.00[\s\S]*lettrez d'abord ces lignes/);
+    expect(creer).not.toHaveBeenCalled();
+    // Une facture de 1 000 USD payée 400 dans un groupe PARTIEL · le compte doit encore 600 sur elle.
+    const autreGroupe = monter('SYSCOHADA', [
+      ligne('f2', 'c401', 0, 1_800_000, 1000, ordinaire, { lettrageId: 'G2' }),
+      ligne('p2', 'c401', 720_000, 0, 400, ordinaire, { lettrageId: 'G2' }),
+    ]);
+    await autreGroupe.service.enregistrer('t', 'u', reglerTout);
+    expect(autreGroupe.creer).toHaveBeenCalled();
+  });
+
+  it('la doublure lit la requête · lignes du compte, de la devise et de l’exercice, factures choisies écartées', async () => {
+    const { service, prisma } = monter('SYSCOHADA');
+    await service.enregistrer('t', 'u', reglerTout);
+    const appels = (prisma.ligneEcriture.aggregate as unknown as jest.Mock).mock.calls.map((c) => c[0].where);
+    expect(appels).toHaveLength(4);
+    for (const w of appels) {
+      expect(w).toMatchObject({ compteId: 'c401', deviseId: 'usd', id: { notIn: ['fm'] }, ecriture: { tenantId: 't', exerciceId: 'ex' } });
+    }
+    expect(appels[0]).toMatchObject({ lettrageId: null, debit: { gt: 0 }, ecriture: { OR: expect.any(Array) } });
+    expect(appels[1]).toMatchObject({ lettrageId: null, debit: { lt: 0 } });
+    expect(appels[2]).toMatchObject({ lettre: null });
   });
 });
 
