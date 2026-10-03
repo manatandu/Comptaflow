@@ -1091,6 +1091,48 @@ export class DevisesService {
    * sans devises ne pourrait jamais être réévalué et rouvrirait l'impasse.
    * Un antérieur CLÔTURÉ ne bloque pas.
    */
+  /**
+   * L'ÉCART DE CONVERSION DE L'EXERCICE PRÉCÉDENT DOIT ÊTRE CONTRE-PASSÉ
+   * AVANT DE RÉÉVALUER (ligne A5 bis). Une créance ou une dette se réévalue
+   * depuis ses lignes en devise, au coût historique (`calculer`) · l'écart de
+   * N, passé sans devise au 478 ou 479 et au compte du tiers, n'est soldé que
+   * par la contre-passation de l'ouverture (Application 85 du Guide,
+   * « Contrepassation de l'écart au 01/01/N+1 »). Oubliée, la réévaluation de
+   * N+1 repassait l'écart de N au tiers et laissait le 478 ou le 479 de N en
+   * place · deux fois le même écart, écriture équilibrée, balance bouclée.
+   * Ne vise que la réévaluation non annulée de l'exercice qui PRÉCÈDE
+   * IMMÉDIATEMENT, et seulement si elle porte un écart de conversion (une
+   * réévaluation des seules disponibilités n'a rien à contre-passer, AUDCIF
+   * art. 57).
+   */
+  private async motifContrePassationManquante(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateFin: { lt: exercice.dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateFin: true },
+    });
+    if (!precedent || precedent.id === exercice.id || !(precedent.dateFin.getTime() < exercice.dateDebut.getTime())) return null;
+    const reeval = await this.prisma.reevaluation.findFirst({
+      where: { tenantId, exerciceId: precedent.id, annuleeLe: null },
+      select: {
+        dateReevaluation: true,
+        ecritureExtourneId: true,
+        ecritureEcarts: { select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } } },
+      },
+    });
+    if (!reeval?.ecritureEcarts || reeval.ecritureExtourneId) return null;
+    const partage = partagerLignesDEcarts(
+      reeval.ecritureEcarts.lignes.map((l) => ({ compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
+    );
+    if (partage.aContrePasser.length === 0) return null;
+    const jour = reeval.dateReevaluation.toISOString().slice(0, 10);
+    return (
+      `La réévaluation du ${jour} n'est pas contre-passée · ses écarts de conversion (478, 479 et comptes de tiers) sont ` +
+      "toujours en place, et réévaluer cet exercice repasserait le même écart sur les créances et dettes en devise. " +
+      `Passez la contre-passation de la réévaluation du ${jour} (Devises) à l'ouverture de cet exercice, puis réévaluez.`
+    );
+  }
+
   private async motifRefusOrdre(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
     const anterieurs = await this.prisma.exercice.findMany({
       where: { tenantId, dateFin: { lt: exercice.dateDebut }, statut: { not: StatutExercice.CLOTURE } },
@@ -1146,6 +1188,8 @@ export class DevisesService {
     if (!exerciceCourant) throw new BadRequestException('Exercice introuvable pour ce dossier');
     const refusOrdre = await this.motifRefusOrdre(tenantId, exerciceCourant);
     if (refusOrdre) throw new BadRequestException(refusOrdre);
+    const contrePassationManquante = await this.motifContrePassationManquante(tenantId, exerciceCourant);
+    if (contrePassationManquante) throw new BadRequestException(contrePassationManquante);
     const rapport = await this.calculer(tenantId, dto);
     // La réserve et la version incohérente se disent AVANT « aucune position »
     // (sixième passe, m1) · un exercice sans devise mais à provision
