@@ -27,7 +27,17 @@ Décisions et textes
 - Pièce · AUDCIF art. 17, 3° et 5° · référence et date exigées, document non
   typé (la fiche du 81 nomme PV de mise au rebut, facture, PV de destruction).
 
-Reste · rejeu sur vraie base à travers une clôture.
+Rejeu sur vraie base (`lot14_1`, API compilée, port 8098), SYSCOHADA et
+SYCEBNL · N 2025 (camion 1 200 000 et armoire 600 000 sur 5 ans, dotations
+240 000 et 120 000, clôture), N+1 2026 · refus sans pièce (400), vente
+sans prix et restitution hors projet refusées avec leur motif ; vol au
+30/06 (complément 120 000, VNC 840 000) et vente au 30/09 (complément
+90 000, VNC 390 000, prix 400 000) · 81 = 1 230 000, 82 = 400 000, 2845 et
+245 soldés, 681 = 210 000 ; libellés « Mise hors service (vol) » et
+« Cession (vente) », référence de la pièce sur les quatre écritures. Tout
+concorde des deux côtés.
+
+Reste · rien pour A14.
 
 ## A12 · intérêts courus sur emprunts
 
