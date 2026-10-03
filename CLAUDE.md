@@ -3746,6 +3746,17 @@ classeur produit plutôt que d'affirmer qu'il est correct.
 Quand un bug est corrigé, le test qui l'aurait attrapé est écrit dans le même
 commit.
 
+**AUCUNE LIGNE N'EST INTÉGRÉE SANS UN SCÉNARIO SUR VRAIE BASE QUI TRAVERSE
+UNE CLÔTURE** (décision de Manasse du 2026-10-03). Les défauts de production
+relevés a posteriori sur A5, A6 et A7 avaient tous la même forme · une règle
+juste dans un exercice, fausse une fois la clôture traversée (à-nouveau
+provisoire ou importé, période close, annulation dans l'exercice suivant), et
+tous étaient passés au vert sous des Prisma factices. Avant l'intégration, la
+ligne est donc rejouée sur une base PostgreSQL jetable, par l'API du serveur
+compilé, à travers au moins N et N+1 (clôture annuelle ou de période
+comprise), chaque solde touché lu contre le montant calculé à la main ; un
+défaut trouvé ainsi se gèle par un test, navigateur si le parcours le permet.
+
 **TESTS NAVIGATEUR (`e2e/`, 2026-09-26).** Les suites unitaires tournent sur
 des Prisma factices et ne montent aucun écran. `tests-navigateur.yml` construit
 le client, le sert en relayant `/api` vers le serveur réel et une base
