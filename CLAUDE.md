@@ -39,6 +39,16 @@ en connaissance de cause, et l'écart est écrit dans le code
 (`ExportService.construireClasseurNotes`) pour qu'il ne passe pas pour un
 oubli.
 
+**Une question de fond se tranche PAR LA LOI, toujours** (décision de Manasse
+du 2026-10-03 · « Pour les prochaines questions qui demandent ma décision,
+réfère-toi toujours à la loi. Toujours. »). Avant de soumettre une question à
+Manasse, la session lit le texte qui la régit (compétences du tableau
+ci-dessus), tranche, et écrit la décision avec son article. Ne remontent à
+Manasse que ce que le corpus ne tranche pas (texte absent, muet, ou deux
+textes contraires sans hiérarchie), et la question dit alors ce qui a été lu.
+Un choix commercial ou d'organisation du cabinet, que nul texte ne régit,
+reste à lui.
+
 ---
 
 ## 2. Pile technique
@@ -3722,3 +3732,12 @@ issue, un dossier enfermé) et ne priment jamais sur ce fichier · là où ils
 le contredisent (couverture chiffrée, branches, quarantaine d'un test), ce
 fichier l'emporte. Les crochets de `.claude/ecc-hooks/` restent éteints tant
 que Manasse ne les active pas (`settings-hooks.EXEMPLE.json`).
+
+**Le modèle et l'effort suivent le travail** (décision de Manasse du
+2026-10-03). Un agent qui construit une ligne, relit le droit ou chasse les
+échecs silencieux prend le modèle de la session ; une tâche mécanique
+(recherche dans le dépôt, relevé d'un journal de déploiement, lecture d'un
+fichier, lancement d'une suite) prend le modèle le plus léger disponible ; un
+modèle dont la limite d'utilisation est atteinte n'est pas demandé. Aucun agent
+de `.claude/agents/` ne fige son modèle dans son en-tête. Au plus trois agents
+à la fois, une ligne à la fois.
