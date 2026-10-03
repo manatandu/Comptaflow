@@ -19,7 +19,7 @@ import {
   type Referentiel,
 } from './ecart-change-realise';
 import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
-import { motifReevaluationDejaPassee } from './reevaluation-et-ecart-realise';
+import { issueReevaluationDejaPassee } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
@@ -357,6 +357,14 @@ export class ReglementsService {
         `${numero} · un avoir en devise ne se règle pas ici · lettrez-le avec sa facture depuis Interrogation et lettrage.`,
       );
     }
+    // DES FRANCS SANS LEUR DEVISE NE DISENT PAS CE QUI EST RÉGLÉ (relecture
+    // adverse, mineur 2) · le dû entier en devise serait présumé, et un
+    // acompte en francs solderait la facture avec un gain absurde.
+    if (r.montant !== undefined && r.montantDevise === undefined) {
+      throw new BadRequestException(
+        `${numero} · le montant payé en francs ne dit pas ce qu'il règle d'une facture en devise · saisissez aussi le montant réglé en devise.`,
+      );
+    }
     const duDevise = Math.round(factures.reduce((s, f) => s + f.montantDevise, 0) * 100) / 100;
     const montantDevise = r.montantDevise ?? duDevise;
     if (Math.round(montantDevise * 100) > Math.round(duDevise * 100)) {
@@ -445,15 +453,18 @@ export class ReglementsService {
     });
     // PAS DEUX FOIS LA MÊME PERTE (relecture adverse B1) · une réévaluation
     // qui a déjà lu ces lignes les a portées au 478 ou 479 et en provision.
-    const dejaReevalue = await motifReevaluationDejaPassee(this.prisma, {
+    // Refus seulement si la réévaluation concorde avec le groupe LU ;
+    // inexplicable, l'écart passe avec un avertissement, jamais un faux 409.
+    const dejaReevalue = await issueReevaluationDejaPassee(this.prisma, {
       tenantId,
       exerciceId: proposition.exerciceId!,
       compteId: proposition.compteId,
       compteNumero: proposition.compteNumero,
-      deviseId: proposition.deviseId!,
+      lettrageId: dto.lettrageId,
       denouement: new Date(proposition.date!),
     });
-    if (dejaReevalue) throw new ConflictException(dejaReevalue);
+    if (dejaReevalue && 'refus' in dejaReevalue) throw new ConflictException(dejaReevalue.refus);
+    const avertissement = dejaReevalue && 'avertissement' in dejaReevalue ? dejaReevalue.avertissement : null;
     const libelle = `${libelleEcartRealise(proposition.ecart)} · ${proposition.compteNumero} ${proposition.code}`;
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
@@ -492,7 +503,14 @@ export class ReglementsService {
           "il a changé depuis la proposition. Relisez l'écart proposé.",
       );
     }
-    return { ecritureId: ecriture.id, ecart: proposition.ecart, compte: compteEcart.numero, lettre: lettre.lettre, statut: lettre.statut };
+    return {
+      ecritureId: ecriture.id,
+      ecart: proposition.ecart,
+      compte: compteEcart.numero,
+      lettre: lettre.lettre,
+      statut: lettre.statut,
+      avertissement,
+    };
   }
 }
 

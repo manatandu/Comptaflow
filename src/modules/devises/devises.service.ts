@@ -701,7 +701,8 @@ export class DevisesService {
     // LES GROUPES PARTIELS DÉNOUÉS DANS LEUR DEVISE sortent de la position,
     // quel que soit le reste du compte (ligne A6, `groupesDenoues`) · leur
     // reste en francs est du RÉALISÉ, proposé au lettrage, jamais un écart de
-    // conversion. Lus sur TOUTES leurs lignes à la date, francs compris.
+    // conversion. Lus sur toutes leurs lignes de l'exercice à la date, francs
+    // compris.
     const idsGroupes = [
       ...new Set(lignes.filter((l) => l.lettrageId && !estDisponibilite(l.compte.numero)).map((l) => l.lettrageId!)),
     ];
@@ -709,7 +710,11 @@ export class DevisesService {
       ? groupesDenoues(
           (
             await this.prisma.ligneEcriture.findMany({
-              where: { lettrageId: { in: idsGroupes }, ecriture: { tenantId, date: { lte: date } } },
+              // Bornée à l'EXERCICE de la position · un groupe à cheval sur N
+              // et N+1 se lirait soldé en devise par ses lignes de N, et son
+              // règlement de N+1 sortirait de la position, laissant
+              // l'à-nouveau réévalué comme une dette vivante.
+              where: { lettrageId: { in: idsGroupes }, ecriture: { tenantId, exerciceId: dto.exerciceId, date: { lte: date } } },
               select: {
                 lettrageId: true,
                 debit: true,

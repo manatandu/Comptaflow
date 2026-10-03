@@ -128,6 +128,9 @@ export function corpsReglementEnDevise(p: {
   }
   const montantDevise = nombreSaisi(p.montantDevise);
   if (montantDevise !== null && !(montantDevise > 0)) return { corps: null, motif: 'Le montant en devise doit être positif.' };
+  if (francs !== null && montantDevise === null) {
+    return { corps: null, motif: 'Le montant payé en francs ne dit pas ce qu’il règle · saisissez aussi le montant réglé en devise.' };
+  }
   return {
     motif: null,
     corps: {

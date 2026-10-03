@@ -29,6 +29,25 @@ describe('rappel d’un lot de virements', () => {
     expect(r.constats[0]).toMatch(/sous le montant habituel/);
   });
 
+  // Relecture adverse d'A6 · un lot en francs ne rappelle pas une facture en
+  // devise · le montant habituel n'y était pas lu, et 1 500 FC d'acompte sur
+  // une facture de 1 160 USD devenaient un règlement entier.
+  it('une facture en devise n’est pas rappelée, et c’est dit', () => {
+    const mixtes = [
+      { compteId: 'f1', lignes: [
+        { id: 'usd', echeance: '2026-12-01', montant: 1_948_800, deviseId: 'd-usd' },
+        { id: 'fc', echeance: '2027-01-01', montant: 1000 },
+      ] },
+    ];
+    const r = rappelerLot(lot(1500), mixtes);
+    expect(r.cochees).toEqual(['fc']);
+    expect(r.constats[0]).toMatch(/1 facture\(s\) en devise non rappelée\(s\)/);
+    const seule = rappelerLot(lot(1500), [{ compteId: 'f1', lignes: [mixtes[0].lignes[0]] }]);
+    expect(seule.cochees).toEqual([]);
+    expect(seule.montants).toEqual({});
+    expect(seule.constats).toHaveLength(1);
+  });
+
   it('sans facture ouverte, rien n’est proposé · une avance est une autre opération', () => {
     const r = rappelerLot(lot(1000), []);
     expect(r.cochees).toEqual([]);

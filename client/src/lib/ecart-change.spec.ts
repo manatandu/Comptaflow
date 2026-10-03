@@ -119,9 +119,29 @@ describe('le corps du règlement en devise', () => {
     expect(corps).toEqual({ compteId: 'c', ligneIds: ['f'], montant: 1_050_010, montantDevise: 600 });
   });
 
+  it('des francs sans montant en devise · refusés avant l’envoi', () => {
+    expect(
+      corpsReglementEnDevise({ compteId: 'c', ligneIds: ['f'], montantDevise: '', cours: '', montantFrancs: '500 000', compteEcartChangeId: undefined, reference: undefined }).motif,
+    ).toMatch(/saisissez aussi le montant réglé en devise/);
+  });
+
   it('lit un nombre à la française, et vide n’est pas zéro', () => {
     expect(nombreSaisi('1 750,5')).toBe(1750.5);
     expect(nombreSaisi('')).toBeNull();
     expect(nombreSaisi('abc')).toBeNull();
+  });
+});
+
+/**
+ * Relecture adverse, mineur 4 · la colonne « Écart de change » du lettrage
+ * ne cumule que ce qu'OmegaX a passé (règlement en devise, écart proposé) ·
+ * l'infobulle le dit, faute de quoi une ligne 656 saisie à la main passerait
+ * pour comptée. On gèle la PRÉSENCE de la phrase, aux deux états du groupe.
+ */
+describe('l’infobulle du réalisé au lettrage', () => {
+  it('dit que les lignes d’écart saisies à la main ne sont pas comptées', () => {
+    const source = readFileSync(join(__dirname, '../pages/LettragePage.tsx'), 'utf8');
+    expect(source.match(/passé par OmegaX/g)?.length).toBe(2);
+    expect(source.match(/saisie à la main n'y est pas comptée/g)?.length).toBe(2);
   });
 });

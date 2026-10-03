@@ -15,7 +15,8 @@ export interface LotVirement {
 
 export interface GroupeEcheances {
   compteId: string;
-  lignes: { id: string; echeance: string; montant: number }[];
+  /** `deviseId` · une facture en devise (ligne A6), que le lot ne rappelle pas. */
+  lignes: { id: string; echeance: string; montant: number; deviseId?: string | null }[];
 }
 
 export interface RappelLot {
@@ -37,9 +38,21 @@ export function rappelerLot(lot: LotVirement, groupes: GroupeEcheances[]): Rappe
   const montants: Record<string, string> = {};
   const constats: string[] = [];
   for (const l of lot.lignes) {
-    const g = groupes.find((x) => x.compteId === l.compteId);
+    const groupe = groupes.find((x) => x.compteId === l.compteId);
     const nom = `${l.numero} ${l.intitule}`;
+    // UNE FACTURE EN DEVISE NE SE RAPPELLE PAS (ligne A6, relecture adverse) ·
+    // le lot porte un montant en FRANCS, la facture en devise se règle dans
+    // sa devise au cours du jour. Rappelée, le montant habituel n'y était pas
+    // lu et un acompte devenait un règlement entier.
+    const enDevise = groupe ? groupe.lignes.filter((e) => e.deviseId) : [];
+    if (enDevise.length > 0) {
+      constats.push(
+        `${nom} · ${enDevise.length} facture(s) en devise non rappelée(s) · une facture en devise se règle dans sa devise, au cours du jour, à cocher et saisir à la main.`,
+      );
+    }
+    const g = groupe ? { ...groupe, lignes: groupe.lignes.filter((e) => !e.deviseId) } : undefined;
     if (!g || g.lignes.length === 0) {
+      if (enDevise.length > 0) continue;
       constats.push(`${nom} · aucune facture ouverte à cette date, rien n'est proposé (payer sans facture serait une avance).`);
       continue;
     }

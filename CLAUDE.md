@@ -558,7 +558,8 @@ SA ligne (« Perte de change réalisée », « Gain de change réalisé ») · c
 UN NUMÉRO, DEUX PLANS · emprunts au 16 et 17 du SYSCOHADA, au 18 (dont 187) du SYCEBNL,
 dont le 16 et le 17 sont des FONDS ; le SYCEBNL n'ouvre ni 656 ni 756 · le cabinet
 CHOISIT sous le 65 (hors 659) ou le 75 (hors 759), bornes en question chez Manasse.
-Comptes admis par UNE table (`racinesAdmises`, rejouée par le spec client) · nature non
+Comptes admis par `racinesAdmises`, recopiée à l'écran (`lib/ecart-change.ts`) et
+tenue en MIROIR · le spec client rejoue les cas `CAS_ADMIS` du spec serveur ; nature non
 lue, les seuls comptes de change, jamais une classe ; compte prescrit de détail et
 actif, sinon ses sous-comptes offerts. LA TRÉSORERIE EN DEVISE SE DÉCLARE
 (`deviseTresorerieId`) · lot à plusieurs devises, devise autre que les factures ou RIB
@@ -569,9 +570,13 @@ PROPOSÉ au lettrage, passé au seul clic (`POST /reglements/ecart-change`, calc
 au plus tôt à la date du dénouement, dans son exercice, hors trésorerie, groupe SOLDÉ
 ou pièce retirée (409). AVEC A5 · une position ou un groupe partiel SOLDÉ DANS SA
 DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel que soit le
-reste du compte ; et l'écart est refusé (409) si la réévaluation de l'exercice a déjà
-repris ces lignes (`motifReevaluationDejaPassee`, lu sur son écriture), aucun geste ne
-retirant une réévaluation passée. Anomalie signalée · l'art. 53 dit « charges
+reste du compte, lu sur ses lignes de l'EXERCICE ; et l'écart est refusé (409) si la
+réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
+le compte, ses lignes étant SANS devise, confronté au compte reconstitué à sa date,
+toutes devises, avec et sans le groupe) ; sans concordance, avertissement et l'écart
+passe, jamais « déjà porté ». Aucun geste ne retire une réévaluation passée. Des
+francs sans montant en devise sont refusés ; un lot de virements ne rappelle pas une
+facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte

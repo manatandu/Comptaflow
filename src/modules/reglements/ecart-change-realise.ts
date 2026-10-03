@@ -124,9 +124,9 @@ export interface RacineAdmise {
 }
 
 /**
- * LES RACINES OÙ L'ÉCART PEUT ALLER, une seule table pour le serveur et
- * l'écran (`client/src/lib/ecart-change.ts` la recopie, et les deux specs
- * jouent les mêmes cas) :
+ * LES RACINES OÙ L'ÉCART PEUT ALLER · l'écran en tient une COPIE
+ * (`client/src/lib/ecart-change.ts`), tenue en miroir · son spec relit les
+ * cas `CAS_ADMIS` de ce spec-ci et les rejoue :
  *
  *  · nature FINANCIÈRE · 676 ou 776, aux deux plans ;
  *  · nature COMMERCIALE · 656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'en

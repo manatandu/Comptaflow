@@ -468,6 +468,16 @@ describe('enregistrer un règlement en devise', () => {
     expect(lignes[2]).toMatchObject({ deviseId: 'usd', montantDevise: 600, coursApplique: 1750.016667 });
   });
 
+  // Mineur 2 · 500 000 FC d'acompte sans montant en devise soldaient la
+  // facture de 1 160 USD avec un « gain » de 1 448 800.
+  it('des francs sans montant en devise · refus nommé, avant toute pièce', async () => {
+    const { service, creer } = monter();
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montant: 500000 }] }),
+    ).rejects.toThrow(/saisissez aussi le montant réglé en devise/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
   it('cours et débit saisis qui s’accordent à l’arrondi du cours près · admis', async () => {
     const { service, creer } = monter();
     await service.enregistrer('t', 'u', {
@@ -615,6 +625,26 @@ describe('la trésorerie en devise', () => {
   });
 });
 
+/** La réévaluation du 31 décembre sur le 401 du cas mixte, et les lignes qu'elle lisait. */
+function reevaluationDuCasMixte(prisma: PrismaService, perte: number) {
+  (prisma.reevaluation.findFirst as jest.Mock).mockResolvedValueOnce({
+    dateReevaluation: new Date('2026-12-31'),
+    createdAt: new Date('2027-01-05'),
+    ecritureEcarts: { lignes: [{ debit: 0, credit: perte }] },
+  });
+  const l = (debit: number, credit: number, montantDevise: number, lettrageId: string | null) => ({
+    deviseId: 'usd',
+    debit,
+    credit,
+    montantDevise,
+    lettrageId,
+  });
+  const groupe = [l(0, 1_948_800, 1160, 'L'), l(1_008_000, 0, 600, 'L'), l(1_064_000, 0, 560, 'L')];
+  (prisma.ligneEcriture.findMany as jest.Mock)
+    .mockResolvedValueOnce([...groupe, l(0, 850_000, 500, null)])
+    .mockResolvedValueOnce(groupe);
+}
+
 describe('passer l’écart de change proposé au lettrage', () => {
   const proposition = {
     lettrageId: 'L',
@@ -661,15 +691,23 @@ describe('passer l’écart de change proposé au lettrage', () => {
     const { service, creer, propositionEcartChange, prisma } = monter();
     propositionEcartChange.mockResolvedValueOnce(proposition);
     (prisma.journal.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'od', code: 'OD', type: 'GENERAL' });
-    (prisma.reevaluation.findFirst as jest.Mock).mockResolvedValueOnce({
-      dateReevaluation: new Date('2026-12-31'),
-      ecritureEcarts: { lignes: [{ debit: 0, credit: 123200 }] },
-    });
+    // Le cas mixte · le groupe lu par la réévaluation (198 200 passés).
+    reevaluationDuCasMixte(prisma, 198_200);
     await expect(service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' })).rejects.toMatchObject({
       status: 409,
       message: expect.stringMatching(/compterait deux fois/),
     });
     expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('un compte qui ne se reconstitue plus · l’écart passe, avec l’avertissement, jamais un 409', async () => {
+    const { service, creer, propositionEcartChange, prisma } = monter();
+    propositionEcartChange.mockResolvedValueOnce(proposition);
+    (prisma.journal.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'od', code: 'OD', type: 'GENERAL' });
+    reevaluationDuCasMixte(prisma, 90_000);
+    const r = await service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' });
+    expect(creer).toHaveBeenCalled();
+    expect(r.avertissement).toMatch(/a changé depuis la réévaluation/);
   });
 
   it('un groupe resté partiel après l’écart · la pièce est retirée, 409', async () => {

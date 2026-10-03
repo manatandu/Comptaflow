@@ -266,7 +266,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const passerEcart = () =>
     executer(async () => {
       if (!ecart || ecart.ecart === null || !ecart.exerciceId) return '';
-      const r = await api.post<{ ecart: number; compte: string; lettre: string; statut: string }>('/reglements/ecart-change', {
+      const r = await api.post<{ ecart: number; compte: string; lettre: string; statut: string; avertissement: string | null }>('/reglements/ecart-change', {
         lettrageId: ecart.lettrageId,
         exerciceId: ecart.exerciceId,
         journalId: journalEcart,
@@ -274,7 +274,10 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         ...(compteEcart ? { compteEcartChangeId: compteEcart } : {}),
       });
       setEcart(null);
-      return `${libelleEcartRealise(r.ecart)} de ${montant(Math.abs(r.ecart))} · passé${r.ecart > 0 ? 'e' : ''} au ${r.compte}, lettrage ${r.lettre} soldé.`;
+      return (
+        `${libelleEcartRealise(r.ecart)} de ${montant(Math.abs(r.ecart))} · passé${r.ecart > 0 ? 'e' : ''} au ${r.compte}, lettrage ${r.lettre} soldé.` +
+        (r.avertissement ? ` ${r.avertissement}` : '')
+      );
     });
 
   const lancerPreLettrage = async () => {
@@ -726,8 +729,8 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                   g.ecartChange === null
                     ? "Aucune ligne en devise, ou position non dénouée en devise · ce n'est pas zéro"
                     : g.statut === 'SOLDE'
-                      ? 'Écart de change réalisé TOTAL du lettrage · celui des règlements en devise et celui passé au dénouement'
-                      : "Écart de change réalisé à ce jour · celui des règlements en devise déjà passés, le reste se mesure au dénouement"
+                      ? "Écart de change réalisé du lettrage, passé par OmegaX · règlements en devise et écart proposé ; une ligne 656, 676, 756 ou 776 saisie à la main n'y est pas comptée"
+                      : "Écart de change réalisé à ce jour, passé par OmegaX · règlements en devise ; une ligne d'écart saisie à la main n'y est pas comptée, le reste se mesure au dénouement"
                 }
               >
                 {g.ecartChange === null ? '·' : montant(g.ecartChange)}

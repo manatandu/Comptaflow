@@ -234,3 +234,61 @@ describe('réévaluation · un groupe partiel dénoué sur un compte qui porte d
     ]);
   });
 });
+
+/**
+ * RELECTURE ADVERSE, MINEUR 1 · UN GROUPE À CHEVAL SUR N ET N+1. En N · la
+ * facture de 1 160 USD et 600 USD réglés au coût historique, groupe L
+ * partiel. En N+1 · l'à-nouveau de la dette (560 USD, 940 800, hors groupe) et
+ * le solde de 560 USD payé à 1 900 (1 064 000), ajouté au groupe L. Lu sur
+ * toutes ses lignes, L se disait soldé en devise · son règlement de N+1
+ * sortait de la position, et l'à-nouveau était réévalué comme une dette
+ * vivante de 560 USD. Borné à l'exercice, L n'est pas dénoué en N+1, la
+ * position de N+1 est soldée en devise et n'est pas réévaluée.
+ */
+describe('réévaluation · un groupe à cheval sur deux exercices', () => {
+  type L = { exercice: string; debit: number; credit: number; montantDevise: number; lettrageId: string | null };
+  const toutes: L[] = [
+    { exercice: 'N', debit: 0, credit: 1_948_800, montantDevise: 1160, lettrageId: 'L' },
+    { exercice: 'N', debit: 1_008_000, credit: 0, montantDevise: 600, lettrageId: 'L' },
+    { exercice: 'N1', debit: 0, credit: 940_800, montantDevise: 560, lettrageId: null },
+    { exercice: 'N1', debit: 1_064_000, credit: 0, montantDevise: 560, lettrageId: 'L' },
+  ];
+  const habiller = (l: L) => ({
+    compteId: 'c401',
+    deviseId: 'd1',
+    debit: l.debit,
+    credit: l.credit,
+    montantDevise: l.montantDevise,
+    lettrageId: l.lettrageId,
+    lettrage: { code: 'A' },
+    compte: { id: 'c401', numero: '40110000', intitule: 'NZUZI' },
+    devise: { id: 'd1', code: 'USD' },
+  });
+
+  it('borné à N+1, le groupe n’est pas dénoué · la position soldée en devise ne se réévalue pas', async () => {
+    const findMany = jest.fn(async ({ where }: { where: { lettrageId?: { in: string[] }; ecriture: { exerciceId?: string } } }) =>
+      toutes
+        .filter((l) => (where.ecriture.exerciceId === undefined || l.exercice === where.ecriture.exerciceId))
+        .filter((l) => (where.lettrageId ? l.lettrageId !== null && where.lettrageId.in.includes(l.lettrageId) : true))
+        .map(habiller),
+    );
+    const prisma = {
+      tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA }) },
+      exercice: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'N1', dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31'), statut: 'OUVERT' }),
+      },
+      ligneEcriture: { aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 } }), findMany },
+      reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
+      provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
+      verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
+      ecriture: { count: jest.fn().mockResolvedValue(1) },
+      coursDevise: { findFirst: jest.fn().mockResolvedValue({ cours: 1850 }) },
+    };
+    const r = await new DevisesService(prisma as unknown as PrismaService, {} as EcritureService).calculer('t1', { exerciceId: 'N1' });
+    // La lecture du groupe porte l'exercice de la position.
+    expect(findMany.mock.calls.some(([a]) => a.where.lettrageId && a.where.ecriture.exerciceId === 'N1')).toBe(true);
+    expect(r.positions).toHaveLength(0);
+    expect(r.positionsNonReevaluees).toEqual([expect.objectContaining({ numero: '40110000', montantDevise: 0, motif: expect.stringMatching(/^position dénouée/) })]);
+  });
+});
