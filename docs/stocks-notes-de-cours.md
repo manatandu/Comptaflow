@@ -222,3 +222,13 @@ de cours ne lève aucun refus posé sur un texte officiel.
 **Reste à faire, et dans cet ordre** · lire les fiches des comptes 33, 40, 41,
 60, 62 et 70 dans les DEUX textes officiels avant d'ouvrir quoi que ce soit sur
 les emballages ; lire la fiche du compte 38 sur le sous-compte 388.
+
+**Lu le 2026-10-01 (lot 15a du plan des immobilisations).** La fiche du compte
+38 de l'AUDCIF (Titre VII) dit du 388 « ce compte est débité par le crédit du
+compte d'immobilisation concerné », et non « par le crédit du 603 » comme le
+livre · le 603 n'intervient qu'en fin d'exercice, pour le solder (Titre VIII
+ch. 14 § 2.8). Le SYCEBNL porte le même objet au **378**, sous la même phrase
+(Partie 2 ch. 3, fiche du compte 37), sans règle de solde. La reprise en stock
+à la mise hors service est servie par le module des immobilisations
+(`immobilisations/materiel-recupere.ts`), le numéro lu dans
+`STOCK_PROVENANT_D_IMMOBILISATIONS` de `nomenclature-stocks.ts`.

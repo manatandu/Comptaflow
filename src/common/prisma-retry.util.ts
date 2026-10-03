@@ -6,6 +6,23 @@ import { transactionJournalisee } from './audit/transaction-journalisee';
 const CODE_CONFLIT_TRANSACTION = 'P2034';
 const TENTATIVES_MAX = 5;
 
+/**
+ * Un échec de sérialisation, où qu'il se loge · P2034 rendu par Prisma, ou
+ * l'état SQL 40001 d'une requête brute (P2010), y compris enveloppé comme
+ * cause (le maillon d'audit écrit par `$queryRaw` dans la transaction). Sans
+ * cela, le conflit du maillon n'était pas rejoué et l'acte finissait en 500
+ * (A5, quatrième relecture, mesuré à quatre dossiers simultanés).
+ */
+export function estConflitDeSerialisation(err: unknown): boolean {
+  for (let e: unknown = err, n = 0; e && n < 5; e = (e as { cause?: unknown }).cause, n++) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      if (e.code === CODE_CONFLIT_TRANSACTION) return true;
+      if (e.code === 'P2010' && (e.meta as { code?: string } | undefined)?.code === '40001') return true;
+    }
+  }
+  return false;
+}
+
 function attendre(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -64,7 +81,7 @@ export async function avecRetrySerialisable<T>(
         ...(options.operations === undefined ? {} : { maxWait: 10_000, timeout: delaiSelonVolume(options.operations) }),
       });
     } catch (err) {
-      const estConflit = err instanceof Prisma.PrismaClientKnownRequestError && err.code === CODE_CONFLIT_TRANSACTION;
+      const estConflit = estConflitDeSerialisation(err);
       if (!estConflit) throw err;
       if (tentative === TENTATIVES_MAX) throw new ConflictException(messageConflit);
       await attendre(20 * tentative + Math.random() * 30);

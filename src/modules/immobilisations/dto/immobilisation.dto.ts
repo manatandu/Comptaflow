@@ -18,9 +18,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 import type { FondementVentilation } from '../ventilation-prix-global';
 import {
+  FondementValeurAleatoire,
   MethodeEstimationPartie,
+  NatureAcquisitionAleatoire,
   MethodeDepreciationBienSubventionne,
   NatureReductionSubvention,
   ModeAmortissement,
@@ -65,6 +68,16 @@ export class ModifierFamilleDto {
 
   @IsOptional()
   estActif?: boolean;
+}
+
+/** Une justification écrite par critère · AUDCIF Titre VIII ch. 1 § 2.1.1. */
+export class CriteresFraisDeveloppementDto {
+  @IsOptional() @IsString() @MaxLength(1000) FAISABILITE_TECHNIQUE?: string;
+  @IsOptional() @IsString() @MaxLength(1000) INTENTION?: string;
+  @IsOptional() @IsString() @MaxLength(1000) CAPACITE?: string;
+  @IsOptional() @IsString() @MaxLength(1000) AVANTAGES_ECONOMIQUES?: string;
+  @IsOptional() @IsString() @MaxLength(1000) RESSOURCES?: string;
+  @IsOptional() @IsString() @MaxLength(1000) EVALUATION_FIABLE?: string;
 }
 
 export class CreerImmobilisationDto {
@@ -248,7 +261,49 @@ export class CreerImmobilisationDto {
   @IsOptional()
   @IsIn(['NON_ESTIMABLE', 'SIMPLIFICATION_SMT'])
   fondementDureeDixAns?: 'NON_ESTIMABLE' | 'SIMPLIFICATION_SMT';
+
+  /**
+   * Lot 15 · le bien est acquis avec une clause de RÉSERVE DE PROPRIÉTÉ
+   * (AUDCIF Titre VIII ch. 9) · information de fiche, sans effet sur le compte
+   * ni sur le plan. Absent, le service le déduit d'une dette au 4816.
+   */
+  @FacultatifNonNul('La réserve de propriété vaut vrai ou faux · omettez le champ pour la laisser déduire.')
+  @IsBoolean()
+  reserveDePropriete?: boolean;
+
+  /**
+   * Lot 15 · les six critères des frais de développement (211, SYSCOHADA),
+   * chacun justifié par écrit (AUDCIF Titre VIII ch. 1 § 2.1.1), et la date à
+   * partir de laquelle ils sont réunis (§ 3.1). Vérifiés par
+   * `frais-developpement.ts`.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CriteresFraisDeveloppementDto)
+  criteresFraisDeveloppement?: CriteresFraisDeveloppementDto;
+
+  @IsOptional()
+  @IsDateString()
+  dateReunionCriteresDeveloppement?: string;
+
+  /**
+   * Lot 15 · composant démantèlement (AUDCIF Titre VIII ch. 6 § 2.3) · le
+   * coût attendu au terme et le taux d'actualisation, gardés pour la
+   * désactualisation annuelle. Facultatifs · l'actualisation ne s'impose que
+   * si l'effet de la valeur temps est significatif.
+   */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  coutFuturDemantelement?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  tauxActualisationDemantelementPourcent?: number;
 }
+
 
 /**
  * LE RELEVÉ D'UNITÉS D'ŒUVRE D'UN EXERCICE.
@@ -486,6 +541,26 @@ export class SortirImmobilisationDto {
   @IsOptional()
   @IsUUID('4')
   compteFondsProjetId?: string;
+
+  /**
+   * Lot 15 · MATÉRIEL RÉCUPÉRÉ à la mise hors service, repris en stock au
+   * 388 (SYSCOHADA) ou au 378 (SYCEBNL) par le crédit du compte du bien
+   * (AUDCIF Titre VIII ch. 14 § 2.8 ; fiches des comptes 38 et 37) · valeur,
+   * compte et source, ensemble.
+   */
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  valeurMaterielRecupere?: number;
+
+  @IsOptional()
+  @IsUUID('4')
+  compteStockRecupereId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  sourceMaterielRecupere?: string;
 }
 
 /**
@@ -531,6 +606,21 @@ export class ReclasserImmobilisationDto {
   @IsOptional()
   @IsUUID('4')
   nouveauCompteDepreciationId?: string;
+
+  /**
+   * Lot 15 · un virement VERS le 211 (SYSCOHADA) fait entrer le bien dans les
+   * frais de développement · les six critères de l'AUDCIF (Titre VIII ch. 1
+   * § 2.1.1) y sont exigés comme à la création, sans quoi le reclassement
+   * serait la porte de côté de la règle.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CriteresFraisDeveloppementDto)
+  criteresFraisDeveloppement?: CriteresFraisDeveloppementDto;
+
+  @IsOptional()
+  @IsDateString()
+  dateReunionCriteresDeveloppement?: string;
 }
 
 /** Option pour le dégressif fiscal · loi n° 23/053, art. 31 à 33. */
@@ -684,6 +774,27 @@ export class SimulerLocationAcquisitionDto {
 
   @IsBoolean()
   bienDeFaibleValeur!: boolean;
+
+  /** Lot 15 · montant que le preneur s'attend à payer au titre d'une garantie de valeur résiduelle (§ 2.1.2). */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  garantieValeurResiduelle?: number;
+
+  /** Lot 15 · loyer dépendant d'un indice ou d'un taux (§ 2.1.2), avec l'indice et sa valeur à la prise d'effet. */
+  @IsOptional()
+  @IsBoolean()
+  loyerIndexe?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  indiceLoyer?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  valeurIndiceCommencement?: number;
 }
 
 export class CreerLocationAcquisitionDto extends SimulerLocationAcquisitionDto {
@@ -750,6 +861,12 @@ export class ClotureLocationAcquisitionDto {
 
   @IsUUID('4')
   journalId!: string;
+}
+
+/** Lot 15 · l'appel ou le non-appel de la garantie de valeur résiduelle (§ 2.1.2). */
+export class DeclarerGarantieLocationAcquisitionDto {
+  @IsBoolean()
+  appelee!: boolean;
 }
 
 /** La levée ou la non-levée de l'option d'un contrat de location-acquisition. */
@@ -1267,4 +1384,236 @@ export class ReviserPlanDto {
   @IsOptional()
   @IsUUID('4')
   journalId?: string;
+}
+
+/** Lot 14 · une catégorie de biens et son coefficient légal, avec sa source (ch. 28 § 3.1.1). */
+export class CategorieReevaluationDto {
+  @IsString()
+  @MaxLength(40)
+  cle!: string;
+
+  @IsString()
+  @MaxLength(200)
+  libelle!: string;
+
+  @IsNumber()
+  @IsPositive()
+  @Max(1000)
+  coefficient!: number;
+
+  /** L'arrêté du Ministre des Finances qui fixe le coefficient (loi n° 23/053, art. 129). */
+  @IsString()
+  @MaxLength(500)
+  source!: string;
+
+  /**
+   * Ce que mesure le coefficient · depuis l'acquisition ou depuis la dernière
+   * réévaluation. Exigé (par le service) d'une catégorie dont un bien porte
+   * déjà une réévaluation, sans défaut (`coefficientApplique`).
+   */
+  @IsOptional()
+  @IsIn(['ORIGINE', 'DERNIERE_REEVALUATION'])
+  base?: 'ORIGINE' | 'DERNIERE_REEVALUATION' | null;
+}
+
+/** Lot 14 · un bien du périmètre · sa valeur actuelle, sa catégorie (légale), son droit de reprise (SYCEBNL). */
+export class LigneReevaluationDto {
+  @IsUUID('4')
+  immobilisationId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  categorie?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valeurActuelle?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  droitDeReprise?: boolean;
+}
+
+/**
+ * Lot 14 · la réévaluation des immobilisations corporelles et financières
+ * (AUDCIF art. 35, 62 à 65 ; Titre VIII ch. 28). Une ligne par bien du
+ * périmètre, ni plus ni moins (« toute réévaluation partielle est
+ * interdite »).
+ */
+export class ReevaluerImmobilisationsDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsIn(['LEGALE', 'LIBRE'])
+  type!: 'LEGALE' | 'LIBRE';
+
+  @IsOptional()
+  @IsIn(['AJUSTEMENT', 'ELIMINATION'])
+  methodeLibre?: 'AJUSTEMENT' | 'ELIMINATION';
+
+  @IsOptional()
+  @IsBoolean()
+  neutraliteFiscale?: boolean;
+
+  /** La décision des organes de gestion (art. 35). */
+  @IsString()
+  @MaxLength(500)
+  decision!: string;
+
+  @IsString()
+  @MaxLength(1000)
+  traitementFiscal!: string;
+
+  @IsString()
+  @MaxLength(2000)
+  methodeEvaluation!: string;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CategorieReevaluationDto)
+  @ArrayMaxSize(20)
+  categories?: CategorieReevaluationDto[];
+
+  @ValidateNested({ each: true })
+  @Type(() => LigneReevaluationDto)
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  lignes!: LigneReevaluationDto[];
+}
+
+/** Lot 14 · la reprise de la provision spéciale de l'exercice (ch. 28 § 4.2.4.2). */
+export class RepriseProvisionReevaluationDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+}
+
+/**
+ * Lot 15 · ACQUISITION À PRIX ALÉATOIRE (SYSCOHADA seul) · rente viagère
+ * (AUDCIF Titre VIII ch. 11 § 2, dette au 1681) ou redevances sur chiffre
+ * d'affaires (ch. 2 § 11, dette au 4811). Le comptant est le bouquet de la
+ * rente ou le versement immédiat des redevances.
+ */
+export class AcquerirAPrixAleatoireDto {
+  @IsEnum(NatureAcquisitionAleatoire)
+  nature!: NatureAcquisitionAleatoire;
+
+  @IsUUID('4')
+  compteImmobilisationId!: string;
+
+  @IsString()
+  @MaxLength(190)
+  @Matches(/\S/, { message: 'Nommez le bien.' })
+  designation!: string;
+
+  @IsDateString()
+  dateAcquisition!: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateMiseEnService?: string;
+
+  @IsNumber()
+  @IsPositive()
+  valeurOrigine!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  dureeAmortissementAns?: number;
+
+  @IsEnum(FondementValeurAleatoire)
+  fondement!: FondementValeurAleatoire;
+
+  @IsString()
+  @MaxLength(1000)
+  sourceValeur!: string;
+
+  @IsUUID('4')
+  compteDetteId!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  comptant?: number;
+
+  @IsOptional()
+  @IsUUID('4')
+  compteComptantId?: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+}
+
+/**
+ * Lot 15 · le SOLDE de la dette d'une acquisition à prix aléatoire · décès du
+ * crédirentier (D 1681 / C 841) ou fin des redevances (831 ou 841). Les
+ * versements cumulés se déclarent avec leur source.
+ */
+export class SolderDetteAleatoireDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsNumber()
+  @Min(0)
+  versementsCumules!: number;
+
+  @IsString()
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Dites d\'où vient le cumul des versements.' })
+  sourceVersements!: string;
+}
+
+/**
+ * Lot 15 · déclarer ou lever la RÉSERVE DE PROPRIÉTÉ d'un bien · la date du
+ * règlement final (AUDCIF Titre VIII ch. 9 § 1.2) ; `null` l'efface.
+ */
+export class ReserveProprieteDto {
+  @IsBoolean()
+  reserveDePropriete!: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  leveeLe?: string | null;
+}
+
+/** Lot 15 · la désactualisation de la provision pour démantèlement d'un exercice (AUDCIF Titre VIII ch. 6 § 2.3). */
+export class DesactualisationDemantelementDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+}
+
+/** Lot 15 · la reprise de la provision pour démantèlement (§ 4.1, § 4.2). */
+export class RepriseDemantelementDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsIn(['ENGAGEMENT_COUTS', 'CESSION_SOUS_JACENT'])
+  motif!: 'ENGAGEMENT_COUTS' | 'CESSION_SOUS_JACENT';
 }

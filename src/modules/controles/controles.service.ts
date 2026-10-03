@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { STOCK_PROVENANT_D_IMMOBILISATIONS } from '../stocks/nomenclature-stocks';
 import { PrismaService } from '../../common/prisma.service';
 import { Collecte, LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
@@ -282,9 +283,12 @@ const STOCK_EN_COURS_DE_ROUTE: Record<Referentiel, string> = {
  * contrôle de solde ne vise donc que le SYSCOHADA ; l'exclusion du contrôle
  * des stocks en route vaut pour les deux.
  */
+// La table vit dans `stocks/nomenclature-stocks.ts` (lot 15 des
+// immobilisations, qui débite ce compte à la mise hors service) · un seul
+// endroit écrit les deux numéros.
 const STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL: Record<Referentiel, string> = {
-  [Referentiel.SYSCOHADA]: '388',
-  [Referentiel.SYCEBNL]: '378',
+  [Referentiel.SYSCOHADA]: STOCK_PROVENANT_D_IMMOBILISATIONS[Referentiel.SYSCOHADA].racine,
+  [Referentiel.SYCEBNL]: STOCK_PROVENANT_D_IMMOBILISATIONS[Referentiel.SYCEBNL].racine,
 };
 
 /**
@@ -1983,6 +1987,7 @@ export class ControlesService {
           amortissementAnterieur: true,
           amortissementsDetaches: true,
           reprisesAmortissement: true,
+          amortissementsReevaluation: true,
           dotations: { select: { exerciceId: true, montant: true } },
           compteImmobilisation: { select: { numero: true } },
         },
@@ -2238,8 +2243,15 @@ export class ControlesService {
     //
     // Ne compte que les CRÉDITS du 28 dans l'exercice, hors des écritures que
     // le module retient (acquisition, sortie, dotation, dépréciation,
-    // reclassement, dérogatoire, location-acquisition) et hors clôture.
-    // AVERTISSEMENT · rien n'est corrigé d'office.
+    // reclassement, dérogatoire, location-acquisition, réévaluation) et hors
+    // clôture. AVERTISSEMENT · rien n'est corrigé d'office.
+    //
+    // LA RÉÉVALUATION DU MODULE (lot 14) crédite le 28 de la hausse du cumul
+    // (ch. 28 § 4.2.4.1 et § 4.3.1, « C 283 3 750 000 ») · elle est écartée
+    // par la relation de l'écriture (`reevaluationBilan: null`), sans quoi le
+    // contrôle ferait contre-passer une réévaluation que la fiche porte déjà
+    // (`amortissementsReevaluation`). La reprise de la provision spéciale
+    // (D 154 / C 861) ne touche pas le 28.
     {
       const [immosEcr, dotationsEcr, depreciationsEcr, reclassementsEcr, derogatoiresEcr, cloturesEcr] = await Promise.all([
         this.prisma.immobilisation.findMany({
@@ -2273,7 +2285,14 @@ export class ControlesService {
         where: {
           compte: { tenantId, numero: { startsWith: '28' } },
           credit: { gt: 0 },
-          ecriture: { tenantId, exerciceId, estGenereeParCloture: false, estANouveauProvisoire: false, id: { notIn: [...retenues] } },
+          ecriture: {
+            tenantId,
+            exerciceId,
+            estGenereeParCloture: false,
+            estANouveauProvisoire: false,
+            id: { notIn: [...retenues] },
+            reevaluationBilan: null,
+          },
         },
         select: { credit: true, compte: { select: { numero: true, intitule: true } } },
       });
@@ -2335,10 +2354,20 @@ export class ControlesService {
     // La conséquence logicielle, elle, est la même des deux côtés : le bilan
     // porte la valeur réévaluée, le module la valeur historique. Sa dotation
     // et sa sortie divergent, sans qu'aucune écriture ne se déséquilibre.
+    //
+    // DEPUIS LE LOT 14, LE MODULE RÉÉVALUE · l'écriture de son opération
+    // (`ReevaluationBilan.ecritureId`) met les fiches à leur valeur réévaluée
+    // dans la même transaction. Elle est écartée par sa relation
+    // (`reevaluationBilan: null`) · sinon ce contrôle dirait « que le module
+    // ne connaît pas » d'un écart qu'il a lui-même posé, et l'action proposée
+    // (« reprenez à la main le plan d'amortissement ») ferait amortir deux
+    // fois (CLAUDE.md § 10 bis, le contrôle qui fabrique une anomalie). Le
+    // 106 débité par la perte de valeur imputée sur l'écart (ch. 12 § 2.5) ne
+    // compte pas · le contrôle ne lit que le solde CRÉDITEUR.
     const lignes106 = await this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, numero: { startsWith: '106' } },
-        ecriture: { tenantId, exerciceId },
+        ecriture: { tenantId, exerciceId, reevaluationBilan: null },
       },
       select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
     });

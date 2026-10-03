@@ -280,6 +280,10 @@
  *     106 et 154 entre FG et FH par une part qu'aucune balance ne donne.
  *     Pris en entier sous FG (Titre VIII ch. 30 vise d'abord les
  *     immobilisations corporelles) ; FH le déclare non déterminable.
+ *     DEPUIS LE LOT 14, la réévaluation passée par le module est
+ *     neutralisée par sa liaison, part financière comprise
+ *     (`MOTIF_REEVALUATION_LIEE`) · l'anomalie ne vaut plus que pour une
+ *     réévaluation passée à la main.
  *
  * 12. **Cessions d'immobilisations financières (FJ)** · le praticien écrit
  *     « 826 + crédit 27 » sans 26 ni 816. Si la cession passe par 816/826
@@ -391,7 +395,10 @@
  *     texte : brut 1 000 → 1 400, cumul 400 → 560, écart 240 · FG = −400 +
  *     240 = −160 de décaissement inventé). Le corriger exigerait « + crédit
  *     28 de réévaluation », que rien ne sépare des dotations de l'exercice.
- *     Déclaré non déterminable sur FG. FF n'est pas concerné : le § 1.2 du
+ *     Déclaré non déterminable sur FG. DEPUIS LE LOT 14, l'écriture que
+ *     passe le module se reconnaît par sa liaison, et FG la neutralise en
+ *     entier (`MOTIF_REEVALUATION_LIEE`) · seule une réévaluation passée à
+ *     la main garde cette anomalie. FF n'est pas concerné : le § 1.2 du
  *     même chapitre borne le champ d'application, « la réévaluation doit
  *     porter sur l'ensemble des immobilisations corporelles et financières »
  *     · les incorporelles en sont exclues.
@@ -486,6 +493,12 @@ export interface TermeComptes {
   lecture: LectureCompte;
   /** Obligatoire pour VARIATION_SOLDE ; sans objet pour les autres lectures. */
   sensSolde?: SensSolde;
+  /**
+   * Lot 14 · ne lire QUE les mouvements de l'écriture que le module de
+   * réévaluation a passée, reconnue par sa liaison (`ReevaluationBilan`),
+   * jamais par le compte · seulement en MOUVEMENT_DEBIT ou MOUVEMENT_CREDIT.
+   */
+  liaison?: 'REEVALUATION';
 }
 
 /**
@@ -544,6 +557,51 @@ function debit(signe: 1 | -1, prefixes: string[], motif: string, exclusions?: st
 function credit(signe: 1 | -1, prefixes: string[], motif: string, exclusions?: string[]): TermeFluxTresorerie {
   return { signe, comptes: exclusions ? { prefixes, exclusions, lecture: 'MOUVEMENT_CREDIT' } : { prefixes, lecture: 'MOUVEMENT_CREDIT' }, motif };
 }
+/** Lot 14 · un mouvement de la seule écriture de réévaluation du module, par sa liaison. */
+function reevaluationLiee(
+  signe: 1 | -1,
+  lecture: 'MOUVEMENT_DEBIT' | 'MOUVEMENT_CREDIT',
+  prefixes: string[],
+  motif: string,
+  exclusions?: string[],
+): TermeFluxTresorerie {
+  return { signe, comptes: { prefixes, ...(exclusions ? { exclusions } : {}), lecture, liaison: 'REEVALUATION' }, motif };
+}
+
+/**
+ * LOT 14 · L'ÉCRITURE DE RÉÉVALUATION DU MODULE, NEUTRALISÉE PAR SA LIAISON.
+ *
+ * Titre IX ch. 5 § 1.3 · « les variations d'immobilisations qui n'ont pas
+ * généré un flux de trésorerie ne figurent pas » dans le tableau, et la
+ * reconstitution officielle des acquisitions retranche « – Écart et
+ * provision spéciale de réévaluation de l'exercice de réévaluation
+ * uniquement (exercice N) ». La reconstitution officielle part de la
+ * variation des immobilisations NETTES, où retrancher l'écart suffit ; ce
+ * tableau part du BRUT (anomalie n° 3), où l'écriture du ch. 28 § 4.2.4.1
+ * (D 2 de la hausse de valeur d'entrée / C 28 de la hausse du cumul / C 106
+ * ou 154 de l'écart) laissait la part « amortissements » en fausse
+ * acquisition (anomalie n° 21), et la part des immobilisations financières
+ * en FG au lieu de FH (anomalie n° 11).
+ *
+ * L'écriture que passe le module se reconnaît par sa LIAISON
+ * (`ReevaluationBilan.ecritureId`), jamais par le compte · chacune de ses
+ * lignes que FG ou FH lit par les termes généraux y est lue une seconde fois
+ * en sens inverse, de sorte que sa contribution totale au poste soit nulle :
+ *  · FG · + débit et − crédit des 22 à 24 (le Δ brut), + débit des 282 à 284
+ *    (l'élimination du cumul de la méthode 2, § 4.3.1, que le terme des
+ *    « amortissements sortis à la cession » lisait), − crédit des 106 et 154
+ *    (l'écart entier, part financière comprise, que le terme général ajoute) ;
+ *  · FH · + débit des 26 et 27 (276 exclu, comme le terme général).
+ * Exemple 2 du ch. 28 § 4.2.1.3 · brut 1 000 → 1 400, cumul 400 → 560,
+ * écart 240 · FG valait − 400 + 240 = − 160 de décaissement inventé, il vaut
+ * zéro. Une réévaluation passée à la main, sans liaison, garde les deux
+ * anomalies.
+ */
+const MOTIF_REEVALUATION_LIEE =
+  "Écriture de réévaluation du module (Titre VIII ch. 28 § 4.2.4.1 et § 4.3.1), reconnue par sa liaison · sans " +
+  "trésorerie, « – Écart et provision spéciale de réévaluation de l'exercice de réévaluation uniquement » (ch. 5 " +
+  "§ 1.3), relue ici en sens inverse pour que sa contribution au poste soit nulle (anomalies n° 11 et 21).";
+
 function variation(signe: 1 | -1, prefixes: string[], sensSolde: SensSolde, motif: string, exclusions?: string[]): TermeFluxTresorerie {
   return {
     signe,
@@ -836,6 +894,10 @@ export const POSTES_INVESTISSEMENT_SYSCOHADA: PosteFluxTresorerieSyscohada[] = [
           '§ 4.2.4.1 : 1061, ou 154 si la neutralité fiscale est imposée) · pris en entier ici (anomalie n° 11), et ' +
           "ne couvrant que la part « valeur nette comptable » de l'écart (anomalie n° 21).",
       ),
+      reevaluationLiee(1, 'MOUVEMENT_DEBIT', ['22', '23', '24'], MOTIF_REEVALUATION_LIEE),
+      reevaluationLiee(-1, 'MOUVEMENT_CREDIT', ['22', '23', '24'], MOTIF_REEVALUATION_LIEE),
+      reevaluationLiee(1, 'MOUVEMENT_DEBIT', ['282', '283', '284'], MOTIF_REEVALUATION_LIEE),
+      reevaluationLiee(-1, 'MOUVEMENT_CREDIT', ['106', '154'], MOTIF_REEVALUATION_LIEE),
     ],
     nonDeterminables: [
       {
@@ -856,7 +918,8 @@ export const POSTES_INVESTISSEMENT_SYSCOHADA: PosteFluxTresorerieSyscohada[] = [
       {
         comptes: ['28'],
         motif:
-          "Part « amortissements » de l'écart de réévaluation d'un bien amortissable (Titre VIII ch. 28 § 4.2.4.1 : " +
+          "Réévaluation passée HORS du module (celle du module est neutralisée par sa liaison) · part « amortissements » " +
+          "de l'écart de réévaluation d'un bien amortissable (Titre VIII ch. 28 § 4.2.4.1 : " +
           'classe 2 débitée de la différence de valeur d\'entrée, 28 crédité de la différence de cumul, 1061 ou 154 ' +
           "de la seule différence de VNC) · comprise dans le Δ brut retiré ci-dessus mais absente du crédit 106/154, " +
           'donc en fausse acquisition ; le « + crédit 28 de réévaluation » qui la corrigerait est indissociable des ' +
@@ -889,12 +952,14 @@ export const POSTES_INVESTISSEMENT_SYSCOHADA: PosteFluxTresorerieSyscohada[] = [
           " Lu en VARIATION dans un poste bâti sur des MOUVEMENTS : exact si l'ajustement de clôture n'est pas " +
           'contre-passé à la réouverture, hypothèse écrite faute de source (anomalie n° 6).',
       ),
+      reevaluationLiee(1, 'MOUVEMENT_DEBIT', ['26', '27'], MOTIF_REEVALUATION_LIEE, ['276']),
     ],
     nonDeterminables: [
       {
         comptes: ['106', '154'],
         motif:
-          'Part de la réévaluation relative aux immobilisations financières · prise en entier en FG (anomalie ' +
+          'Réévaluation passée HORS du module (celle du module est neutralisée par sa liaison) · part de la ' +
+          'réévaluation relative aux immobilisations financières · prise en entier en FG (anomalie ' +
           "n° 11), alors que le débit de 26/27 qu'elle porte est lu ici en fausse acquisition : ZC est juste, la " +
           'répartition FG/FH ne l\'est pas. Titre VIII ch. 28 § 1.2 : « la réévaluation doit porter sur ' +
           "l'ensemble des immobilisations corporelles et financières ».",

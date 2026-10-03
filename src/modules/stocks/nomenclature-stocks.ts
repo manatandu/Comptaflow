@@ -400,6 +400,40 @@ export const STOCKS_HORS_VARIATION_AUTOMATIQUE: StockHorsVariation[] = [
   },
 ];
 
+/**
+ * LE STOCK PROVENANT D'IMMOBILISATIONS MISES HORS SERVICE OU AU REBUT · même
+ * objet, même intitulé, DEUX NUMÉROS. Il était écrit en dur dans le contrôle
+ * de fin d'exercice ; le lot 15 du plan des immobilisations le fait aussi
+ * débiter à la mise hors service d'un bien, et la règle de ce fichier veut
+ * qu'il n'y ait qu'une table.
+ *
+ *   · SYSCOHADA, 388 · AUDCIF Titre VII, fiche du compte 38 : « Les stocks
+ *     provenant d'immobilisations comprennent les éléments récupérés ou
+ *     démontés d'immobilisations corporelles ; ce compte est débité par le
+ *     crédit du compte d'immobilisation concerné. » Titre VIII ch. 14 § 2.8 :
+ *     les matières récupérées « peuvent être reprises dans les stocks par le
+ *     débit du compte 388 », soldé en fin d'exercice par le 603.
+ *   · SYCEBNL, 378 · Partie 2 ch. 3, fiche du compte 37 : « Les stocks
+ *     provenant d'immobilisation comprennent les éléments récupérés ou
+ *     démontés d'immobilisations corporelles. Ce compte est débité par le
+ *     crédit du compte d'immobilisation concerné. » Son 38 porte les dons en
+ *     nature H.A.O. · un 388 n'y existe pas, et n'y aurait pas ce sens.
+ */
+export const STOCK_PROVENANT_D_IMMOBILISATIONS: Readonly<
+  Record<Referentiel, { racine: string; intitule: string; source: string }>
+> = {
+  [Referentiel.SYSCOHADA]: {
+    racine: '388',
+    intitule: 'Stock provenant d’immobilisations mises hors service ou au rebut',
+    source: 'AUDCIF, Titre VII, fiche du compte 38 ; Titre VIII ch. 14 § 2.8',
+  },
+  [Referentiel.SYCEBNL]: {
+    racine: '378',
+    intitule: "Stock provenant d'immobilisations mises hors service ou au rebut",
+    source: 'SYCEBNL, Partie 2 ch. 3, fiche du compte 37',
+  },
+};
+
 /** Les correspondances du référentiel du dossier, et jamais celles de l'autre. */
 export function correspondancesDuReferentiel(referentiel: Referentiel): CorrespondanceStock[] {
   return referentiel === Referentiel.SYCEBNL

@@ -224,9 +224,12 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  * 9. **Colonnes de virements et de réévaluation (3A, 3B)** · un virement de
  *    poste à poste ou une réévaluation ne se distingue pas, en balance, d'une
  *    acquisition ou d'une cession : ce sont des débits et des crédits sur
- *    les mêmes comptes. La réévaluation reste LIBRE et vide ; B et C la
- *    portent dans « Acquisitions » et « Cessions », et D = A + B - C reste
- *    juste. LES VIREMENTS DE POSTE À POSTE SONT SERVIS DEPUIS LE 2026-10-01
+ *    les mêmes comptes. LA RÉÉVALUATION EST SERVIE DEPUIS LE LOT 14 pour
+ *    celle que passe le module, reconnue par sa liaison
+ *    (`ReevaluationBilan.ecritureId`) · son effet net sur le brut va à la
+ *    colonne « Suite à une réévaluation » (type `REEVALUATION`), hors des
+ *    acquisitions et des cessions ; une réévaluation passée à la main reste
+ *    dans « Acquisitions » et « Cessions », et D = A + B - C reste juste. LES VIREMENTS DE POSTE À POSTE SONT SERVIS DEPUIS LE 2026-10-01
  *    (décision D6 de Manasse) pour ce que le logiciel SAIT être un virement ·
  *    la mise en service d'un bien inscrit en cours (D compte définitif / C
  *    2x9, Titre VII, fiches des comptes 21 à 24), reconnue par la liaison de
@@ -606,7 +609,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { type: 'OUVERTURE' as const, libelle: "MONTANT BRUT À L'OUVERTURE DE L'EXERCICE" },
       { type: 'AUGMENTATIONS' as const, libelle: 'Acquisitions, Apports, Créations' },
       { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'AUGMENTATIONS : Virements de poste à poste' },
-      { type: 'LIBRE' as const, libelle: "Suite à une réévaluation pratiquée au cours de l'exercice" },
+      { type: 'REEVALUATION' as const, libelle: "Suite à une réévaluation pratiquée au cours de l'exercice" },
       { type: 'DIMINUTIONS' as const, libelle: 'Cessions, Scissions, Hors service' },
       { type: 'VIREMENTS_DIMINUTION' as const, libelle: 'DIMINUTIONS : Virements de poste à poste' },
       { type: 'CLOTURE' as const, libelle: "MONTANT BRUT À LA CLÔTURE DE L'EXERCICE" },
@@ -681,7 +684,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { type: 'AUGMENTATIONS' as const, libelle: 'B · AUGMENTATIONS : Acquisitions/Apports/Créations' },
       { type: 'VIREMENTS_AUGMENTATION' as const, libelle: 'B · AUGMENTATIONS : Virements de poste à poste' },
       {
-        type: 'LIBRE' as const,
+        type: 'REEVALUATION' as const,
         libelle: "B · AUGMENTATIONS : Suite à une réévaluation pratiquée au cours de l'exercice",
       },
       { type: 'DIMINUTIONS' as const, libelle: 'C · DIMINUTIONS : Cessions/Scissions/Hors service' },

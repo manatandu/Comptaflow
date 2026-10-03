@@ -91,6 +91,9 @@ function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROU
     reductionSubventionImmobilisation: { count: compteur('reductionSubventionImmobilisation') },
     revisionPlanAmortissement: { count: compteur('revisionPlanAmortissement') },
     coutEmpruntIncorpore: { count: compteur('coutEmpruntIncorpore') },
+    reevaluationBilan: { count: compteur('reevaluationBilan') },
+    repriseProvisionReevaluation: { count: compteur('repriseProvisionReevaluation') },
+    mouvementDemantelement: { count: compteur('mouvementDemantelement') },
     bulletinPaie: { count: compteur('bulletinPaie') },
     ligneOrdreVirement: { count: compteur('ligneOrdreVirement') },
     amortissementDerogatoire: { count: compteur('amortissementDerogatoire') },
@@ -351,7 +354,7 @@ describe('3 bis · une écriture qu’un module tient ne se retouche pas non plu
     'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
     'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
     'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
-    'ecartInventaire', 'clotureLocationAcquisition', 'repriseSubventionImmobilisation', 'reductionSubventionImmobilisation', 'revisionPlanAmortissement', 'coutEmpruntIncorpore',
+    'ecartInventaire', 'clotureLocationAcquisition', 'repriseSubventionImmobilisation', 'reductionSubventionImmobilisation', 'revisionPlanAmortissement', 'coutEmpruntIncorpore', 'reevaluationBilan', 'repriseProvisionReevaluation', 'mouvementDemantelement',
   ];
   const gestes: Array<[string, string, (s: EcritureService) => Promise<unknown>]> = [
     ['supprimer', 'BROUILLARD', (s) => s.supprimer('t1', 'e1')],

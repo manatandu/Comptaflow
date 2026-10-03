@@ -28,6 +28,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // retirée seule, la fiche se dirait mise en service pendant que l'en-cours
   // porterait encore le bien, et le compte définitif serait vide.
   'Immobilisation.ecritureMiseEnServiceId',
+  // Lot 15 · le solde de la dette d'une acquisition à prix aléatoire (décès du
+  // crédirentier, écart des redevances) · retirée seule, la fiche se dirait
+  // soldée sans l'écriture, et le solde ne pourrait plus se repasser.
+  'Immobilisation.ecritureSoldeDetteAleatoireId',
   'DotationAmortissement.ecritureId',
   'DepreciationImmobilisation.ecritureId',
   'ReclassementImmobilisation.ecritureId',
@@ -67,6 +71,17 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // la réduction resterait retranchée du cumul sans son écriture.
   'RevisionPlanAmortissement.ecritureId',
   'CoutEmpruntIncorpore.ecritureId',
+  // La réévaluation (lot 14) · retirée seule, les fiches garderaient leurs
+  // valeurs réévaluées sans l'écriture qui les porte aux comptes 2, 28 et 106.
+  'ReevaluationBilan.ecritureId',
+  // La reprise de la provision spéciale · retirée seule, les lignes
+  // garderaient leur reprise comptée sans l'écriture qui solde le 154.
+  'RepriseProvisionReevaluation.ecritureId',
+  // La désactualisation ou la reprise de la provision pour démantèlement
+  // (lot 15) · retirée seule, la désactualisation suivante serait calculée
+  // sur un 1984 qui n'a pas bougé, ou la reprise se dirait faite sans
+  // l'écriture qui a soldé la provision.
+  'MouvementDemantelement.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

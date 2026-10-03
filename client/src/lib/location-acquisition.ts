@@ -41,6 +41,12 @@ export interface SaisieContrat {
   coutsDirects: string;
   avantagesRecus: string;
   compteContrepartieCoutsId: string;
+  /** Lot 15 · montant attendu au titre d'une garantie de valeur résiduelle (§ 2.1.2). */
+  garantieValeurResiduelle: string;
+  /** Lot 15 · loyer dépendant d'un indice ou d'un taux (§ 2.1.2). */
+  loyerIndexe: boolean;
+  indiceLoyer: string;
+  valeurIndiceCommencement: string;
 }
 
 export function saisieInitiale(aujourdhui: string): SaisieContrat {
@@ -63,6 +69,10 @@ export function saisieInitiale(aujourdhui: string): SaisieContrat {
     coutsDirects: '0',
     avantagesRecus: '0',
     compteContrepartieCoutsId: '',
+    garantieValeurResiduelle: '0',
+    loyerIndexe: false,
+    indiceLoyer: '',
+    valeurIndiceCommencement: '',
   };
 }
 
@@ -75,6 +85,12 @@ export function corpsSimulation(compteImmobilisationId: string, s: SaisieContrat
   const option = nombre(s.prixOption || '0');
   const taux = nombre(s.tauxPourcent);
   const valeur = nombre(s.valeurContrat);
+  const garantie = nombre(s.garantieValeurResiduelle || '0');
+  const indice = nombre(s.valeurIndiceCommencement);
+  if (!(garantie >= 0)) return null;
+  // Un loyer indexé ne part pas sans son indice ni sa valeur à la prise
+  // d'effet · le serveur le refuserait de toute façon, nommé.
+  if (s.loyerIndexe && (!s.indiceLoyer.trim() || !(indice > 0))) return null;
   if (!compteImmobilisationId || !s.datePriseEffet || !Number.isInteger(duree) || !(loyer > 0) || !(option >= 0)) return null;
   if (s.base === 'taux' ? !(taux >= 0) : !(valeur > 0)) return null;
   return {
@@ -91,6 +107,8 @@ export function corpsSimulation(compteImmobilisationId: string, s: SaisieContrat
     valeurContrat: s.base === 'valeur' ? valeur : null,
     optionRaisonnablementCertaine: s.optionRaisonnablementCertaine,
     bienDeFaibleValeur: s.bienDeFaibleValeur,
+    garantieValeurResiduelle: garantie,
+    ...(s.loyerIndexe ? { loyerIndexe: true, indiceLoyer: s.indiceLoyer.trim(), valeurIndiceCommencement: indice } : {}),
   };
 }
 
@@ -128,6 +146,8 @@ export interface LigneEcheancier {
   capital: number;
   restant: number;
   option: boolean;
+  /** Lot 15 · la ligne de la garantie de valeur résiduelle. */
+  garantie?: boolean;
 }
 export interface EcheancierServi {
   dette: number;

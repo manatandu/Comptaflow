@@ -958,6 +958,15 @@ describe('Réintégration du supplément d’annuité des biens réévalués · 
     // balance ne la porte, et le module ne la propose donc pas.
     expect(entree!.assietteHorsPortee).toBeTruthy();
   });
+
+  it('dit que la provision spéciale reprise au 861 neutralise déjà · sinon le supplément serait neutralisé deux fois (lot 14)', () => {
+    const entree = CATALOGUE_RETRAITEMENTS.find((r) => r.code === 'REEVALUATION_SUPPLEMENT_ANNUITE')!;
+    expect(entree.assietteHorsPortee).toContain('154');
+    expect(entree.assietteHorsPortee).toContain('861');
+    expect(entree.assietteHorsPortee).toContain('deux fois');
+    // Le module réévalue et garde les valeurs d'avant · le supplément se lit, et la phrase le dit.
+    expect(entree.assietteHorsPortee).toContain("D × (1 − 1/k')");
+  });
 });
 
 /**

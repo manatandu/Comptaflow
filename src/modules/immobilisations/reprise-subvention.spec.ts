@@ -28,15 +28,41 @@ describe('contrepartie d’un bien reçu gratuitement · SYSCOHADA', () => {
     expect(motifRefusContrepartie(S, '21280000', '14110000')).toContain('valeur nulle');
     expect(motifRefusContrepartie(S, '21280000', '14110000')).toContain('Titre VIII ch. 2 § 1.3.2');
   });
-  it('le 845 n’est pas ouvert, et aucun 841 au SYCEBNL', () => {
+  it('le 845 n’est pas ouvert', () => {
     expect(motifRefusContrepartie(S, '23130000', '84500000')).not.toBeNull();
-    expect(racinesContrepartieAcquisition(Referentiel.SYCEBNL, '23130000')).not.toContain('841');
   });
   it('les comptes visés sont semés · 14x, 79900000, 84100000 aux plans qui les servent', () => {
     const sys = PLAN_COMPTES_SYSCOHADA.map((c) => c.numero);
     const syc = PLAN_COMPTES_SYCEBNL.map((c) => c.numero);
     for (const n of ['14110000', '14170000', '79900000', '84100000', '21280000', '23130000']) expect(sys).toContain(n);
     for (const n of ['14170000', '79900000']) expect(syc).toContain(n);
+  });
+});
+
+/**
+ * LOT 15 · LA CONSTRUCTION REÇUE EN FIN DE BAIL AU SYCEBNL · fiche du compte 23
+ * du SYCEBNL, qui écrit « compte 845 Produits HAO constatés » quand son plan
+ * n'ouvre que le 841 sous cet intitulé. Racine « 8410 » · 8411, 8412 et 8415
+ * sont des contributions volontaires en nature.
+ */
+describe('construction reçue en fin de bail · SYCEBNL (lot 15)', () => {
+  const B = Referentiel.SYCEBNL;
+  it('le 84100000 est admis pour un bâtiment sur sol propre, avec son mode', () => {
+    expect(motifRefusContrepartie(B, '23130000', '84100000')).toBeNull();
+    expect(modeDuCompteDeContrepartie(B, '84100000', racinesContrepartieAcquisition(B, '23130000'))).toBe('CONSTRUCTION_FIN_DE_BAIL');
+  });
+  it('jamais un don en nature vendu, une prestation en nature ni un don à distribuer (8411, 8412, 8415)', () => {
+    for (const n of ['84110000', '84120000', '84150000']) expect(motifRefusContrepartie(B, '23130000', n)).not.toBeNull();
+  });
+  it('ni hors du 231, ni au 2316 de location-acquisition, ni au 845 qu’il n’ouvre pas', () => {
+    expect(motifRefusContrepartie(B, '24440000', '84100000')).not.toBeNull();
+    expect(motifRefusContrepartie(B, '23210000', '84100000')).not.toBeNull();
+    expect(motifRefusContrepartie(B, '23160000', '84100000')).not.toBeNull();
+    expect(PLAN_COMPTES_SYCEBNL.map((c) => c.numero)).not.toContain('84500000');
+  });
+  it('le 84100000 est semé au SYCEBNL sous l’intitulé que la fiche cite', () => {
+    const c = PLAN_COMPTES_SYCEBNL.find((x) => x.numero === '84100000');
+    expect(c?.intitule).toMatch(/Produits H\.A\.O\. constatés/);
   });
 });
 

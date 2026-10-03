@@ -56,6 +56,31 @@ describe('EcritureService.virementsDeMiseEnService', () => {
   });
 });
 
+describe('EcritureService.mouvementsDeReevaluation (lot 14)', () => {
+  it('ne retient que l’écriture que l’opération de réévaluation désigne, au livre-journal, bornée à la date d’arrêté', async () => {
+    const groupBy = jest.fn().mockResolvedValue([{ compteId: 'c241', _sum: { debit: '400', credit: null } }]);
+    const service = new EcritureService(
+      { ligneEcriture: { groupBy } } as unknown as PrismaService,
+      {} as JournalService,
+      {} as ExerciceService,
+      {} as AnalytiqueService,
+    );
+    const lus = await service.mouvementsDeReevaluation('t1', 'e1', new Date('2026-06-30T00:00:00Z'));
+    const { where } = groupBy.mock.calls[0][0];
+    // La LIAISON (`ReevaluationBilan.ecritureId`), jamais le compte · un
+    // crédit du 106 peut être une réévaluation passée à la main.
+    expect(where.ecriture.reevaluationBilan).toEqual({ isNot: null });
+    expect(where.ecriture.immobilisationMiseEnService).toBeUndefined();
+    expect(where.ecriture.statut).toBe(StatutEcriture.VALIDEE);
+    expect(where.ecriture.estGenereeParCloture).toBe(false);
+    // Une situation intermédiaire arrêtée avant la clôture ne la contient pas.
+    expect(where.ecriture.date).toEqual({ lte: new Date('2026-06-30T00:00:00Z') });
+    expect(lus.get('c241')).toEqual({ debit: 400, credit: 0 });
+    await service.mouvementsDeReevaluation('t1', 'e1');
+    expect(groupBy.mock.calls[1][0].where.ecriture.date).toBeUndefined();
+  });
+});
+
 describe('virementsDesLignes', () => {
   it('cumule les virements des seuls comptes d’une rubrique, débit et crédit à part', () => {
     const virements = new Map([

@@ -194,6 +194,9 @@ function harnais(
       findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: 'd1' }),
     },
+    // Lot 14 · aucune réévaluation sur ce bien · la dotation et la dépréciation
+    // lisent les lignes de réévaluation avant d'écrire.
+    ligneReevaluationBilan: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: {
       create: jest.fn().mockImplementation(({ data }: { data: Faux }) => {
         creations.push(data);
@@ -201,6 +204,7 @@ function harnais(
       }),
     },
   } as Faux;
+  prisma.$transaction = jest.fn((f: (tx: unknown) => unknown) => f(prisma));
 
   const ecritures = {
     creer: jest

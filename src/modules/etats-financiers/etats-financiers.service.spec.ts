@@ -37,6 +37,8 @@ function serviceAvecExercices(
   exercices: Array<{ id: string; dateDebut: Date }> = [],
   // Mises en service liées à une fiche, par exercice (D6) · par DÉFAUT aucune.
   virementsParExercice: Record<string, VirementsParCompte> = {},
+  // Écriture de réévaluation du module, par exercice (lot 14) · par DÉFAUT aucune.
+  reevaluationsParExercice: Record<string, VirementsParCompte> = {},
 ) {
   const ecritureService = {
     balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
@@ -51,6 +53,9 @@ function serviceAvecExercices(
     }),
     virementsDeMiseEnService: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
       Promise.resolve((exerciceId && virementsParExercice[exerciceId]) || new Map()),
+    ),
+    mouvementsDeReevaluation: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
+      Promise.resolve((exerciceId && reevaluationsParExercice[exerciceId]) || new Map()),
     ),
   } as unknown as EcritureService;
   // Sans liste nommée, les exercices du dossier sont ceux dont la balance est
@@ -1265,6 +1270,57 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
       { eN: miseEnService('23110000', '23910000') },
     ).tableauFluxTresorerie('t1', 'eN');
     expect(ref(tft, 'FI').montant).toBe(-CINQUANTE);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  // LOT 14 · la réévaluation n'est ni une acquisition ni un décaissement.
+  // Exemple du texte (AUDCIF Titre VIII ch. 28 § 4.3.1, méthode 1) · bâtiment
+  // de 150 000 000 amorti de 30 000 000, valeur actuelle 135 000 000 · D 23
+  // 18 750 000 / C 283 3 750 000 / C 106 15 000 000 (au SYCEBNL, 10611 « sans
+  // droit de reprise · immobilisations corporelles »). Aucune trésorerie ·
+  // FI doit valoir zéro. Sans retranchement, le débit du 231 se lisait en
+  // acquisition décaissée et le tableau ne bouclait plus.
+  it('lot 14 · la réévaluation passée par le module ne se lit pas en acquisition (FI, exemple du § 4.3.1)', async () => {
+    const lignes = {
+      eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 10_000_000, 0)],
+      eN: [
+        ligneF('23110000', ClasseCompte.CLASSE_2, 18_750_000, 0, [150_000_000, 0]),
+        ligneF('28310000', ClasseCompte.CLASSE_2, 0, 3_750_000, [0, 30_000_000]),
+        ligneF('10611000', ClasseCompte.CLASSE_1, 0, 15_000_000),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [10_000_000, 0]),
+      ],
+    };
+    const reevaluation: VirementsParCompte = new Map([
+      ['id-23110000', { debit: 18_750_000, credit: 0 }],
+      ['id-28310000', { debit: 0, credit: 3_750_000 }],
+      ['id-10611000', { debit: 0, credit: 15_000_000 }],
+    ]);
+    const tft = await serviceAvecExercices(lignes, DEUX_EXERCICES, {}, { eN: reevaluation }).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(0);
+    expect(ref(tft, 'ZC').montant).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+    // La même écriture SANS liaison (réévaluation passée à la main) reste lue
+    // en acquisition · la liaison décide, jamais le compte.
+    const sansLiaison = await serviceAvecExercices(lignes, DEUX_EXERCICES).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(sansLiaison, 'FI').montant).toBe(-18_750_000);
+    expect(sansLiaison.controle.coherent).toBe(false);
+  });
+
+  it('lot 14 · un titre immobilisé réévalué ne se lit pas en acquisition financière (FJ)', async () => {
+    const lignes = {
+      eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 1_000, 0)],
+      eN: [
+        ligneF('27410000', ClasseCompte.CLASSE_2, 400, 0, [1_000, 0]),
+        ligneF('10612000', ClasseCompte.CLASSE_1, 0, 400),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [1_000, 0]),
+      ],
+    };
+    const reevaluation: VirementsParCompte = new Map([
+      ['id-27410000', { debit: 400, credit: 0 }],
+      ['id-10612000', { debit: 0, credit: 400 }],
+    ]);
+    const tft = await serviceAvecExercices(lignes, DEUX_EXERCICES, {}, { eN: reevaluation }).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FJ').montant).toBe(0);
     expect(tft.controle.coherent).toBe(true);
   });
 

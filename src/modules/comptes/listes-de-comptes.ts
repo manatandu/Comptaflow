@@ -57,6 +57,13 @@ export const LISTES_DE_COMPTES: Readonly<Record<string, RegimeListeDeComptes>> =
       "La contrepartie de l'octroi est celle que la fiche du compte 14 écrit (4731 au SYCEBNL ; 4494 ou 4582 au " +
       'SYSCOHADA) · la retirer faute de rétention laisserait l\'octroi sans le compte que le texte prescrit.',
   },
+  '/immobilisations/materiel-recupere/comptes': {
+    regime: 'texte',
+    motif:
+      'Le matériel récupéré se reprend au 388 au SYSCOHADA (AUDCIF Titre VIII ch. 14 § 2.8, fiche du compte 38) ou au ' +
+      '378 au SYCEBNL (fiche du compte 37), seule racine admise par le serveur · la reprise en est presque toujours le ' +
+      'premier mouvement, la règle viderait la liste.',
+  },
   '/affectation-resultat/exercice/:exerciceId': {
     regime: 'texte',
     motif:

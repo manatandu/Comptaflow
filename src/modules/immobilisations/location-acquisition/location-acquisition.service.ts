@@ -56,6 +56,10 @@ export class LocationAcquisitionService {
       bienDeFaibleValeur: c.bienDeFaibleValeur,
       tauxAnnuel: c.tauxAnnuel != null ? n(c.tauxAnnuel) : null,
       valeurContrat: c.valeurContrat != null ? n(c.valeurContrat) : null,
+      garantieValeurResiduelle: n(c.garantieValeurResiduelle),
+      loyerIndexe: c.loyerIndexe,
+      indiceLoyer: c.indiceLoyer,
+      valeurIndiceCommencement: c.valeurIndiceCommencement != null ? n(c.valeurIndiceCommencement) : null,
     };
     return construireEcheancier(saisi);
   }
@@ -82,6 +86,13 @@ export class LocationAcquisitionService {
       prixOption: n(c.prixOption),
       optionLevee: c.optionLevee,
       dateOption: n(c.prixOption) > 0 ? (this.echeancierDe({ ...c, clotures: [] }).lignes.find((l) => l.option)?.date ?? null) : null,
+      garantieValeurResiduelle: n(c.garantieValeurResiduelle),
+      garantieAppelee: c.garantieAppelee,
+      dateGarantie:
+        n(c.garantieValeurResiduelle) > 0 ? (this.echeancierDe({ ...c, clotures: [] }).lignes.find((l) => l.garantie)?.date ?? null) : null,
+      loyerIndexe: c.loyerIndexe,
+      indiceLoyer: c.indiceLoyer,
+      valeurIndiceCommencement: c.valeurIndiceCommencement != null ? n(c.valeurIndiceCommencement) : null,
       reference: c.reference,
       nature: c.nature,
       designation: c.immobilisation.designation,
@@ -110,6 +121,7 @@ export class LocationAcquisitionService {
       echeancier.tauxPeriodique,
       exercice,
       c.optionLevee,
+      c.garantieAppelee,
     );
 
     const refus: string[] = [];
@@ -117,6 +129,21 @@ export class LocationAcquisitionService {
     if (exercice.statut !== StatutExercice.OUVERT) refus.push('Exercice clôturé · aucune écriture ne peut y entrer (AUDCIF art. 20).');
     if (ventilation.optionNonDeclaree) {
       refus.push("L'option d'achat échoit dans l'exercice · déclarez sa levée ou sa non-levée avant la clôture (AUDCIF Titre VIII ch. 8 § 2.1.9).");
+    }
+    if (ventilation.garantieNonDeclaree) {
+      refus.push(
+        "La garantie de valeur résiduelle échoit dans l'exercice · déclarez si le bailleur l'a appelée avant la clôture (AUDCIF Titre VIII ch. 8 § 2.1.2).",
+      );
+    }
+    // Lot 15 · la garantie non appelée laisse sa part de dette au 17 · le
+    // ch. 8 ne dit pas comment l'éteindre, et le module n'invente pas
+    // d'écriture · il le dit, sans refuser la clôture.
+    const avertissements: string[] = [];
+    if (ventilation.garantieNonAppelee > EPSILON) {
+      avertissements.push(
+        `Garantie de valeur résiduelle non appelée · ${ventilation.garantieNonAppelee.toFixed(2)} restent à la dette de ` +
+          "location-acquisition, que le texte ne dit pas comment éteindre (AUDCIF Titre VIII ch. 8 § 2.1.2) · écriture du cabinet.",
+      );
     }
     if (exercice.dateFin < c.datePriseEffet) refus.push("L'exercice s'achève avant la prise d'effet du contrat · rien à clôturer.");
 
@@ -194,6 +221,7 @@ export class LocationAcquisitionService {
       porte623,
       disponible623,
       refus,
+      avertissements,
     };
   }
 
@@ -273,6 +301,29 @@ export class LocationAcquisitionService {
       for (const id of crees.reverse()) await this.ecritures.retirerCompensation(tenantId, id);
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException('La clôture de ce contrat est déjà passée pour cet exercice.');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * LOT 15 · L'APPEL DE LA GARANTIE DE VALEUR RÉSIDUELLE (§ 2.1.2, remarque 2) ·
+   * déclaré une fois par le cabinet, jamais présumé · appelée, elle se paie au
+   * 623 et la clôture la vire au 17 ; non appelée, sa ligne n'est jamais virée.
+   */
+  async declarerGarantie(tenantId: string, contratId: string, appelee: boolean) {
+    const c = await this.contrat(tenantId, contratId);
+    if (!(n(c.garantieValeurResiduelle) > 0)) {
+      throw new BadRequestException('Ce contrat ne porte pas de garantie de valeur résiduelle · rien à déclarer.');
+    }
+    try {
+      return await this.prisma.contratLocationAcquisition.update({
+        where: { id: c.id, tenantId, garantieAppelee: null },
+        data: { garantieAppelee: appelee },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new ConflictException("L'appel de la garantie est déjà déclaré pour ce contrat.");
       }
       throw err;
     }

@@ -223,6 +223,13 @@ interface RubriqueResolue {
    */
   virementDebit: number;
   virementCredit: number;
+  /**
+   * Lot 14 · la part de ces mouvements que porte l'écriture de RÉÉVALUATION
+   * du module, reconnue par sa liaison (`ReevaluationBilan.ecritureId`) · non
+   * orientée elle non plus.
+   */
+  reevaluationDebit: number;
+  reevaluationCredit: number;
   echeances: Echeances;
   ventilation: VentilationNature;
 }
@@ -449,6 +456,7 @@ export class NoteAnnexeService {
     echeancesParCompte?: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
     virements: VirementsParCompte = AUCUN_VIREMENT,
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
   ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
     // ils ne les remplacent jamais (voir RattachementNote, prisma/schema.prisma).
@@ -456,6 +464,7 @@ export class NoteAnnexeService {
     if (prefixes.length === 0) {
       return {
         montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0, virementDebit: 0, virementCredit: 0,
+        reevaluationDebit: 0, reevaluationCredit: 0,
         echeances: { ...ECHEANCES_NULLES }, ventilation: VENTILATION_NULLE(),
       };
     }
@@ -481,6 +490,7 @@ export class NoteAnnexeService {
 
     const brut = comptes.reduce((s, c) => s + c.montant, 0);
     const vire = virementsDesLignes(matches, virements);
+    const reevalue = virementsDesLignes(matches, reevaluations);
     // `|| 0` normalise -0 en 0 (même souci de propreté qu'au bilan).
     return {
       montant: (rubrique.presenterEnNegatif ? -brut : brut) || 0,
@@ -494,6 +504,8 @@ export class NoteAnnexeService {
       // virement n'est retiré de B ou de C que s'il y était compté.
       virementDebit: vire.debit,
       virementCredit: vire.credit,
+      reevaluationDebit: reevalue.debit,
+      reevaluationCredit: reevalue.credit,
       // Les échéances suivent le sens de lecture de la rubrique, comme le
       // montant : sur une rubrique créditrice (dettes), une dette de 700
       // s'affiche 700 et non -700.
@@ -559,9 +571,27 @@ export class NoteAnnexeService {
     );
     const virementsAugmentation = sousColonnesDeVirement ? (auCredit ? r.virementCredit : r.virementDebit) || 0 : 0;
     const virementsDiminution = sousColonnesDeVirement ? (auCredit ? r.virementDebit : r.virementCredit) || 0 : 0;
-    const augmentations = ((auCredit ? r.mouvementCredit : r.mouvementDebit) || 0) - virementsAugmentation;
-    const diminutions = ((auCredit ? r.mouvementDebit : r.mouvementCredit) || 0) - virementsDiminution;
-    const cloture = ouverture + augmentations + virementsAugmentation - diminutions - virementsDiminution;
+    // LA RÉÉVALUATION N'EST NI UNE ACQUISITION NI UNE CESSION (lot 14). Les
+    // mêmes modèles ont une colonne « Suite à une réévaluation pratiquée au
+    // cours de l'exercice » (AUDCIF Titre IX ch. 6, NOTES 3A et 3B ; SYCEBNL
+    // Partie 4 ch. 2, NOTES 5A et 5B, et ch. 3, NOTE 3A). L'écriture que passe
+    // le module, reconnue par sa liaison, sort des acquisitions (son débit) et
+    // des cessions (son crédit) et va à cette colonne pour son effet NET sur
+    // le brut · D 2 de la hausse de valeur d'entrée en légale ou en méthode 1
+    // (ch. 28 § 4.2.4.1, § 4.3.1) ; en méthode 2, D 2 de l'écart moins C 2 du
+    // cumul éliminé, qui peut être négatif (exemple du § 4.3.1 · 150 000 000
+    // devient 135 000 000, soit − 15 000 000 au brut). Le modèle n'a qu'une
+    // colonne, rangée sous les augmentations · le signe dit la baisse plutôt
+    // que de la compter en « cession », qu'elle n'est pas. D ne bouge pas.
+    // Une réévaluation passée à la main, sans liaison, reste en B et en C.
+    const colonneReevaluation = spec.colonnes.some((c) => c.type === 'REEVALUATION');
+    const reevaluationAugmentation = colonneReevaluation ? (auCredit ? r.reevaluationCredit : r.reevaluationDebit) || 0 : 0;
+    const reevaluationDiminution = colonneReevaluation ? (auCredit ? r.reevaluationDebit : r.reevaluationCredit) || 0 : 0;
+    const reevaluation = reevaluationAugmentation - reevaluationDiminution;
+    const augmentations =
+      ((auCredit ? r.mouvementCredit : r.mouvementDebit) || 0) - virementsAugmentation - reevaluationAugmentation;
+    const diminutions = ((auCredit ? r.mouvementDebit : r.mouvementCredit) || 0) - virementsDiminution - reevaluationDiminution;
+    const cloture = ouverture + augmentations + virementsAugmentation + reevaluation - diminutions - virementsDiminution;
     // `montant` est le solde réel de la balance. `calculerRubrique` ne
     // l'oriente que si la rubrique porte `sens`/`presenterEnNegatif` · ce que
     // les tableaux de mouvements ne font pas ·, donc l'orientation au sens de
@@ -582,6 +612,10 @@ export class NoteAnnexeService {
         // `correspondance-notes-syscohada-1.ts`).
         ...(Math.abs(virementsAugmentation) > 0.005 ? { VIREMENTS_AUGMENTATION: virementsAugmentation } : {}),
         ...(Math.abs(virementsDiminution) > 0.005 ? { VIREMENTS_DIMINUTION: virementsDiminution } : {}),
+        // Même règle · vide quand le module n'a rien réévalué sur la ligne.
+        ...(Math.abs(reevaluationAugmentation) > 0.005 || Math.abs(reevaluationDiminution) > 0.005
+          ? { REEVALUATION: reevaluation || 0 }
+          : {}),
       },
       ecartCloture: Math.abs(ecart) > 0.005 ? ecart : undefined,
     };
@@ -597,6 +631,7 @@ export class NoteAnnexeService {
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
     // Absents pour N-1, dont le tableau ne présente aucun mouvement.
     virements: VirementsParCompte = AUCUN_VIREMENT,
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
   ): RubriqueResolue[] {
     const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
@@ -605,7 +640,17 @@ export class NoteAnnexeService {
         // un test structurel sur chaque spécification. Les agrégats de
         // mouvement se totalisent de la même façon, sinon la ligne TOTAL
         // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
-        const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit' | 'virementDebit' | 'virementCredit') =>
+        const cumul = (
+          f:
+            | 'montant'
+            | 'report'
+            | 'mouvementDebit'
+            | 'mouvementCredit'
+            | 'virementDebit'
+            | 'virementCredit'
+            | 'reevaluationDebit'
+            | 'reevaluationCredit',
+        ) =>
           rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0) -
           (rubrique.moinsRubriques ?? []).reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
         const cumulEcheance = (f: keyof Echeances) =>
@@ -619,6 +664,8 @@ export class NoteAnnexeService {
           mouvementCredit: cumul('mouvementCredit'),
           virementDebit: cumul('virementDebit'),
           virementCredit: cumul('virementCredit'),
+          reevaluationDebit: cumul('reevaluationDebit'),
+          reevaluationCredit: cumul('reevaluationCredit'),
           echeances: {
             unAn: cumulEcheance('unAn'),
             deuxAns: cumulEcheance('deuxAns'),
@@ -642,6 +689,7 @@ export class NoteAnnexeService {
         resolues.push(
           this.calculerRubrique(
             rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte, ventilationParCompte, virements,
+            reevaluations,
           ),
         );
       }
@@ -659,14 +707,19 @@ export class NoteAnnexeService {
     ventilationParCompte: Map<string, VentilationNature>,
     saisies: Map<string, (string | number | null)[]> = new Map(),
     virements: VirementsParCompte = AUCUN_VIREMENT,
+    reevaluations: VirementsParCompte = AUCUN_VIREMENT,
   ): NoteCalculee {
-    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte, virements);
+    const resN = this.resoudreRubriques(
+      spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte, virements, reevaluations,
+    );
     // N-1 n'est pas ventilé par échéance : le texte ne demande les colonnes
     // d'échéance que sur l'exercice présenté.
     const resN1 = this.resoudreRubriques(spec, lignesN1, rattachements);
     const aColonnesDeMouvement = spec.colonnes.some((c) =>
       (
-        ['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE', 'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION'] as TypeColonneNote[]
+        [
+          'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE', 'VIREMENTS_AUGMENTATION', 'VIREMENTS_DIMINUTION', 'REEVALUATION',
+        ] as TypeColonneNote[]
       ).includes(c.type),
     );
     const aColonneVariationAbsolue = spec.colonnes.some((c) => c.type === 'VARIATION_VALEUR_ABSOLUE');
@@ -1204,8 +1257,14 @@ export class NoteAnnexeService {
       chargerLignes(ecriture, tenantId, exerciceN1Id),
     ]);
 
-    const [{ parRubrique: rattachements, sansRubrique: rattachementsSansRubrique }, echeances, ventilation, saisies, virements] =
-      await Promise.all([
+    const [
+      { parRubrique: rattachements, sansRubrique: rattachementsSansRubrique },
+      echeances,
+      ventilation,
+      saisies,
+      virements,
+      reevaluations,
+    ] = await Promise.all([
         this.chargerRattachements(tenantId, jeu),
         this.chargerEcheances(tenantId, exerciceId),
         this.chargerVentilationParNature(tenantId, exerciceId),
@@ -1213,10 +1272,13 @@ export class NoteAnnexeService {
         // Les mises en service de l'exercice (D6) · seules les colonnes de
         // mouvement les lisent, et seulement sur N.
         this.ecritureService.virementsDeMiseEnService(tenantId, exerciceId),
+        // L'écriture de réévaluation de l'exercice (lot 14), même lecture.
+        this.ecritureService.mouvementsDeReevaluation(tenantId, exerciceId),
       ]);
     const notes = specs.map((spec) =>
       this.calculerNote(
         spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies, virements,
+        reevaluations,
       ),
     );
 

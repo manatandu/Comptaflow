@@ -63,6 +63,11 @@ export const MODELES_AUDITES = new Set<string>([
   'Lettrage',
   'Regularisation',
   'Reevaluation',
+  // La provision pour pertes de change existant à l'ouverture (A5) · une
+  // DÉCLARATION, comme l'en-cours d'ouverture · retouchée après coup, elle
+  // change la dotation ou la reprise de la réévaluation suivante sans
+  // qu'aucune écriture n'en garde la cause.
+  'ProvisionChangeOuverture',
   'RapprochementBancaire',
   // L'en-cours d'ouverture est une DÉCLARATION, comme le solde de départ qu'il
   // explique · retouché après coup, il referme l'écart d'ouverture sans
@@ -128,6 +133,13 @@ export const MODELES_AUDITES = new Set<string>([
   // coup change chaque dotation suivante, sur une écriture équilibrée.
   'RevisionPlanAmortissement',
   'CoutEmpruntIncorpore',
+  // La réévaluation (lot 14) et la reprise de sa provision spéciale · un
+  // coefficient ou une valeur actuelle changés après coup changent chaque
+  // dotation suivante, sur des écritures équilibrées. Les lignes par bien,
+  // engendrées en masse avec l'opération, n'y entrent pas.
+  'ReevaluationBilan',
+  'RepriseProvisionReevaluation',
+  'MouvementDemantelement',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
@@ -277,6 +289,8 @@ export const MODELES_AUDITES = new Set<string>([
 const LIGNES_DE_LA_TETE =
   "Lignes d'une tête journalisée, réécrites avec elle · l'événement de la tête date et attribue la retouche.";
 export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
+  VerrouProvisionChange:
+    "Verrou technique d'un geste sur la provision pour pertes de change (A5) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (déclaration, réévaluation, écritures).",
   // ── Lignes d'une tête journalisée
   LigneEcriture:
     "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",
@@ -286,6 +300,8 @@ export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
   EcheanceReglement: LIGNES_DE_LA_TETE,
   LigneRetraitementIfrs: LIGNES_DE_LA_TETE,
   LigneLotVirement: LIGNES_DE_LA_TETE,
+  LigneReevaluationBilan:
+    'Lignes par bien de la réévaluation, journalisée à la tête · écrites avec elle ; seuls la reprise de la provision et l’imputation d’une perte les retouchent, actes eux-mêmes journalisés ou portés par une écriture.',
   CoupureComptee: 'Ventilation par coupure du PV de comptage, journalisé · le total compté est sur le PV.',
   LigneFacture: 'Lignes de la facture, journalisée, écrites avec elle et jamais retouchées seules.',
   LigneDevis: 'Lignes du devis, journalisé, écrites avec lui et jamais retouchées seules.',

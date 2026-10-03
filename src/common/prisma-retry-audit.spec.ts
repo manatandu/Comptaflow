@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
-import { avecRetrySerialisable } from './prisma-retry.util';
+import { avecRetrySerialisable, estConflitDeSerialisation } from './prisma-retry.util';
 import { transactionAuditee } from './audit/contexte-audit';
+import { ErreurMaillonDansTransaction } from './audit/extension-audit';
 
 /**
  * UN MAILLON D'AUDIT NAÎT ET MEURT AVEC L'ACTE.
@@ -46,5 +47,31 @@ describe('transaction sérialisable et journal d’audit', () => {
     const prisma = { $transaction: jest.fn(async (f: (t: unknown) => unknown) => f({})) };
     await avecRetrySerialisable(prisma as never, async () => null, 'conflit');
     expect(transactionAuditee()).toBeUndefined();
+  });
+
+  it('un conflit de sérialisation du MAILLON (40001 en requête brute, enveloppé) est rejoué, pas rendu en 500', async () => {
+    let n = 0;
+    const prisma = {
+      $transaction: jest.fn(async (f: (t: unknown) => unknown) => {
+        n += 1;
+        if (n === 1) {
+          const brut = new Prisma.PrismaClientKnownRequestError('could not serialize access', {
+            code: 'P2010',
+            clientVersion: 'x',
+            meta: { code: '40001' },
+          });
+          // La VRAIE erreur de l'extension d'audit · sa cause doit rester lisible.
+          throw new ErreurMaillonDansTransaction('Ecriture', 'create', brut);
+        }
+        return f({});
+      }),
+    };
+    await expect(avecRetrySerialisable(prisma as never, async () => 'ok', 'conflit')).resolves.toBe('ok');
+    expect(n).toBe(2);
+  });
+
+  it('une autre erreur brute n’est pas prise pour un conflit', () => {
+    const autre = new Prisma.PrismaClientKnownRequestError('x', { code: 'P2010', clientVersion: 'x', meta: { code: '23505' } });
+    expect(estConflitDeSerialisation(Object.assign(new Error('e'), { cause: autre }))).toBe(false);
   });
 });

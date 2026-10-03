@@ -67,6 +67,9 @@ async function dotation(c: {
       findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: 'd1' }),
     },
+    // Lot 14 · aucune réévaluation sur ce bien · la dotation et la dépréciation
+    // lisent les lignes de réévaluation avant d'écrire.
+    ligneReevaluationBilan: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
   } as Faux;
   const ecritures = {
     creer: jest.fn().mockImplementation((_t: string, _u: string, dto: { lignes: { debit?: number }[] }) => {

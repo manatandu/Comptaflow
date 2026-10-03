@@ -182,7 +182,7 @@ describe('création · le bien non achevé entre à son en-cours', () => {
 
 function harnaisMiseEnService(
   immo: Record<string, unknown>,
-  o: { course?: boolean; statutExercice?: StatutExercice; finIncorporation?: Date } = {},
+  o: { course?: boolean; statutExercice?: StatutExercice; finIncorporation?: Date; reevalueLe?: Date } = {},
 ) {
   const creer = jest.fn().mockResolvedValue({ id: 'eMes' });
   const supprimees: string[] = [];
@@ -210,6 +210,21 @@ function harnaisMiseEnService(
         supprimees.push(where.id);
         return Promise.resolve({});
       }),
+    },
+    // Lot 14 · la doublure honore le filtre · une réévaluation de CE bien,
+    // datée au plus tôt du jour de la mise en service demandée.
+    ligneReevaluationBilan: {
+      findFirst: jest.fn(
+        ({ where }: { where: { tenantId: string; immobilisationId: string; reevaluation: { dateReevaluation: { gte: Date } } } }) =>
+          Promise.resolve(
+            o.reevalueLe &&
+              where.tenantId === 't1' &&
+              where.immobilisationId === 'i1' &&
+              o.reevalueLe >= where.reevaluation.dateReevaluation.gte
+              ? { reevaluation: { dateReevaluation: o.reevalueLe } }
+              : null,
+          ),
+      ),
     },
   };
   return { svc: new ImmobilisationService(prisma as never, { creer } as never), creer, update, supprimees };
@@ -277,6 +292,21 @@ describe('mise en service d’un bien inscrit en cours', () => {
     const aLaFin = harnaisMiseEnService(EN_COURS, { finIncorporation: D('2026-09-30') });
     await aLaFin.svc.mettreEnService('t1', 'u1', 'i1', CORPS);
     expect(aLaFin.creer).toHaveBeenCalledTimes(1);
+  });
+
+  it('lot 14 · refusée à une date qui précède une réévaluation qui a porté le bien en cours, admise après', async () => {
+    // Réévalué à une clôture du 30 juin 2026 alors qu'il était au 239 · le
+    // mettre en service le 31 mai ferait dire à `compteInscritALaDate` qu'il
+    // était au 231 le jour de la réévaluation, qui a pourtant débité le 239.
+    const avant = harnaisMiseEnService(EN_COURS, { reevalueLe: D('2026-06-30') });
+    await expect(avant.svc.mettreEnService('t1', 'u1', 'i1', { ...CORPS, date: '2026-05-31' })).rejects.toThrow(/2026-06-30/);
+    // Le jour même de la réévaluation aussi · elle a lu le bien en cours ce jour-là.
+    await expect(avant.svc.mettreEnService('t1', 'u1', 'i1', { ...CORPS, date: '2026-06-30' })).rejects.toThrow(/2026-06-30/);
+    expect(avant.creer).not.toHaveBeenCalled();
+    expect(avant.update).not.toHaveBeenCalled();
+    const apres = harnaisMiseEnService(EN_COURS, { reevalueLe: D('2026-06-30') });
+    await apres.svc.mettreEnService('t1', 'u1', 'i1', CORPS);
+    expect(apres.creer).toHaveBeenCalledTimes(1);
   });
 
   it('une course perdue retire l’écriture de CETTE requête et rend un 409', async () => {

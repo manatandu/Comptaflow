@@ -446,6 +446,108 @@ coté à la date de la pièce. **La devise suit le report (F54, F55)** : DÉTAIL
 ligne, SOLDE une ligne par devise au cours moyen. Une seule réévaluation par
 exercice (index unique), écarts passés sans devise.
 
+**La provision pour pertes de change S'AJUSTE (A5, 2026-10-02).** Titre VIII
+ch. 22 § 2.3 (« ajustée pour tenir compte des opérations dénouées ») et fiche
+du compte 19 des deux plans · seul l'ÉCART avec la provision en place se
+passe, dotation de la hausse ou reprise de la baisse au compte de SA famille
+(4991 · 6591 / 7591, 4997 · 6791 / 7791, 194 · 6971 / 7971 ; SYCEBNL, 194
+seul). La provision en place se lit sur les écritures des réévaluations
+ANTÉRIEURES, jamais sur le solde (le 4991 porte d'autres risques, et N+1
+s'ouvre avant la clôture de N) ; une ligne manuelle de l'exercice sur ces
+comptes est SIGNALÉE, rien retranché. Une réévaluation sans position passe
+pour reprendre la provision d'une position dénouée. L'extourne ne touche que
+478 et 479. DEUX DÉCISIONS DE MANASSE (2026-10-02). (1) Le 4997, doté au 6791
+par le ch. 22 § 2.3, se REPREND au 7791 (fiche du compte 77, « provisions pour
+risques à court terme à caractère financier ») · les fiches 49 et 679 ne le
+relient à aucun des deux, ANOMALIE DU TEXTE écrite à `PROVISION_SYSCOHADA`.
+(2) DOSSIER REPRIS · la provision à ajuster est celle qui EXISTE à l'ouverture
+(fiche du compte 19, « réajusté » ; fiche 77, « existant au début de
+l'exercice »). Le cabinet la DÉCLARE en VERSIONS DATÉES
+(`ProvisionChangeOuverture`, au journal d'audit), montant et SOURCE exigés ;
+l'écran PROPOSE le solde d'ouverture, jamais imposé. En place = version en
+vigueur (début au plus tard la date) + réévaluations datées depuis son début.
+RÉSERVE « NON DÉCLARÉE » · sans version, dès que l'à-nouveau diffère de la
+part qu'expliquent les écritures de provision OmegaX antérieures à
+l'ouverture (jamais « une réévaluation existe »), et une version au-delà de
+l'à-nouveau créditeur est signalée. QUATRE DÉCISIONS (2026-10-02, « réfère-toi
+à la loi »). (Q1) La réserve REFUSE le passage, pas le calcul (fiche du compte
+19, on ne réajuste pas sans l'antérieure ; § 10 bis) · écarts 478 / 479
+compris, une seule réévaluation par exercice (F54) portant les deux. (Q2) Une
+version utilisée est GELÉE (art. 22, 2° ; art. 20) · la correction est une
+version NOUVELLE, plus tardive, avec motif. Une version s'insère à toute date,
+AVANT une autre comprise, tant qu'aucune réévaluation n'est passée dans sa
+période (de sa date à la version suivante) · refuser toute insertion
+antérieure enfermait N quand N+1, ouvert avant sa clôture, était déjà déclaré
+et réévalué (IMPASSE, seconde relecture). L'art. 22, 3° vise les écritures,
+il n'est pas invoqué. Réserve, dépassement et provision incomplète sont servis
+par le serveur (`etatsOuverture`), jamais recalculés à l'écran. OUVERTURE
+(quatrième et cinquième relectures) · tout à-nouveau qui n'est PAS
+l'à-nouveau provisoire d'OmegaX (bilan d'ouverture importé, report de
+clôture, validé ou au brouillard) est un solde comptable FIABLE et PRIME sur
+la clôture précédente, quel que soit le précédent (un N-1 gardé pour les
+comparatifs ne l'efface pas) ; sans lui, la provision EN PLACE À LA CLÔTURE
+PRÉCÉDENTE telle que le module la calcule (version + écritures de provision
+OmegaX, tous statuts), récursivement (`ouverturesDe`, `cloturesDe`) ·
+l'à-nouveau provisoire, lu sur le seul livre-journal, ignore la dotation au
+brouillard. La clôture précédente se lit DEUX fois, sans se confondre · le
+SOLDE reconstitué (ouverture récursive et toutes les écritures de l'exercice,
+tous statuts, du module ou non), qui OUVRE la réserve et BORNE une
+déclaration, et la provision du MODULE (version + écritures OmegaX) · comparée
+au seul solde, une provision pour litige du même compte passait pour du
+change (septième relecture). Toute
+ouverture sans version se confronte à la part expliquée par OmegaX, celle
+d'un à-nouveau non provisoire aussi au solde reconstitué précédent (écart
+nommé, un seul message quand il n'ajoute rien) · un à-nouveau entré dans N
+APRÈS sa réévaluation se voit donc en N+1 (S8), et la part de change déclarée
+la lève ; les messages disent les deux issues (déclarer, ou clôturer
+l'exercice précédent). La réserve ou la version incohérente d'un antérieur se
+disent avant « aucune position », et l'ordre dit de les régler.
+UNE VERSION SE LIT ENTRE
+DEUX BORNES, une seule règle pour le solde fiable, le solde reconstitué et
+la provision du module (huitième relecture, `bornesDeVersion`) · PLAFOND, le
+solde ; PLANCHER, le plus petit de la provision du module à la clôture
+précédente (à défaut, la part expliquée) et du solde. L'aiguillage qui
+jugeait chaque chemin à part est RETIRÉ · un franc passé à la main au 4991,
+ou N clôturé, suffisait à faire passer une version déclarée avant la
+réévaluation de N, et la perte déjà provisionnée était dotée une seconde
+fois (X1 à X4). Sous le plancher, refus nommé (montants, conséquence, issues),
+sauf CONTESTATION EXPRESSE de la provision du module
+(`provisionModuleContestee`, case « La provision passée par OmegaX ne
+correspond pas à la provision de change réelle », erreur ou reprise ou
+dotation hors module, avec son propre `motifContestation`, au journal
+d'audit) · le motif de CORRECTION ne l'ouvre jamais, sans quoi toute
+correction d'une version utilisée, qui l'exige déjà, refaisait X1 et X3. LA
+CONTESTATION EST RATTACHÉE À UN MONTANT (neuvième relecture) · le SERVEUR
+fige à la déclaration la provision du module contestée
+(`provisionModuleContesteeMontant`, jamais reçue du client), et le plancher
+ne s'écarte que tant que la provision du module à la clôture précédente lui
+reste égale · une réévaluation passée ensuite la change, refus nommé « a
+changé depuis la contestation » (Y9, Y9b) ; l'écran montre la
+provision du module et les bornes à côté de la version.
+Le message dit quoi déclarer, jamais de retirer ; une ligne
+manuelle sur ces comptes dans un antérieur ouvert est signalée ; rien ne se
+préremplit hors d'un solde fiable sans réserve. ON RÉÉVALUE
+DANS L'ORDRE (troisième relecture) · `reevaluer` refuse un exercice tant qu'un
+antérieur ENCORE OUVERT n'est ni réévalué ni sans objet (aucune position,
+aucune provision à doter ou reprendre, aucune réserve) ; un antérieur clôturé
+ne bloque pas (fiche du compte 19, « réajusté à la clôture de chaque
+exercice » ; même règle que la clôture). N+1 avant N dotait deux fois la même
+perte. Une version hors de ses bornes refuse aussi le passage. Une
+version est UTILISÉE dès qu'une réévaluation EXISTE dans sa période, sans
+comparer deux horloges ; le motif n'est exigé que pour une CORRECTION (une
+version qui succède à une version utilisée). Réévaluer, déclarer et retirer
+passent sous un VERROU QUI NE RETIENT AUCUNE CONNEXION (`sousVerrouDuDossier`,
+`VerrouProvisionChange`) · une ligne par dossier, insérée sur la clé unique
+et retirée en `finally`, un second geste reçoit aussitôt un 409 ; l'échéance
+ne sert qu'à reprendre la ligne d'un processus tombé. Un verrou consultatif
+tenu dans une transaction ouverte figeait le pool de TOUS les cabinets. Le
+409 dit le geste en cours, depuis quand, et l'échéance ; un retrait de verrou
+manqué est consigné et ne masque jamais l'issue du geste.
+(Q3) Sa date est le DÉBUT d'un exercice du dossier, sinon refus nommé. (Q4)
+Solde d'ouverture · à-nouveau validé, sinon au brouillard (bilan d'ouverture
+importé), sinon report reconstitué de N par `lireComptesDuReport`, brouillard
+compris · dit « provisoire, non validé », la réserve joue sur lui.
+
 **Écart de change RÉALISÉ (ligne A6, 2026-10-02).** AUDCIF art. 55, Titre VIII ch. 22
 § 2.3 (`reglements/ecart-change-realise.ts`). Une facture en devise se RÈGLE DANS SA
 DEVISE au cours du jour, exigé, jamais deviné ; plus que le dû EN DEVISE refusé (le
@@ -560,10 +662,12 @@ année n'y a aucun mouvement). La fenêtre vit sous « Traitement », car elle P
 
 **Notes de cours sur les stocks · un témoin, jamais une source**
 (`docs/stocks-notes-de-cours.md`). Il **ne lève aucun refus**, pas même sur la
-période de stockage. Non codés faute de lecture · le sous-compte **388 « Stocks
-provenant d'immobilisations mises hors service ou au rebut »** ; les fiches des
-comptes 33, 40, 41, 60, 62 et 70 des deux textes, à lire avant toute ligne sur les
-emballages.
+période de stockage. Le sous-compte **388 « Stocks provenant d'immobilisations
+mises hors service ou au rebut »** est lu depuis le lot 15a · débité « par le
+crédit du compte d'immobilisation concerné » (fiche du compte 38), jamais par le
+603 comme l'écrit le livre ; 378 au SYCEBNL. Non codés faute de lecture · les
+fiches des comptes 33, 40, 41, 60, 62 et 70 des deux textes, à lire avant toute
+ligne sur les emballages.
 
 **Le magasin et le BONI / MALI D'INVENTAIRE · un écart de QUANTITÉ, qui SE
 COMPTABILISE.** `ArticleStock` et `MouvementStock` portent l'inventaire PERMANENT,
@@ -1539,7 +1643,30 @@ des notes 3A et 3B (SYSCOHADA), 5B et 3A (SYCEBNL) vers leurs colonnes
 « Virements de poste à poste », D inchangé ; 5C et 3B des locations n'en ont
 pas, elle y reste en B ; au TFT SYCEBNL, FI retranche le crédit lié du 219 et
 du 229 (le 239 et le 249 l'étaient déjà). La nature du barème POSE son compte
-unique (`compteSelonNature`).
+unique (`compteSelonNature`). RÉÉVALUATION (lot 14, D-29 à D-44 proposées) · une
+opération à la clôture sur L'ENSEMBLE des 22 à 24, 26 et 27 (rien écarté en
+silence), coefficient déclaré plafonné par la valeur actuelle (k'), écart au
+106 du sens de CHAQUE plan ou au 154 (amortissables, neutralité déclarée)
+repris au 861, plan reparti de la valeur réévaluée ; son écriture, reconnue par
+sa LIAISON, est écartée des contrôles « hors module » (`reevaluationBilan:
+null`), des acquisitions des tableaux des flux (FI et FJ, FG et FH,
+`mouvementsDeReevaluation`) et des notes 3A, 5A, 5B (colonne `REEVALUATION`) ;
+bien en cours réévalué à son compte inscrit, éléments monétaires du 27 gardés.
+PETITS MANQUES (lot 15a) · RENTE VIAGÈRE et
+REDEVANCES, SYSCOHADA seul (`acquisition-prix-aleatoire.ts`, route
+cloisonnée) · valeur déclarée avec son fondement et sa source, dette au 1681
+(bouquet en trésorerie) ou au 4811 ; le solde (décès, fin des redevances) se
+calcule sur la dette CAPITALISÉE de la fiche et les versements DÉCLARÉS, jamais
+sur le solde d'un compte que d'autres dettes partagent, qui la BORNE seulement
+(refus au-delà de son solde créditeur, à-nouveaux exclus) · D 1681 / C 841, ou
+831 / 841 pour l'écart, une fois, écriture retenue. Au SYCEBNL, un numéro, deux
+sens · son 168 est un FONDS (« Autres fonds affectés »), aucun 1681, refus
+nommé. RÉSERVE DE PROPRIÉTÉ · information de fiche, aux deux, déduite d'une
+dette au 4816 et jamais contredite par elle ; ni sur un bien sorti, ni de
+façon à changer la liste d'un exercice clos. MATÉRIEL RÉCUPÉRÉ · 388 au
+SYSCOHADA, 378 au SYCEBNL (`STOCK_PROVENANT_D_IMMOBILISATIONS`, nomenclature
+des stocks), « par le crédit du compte d'immobilisation », jamais au-delà de la
+valeur nette (aucun compte pour l'excédent).
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

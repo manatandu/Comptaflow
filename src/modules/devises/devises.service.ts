@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, Referentiel, StatutExercice } from '@prisma/client';
+import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifHorsReevaluation } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
@@ -153,11 +153,326 @@ function racineEcartSyscohada(estCreance: boolean, estPerte: boolean, nature: Na
  * du compte : la classe 1 et les immobilisations financières sont durables
  * par construction du plan, la trésorerie financière ne l'est pas.
  */
-const PROVISION_SYSCOHADA: Record<NaturePosition, { dotation: string; provision: string }> = {
-  EXPLOITATION: { dotation: '6591', provision: '4991' },
-  FINANCIER_COURT: { dotation: '6791', provision: '4997' },
-  FINANCIER_LONG: { dotation: '6971', provision: '194' },
+export const PROVISION_SYSCOHADA: Record<NaturePosition, FamilleProvisionChange> = {
+  EXPLOITATION: { dotation: '6591', provision: '4991', reprise: '7591' },
+  FINANCIER_COURT: { dotation: '6791', provision: '4997', reprise: '7791' },
+  FINANCIER_LONG: { dotation: '6971', provision: '194', reprise: '7971' },
 };
+
+/**
+ * Une famille de provision pour pertes de change · le compte de PROVISION la
+ * désigne, et décide de la dotation qui l'augmente et de la reprise qui la
+ * diminue. Les reprises sont lues aux fiches des comptes de produits, au même
+ * rang que la dotation :
+ *
+ *  · 7591 « Reprises […] sur risques à court terme » (AUDCIF Titre VII,
+ *    compte 759 · « crédité du montant […] des risques provisionnés existant
+ *    à l'ouverture de l'exercice, par le débit du compte 49 ») ;
+ *  · 7791 « sur risques financiers » (compte 779 · « par le débit du compte
+ *    59 [...] pour solde ou pour rajustement ») ;
+ *  · 7971 « pour risques et charges » (compte 79 · « crédité par le débit des
+ *    comptes 19 et 29, pour le montant des diminutions des provisions »).
+ *
+ * REPRISE DU 4997 AU 7791 · décision de Manasse du 2026-10-02, et ANOMALIE
+ * DU TEXTE, signalée et non corrigée. Le Titre VIII ch. 22 § 2.3 dote la
+ * perte probable sur opération financière à court terme par « débit 6791
+ * Charges pour provisions sur risques financiers · crédit 4997 Provisions
+ * pour risque à court terme sur opérations financières ». La fiche du compte
+ * 77 range la reprise au 779 · « Le compte 779 est crédité de la reprise des
+ * dépréciations des comptes de trésorerie et des provisions pour risques à
+ * court terme à caractère financier sans objet, existant au début de
+ * l'exercice, par le débit du compte 59 […], pour solde ou pour
+ * rajustement ». Mais les fiches ne relient pas le 4997 à ce couple · celle
+ * du compte 49 crédite le 499 « par le débit du compte 659 » et le débite de
+ * sa reprise « par le crédit du compte 759 », celle du 679 le débite « par le
+ * crédit du compte 59 ». Le chapitre spécial est suivi pour la dotation
+ * (6791), et la reprise prend le compte de même rang (7791), qui reçoit les
+ * provisions pour risques à court terme À CARACTÈRE FINANCIER, comme le fait
+ * déjà la consolidation (`FAMILLES_PROVISION_CHANGE`). Le texte ne tranche
+ * pas · le 759 de la fiche 49 serait l'autre lecture.
+ *
+ * Au SYCEBNL, un seul couple · 194 « Provisions pour pertes de change » (fiche
+ * du compte 19), dotée par le 6971 et reprise par le 7971 (fiches des comptes
+ * 69 et 79, mêmes numéros aux deux semis). Le SYCEBNL n'ouvre pas de 4997.
+ */
+export interface FamilleProvisionChange {
+  provision: string;
+  dotation: string;
+  reprise: string;
+}
+
+export const PROVISION_SYCEBNL: FamilleProvisionChange = { dotation: '6971', provision: '194', reprise: '7971' };
+
+/**
+ * Ajustement d'une famille de provision à la réévaluation · AUDCIF Titre VIII
+ * ch. 22 § 2.3, « La provision pour pertes de change de fin d'exercice est
+ * ajustée pour tenir compte des opérations dénouées au cours de l'exercice ».
+ *
+ * `requise` est la provision que demande la perte latente du jour (art. 54) ;
+ * `enPlace` celle que les réévaluations ANTÉRIEURES ont laissée au compte.
+ * Seul l'ÉCART se passe · en hausse par la dotation, en baisse par la reprise
+ * (fiche du compte 19 des deux plans, « réajusté à la clôture de chaque
+ * exercice soit par dotations supplémentaires, soit par reprises des
+ * provisions antérieures » ; fiche du compte 69 de l'AUDCIF, « créées ou
+ * ajustées en hausse » par le 69, « ajustées en baisse ou annulées » par le
+ * 79). Doter la provision entière chaque année, comme le faisait le module,
+ * l'empilait · une perte de 100 provisionnée en N et toujours de 100 en N+1
+ * finissait à 200 au passif, et une créance encaissée gardait sa provision
+ * pour toujours.
+ */
+export interface AjustementProvision {
+  compteProvision: string;
+  compteDotation: string;
+  compteReprise: string;
+  requise: number;
+  enPlace: number;
+  /**
+   * Part de `enPlace` DÉCLARÉE par le cabinet à l'ouverture (dossier repris) ·
+   * `null` quand rien n'est déclaré pour ce compte, jamais zéro par défaut.
+   */
+  declaree?: number | null;
+  /** Réserve « non déclarée » ouverte sur ce compte · `enPlace` est incomplet. */
+  enPlaceIncomplete?: boolean;
+  /** Dotation et reprise calculées sur une provision incomplète · provisoires. */
+  montantsProvisoires?: boolean;
+  dotation: number;
+  reprise: number;
+}
+
+/**
+ * Pur · rapproche la provision requise de la provision en place, famille par
+ * famille, et rend l'écart à passer. Une famille absente des deux côtés ne
+ * rend rien ; une famille en place sans perte latente se REPREND en entier,
+ * c'est le cas de la créance dénouée.
+ */
+export function ajusterProvisions(
+  familles: FamilleProvisionChange[],
+  requise: Map<string, number>,
+  enPlace: Map<string, number>,
+): AjustementProvision[] {
+  const arrondi = (x: number) => Math.round(x * 100) / 100;
+  const rendu: AjustementProvision[] = [];
+  for (const f of familles) {
+    const r = arrondi(requise.get(f.provision) ?? 0);
+    const e = arrondi(enPlace.get(f.provision) ?? 0);
+    if (Math.abs(r) < 0.005 && Math.abs(e) < 0.005) continue;
+    const ecart = arrondi(r - e);
+    rendu.push({
+      compteProvision: f.provision,
+      compteDotation: f.dotation,
+      compteReprise: f.reprise,
+      requise: r,
+      enPlace: e,
+      dotation: ecart > 0 ? ecart : 0,
+      reprise: ecart < 0 ? -ecart : 0,
+    });
+  }
+  return rendu;
+}
+
+/**
+ * Nature de l'ouverture lue · seul VALIDE est au livre-journal (AUDCIF art.
+ * 22, 2°) ; IMPORTE est le bilan d'ouverture d'un dossier repris, au
+ * brouillard ; CLOTURE_PRECEDENTE est la provision du module à la clôture de
+ * l'exercice précédent, pas un solde comptable.
+ */
+export type StatutSoldeOuverture = 'VALIDE' | 'IMPORTE' | 'CLOTURE_PRECEDENTE' | 'AUCUN';
+
+export interface OuvertureProvision {
+  montant: number;
+  statut: StatutSoldeOuverture;
+  /** Solde comptable fiable (à-nouveau non provisoire, ou rien) · seul il se compare à la part expliquée. */
+  fiable: boolean;
+  /** Le SOLDE reconstitué à la clôture de l'exercice précédent, s'il y en a un. */
+  cloturePrecedente: number | null;
+  /** La provision pour pertes de change du MODULE à cette clôture (version + écritures OmegaX). */
+  provisionModule: number | null;
+}
+
+type ContexteProvision = {
+  versions: {
+    compteProvision: string;
+    montant: unknown;
+    dateReference: Date;
+    provisionModuleContestee: boolean;
+    provisionModuleContesteeMontant: unknown;
+  }[];
+  lignes: LigneProvisionOmegax[];
+  exercices: { id: string; dateDebut: Date; dateFin: Date; statut: StatutExercice }[];
+};
+
+interface LigneProvisionOmegax {
+  date: Date;
+  numero: string;
+  montant: number;
+}
+
+/**
+ * Somme, crédit moins débit, des écritures de provision OmegaX d'une racine,
+ * datées depuis `depuis` (compris, ou sans borne) jusqu'à `jusqua` (compris
+ * ou non).
+ */
+function sommeProvision(lignes: LigneProvisionOmegax[], racine: string, depuis: Date | null, jusqua: Date, jusquaCompris: boolean): number {
+  return lignes
+    .filter(
+      (l) =>
+        l.numero.startsWith(racine) &&
+        (!depuis || l.date.getTime() >= depuis.getTime()) &&
+        (jusquaCompris ? l.date.getTime() <= jusqua.getTime() : l.date.getTime() < jusqua.getTime()),
+    )
+    .reduce((t, l) => t + l.montant, 0);
+}
+
+/**
+ * La borne qu'une version franchit (huitième relecture) · au-dessus du
+ * PLAFOND (le solde d'ouverture, fiable ou reconstitué), une reprise rendrait
+ * le compte débiteur ; sous le PLANCHER (la provision du module à la clôture
+ * précédente, bornée par ce solde), la perte déjà provisionnée par OmegaX
+ * serait dotée une seconde fois.
+ */
+export type BorneVersion = 'PLAFOND' | 'PLANCHER';
+
+/** Version en vigueur hors de ses bornes à l'ouverture. */
+export interface ProvisionOuvertureExcessive {
+  compteProvision: string;
+  enPlaceOuverture: number;
+  borne: BorneVersion;
+  plancher: number;
+  plafond: number;
+  /** Le plafond est un solde comptable (à-nouveau non provisoire), sinon le solde reconstitué. */
+  plafondFiable: boolean;
+  /** La provision du module à la clôture précédente (à défaut, la part expliquée). */
+  provisionModule: number;
+  /** Version contestée dont la provision du module a changé depuis · le montant contesté, figé. */
+  contesteeAuMontant: number | null;
+}
+
+/**
+ * BORNES D'UNE VERSION (huitième relecture, règle unique pour les trois
+ * chemins · solde fiable, solde reconstitué, provision du module). Plafond ·
+ * le solde. Plancher · le plus petit de la provision du module à la clôture
+ * précédente (à défaut, la part expliquée par les écritures OmegaX) et du
+ * solde. Une version déclarée AVANT la réévaluation de l'exercice précédent
+ * (vraie quand elle l'a été) tombe sous le plancher dès que cette
+ * réévaluation dote · sans la borne basse, le module dotait la même perte une
+ * seconde fois, écriture équilibrée et balance bouclée (CLAUDE.md § 10 bis).
+ * Sous le plancher, seule une version qui CONTESTE expressément la provision
+ * du module (`provisionModuleContestee`, avec son propre motif) passe · le
+ * motif de correction ne l'ouvre jamais, sans quoi toute correction d'une
+ * version utilisée (qui exige déjà un motif) rouvrait la double dotation.
+ */
+export function bornesDeVersion(ouverture: OuvertureProvision, explique: number): { plancher: number; plafond: number; module: number } {
+  const module = ouverture.provisionModule ?? explique;
+  return { plancher: arrondiCentime(Math.min(module, ouverture.montant)), plafond: ouverture.montant, module: arrondiCentime(module) };
+}
+
+/** Le refus, nommé, d'une version hors de ses bornes · montants, conséquence, issues. */
+export function libelleVersionHorsBornes(x: ProvisionOuvertureExcessive): string {
+  const v = x.enPlaceOuverture.toFixed(2);
+  const solde = x.plafondFiable ? "solde créditeur d'ouverture" : "solde reconstitué à la clôture de l'exercice précédent";
+  if (x.borne === 'PLAFOND') {
+    return (
+      `${x.compteProvision} · ${v} au-dessus du ${solde} (${x.plafond.toFixed(2)}) · une reprise rendrait le compte débiteur ; ` +
+      `déclarez entre ${x.plancher.toFixed(2)} et ${x.plafond.toFixed(2)}`
+    );
+  }
+  if (x.contesteeAuMontant !== null) {
+    return (
+      `${x.compteProvision} · la provision passée par OmegaX a changé depuis la contestation (${x.contesteeAuMontant.toFixed(2)} ` +
+      `contestés, ${x.provisionModule.toFixed(2)} aujourd'hui) · la perte provisionnée depuis serait dotée une seconde fois ; ` +
+      `confirmez ou corrigez par une version datée plus tard (retouchée si aucune réévaluation ne l'a utilisée), entre ` +
+      `${x.plancher.toFixed(2)} et ${x.plafond.toFixed(2)} (le ${solde})`
+    );
+  }
+  return (
+    `${x.compteProvision} · ${v} sous la provision pour pertes de change passée par OmegaX jusqu'à la clôture précédente ` +
+    `(${x.provisionModule.toFixed(2)}) · la perte déjà provisionnée par OmegaX serait dotée une seconde fois ; déclarez entre ` +
+    `${x.plancher.toFixed(2)} et ${x.plafond.toFixed(2)} (le ${solde}) une version corrigée (retouchée si aucune réévaluation ne ` +
+    "l'a utilisée, sinon au début d'un exercice postérieur avec son motif), ou, si la provision du module est erronée, " +
+    'déclarez-le expressément (« La provision passée par OmegaX ne correspond pas à la provision de change réelle », avec le motif de la contestation)'
+  );
+}
+
+export interface ProvisionOuvertureNonDeclaree {
+  compteProvision: string;
+  soldeOuverture: number;
+  /** Part du solde d'ouverture expliquée par les écritures de provision OmegaX antérieures. */
+  explique: number;
+  statutOuverture: StatutSoldeOuverture;
+}
+
+const arrondiCentime = (x: number) => Math.round(x * 100) / 100;
+
+/** Reprise d'un verrou de provision laissé par un processus tombé · convention d'OmegaX, quinze minutes. */
+export const ECHEANCE_VERROU_PROVISION_MS = 15 * 60 * 1000;
+export const MOTIF_VERROU_PROVISION =
+  'Une opération sur la provision pour pertes de change est en cours sur ce dossier · réessayez après sa fin.';
+
+/**
+ * La version en vigueur à une date · la plus récente dont le début est AU
+ * PLUS TARD cette date. Elle décrit la provision existant au début d'un
+ * exercice (fiche du compte 77) · une réévaluation datée de ce jour même la
+ * trouve en place.
+ */
+export function versionEnVigueur<T extends { dateReference: Date }>(versions: T[], date: Date): T | undefined {
+  let retenue: T | undefined;
+  for (const v of versions) {
+    if (v.dateReference.getTime() > date.getTime()) continue;
+    if (!retenue || v.dateReference.getTime() > retenue.dateReference.getTime()) retenue = v;
+  }
+  return retenue;
+}
+
+/**
+ * Comptes de provision qu'une déclaration d'ouverture peut viser · ceux de la
+ * famille du référentiel, et eux seuls. Au SYCEBNL, le 194 seul (pas de 4997
+ * au semis, et l'unique couple du référentiel est 194 · 6971 / 7971).
+ */
+export function comptesProvisionDeclarables(referentiel: Referentiel): string[] {
+  return referentiel === Referentiel.SYSCOHADA
+    ? Object.values(PROVISION_SYSCOHADA).map((f) => f.provision)
+    : [PROVISION_SYCEBNL.provision];
+}
+
+/**
+ * Refus d'une déclaration de provision d'ouverture, ou `null`. Même règle à
+ * la porte et au service · compte hors de la famille du référentiel, montant
+ * négatif ou illisible (une provision est un passif, zéro admis · « ce 4991
+ * ne porte aucune perte de change » est une réponse), date illisible, source
+ * absente. La source est exigée parce que le solde du compte ne prouve rien ·
+ * le 4991 et le 4997 portent aussi d'autres risques (un litige).
+ */
+export function motifRefusDeclarationOuverture(
+  referentiel: Referentiel,
+  d: { compteProvision?: string; montant?: number; dateReference?: string; source?: string; provisionModuleContestee?: boolean; motifContestation?: string },
+): string | null {
+  const admis = comptesProvisionDeclarables(referentiel);
+  if (!d.compteProvision || !admis.includes(d.compteProvision)) {
+    return (
+      `Le compte ${d.compteProvision ?? '(absent)'} ne porte pas de provision pour pertes de change dans ce référentiel · ` +
+      `comptes admis : ${admis.join(', ')}.`
+    );
+  }
+  if (typeof d.montant !== 'number' || !Number.isFinite(d.montant) || d.montant < 0) {
+    return 'Le montant de la provision existant à l’ouverture est un nombre positif ou nul.';
+  }
+  if (!d.dateReference || Number.isNaN(new Date(d.dateReference).getTime())) {
+    return 'La date à laquelle la provision existait est exigée.';
+  }
+  if (!d.source || d.source.trim().length === 0) {
+    return 'La source du montant déclaré est exigée (pièce, balance d’ouverture, liasse de l’exercice précédent).';
+  }
+  // LA CONTESTATION SE DÉCLARE AVEC SON PROPRE MOTIF (huitième relecture) ·
+  // elle seule admet une version sous la provision du module, et le motif de
+  // correction ne la remplace pas.
+  if (d.provisionModuleContestee === true && (!d.motifContestation || d.motifContestation.trim().length === 0)) {
+    return 'La provision passée par OmegaX est déclarée erronée · dites pourquoi (motif de la contestation, distinct du motif de correction).';
+  }
+  if (d.provisionModuleContestee !== true && d.motifContestation && d.motifContestation.trim().length > 0) {
+    return 'Un motif de contestation sans contestation déclarée ne se garde pas · cochez « La provision passée par OmegaX est erronée », ou retirez ce motif.';
+  }
+  return null;
+}
 
 /** Une position en devise à réévaluer : un compte, une devise, son écart. */
 export interface PositionDevise {
@@ -193,8 +508,37 @@ export interface RapportReevaluation {
   /** Disponibilités · écarts RÉALISÉS, comptes 676 / 776. */
   perteRealisee: number;
   gainRealise: number;
-  /** Provision à doter sur la perte latente (194 par 6971). */
+  /**
+   * Provision REQUISE par la perte latente du jour (art. 54), toutes familles
+   * confondues · ce n'est pas la dotation, qui n'en est que l'écart avec la
+   * provision en place (`ajustementsProvision`).
+   */
   provision: number;
+  /**
+   * Provision en place, toutes familles confondues · la provision DÉCLARÉE à
+   * l'ouverture, plus ce que les réévaluations postérieures à sa date ont
+   * passé.
+   */
+  provisionEnPlace: number;
+  /**
+   * Comptes de provision sans version déclarée en vigueur dont le solde
+   * d'ouverture (validé, provisoire ou reconstitué) diffère de ce que les
+   * réévaluations OmegaX expliquent · la provision en place est lue sans
+   * cette part, sous RÉSERVE (null n'est pas zéro), et le passage des
+   * écritures est REFUSÉ tant qu'elle n'est pas déclarée.
+   */
+  provisionsOuvertureNonDeclarees: ProvisionOuvertureNonDeclaree[];
+  /** Vrai pendant une réserve · « Provision en place » manque la part non déclarée (M2). */
+  provisionEnPlaceIncomplete: boolean;
+  /**
+   * Versions en vigueur qui dépassent le solde créditeur d'ouverture · la
+   * reprise rendrait le compte débiteur. Le passage est REFUSÉ tant qu'elles
+   * ne sont pas corrigées (troisième relecture) · c'est le cas d'une version
+   * de N+1 déclarée avant que N ne reprenne sa provision.
+   */
+  provisionsOuvertureExcessives: ProvisionOuvertureExcessive[];
+  /** Écart à passer, famille par famille · dotation ou reprise, jamais les deux. */
+  ajustementsProvision: AjustementProvision[];
   /**
    * Provision qui serait dotée SANS position globale de change · égale à
    * `provision` quand l'option n'est pas retenue. Sert à montrer à l'écran ce
@@ -242,6 +586,8 @@ export interface RapportReevaluation {
  */
 @Injectable()
 export class DevisesService {
+  private readonly journal = new Logger(DevisesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritureService: EcritureService,
@@ -474,6 +820,32 @@ export class DevisesService {
     }
     const provision = resultat.reduce((s, p) => s + p.provisionnable, 0);
 
+    // --- AJUSTEMENT DE LA PROVISION EN PLACE · Titre VIII ch. 22 § 2.3 ------
+    //
+    // La provision requise se range par FAMILLE (le compte de provision que la
+    // nature de la position appelle), puis se rapproche de celle que les
+    // réévaluations antérieures ont laissée. Seul l'écart se passe.
+    const estSyscohada = tenant.referentiel === Referentiel.SYSCOHADA;
+    const familles = estSyscohada ? Object.values(PROVISION_SYSCOHADA) : [PROVISION_SYCEBNL];
+    const requiseParFamille = new Map<string, number>();
+    for (const p of resultat) {
+      if (p.provisionnable <= 0.005) continue;
+      const f = estSyscohada ? PROVISION_SYSCOHADA[naturePosition(p.numero)] : PROVISION_SYCEBNL;
+      requiseParFamille.set(f.provision, (requiseParFamille.get(f.provision) ?? 0) + p.provisionnable);
+    }
+    const enPlace = await this.provisionsEnPlace(tenantId, exercice, date, familles);
+    const ajustementsProvision = ajusterProvisions(familles, requiseParFamille, enPlace.parFamille).map((a) => ({
+      ...a,
+      declaree: enPlace.declarees.get(a.compteProvision) ?? null,
+      // Réserve ouverte · la part non déclarée manque, le montant est incomplet (M2).
+      enPlaceIncomplete: enPlace.nonDeclarees.some((n) => n.compteProvision === a.compteProvision),
+    })).map((a) => ({
+      ...a,
+      // Dotation et reprise calculées sur une provision en place incomplète ·
+      // PROVISOIRES, et dites telles (relecture adverse, troisième passe, point 1).
+      montantsProvisoires: a.enPlaceIncomplete,
+    }));
+
     // --- ÉTALEMENT DE L'ART. 56 · ce que le logiciel ne peut pas calculer ----
     //
     // « Lorsqu'un emprunt est contracté ou qu'un prêt est consenti à
@@ -488,7 +860,7 @@ export class DevisesService {
     // sans échéancier. Il ne peut donc pas la calculer, et il ne l'invente pas ·
     // il dote la totalité, ce qui est prudent mais dépasse ce que le texte
     // demande, et il le DIT, position par position, avec le montant à ventiler.
-    const avertissements: string[] = [];
+    const avertissements: string[] = [...enPlace.avertissements];
     for (const p of resultat) {
       if (p.estTresorerie || p.ecart >= 0) continue;
       if (!RACINES_FINANCIERES_LONGUES.test(p.numero)) continue;
@@ -513,6 +885,11 @@ export class DevisesService {
       // l'est pas · un gain latent ne se constate jamais en résultat. La
       // position globale de change est la seule exception, et sur option.
       provision: Math.round(provision * 100) / 100,
+      provisionEnPlace: Math.round(ajustementsProvision.reduce((t, a) => t + a.enPlace, 0) * 100) / 100,
+      ajustementsProvision,
+      provisionsOuvertureNonDeclarees: enPlace.nonDeclarees,
+      provisionEnPlaceIncomplete: enPlace.nonDeclarees.length > 0,
+      provisionsOuvertureExcessives: enPlace.excessives,
       provisionSansPositionGlobale: Math.round(perteLatente * 100) / 100,
       positionGlobaleRetenue: positionGlobale,
       avertissements,
@@ -523,9 +900,196 @@ export class DevisesService {
 
   /** Passe les écritures de réévaluation, et la provision qui l'accompagne. */
   async reevaluer(tenantId: string, createdBy: string, dto: ReevaluerDto) {
+    if (dto.simulation) return { rapport: await this.calculer(tenantId, dto), ecritures: [] as string[] };
+    return this.sousVerrouDuDossier(tenantId, 'REEVALUATION', () => this.reevaluerSousVerrou(tenantId, createdBy, dto));
+  }
+
+  /**
+   * UN SEUL GESTE À LA FOIS PAR DOSSIER sur la provision pour pertes de
+   * change · réévaluer, déclarer et retirer une version lisent tous « une
+   * réévaluation est-elle passée dans cette période ? », et deux gestes
+   * simultanés liraient chacun l'état d'avant l'autre.
+   *
+   * UN VERROU QUI NE RETIENT AUCUNE CONNEXION (relecture adverse, quatrième
+   * passe). Le premier verrou (`pg_advisory_xact_lock` dans une transaction
+   * gardée ouverte pendant le travail) retenait une connexion du pool pendant
+   * que le travail en réclamait d'autres · à `connection_limit=3`, trois
+   * déclarations simultanées figeaient dix secondes et finissaient en 500, et
+   * une lecture d'un AUTRE dossier attendait aussi. Ici, une LIGNE par
+   * dossier (`VerrouProvisionChange`, clé unique sur le dossier), posée par
+   * une insertion seule et retirée en `finally` · un second geste reçoit
+   * aussitôt un 409 nommé, sans attendre ni retenir quoi que ce soit.
+   *
+   * L'ÉCHÉANCE (`ECHEANCE_VERROU_PROVISION_MS`, convention d'OmegaX) ne sert
+   * qu'à reprendre la ligne d'un processus tombé avant son `finally` · elle
+   * est bien au-delà de la durée d'un geste, et c'est une borne de reprise,
+   * pas une durée de travail.
+   */
+  private async sousVerrouDuDossier<T>(tenantId: string, geste: string, travail: () => Promise<T>): Promise<T> {
+    const maintenant = new Date();
+    await this.prisma.verrouProvisionChange.deleteMany({ where: { tenantId, echeance: { lt: maintenant } } });
+    let verrou: { id: string };
+    try {
+      verrou = await this.prisma.verrouProvisionChange.create({
+        data: { tenantId, geste, echeance: new Date(maintenant.getTime() + ECHEANCE_VERROU_PROVISION_MS) },
+        select: { id: true },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // Le refus dit DEPUIS QUAND le geste en cours tient le verrou et QUAND
+        // il échoit (cinquième passe, mineur 2) · un processus tombé laisse sa
+        // ligne jusqu'à l'échéance, et « dans un instant » mentirait.
+        const tenu = await this.prisma.verrouProvisionChange.findFirst({
+          where: { tenantId },
+          select: { geste: true, createdAt: true, echeance: true },
+        });
+        throw new ConflictException(
+          tenu
+            ? `${MOTIF_VERROU_PROVISION} Geste en cours · ${tenu.geste}, depuis le ${tenu.createdAt.toISOString()} ; ` +
+                `le verrou échoit au plus tard le ${tenu.echeance.toISOString()}.`
+            : MOTIF_VERROU_PROVISION,
+        );
+      }
+      throw e;
+    }
+    let resultat!: T;
+    let erreur: unknown = null;
+    let echec = false;
+    try {
+      resultat = await travail();
+    } catch (e) {
+      echec = true;
+      erreur = e;
+    }
+    try {
+      await this.prisma.verrouProvisionChange.deleteMany({ where: { tenantId, id: verrou.id } });
+    } catch (liberation) {
+      // Le retrait du verrou a échoué · il ne MASQUE jamais l'issue du geste.
+      // Consigné, et la ligne tombera à son échéance.
+      this.journal.error(
+        `Verrou de provision du dossier ${tenantId} non retiré · il échoit à son échéance`,
+        liberation instanceof Error ? liberation.stack : String(liberation),
+      );
+    }
+    if (echec) throw erreur;
+    return resultat;
+  }
+
+  /**
+   * RÉÉVALUER DANS L'ORDRE DES EXERCICES (relecture adverse, troisième passe ·
+   * décision du coordinateur pour Manasse, 2026-10-02). Fiche du compte 19 ·
+   * « Le compte 19 est réajusté à la clôture de CHAQUE exercice, soit par
+   * dotations supplémentaires, soit par reprises des provisions antérieures »
+   * · chaque réajustement part du précédent. Et règle d'OmegaX déjà posée
+   * pour la clôture (« Clôture DANS L'ORDRE · refus si un antérieur est
+   * ouvert », CLAUDE.md). Réévaluer N+1 avant N dotait deux fois la même
+   * perte · N+1 lisait au 4991 un à-nouveau sans la provision que N n'avait
+   * pas encore passée, et N la passait ensuite sur sa propre ouverture.
+   * L'exercice est REFUSÉ tant qu'un exercice antérieur ENCORE OUVERT n'est ni
+   * réévalué ni SANS OBJET (aucune position à convertir, aucune provision à
+   * doter ou reprendre, aucune réserve ouverte) · sans cette exception, un N
+   * sans devises ne pourrait jamais être réévalué et rouvrirait l'impasse.
+   * Un antérieur CLÔTURÉ ne bloque pas.
+   */
+  private async motifRefusOrdre(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
+    const anterieurs = await this.prisma.exercice.findMany({
+      where: { tenantId, dateFin: { lt: exercice.dateDebut }, statut: { not: StatutExercice.CLOTURE } },
+      orderBy: { dateDebut: 'asc' },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    for (const e of anterieurs) {
+      const passee = await this.prisma.reevaluation.findFirst({ where: { tenantId, exerciceId: e.id }, select: { id: true } });
+      if (passee) continue;
+      const r = await this.calculer(tenantId, { exerciceId: e.id });
+      const sansObjet =
+        r.positions.length === 0 &&
+        !r.ajustementsProvision.some((a) => a.dotation > 0.005 || a.reprise > 0.005) &&
+        r.provisionsOuvertureNonDeclarees.length === 0 &&
+        // Une version incohérente bloque comme une réserve (septième passe,
+        // mineur 3) · l'antérieur ne peut pas se réévaluer, ni donc la suite.
+        r.provisionsOuvertureExcessives.length === 0;
+      if (sansObjet) continue;
+      const jour = (d: Date) => d.toISOString().slice(0, 10);
+      if (r.provisionsOuvertureExcessives.length > 0) {
+        return (
+          `L'exercice du ${jour(e.dateDebut)} au ${jour(e.dateFin)}, antérieur et encore ouvert, porte une provision pour pertes ` +
+          `de change déclarée à l'ouverture qui ne concorde pas avec son ouverture (${r.provisionsOuvertureExcessives
+            .map(libelleVersionHorsBornes)
+            .join(' ; ')}) · mettez-la à jour, puis réévaluez-le s'il a des positions.`
+        );
+      }
+      // Ce qui bloque est la provision d'ouverture non déclarée de cet
+      // exercice · on le dit, plutôt que « réévaluez-le » qu'il refuserait
+      // (sixième passe, m1).
+      if (r.provisionsOuvertureNonDeclarees.length > 0) {
+        return (
+          `L'exercice du ${jour(e.dateDebut)} au ${jour(e.dateFin)}, antérieur et encore ouvert, porte une provision pour pertes ` +
+          `de change à l'ouverture non déclarée (${r.provisionsOuvertureNonDeclarees.map((n) => n.compteProvision).join(', ')}) · ` +
+          "déclarez-la au début de cet exercice (montant, source ; zéro si le solde porte un autre risque), puis réévaluez-le " +
+          "s'il a des positions. La provision se réajuste à la clôture de chaque exercice à partir de la précédente (fiche du compte 19)."
+        );
+      }
+      return (
+        `L'exercice du ${jour(e.dateDebut)} au ${jour(e.dateFin)}, antérieur et encore ouvert, n'est pas réévalué · ` +
+        "réévaluez-le d'abord. La provision pour pertes de change se réajuste à la clôture de chaque exercice à partir " +
+        "de la précédente (fiche du compte 19) · réévaluer celui-ci avant doterait deux fois la même perte."
+      );
+    }
+    return null;
+  }
+
+  private async reevaluerSousVerrou(tenantId: string, createdBy: string, dto: ReevaluerDto) {
+    const exerciceCourant = await this.prisma.exercice.findFirst({
+      where: { id: dto.exerciceId, tenantId },
+      select: { id: true, dateDebut: true },
+    });
+    if (!exerciceCourant) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    const refusOrdre = await this.motifRefusOrdre(tenantId, exerciceCourant);
+    if (refusOrdre) throw new BadRequestException(refusOrdre);
     const rapport = await this.calculer(tenantId, dto);
-    if (dto.simulation) return { rapport, ecritures: [] as string[] };
-    if (rapport.positions.length === 0) {
+    // La réserve et la version incohérente se disent AVANT « aucune position »
+    // (sixième passe, m1) · un exercice sans devise mais à provision
+    // d'ouverture non déclarée doit dire ce qui manque, pas qu'il n'a rien.
+    // LA RÉSERVE « NON DÉCLARÉE » ARRÊTE LE PASSAGE (décision de Manasse du
+    // 2026-10-02, Q1), jamais le calcul, qui reste affichable avec elle. Fiche
+    // du compte 19 · « Le compte 19 est réajusté à la clôture de chaque
+    // exercice, soit par dotations supplémentaires, soit par reprises des
+    // provisions antérieures » · on ne réajuste pas sans connaître la
+    // provision antérieure. Et l'erreur laisserait l'écriture équilibrée et la
+    // balance bouclée (CLAUDE.md § 10 bis) · elle se refuse à la racine.
+    //
+    // Les écarts 478 / 479 (art. 54) sont arrêtés AVEC la provision, et ce
+    // n'est pas un choix de confort · une seule réévaluation par exercice
+    // (index unique, audit final F54) porte les deux écritures, si bien que
+    // passer les écarts seuls fermerait la porte à la provision de l'exercice.
+    // La déclaration, zéro compris, lève le refus en un geste.
+    if (rapport.provisionsOuvertureNonDeclarees.length > 0) {
+      throw new BadRequestException(
+        `Provision pour pertes de change à l'ouverture non déclarée (${rapport.provisionsOuvertureNonDeclarees
+          .map((n) => n.compteProvision)
+          .join(', ')}) · déclarez-la (montant, source ; zéro si le solde porte un autre risque) avant de passer ` +
+          "les écritures. La provision antérieure doit être connue pour être réajustée (fiche du compte 19).",
+      );
+    }
+    // UNE VERSION QUI DÉPASSE L'OUVERTURE NE SE PASSE PAS (troisième relecture)
+    // · déclarée au début de N+1 avant que N ne reprenne une part de sa
+    // provision, elle ferait reprendre en N+1 ce que N a déjà repris, et le
+    // compte finirait au-dessous de la perte requise, écriture équilibrée et
+    // balance bouclée (CLAUDE.md § 10 bis). Le calcul le montre ; le passage
+    // attend la correction de la version (motif, Q2).
+    if (rapport.provisionsOuvertureExcessives.length > 0) {
+      throw new BadRequestException(
+        `La provision pour pertes de change déclarée à l'ouverture ne concorde pas avec l'ouverture (${rapport.provisionsOuvertureExcessives
+          .map(libelleVersionHorsBornes)
+          .join(' ; ')}) · mettez la déclaration à jour avant de passer les écritures.`,
+      );
+    }
+    // Sans position, il reste à REPRENDRE la provision des positions dénouées
+    // (ch. 22 § 2.3) · une créance encaissée dans l'exercice ne laisse aucun
+    // écart, mais sa provision de l'an passé est toujours au passif. Refuser
+    // ici la gardait pour toujours.
+    const aAjuster = rapport.ajustementsProvision.some((a) => a.dotation > 0.005 || a.reprise > 0.005);
+    if (rapport.positions.length === 0 && !aAjuster) {
       throw new BadRequestException("Aucune position en devise à réévaluer à cette date.");
     }
     if (rapport.coursManquants.length > 0) {
@@ -602,16 +1166,19 @@ export class DevisesService {
       }
     }
 
-    const ecritureEcarts = await this.ecritureService.creer(tenantId, createdBy, {
-      exerciceId: dto.exerciceId,
-      journalId: journal.id,
-      date: rapport.dateReevaluation,
-      libelle: `Réévaluation des créances et dettes en devises au ${rapport.dateReevaluation}`,
-      reference: 'REEVAL',
-      lignes,
-    });
+    const ecritureEcarts =
+      lignes.length > 0
+        ? await this.ecritureService.creer(tenantId, createdBy, {
+            exerciceId: dto.exerciceId,
+            journalId: journal.id,
+            date: rapport.dateReevaluation,
+            libelle: `Réévaluation des créances et dettes en devises au ${rapport.dateReevaluation}`,
+            reference: 'REEVAL',
+            lignes,
+          })
+        : null;
 
-    // --- Provision sur la perte latente ------------------------------------
+    // --- Ajustement de la provision ----------------------------------------
     //
     // La provision se VENTILE par nature de position en SYSCOHADA : une perte
     // sur créance client est une charge d'exploitation (6591 / 4991), une
@@ -620,37 +1187,41 @@ export class DevisesService {
     // tout au financier et fausse les deux soldes intermédiaires sans qu'un
     // seul total du compte de résultat ne bouge. En SYCEBNL, toutes les
     // positions retombent sur l'unique couple du référentiel.
+    //
+    // Et seul l'ÉCART avec la provision en place se passe (ch. 22 § 2.3) ·
+    // dotation de la hausse, reprise de la baisse, au compte de SA famille.
+    // Une même perte n'est donc jamais dotée deux fois, et une provision dont
+    // la position a disparu est reprise.
     let ecritureProvision: { id: string } | null = null;
-    if (rapport.provision > 0.005) {
-      const parNature = new Map<NaturePosition, number>();
-      for (const p of rapport.positions) {
-        // `provisionnable` et non `-ecart` : la position globale de change
-        // (art. 58) a pu réduire la dotation, et la réduction doit se répartir
-        // sur les natures au prorata, pas s'imputer sur l'une d'elles.
-        if (p.provisionnable <= 0.005) continue; // seule la perte LATENTE se provisionne
-        const nature = estSyscohada ? naturePosition(p.numero) : 'FINANCIER_LONG';
-        parNature.set(nature, Math.round(((parNature.get(nature) ?? 0) + p.provisionnable) * 100) / 100);
+    const lignesProvision: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];
+    for (const a of rapport.ajustementsProvision) {
+      if (a.dotation <= 0.005 && a.reprise <= 0.005) continue;
+      const nature = estSyscohada ? ` (${a.compteProvision === '4991' ? 'exploitation' : 'financier'})` : '';
+      const provision = await compte(a.compteProvision);
+      if (a.dotation > 0.005) {
+        const dotation = await compte(a.compteDotation);
+        lignesProvision.push({ compteId: dotation.id, debit: a.dotation, libelle: `Dotation provision perte de change${nature}` });
+        lignesProvision.push({ compteId: provision.id, credit: a.dotation, libelle: `Provision pour pertes de change${nature}` });
+      } else {
+        const reprise = await compte(a.compteReprise);
+        lignesProvision.push({ compteId: provision.id, debit: a.reprise, libelle: `Provision pour pertes de change${nature}` });
+        lignesProvision.push({ compteId: reprise.id, credit: a.reprise, libelle: `Reprise provision perte de change${nature}` });
       }
-      const lignesProvision: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];
-      for (const [nature, montant] of parNature) {
-        if (montant <= 0.005) continue;
-        const couple = estSyscohada
-          ? PROVISION_SYSCOHADA[nature]
-          : { dotation: RACINE.dotationProvision, provision: RACINE.provision };
-        const [dotation, provision] = await Promise.all([compte(couple.dotation), compte(couple.provision)]);
-        const suffixe = estSyscohada ? ` (${nature === 'EXPLOITATION' ? 'exploitation' : 'financier'})` : '';
-        lignesProvision.push({ compteId: dotation.id, debit: montant, libelle: `Dotation provision perte de change${suffixe}` });
-        lignesProvision.push({ compteId: provision.id, credit: montant, libelle: `Provision pour pertes de change${suffixe}` });
-      }
-      if (lignesProvision.length > 0) {
+    }
+    if (lignesProvision.length > 0) {
+      try {
         ecritureProvision = await this.ecritureService.creer(tenantId, createdBy, {
           exerciceId: dto.exerciceId,
           journalId: journal.id,
           date: rapport.dateReevaluation,
-          libelle: `Provision pour perte de change au ${rapport.dateReevaluation}`,
+          libelle: `Provision pour perte de change au ${rapport.dateReevaluation} · ajustement`,
           reference: 'REEVAL',
           lignes: lignesProvision,
         });
+      } catch (e) {
+        // L'écriture des écarts resterait sans détenteur (audit F10).
+        if (ecritureEcarts) await this.ecritureService.retirerCompensation(tenantId, ecritureEcarts.id);
+        throw e;
       }
     }
 
@@ -663,13 +1234,13 @@ export class DevisesService {
           tenantId,
           exerciceId: dto.exerciceId,
           dateReevaluation: new Date(rapport.dateReevaluation),
-          ecritureEcartsId: ecritureEcarts.id,
+          ecritureEcartsId: ecritureEcarts?.id,
           ecritureProvisionId: ecritureProvision?.id,
           createdBy,
         },
       });
     } catch (e) {
-      await this.ecritureService.retirerCompensation(tenantId, ecritureEcarts.id);
+      if (ecritureEcarts) await this.ecritureService.retirerCompensation(tenantId, ecritureEcarts.id);
       if (ecritureProvision) await this.ecritureService.retirerCompensation(tenantId, ecritureProvision.id);
       throw e;
     }
@@ -677,7 +1248,7 @@ export class DevisesService {
     return {
       rapport,
       reevaluationId: reevaluation.id,
-      ecritures: [ecritureEcarts.id, ...(ecritureProvision ? [ecritureProvision.id] : [])],
+      ecritures: [...(ecritureEcarts ? [ecritureEcarts.id] : []), ...(ecritureProvision ? [ecritureProvision.id] : [])],
     };
   }
 
@@ -752,6 +1323,747 @@ export class DevisesService {
         ecritureExtourne: { select: { id: true, numeroPiece: true, date: true } },
       },
     });
+  }
+
+  /**
+   * Provision pour pertes de change EN PLACE à la date, famille par famille ·
+   * la VERSION DÉCLARÉE en vigueur à la date (dossier repris), plus la somme,
+   * crédits moins débits, des écritures de provision des réévaluations
+   * ANTÉRIEURES à la date et datées au plus tôt du début de l'exercice de la
+   * version, lue sur les comptes de provision.
+   *
+   * La déclaration d'abord (décision de Manasse du 2026-10-02) · fiche du
+   * compte 19, « Le compte 19 est réajusté à la clôture de chaque exercice,
+   * soit par dotations supplémentaires, soit par reprises des provisions
+   * antérieures » ; fiche du compte 77, le 779 reprend les provisions
+   * « existant au début de l'exercice ». La provision à ajuster est celle qui
+   * EXISTE, pas seulement celle qu'OmegaX a passée · un dossier repris avec
+   * 100 000 au 4991 et aucune réévaluation OmegaX les verrait à zéro, et la
+   * même perte serait dotée une seconde fois. Les réévaluations antérieures à
+   * l'ouverture de la version sont DANS le montant déclaré, et ne s'y
+   * ajoutent pas.
+   *
+   * Lue sur les réévaluations, et non sur le solde du compte, pour deux
+   * raisons. Le 4991 et le 4997 portent aussi d'autres risques à court terme
+   * (« Provisions pour risques à court terme · sur opérations d'exploitation »)
+   * · leur solde ferait reprendre une provision pour litige comme si c'était
+   * une perte de change. Et le solde de l'exercice ne porte la provision de
+   * N-1 qu'après le report à-nouveau, quand N+1 s'ouvre avant la clôture de N
+   * (AUDCIF art. 23).
+   *
+   * Ce que le module ne voit pas se DIT, et ce qui fausserait l'ajustement se
+   * RÉSERVE.
+   *  (1) Une écriture de l'exercice passée à la main sur un de ces comptes,
+   *      hors report à-nouveau, peut être une reprise que l'ajustement
+   *      doublerait ; rien n'est retranché d'office.
+   *  (2) RÉSERVE « NON DÉCLARÉE » (relecture adverse B1) · sans version en
+   *      vigueur, le solde d'ouverture du compte doit être EXPLIQUÉ par les
+   *      écritures de provision OmegaX antérieures à l'ouverture. Un écart,
+   *      quel qu'il soit, est une provision venue d'ailleurs (dossier repris,
+   *      écriture manuelle) que le module ne connaît pas · un dossier repris
+   *      à 100 000, doté de 100 000 par OmegaX en N, s'ouvre en N+1 à 200 000
+   *      et serait lu à 100 000 chaque année. Il ne suffit donc pas qu'une
+   *      réévaluation OmegaX existe.
+   *  (3) Une version en vigueur dont la provision à l'ouverture DÉPASSE le
+   *      solde créditeur d'ouverture du compte est signalée (m2) · la reprise
+   *      rendrait le compte débiteur.
+   * Le solde d'ouverture est l'à-nouveau validé, sinon l'à-nouveau au
+   * brouillard (bilan d'ouverture importé, à-nouveau provisoire), sinon le
+   * report reconstitué du livre-journal de l'exercice précédent
+   * (`soldesOuverture`) · la réserve joue sur chacun.
+   */
+  private async provisionsEnPlace(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date },
+    date: Date,
+    familles: FamilleProvisionChange[],
+  ): Promise<{
+    parFamille: Map<string, number>;
+    declarees: Map<string, number>;
+    nonDeclarees: ProvisionOuvertureNonDeclaree[];
+    excessives: ProvisionOuvertureExcessive[];
+    avertissements: string[];
+  }> {
+    const { enVigueur, parFamille, reevaluations, etats, exercices } = await this.etatsOuverture(
+      tenantId,
+      exercice,
+      familles.map((f) => f.provision),
+      date,
+    );
+    const declarees = new Map<string, number>();
+    for (const [compte, v] of enVigueur) declarees.set(compte, v.montant);
+
+    const idsDuModule = reevaluations.map((r) => r.ecritureProvisionId).filter((id): id is string => !!id);
+    const avertissements: string[] = [];
+    const nonDeclarees: ProvisionOuvertureNonDeclaree[] = [];
+    const excessives: ProvisionOuvertureExcessive[] = [];
+    for (const f of familles) {
+      const hors = await this.prisma.ligneEcriture.aggregate({
+        where: {
+          compte: { tenantId, numero: { startsWith: f.provision } },
+          ecriture: {
+            tenantId,
+            exerciceId: exercice.id,
+            date: { lte: date },
+            estGenereeParCloture: false,
+            estANouveauProvisoire: false,
+            ...(idsDuModule.length > 0 ? { id: { notIn: idsDuModule } } : {}),
+          },
+        },
+        _count: { _all: true },
+      });
+      const nombre = hors._count?._all ?? 0;
+      if (nombre > 0) {
+        avertissements.push(
+          `Le compte ${f.provision} porte ${nombre} ligne(s) passée(s) dans l'exercice hors réévaluation. ` +
+            "La provision pour perte de change en place est lue sur les seules réévaluations passées · " +
+            "si l'une de ces lignes dote ou reprend une provision pour perte de change, l'ajustement proposé la doublerait.",
+        );
+      }
+
+      // CE QUE LA CLÔTURE PRÉCÉDENTE NE VOIT PAS (cinquième passe, mineur 3) ·
+      // la provision d'un exercice antérieur encore ouvert se lit sur son
+      // à-nouveau et sur les écritures du module ; une ligne passée à la main
+      // sur ce compte dans cet exercice (reprise de balance, litige) n'y est
+      // pas, et un exercice sans position passe « sans objet ». Elle se dit ici.
+      const anterieursOuverts = exercices.filter(
+        (x) => x.statut !== StatutExercice.CLOTURE && x.dateFin.getTime() < exercice.dateDebut.getTime(),
+      );
+      if (anterieursOuverts.length > 0) {
+        const horsAnterieurs = await this.prisma.ligneEcriture.aggregate({
+          where: {
+            compte: { tenantId, numero: { startsWith: f.provision } },
+            ecriture: {
+              tenantId,
+              exerciceId: { in: anterieursOuverts.map((x) => x.id) },
+              estGenereeParCloture: false,
+              estANouveauProvisoire: false,
+              ...(idsDuModule.length > 0 ? { id: { notIn: idsDuModule } } : {}),
+            },
+          },
+          _count: { _all: true },
+        });
+        const nombreAnterieur = horsAnterieurs._count?._all ?? 0;
+        if (nombreAnterieur > 0) {
+          avertissements.push(
+            `Le compte ${f.provision} porte ${nombreAnterieur} ligne(s) passée(s) hors réévaluation dans un exercice antérieur encore ` +
+              "ouvert · la provision lue à la clôture précédente ne les compte pas. Si elles dotent ou reprennent une provision pour " +
+              "perte de change, déclarez la provision au début de l'exercice.",
+          );
+        }
+      }
+
+      const e = etats.get(f.provision)!;
+      const ouverture = e.ouverture;
+      const provisoire = ouverture.statut === 'IMPORTE' ? ' (à-nouveau au brouillard, bilan d’ouverture importé, provisoire, non validé)' : '';
+      if (e.horsBornes) {
+        // Le message nomme ce qui n'est pas à jour et dit quoi faire, jamais de
+        // retirer (cinquième passe) · sans version, la provision serait relue
+        // ailleurs, et une perte pourrait se doter sans source.
+        const x = e.horsBornes;
+        excessives.push(x);
+        avertissements.push(
+          `La provision pour pertes de change déclarée à l'ouverture ne concorde pas avec l'ouverture${x.plafondFiable ? provisoire : ''} · ` +
+            `${libelleVersionHorsBornes(x)}.`,
+        );
+      }
+      if (!e.reserve) continue;
+      const explique = e.explique;
+      nonDeclarees.push({ compteProvision: f.provision, soldeOuverture: ouverture.montant, explique, statutOuverture: ouverture.statut });
+      const sens =
+        explique > ouverture.montant
+          ? `alors que les réévaluations OmegaX en expliquent ${explique.toFixed(2)}, plus que ce solde`
+          : `dont les réévaluations OmegaX n'expliquent que ${explique.toFixed(2)}`;
+      const consigne =
+        "la provision pour pertes de change existant à l'ouverture n'est pas déclarée · elle est lue sans cette part, sous " +
+        "réserve, et l'ajustement ne se passe pas tant qu'elle n'est pas déclarée (montant, source ; zéro si ce solde porte " +
+        'un autre risque).';
+      if (ouverture.statut === 'CLOTURE_PRECEDENTE') {
+        // La clôture précédente reconstituée n'est pas expliquée (S8) · un
+        // à-nouveau ou une écriture entrés dans l'exercice précédent après sa
+        // réévaluation.
+        avertissements.push(
+          `Le compte ${f.provision} s'ouvre, faute d'à-nouveau validé, sur son solde à la clôture de l'exercice précédent ` +
+            `reconstitué de ses écritures (${ouverture.montant.toFixed(2)}), ${sens} · un à-nouveau ou une écriture entrés dans ` +
+            `cet exercice après sa réévaluation n'y sont pas expliqués (une provision pour litige du même compte, par exemple), ` +
+            `et ${consigne} Deux issues · déclarez au début de l'exercice la part de change (au plus ${ouverture.montant.toFixed(2)}), ` +
+            "ou clôturez l'exercice précédent pour que son à-nouveau soit validé.",
+        );
+        continue;
+      }
+      // UN SEUL MESSAGE PAR CAUSE (sixième passe, m3) · la clôture précédente ne
+      // se nomme que si elle dit autre chose que la part expliquée.
+      const clotureDitAutreChose =
+        ouverture.cloturePrecedente !== null &&
+        Math.abs(ouverture.montant - ouverture.cloturePrecedente) >= 0.005 &&
+        Math.abs(ouverture.cloturePrecedente - explique) >= 0.005;
+      if (clotureDitAutreChose) {
+        avertissements.push(
+          `L'à-nouveau du compte ${f.provision} (${ouverture.montant.toFixed(2)}${provisoire}) ne concorde pas avec le solde du ` +
+            `compte reconstitué à la clôture de l'exercice précédent (${ouverture.cloturePrecedente!.toFixed(2)}) · ` +
+            `déclarez au début de l'exercice la part de ${ouverture.montant.toFixed(2)} qui couvre des pertes de change (montant, source ; ` +
+            'zéro si ce solde porte un autre risque).',
+        );
+      }
+      if (Math.abs(ouverture.montant - explique) >= 0.005 || !clotureDitAutreChose) {
+        avertissements.push(
+          `Le compte ${f.provision} s'ouvre avec un solde de ${ouverture.montant.toFixed(2)}${provisoire}, ${sens}, et ${consigne}`,
+        );
+      }
+    }
+    return { parFamille, declarees, nonDeclarees, excessives, avertissements };
+  }
+
+  /**
+   * ÉTAT D'OUVERTURE des comptes de provision, lu UNE fois pour le calcul et
+   * pour l'écran (relecture adverse M1 · l'écran ne recalcule rien) ·
+   *  · la version en vigueur à la date et la provision EN PLACE à la date
+   *    (version + réévaluations OmegaX antérieures à la date et datées depuis
+   *    son début, sinon toutes les réévaluations antérieures) ;
+   *  · l'OUVERTURE de l'exercice et sa nature (`ouverturesDe`) ;
+   *  · la part EXPLIQUÉE par les écritures de provision OmegaX antérieures à
+   *    l'ouverture, d'où la RÉSERVE « non déclarée » (B1) · sans version en
+   *    vigueur, TOUTE ouverture s'y confronte · un à-nouveau non provisoire
+   *    (et, nommée, la clôture précédente calculée), comme la clôture
+   *    précédente reconstituée quand l'à-nouveau n'est que provisoire, qui
+   *    repart de l'ouverture de l'exercice précédent et peut porter un
+   *    à-nouveau arrivé APRÈS sa réévaluation (sixième passe, S8) ;
+   *  · la provision en place À L'OUVERTURE (version + réévaluations depuis son
+   *    début jusqu'à l'ouverture) et ses BORNES (`bornesDeVersion`) · au-dessus
+   *    du solde (la reprise rendrait le compte débiteur), ou sous la provision
+   *    du module à la clôture précédente (la perte serait dotée deux fois).
+   */
+  private async etatsOuverture(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date },
+    racines: string[],
+    date: Date,
+  ) {
+    const ctx = await this.contexteProvision(tenantId);
+    const enVigueur = new Map<string, { montant: number; dateReference: Date; contesteeAuMontant: number | null }>();
+    for (const racine of racines) {
+      const v = versionEnVigueur(
+        ctx.versions.filter((x) => x.compteProvision === racine),
+        date,
+      );
+      if (v) {
+        enVigueur.set(racine, {
+          montant: Number(v.montant),
+          dateReference: v.dateReference,
+          // Une contestation sans montant figé ne couvre rien · elle ne sait pas ce qu'elle contestait.
+          contesteeAuMontant:
+            v.provisionModuleContestee === true && v.provisionModuleContesteeMontant !== null && v.provisionModuleContesteeMontant !== undefined
+              ? Number(v.provisionModuleContesteeMontant)
+              : null,
+        });
+      }
+    }
+    const parFamille = new Map<string, number>();
+    for (const racine of racines) {
+      const v = enVigueur.get(racine);
+      // Antérieures à la date, et depuis le début de la version · les autres
+      // sont dans le montant déclaré.
+      const montant =
+        (v?.montant ?? 0) + sommeProvision(ctx.lignes, racine, v ? v.dateReference : null, date, false);
+      if (v || Math.abs(montant) >= 0.005) parFamille.set(racine, montant);
+    }
+
+    const ouvertures = await this.ouverturesDe(tenantId, exercice, racines, ctx);
+    const etats = new Map<
+      string,
+      {
+        ouverture: OuvertureProvision;
+        explique: number;
+        enPlaceOuverture: number | null;
+        depasse: boolean;
+        horsBornes: ProvisionOuvertureExcessive | null;
+        bornes: { plancher: number; plafond: number; module: number };
+        reserve: boolean;
+      }
+    >();
+    for (const racine of racines) {
+      const ouverture = ouvertures.get(racine)!;
+      const v = enVigueur.get(racine);
+      const explique = arrondiCentime(sommeProvision(ctx.lignes, racine, null, exercice.dateDebut, false));
+      const enPlaceOuverture = v
+        ? arrondiCentime(v.montant + sommeProvision(ctx.lignes, racine, v.dateReference, exercice.dateDebut, false))
+        : null;
+      // UNE VERSION SE LIT ENTRE DEUX BORNES (huitième relecture), sur les
+      // trois chemins à la fois · l'aiguillage qui jugeait un solde fiable par
+      // le seul plafond, un solde reconstitué inexpliqué par le seul plafond,
+      // et sinon l'égalité à la provision du module, est retiré · il laissait
+      // passer une version périmée dès qu'un franc entrait à la main au compte
+      // ou que l'exercice précédent était clôturé (X1, X3).
+      const bornes = bornesDeVersion(ouverture, explique);
+      let horsBornes: ProvisionOuvertureExcessive | null = null;
+      if (enPlaceOuverture !== null && v) {
+        // LA CONTESTATION EST RATTACHÉE À UN MONTANT (neuvième relecture) ·
+        // elle n'écarte le plancher que tant que la provision du module à la
+        // clôture précédente reste celle qu'elle a contestée. Déclarée avant
+        // une réévaluation qui dote ensuite, elle ne couvre pas cette dotation
+        // (Y9, Y9b) · sans ce rattachement, la version périmée revenait.
+        const contestationValable = v.contesteeAuMontant !== null && Math.abs(v.contesteeAuMontant - bornes.module) < 0.005;
+        const sousLePlancher = enPlaceOuverture < bornes.plancher - 0.005;
+        const borne: BorneVersion | null =
+          enPlaceOuverture > bornes.plafond + 0.005
+            ? 'PLAFOND'
+            : sousLePlancher && !contestationValable
+              ? 'PLANCHER'
+              : null;
+        if (borne) {
+          horsBornes = {
+            compteProvision: racine,
+            enPlaceOuverture,
+            borne,
+            plancher: bornes.plancher,
+            plafond: bornes.plafond,
+            plafondFiable: ouverture.fiable,
+            provisionModule: bornes.module,
+            contesteeAuMontant: borne === 'PLANCHER' && v.contesteeAuMontant !== null ? v.contesteeAuMontant : null,
+          };
+        }
+      }
+      const depasse = horsBornes !== null;
+      etats.set(racine, {
+        ouverture,
+        explique,
+        enPlaceOuverture,
+        depasse,
+        horsBornes,
+        bornes,
+        // Sans version, TOUTE ouverture se confronte à la part expliquée, la
+        // clôture précédente calculée comprise (sixième passe) · elle repart de
+        // l'ouverture de l'exercice précédent, qui peut être un à-nouveau
+        // arrivé APRÈS sa réévaluation, et rien d'autre ne le confronterait.
+        reserve:
+          !v &&
+          (Math.abs(ouverture.montant - explique) >= 0.005 ||
+            (ouverture.fiable &&
+              ouverture.cloturePrecedente !== null &&
+              Math.abs(ouverture.montant - ouverture.cloturePrecedente) >= 0.005)),
+      });
+    }
+    return { enVigueur, parFamille, reevaluations: ctx.reevaluations, etats, exercices: ctx.exercices };
+  }
+
+  /** Versions, écritures de provision OmegaX et exercices du dossier, lus une fois. */
+  private async contexteProvision(tenantId: string) {
+    // Quelques versions par compte et par dossier · une par exercice au plus.
+    const versions = await this.prisma.provisionChangeOuverture.findMany({
+      where: { tenantId },
+      select: {
+        compteProvision: true,
+        montant: true,
+        dateReference: true,
+        provisionModuleContestee: true,
+        provisionModuleContesteeMontant: true,
+      },
+      orderBy: { dateReference: 'asc' },
+    });
+    // Une réévaluation par exercice (index unique) · bornée par le nombre d'exercices.
+    const reevaluations = await this.prisma.reevaluation.findMany({
+      where: { tenantId, ecritureProvisionId: { not: null } },
+      select: {
+        dateReevaluation: true,
+        ecritureProvisionId: true,
+        ecritureProvision: {
+          select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
+        },
+      },
+    });
+    const lignes: LigneProvisionOmegax[] = [];
+    for (const r of reevaluations) {
+      for (const l of r.ecritureProvision?.lignes ?? []) {
+        lignes.push({ date: r.dateReevaluation, numero: l.compte.numero, montant: Number(l.credit) - Number(l.debit) });
+      }
+    }
+    const exercices = await this.prisma.exercice.findMany({
+      where: { tenantId },
+      select: { id: true, dateDebut: true, dateFin: true, statut: true },
+      orderBy: { dateDebut: 'asc' },
+    });
+    return { versions, reevaluations, lignes, exercices };
+  }
+
+  /**
+   * L'OUVERTURE de la provision d'un exercice, compte par compte (relecture
+   * adverse, quatrième passe). La provision existant au début de l'exercice
+   * est un FAIT (fiche du compte 77) ; seul ce qui est validé est au
+   * livre-journal (AUDCIF art. 22, 2°).
+   *  · VALIDE · l'à-nouveau validé de l'exercice, solde comptable FIABLE ;
+   *  · IMPORTE · faute de lui, l'à-nouveau au brouillard d'un exercice sans
+   *    précédent dans OmegaX · le bilan d'ouverture importé d'un dossier
+   *    repris, solde comptable FIABLE (m3) ;
+   *  · CLOTURE_PRECEDENTE · faute d'à-nouveau validé, quand un exercice
+   *    précède · la provision EN PLACE À SA CLÔTURE telle que le module la
+   *    calcule (version en vigueur + écritures de provision OmegaX, tous
+   *    statuts), récursivement jusqu'à un à-nouveau validé, un bilan importé
+   *    ou une version. Ni l'à-nouveau provisoire ni un report reconstitué ·
+   *    tous deux lisent le seul livre-journal, alors que la réévaluation
+   *    passe sa provision au brouillard, si bien qu'ils portaient 0 au 4991
+   *    après une dotation de 100 000, et que N+1 la dotait une seconde fois
+   *    ou se voyait refuser une déclaration juste. Ce n'est pas un solde
+   *    comptable · aucune réserve ne s'y compare ;
+   *  · AUCUN · ni à-nouveau ni exercice précédent · zéro, fiable.
+   */
+  private async ouverturesDe(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date },
+    racines: string[],
+    ctx: ContexteProvision,
+  ): Promise<Map<string, OuvertureProvision>> {
+    const rendu = new Map<string, OuvertureProvision>();
+    // UN À-NOUVEAU QUI N'EST PAS UN À-NOUVEAU PROVISOIRE D'OMEGAX (relecture
+    // adverse, cinquième passe) · bilan d'ouverture importé, report de la
+    // clôture, validé ou au brouillard · est un solde comptable FIABLE, et il
+    // PRIME sur la clôture précédente, quel que soit le précédent. Un dossier
+    // repris garde souvent un N-1 pour les comparatifs (vide, ou reprise de
+    // balance) · lire alors la clôture de N-1 effaçait le bilan importé dans
+    // N, et la même perte était dotée deux fois, ou une déclaration juste
+    // refusée. Seul l'À-NOUVEAU PROVISOIRE (`estANouveauProvisoire`), lu sur
+    // le seul livre-journal, cède la place à la clôture précédente.
+    const nonProvisoire = {
+      tenantId,
+      exerciceId: exercice.id,
+      estGenereeParCloture: true,
+      estSoldeDesComptesDeGestion: false,
+      estANouveauProvisoire: false,
+    };
+    const precedent = [...ctx.exercices]
+      .filter((e) => e.dateFin.getTime() < exercice.dateDebut.getTime())
+      .sort((x, y) => y.dateFin.getTime() - x.dateFin.getTime())[0];
+    if ((await this.prisma.ecriture.count({ where: { ...nonProvisoire, tenantId } })) > 0) {
+      const auBrouillard = await this.prisma.ecriture.count({
+        where: { ...nonProvisoire, tenantId, statut: StatutEcriture.BROUILLARD },
+      });
+      const statut: StatutSoldeOuverture = auBrouillard > 0 ? 'IMPORTE' : 'VALIDE';
+      const clotures = precedent ? await this.cloturesDe(tenantId, precedent, racines, ctx) : null;
+      for (const racine of racines) {
+        const r = await this.prisma.ligneEcriture.aggregate({
+          where: { compte: { tenantId, numero: { startsWith: racine } }, ecriture: nonProvisoire },
+          _sum: { debit: true, credit: true },
+        });
+        rendu.set(racine, {
+          montant: arrondiCentime(Number(r._sum?.credit ?? 0) - Number(r._sum?.debit ?? 0)),
+          statut,
+          fiable: true,
+          cloturePrecedente: clotures ? clotures.get(racine)!.reconstitue : null,
+          provisionModule: clotures ? clotures.get(racine)!.module : null,
+        });
+      }
+      return rendu;
+    }
+    if (!precedent) {
+      for (const racine of racines) {
+        rendu.set(racine, { montant: 0, statut: 'AUCUN', fiable: true, cloturePrecedente: null, provisionModule: null });
+      }
+      return rendu;
+    }
+    const clotures = await this.cloturesDe(tenantId, precedent, racines, ctx);
+    for (const racine of racines) {
+      const c = clotures.get(racine)!;
+      rendu.set(racine, {
+        montant: c.reconstitue,
+        statut: 'CLOTURE_PRECEDENTE',
+        fiable: false,
+        cloturePrecedente: c.reconstitue,
+        provisionModule: c.module,
+      });
+    }
+    return rendu;
+  }
+
+  /**
+   * Deux lectures de la clôture d'un exercice, qui ne se confondent jamais
+   * (septième passe) :
+   *  · RECONSTITUE · le SOLDE du compte à la clôture · son ouverture
+   *    (récursive) et TOUTES ses écritures de l'exercice, tous statuts, du
+   *    module ou non (une reprise de litige à la main en sort, un à-nouveau
+   *    arrivé après la réévaluation y entre). Il dit qu'il y a de
+   *    l'inexpliqué, et il BORNE une déclaration ; il ne dit jamais quelle part
+   *    couvre des pertes de change ;
+   *  · MODULE · la provision pour pertes de change que le module tient à la
+   *    clôture · la version en vigueur et les écritures OmegaX depuis son
+   *    début, sinon toutes les écritures OmegaX jusqu'à la clôture. Elle est
+   *    le PLANCHER d'une version (bornée par le solde), le solde en est le
+   *    plafond · comparée au seul solde, une provision pour litige du même
+   *    compte passait pour du change ; ignorée, une version périmée faisait
+   *    doter deux fois la perte déjà provisionnée.
+   */
+  private async cloturesDe(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date; dateFin: Date },
+    racines: string[],
+    ctx: ContexteProvision,
+  ): Promise<Map<string, { reconstitue: number; module: number }>> {
+    const rendu = new Map<string, { reconstitue: number; module: number }>();
+    const ouverture = await this.ouverturesDe(tenantId, exercice, racines, ctx);
+    for (const racine of racines) {
+      const v = versionEnVigueur(
+        ctx.versions.filter((x) => x.compteProvision === racine),
+        exercice.dateFin,
+      );
+      const module = v
+        ? Number(v.montant) + sommeProvision(ctx.lignes, racine, v.dateReference, exercice.dateFin, true)
+        : sommeProvision(ctx.lignes, racine, null, exercice.dateFin, true);
+      // TOUS STATUTS · la réévaluation passe sa provision au brouillard, et un
+      // solde lu sur le seul livre-journal la perdrait (gelé par un test).
+      const r = await this.prisma.ligneEcriture.aggregate({
+        where: {
+          compte: { tenantId, numero: { startsWith: racine } },
+          ecriture: { tenantId, exerciceId: exercice.id, estGenereeParCloture: false },
+        },
+        _sum: { debit: true, credit: true },
+      });
+      rendu.set(racine, {
+        reconstitue: arrondiCentime(ouverture.get(racine)!.montant + Number(r._sum?.credit ?? 0) - Number(r._sum?.debit ?? 0)),
+        module: arrondiCentime(module),
+      });
+    }
+    return rendu;
+  }
+
+  /**
+   * Une version est UTILISÉE quand une réévaluation est passée dans sa période
+   * (de son début au début de la version suivante). Lu sous le verrou du
+   * dossier (`sousVerrouDuDossier`), ce constat d'EXISTENCE suffit · comparer
+   * l'heure de création d'une réévaluation à l'heure de retouche d'une
+   * version supposait une horloge commune que rien ne garantit (relecture
+   * adverse, troisième passe). Et puisqu'une version ne naît jamais dans une
+   * période déjà réévaluée, toute réévaluation de sa période l'a lue.
+   */
+  private async reevaluationUtilisatrice(
+    tenantId: string,
+    v: { dateReference: Date },
+    suivante: { dateReference: Date } | undefined,
+  ) {
+    return this.prisma.reevaluation.findFirst({
+      where: {
+        tenantId,
+        dateReevaluation: { gte: v.dateReference, ...(suivante ? { lt: suivante.dateReference } : {}) },
+      },
+      select: { dateReevaluation: true },
+    });
+  }
+
+  /**
+   * Les comptes de provision du référentiel, chacun avec ses versions
+   * déclarées, celle en vigueur à l'ouverture de l'exercice, et le solde
+   * d'ouverture PROPOSÉ avec sa nature (validé, provisoire, reconstitué),
+   * jamais imposé · le 4991 et le 4997 portent aussi d'autres risques.
+   */
+  async provisionsOuverture(tenantId: string, exerciceId: string) {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { id: true, dateDebut: true },
+    });
+    if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier');
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    if (!tenant) throw new BadRequestException('Dossier introuvable');
+    const racines = comptesProvisionDeclarables(tenant.referentiel);
+    const versions = await this.prisma.provisionChangeOuverture.findMany({
+      where: { tenantId },
+      orderBy: { dateReference: 'asc' },
+    });
+    // Même état que le calcul, à l'ouverture · l'écran ne recalcule rien (M1).
+    const { etats } = await this.etatsOuverture(tenantId, exercice, racines, exercice.dateDebut);
+    const jour = (d: Date) => d.toISOString().slice(0, 10);
+    const rendu = [];
+    for (const compteProvision of racines) {
+      const duCompte = versions.filter((v) => v.compteProvision === compteProvision);
+      const lues = [];
+      for (let i = 0; i < duCompte.length; i++) {
+        const v = duCompte[i];
+        const utilisatrice = await this.reevaluationUtilisatrice(tenantId, v, duCompte[i + 1]);
+        lues.push({
+          id: v.id,
+          montant: Number(v.montant),
+          dateReference: jour(v.dateReference),
+          source: v.source,
+          motif: v.motif,
+          provisionModuleContestee: v.provisionModuleContestee,
+          motifContestation: v.motifContestation,
+          provisionModuleContesteeMontant:
+            v.provisionModuleContesteeMontant === null ? null : Number(v.provisionModuleContesteeMontant),
+          utilisee: !!utilisatrice,
+        });
+      }
+      const enVigueur = versionEnVigueur(duCompte, exercice.dateDebut);
+      const e = etats.get(compteProvision)!;
+      rendu.push({
+        compteProvision,
+        soldeOuverturePropose: e.ouverture.montant,
+        statutSoldeOuverture: e.ouverture.statut,
+        // Un solde comptable fiable, ou la provision du module à la clôture précédente.
+        ouvertureFiable: e.ouverture.fiable,
+        // Servis par le serveur, jamais recalculés à l'écran (M1, M3).
+        provisionEnPlaceOuverture: e.enPlaceOuverture,
+        depasseSoldeOuverture: e.depasse,
+        // Les bornes d'une version, et la provision du module à côté d'elle
+        // (huitième relecture) · l'écran les montre, il ne les calcule pas.
+        provisionModuleOuverture: e.bornes.module,
+        plancherVersion: e.bornes.plancher,
+        plafondVersion: e.bornes.plafond,
+        horsBornes: e.horsBornes ? e.horsBornes.borne : null,
+        reserve: e.reserve,
+        explique: e.explique,
+        versions: lues,
+        enVigueur: enVigueur ? (lues.find((l) => l.id === enVigueur.id) ?? null) : null,
+      });
+    }
+    return { dateOuverture: jour(exercice.dateDebut), comptes: rendu };
+  }
+
+  /**
+   * DÉCLARER une version (décision de Manasse du 2026-10-02, Q2 et Q3).
+   *  · Sa date est le DÉBUT d'un exercice du dossier (fiche du compte 77,
+   *    provisions « existant au début de l'exercice ») · toute autre date est
+   *    refusée, et la réévaluation de clôture est ainsi toujours postérieure.
+   *  · La version de même date se RETOUCHE tant qu'aucune réévaluation ne l'a
+   *    utilisée · utilisée, elle est GELÉE (AUDCIF art. 22, 2°, « l'irréversibilité
+   *    des traitements interdise toute suppression, addition ou modification
+   *    ultérieure » ; art. 20, une correction s'inscrit, elle ne réécrit pas).
+   *  · Une version NOUVELLE vaut de sa date au début de la version suivante
+   *    (ou sans fin). Elle est admise à toute date, même avant une autre,
+   *    tant qu'AUCUNE réévaluation n'est déjà passée dans cette période · sinon
+   *    elle changerait la provision en vigueur d'un calcul déjà passé, que ce
+   *    soit celui d'une version utilisée ou celui qu'aucune version ne
+   *    couvrait. C'est la correction de l'IMPASSE relevée en seconde relecture
+   *    (N repris, N+1 ouvert avant la clôture de N, déclaré et réévalué ·
+   *    refuser toute version antérieure à une autre interdisait de déclarer N,
+   *    donc de jamais réévaluer N, AUDCIF art. 54). L'art. 22, 3° (« écarte
+   *    toute insertion intercalaire ») vise la chronologie des ÉCRITURES, pas
+   *    cette déclaration d'un fait · il n'est pas invoqué ici. Elle porte son
+   *    MOTIF dès qu'une version antérieure existe (c'est alors une correction,
+   *    Q2), et l'historique reste entier.
+   */
+  async declarerProvisionOuverture(
+    tenantId: string,
+    userId: string,
+    dto: { compteProvision: string; montant: number; dateReference: string; source: string; motif?: string; provisionModuleContestee?: boolean; motifContestation?: string },
+  ) {
+    return this.sousVerrouDuDossier(tenantId, 'DECLARATION', () => this.declarerSousVerrou(tenantId, userId, dto));
+  }
+
+  private async declarerSousVerrou(
+    tenantId: string,
+    userId: string,
+    dto: { compteProvision: string; montant: number; dateReference: string; source: string; motif?: string; provisionModuleContestee?: boolean; motifContestation?: string },
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    if (!tenant) throw new BadRequestException('Dossier introuvable');
+    const motif = motifRefusDeclarationOuverture(tenant.referentiel, dto);
+    if (motif) throw new BadRequestException(motif);
+    const dateReference = new Date(dto.dateReference.slice(0, 10));
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: dateReference },
+      select: { id: true },
+    });
+    if (!exercice) {
+      throw new BadRequestException(
+        `La date ${dto.dateReference.slice(0, 10)} n'est le début d'aucun exercice du dossier · la provision se déclare ` +
+          "telle qu'elle existe au début d'un exercice (fiche du compte 77, « existant au début de l'exercice »).",
+      );
+    }
+    const versions = await this.prisma.provisionChangeOuverture.findMany({
+      where: { tenantId, compteProvision: dto.compteProvision },
+      orderBy: { dateReference: 'asc' },
+    });
+    // La provision du module contestée · lue comme le calcul la lit, à la
+    // clôture qui précède cette ouverture (elle ne dépend pas de la version
+    // déclarée ici, seulement des versions antérieures et des écritures OmegaX).
+    const montantConteste =
+      dto.provisionModuleContestee === true
+        ? (
+            await this.etatsOuverture(tenantId, { id: exercice.id, dateDebut: dateReference }, [dto.compteProvision], dateReference)
+          ).etats.get(dto.compteProvision)!.bornes.module
+        : null;
+    const motifCorrection = dto.motif?.trim() || null;
+    const memeDate = versions.findIndex((v) => v.dateReference.getTime() === dateReference.getTime());
+    // LE MOTIF EST CELUI D'UNE CORRECTION (relecture adverse, troisième passe,
+    // point 4) · exigé quand la version SUCCÈDE à une version UTILISÉE, dont
+    // elle corrige la suite (Q2). La déclaration d'un exercice nouveau, après
+    // une version encore inutilisée ou sans version avant elle, n'en demande pas.
+    const precedenteIndex = versions.reduce(
+      (i, v, k) => (v.dateReference.getTime() < dateReference.getTime() ? k : i),
+      -1,
+    );
+    if (precedenteIndex >= 0 && !motifCorrection) {
+      const precedente = versions[precedenteIndex];
+      const utilisee = await this.reevaluationUtilisatrice(tenantId, precedente, versions[precedenteIndex + 1]);
+      if (utilisee) {
+        throw new BadRequestException(
+          `La version précédente du ${dto.compteProvision} a servi à la réévaluation du ` +
+            `${utilisee.dateReevaluation.toISOString().slice(0, 10)} · celle-ci la corrige et porte son motif.`,
+        );
+      }
+    }
+    const donnees = {
+      montant: new Prisma.Decimal(Math.round(dto.montant * 100) / 100),
+      source: dto.source.trim(),
+      motif: motifCorrection,
+      provisionModuleContestee: dto.provisionModuleContestee === true,
+      motifContestation: dto.provisionModuleContestee === true ? dto.motifContestation!.trim() : null,
+      // Figée ICI, par le serveur, jamais reçue du client · la provision du
+      // module que l'écran montrait au moment de la contestation.
+      provisionModuleContesteeMontant: montantConteste === null ? null : new Prisma.Decimal(montantConteste),
+    };
+    if (memeDate >= 0) {
+      const existante = versions[memeDate];
+      const utilisatrice = await this.reevaluationUtilisatrice(tenantId, existante, versions[memeDate + 1]);
+      if (utilisatrice) {
+        throw new ConflictException(
+          `La provision d'ouverture du compte ${dto.compteProvision} a servi à la réévaluation du ` +
+            `${utilisatrice.dateReevaluation.toISOString().slice(0, 10)} · elle ne se modifie plus. Déclarez une nouvelle ` +
+            "version au début d'un exercice postérieur, avec son motif.",
+        );
+      }
+      // Retouchée par son identifiant, jamais par la clé composée.
+      return this.prisma.provisionChangeOuverture.update({
+        where: { id: existante.id },
+        data: { ...donnees, modifiedBy: userId },
+      });
+    }
+    const suivante = versions.find((v) => v.dateReference.getTime() > dateReference.getTime());
+    const dejaPassee = await this.prisma.reevaluation.findFirst({
+      where: {
+        tenantId,
+        dateReevaluation: { gte: dateReference, ...(suivante ? { lt: suivante.dateReference } : {}) },
+      },
+      select: { dateReevaluation: true },
+    });
+    if (dejaPassee) {
+      throw new ConflictException(
+        `La réévaluation du ${dejaPassee.dateReevaluation.toISOString().slice(0, 10)} est déjà passée dans la période ` +
+          `de cette version du ${dto.compteProvision} · la déclarer changerait la provision en vigueur d'un calcul passé. ` +
+          "Déclarez-la au début d'un exercice qu'aucune réévaluation n'a encore touché.",
+      );
+    }
+    return this.prisma.provisionChangeOuverture.create({
+      data: { tenantId, compteProvision: dto.compteProvision, dateReference, ...donnees, createdBy: userId },
+    });
+  }
+
+  async retirerProvisionOuverture(tenantId: string, id: string) {
+    return this.sousVerrouDuDossier(tenantId, 'RETRAIT', () => this.retirerSousVerrou(tenantId, id));
+  }
+
+  private async retirerSousVerrou(tenantId: string, id: string) {
+    const existante = await this.prisma.provisionChangeOuverture.findFirst({ where: { id, tenantId } });
+    if (!existante) throw new NotFoundException('Déclaration introuvable pour ce dossier');
+    const suivante = await this.prisma.provisionChangeOuverture.findFirst({
+      where: { tenantId, compteProvision: existante.compteProvision, dateReference: { gt: existante.dateReference } },
+      orderBy: { dateReference: 'asc' },
+    });
+    const utilisatrice = await this.reevaluationUtilisatrice(tenantId, existante, suivante ?? undefined);
+    if (utilisatrice) {
+      throw new ConflictException(
+        `La provision d'ouverture du compte ${existante.compteProvision} a servi à la réévaluation du ` +
+          `${utilisatrice.dateReevaluation.toISOString().slice(0, 10)} · elle ne se modifie plus.`,
+      );
+    }
+    await this.prisma.provisionChangeOuverture.delete({ where: { id: existante.id } });
+    return { id: existante.id };
   }
 
   private async compteParRacine(tenantId: string, racine: string) {

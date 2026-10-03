@@ -47,7 +47,8 @@ import { Referentiel, TypeComposant } from '@prisma/client';
  *   · LE DÉMANTÈLEMENT · AUDCIF, introduction de la classe 2 (bien acquis à
  *     titre onéreux) : « le SYSCOHADA autorise que le sous-compte composant
  *     démantèlement soit débité directement par le crédit du 1984 » · pour
- *     un composant de type DEMANTELEMENT seulement, au SYSCOHADA seulement.
+ *     un composant de type DEMANTELEMENT seulement ; au SYCEBNL aussi depuis
+ *     le lot 15, par l'introduction de sa classe 2 (voir plus bas).
  *   · LA SUBVENTION EN NATURE · fiche du compte 14, la même aux deux textes :
  *     « crédité […] par le débit du compte approprié de la classe 2, sur la
  *     base de l'évaluation des immobilisations transférées gratuitement » ·
@@ -62,9 +63,10 @@ import { Referentiel, TypeComposant } from '@prisma/client';
  *     la construction est comptabilisée pour sa valeur actuelle, la
  *     contrepartie constituant un produit HAO à inscrire au crédit du compte
  *     841 Produits HAO constatés » · un sous-compte du 231 seulement, hors le
- *     2316 de location-acquisition, au SYSCOHADA seulement. Le 845 « Dons et
- *     libéralités obtenus » n'est pas ouvert · aucune fiche lue ne le donne
- *     pour contrepartie d'une immobilisation.
+ *     2316 de location-acquisition. Le 845 « Dons et libéralités obtenus »
+ *     n'est pas ouvert · aucune fiche lue ne le donne pour contrepartie d'une
+ *     immobilisation. Au SYCEBNL depuis le lot 15 (fiche du compte 23), par
+ *     le seul 8410 (voir plus bas).
  *   · LE FONDS REPORTÉ · SYCEBNL, fiche 20 : « débité le compte 20 de la
  *     valeur actuelle ; par le crédit du compte 17 – Fonds reportés » · pour
  *     un bien de la division 20 seulement, 171 (donation temporaire
@@ -125,6 +127,12 @@ const PROPRES: Record<Referentiel, readonly string[]> = {
 export interface OptionsContrepartie {
   /** Le type du composant créé, pour la seule contrepartie qu'il ouvre (1984). */
   typeComposant?: TypeComposant | null;
+  /**
+   * Le dossier tient le Système minimal de trésorerie · le 1984 n'y est pas
+   * offert, son modèle n'ayant aucun poste de provision
+   * (`motifRefusProvisionSmt`, common/systeme-minimal.ts).
+   */
+  systemeMinimal?: boolean;
 }
 
 /** Ce que la fiche du compte du bien ajoute au socle commun (voir l'en-tête). */
@@ -138,12 +146,41 @@ function racinesDeLaFiche(referentiel: Referentiel, compte: string, options: Opt
   if (['21', '22', '23', '24'].includes(division)) ajouts.push(division === '21' ? '251' : '252');
   if (division === '26' || division === '27') ajouts.push('4813');
   if (referentiel === Referentiel.SYSCOHADA) {
-    if (options.typeComposant === TypeComposant.DEMANTELEMENT) ajouts.push('1984');
+    if (options.typeComposant === TypeComposant.DEMANTELEMENT && !options.systemeMinimal) ajouts.push('1984');
     if (!compte.startsWith('2128')) ajouts.push('14');
     if (compte.startsWith('231') && !compte.startsWith('2316')) ajouts.push('841');
   } else {
+    // LE DÉMANTÈLEMENT AU SYCEBNL (lot 15) · même mécanique qu'à l'AUDCIF,
+    // écrite dans l'introduction de la classe 2 du SYCEBNL (« Valeur d'entrée
+    // des immobilisations ») · « Ces coûts sont comptabilisés dans un
+    // sous-compte composant de l'immobilisation principale [...] compte tenu
+    // de la simultanéité des deux écritures, le SYCOHADA autorise que le
+    // sous-compte composant démantèlement soit débité par le crédit du compte
+    // de provisions 1984 ». Le 1984 est semé aux deux plans (19840000).
+    // ANOMALIE DU TEXTE, non suivie · la même phrase fait doter la provision
+    // « débit 6914 par le crédit de 1984 », quand le 6914 du SYCEBNL est
+    // « Dotations aux dépréciations des immobilisations corporelles » ; la
+    // dotation d'une provision pour risques est au 6911 (AUDCIF Titre VIII
+    // ch. 6 § 2.1). Le module ne passe que la voie directe (2 / 1984).
+    if (options.typeComposant === TypeComposant.DEMANTELEMENT && !options.systemeMinimal) ajouts.push('1984');
     ajouts.push('14');
     if (division === '20') ajouts.push(compte.startsWith('2011') ? '171' : '172');
+    // LA CONSTRUCTION REÇUE EN FIN DE BAIL AU SYCEBNL (lot 15) · fiche du
+    // compte 23 du SYCEBNL · « Chez le bailleur, la construction reçue
+    // gratuitement sera constatée en retenant la valeur actuelle du jour de
+    // transfert en contrepartie du compte 845 Produits HAO constatés ».
+    // ANOMALIE DU TEXTE · le SYCEBNL n'ouvre aucun 845 (Partie 2 ch. 2, compte
+    // 84 · 841, 842, 843, 846, 848, 849) ; l'intitulé cité, « Produits HAO
+    // constatés », est celui de son 841 (84100000 au semis), et c'est aussi le
+    // compte de l'AUDCIF (fiche du compte 23 et Titre VIII ch. 11 § 1.4). Le
+    // module suit l'intitulé, non le numéro.
+    // UN NUMÉRO, DEUX SENS SOUS LE 841 DU SYCEBNL · le plan y range
+    // numériquement 8411, 8412 et 8415, qui sont des CONTRIBUTIONS
+    // VOLONTAIRES EN NATURE (842) · la racine est donc « 8410 », qui admet le
+    // 84100000 et un sous-compte du cabinet, jamais un don en nature vendu
+    // ou à distribuer. Comme au SYSCOHADA · un bâtiment sur sol propre (231),
+    // hors location-acquisition (2316).
+    if (compte.startsWith('231') && !compte.startsWith('2316')) ajouts.push('8410');
     if (['21', '23', '24'].includes(division)) ajouts.push('72');
   }
   return ajouts;

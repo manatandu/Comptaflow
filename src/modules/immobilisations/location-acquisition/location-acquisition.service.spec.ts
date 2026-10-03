@@ -169,3 +169,29 @@ describe('levée de l’option (§ 2.1.9)', () => {
     await expect(monter({ contrat: avecOption }).svc.declarerOption('t', 'u', 'k1', { levee: false })).rejects.toThrow('journal');
   });
 });
+
+/** Lot 15 · la garantie de valeur résiduelle (§ 2.1.2) · câblage de la règle. */
+describe('garantie de valeur résiduelle · service (lot 15)', () => {
+  const E2034 = { ...E2026, id: 'e34', dateDebut: new Date('2034-01-01T00:00:00Z'), dateFin: new Date('2034-12-31T00:00:00Z') };
+  it('la clôture de l’exercice où elle échoit est refusée tant que son appel n’est pas déclaré', async () => {
+    const { svc } = monter({ contrat: { garantieValeurResiduelle: 50000, garantieAppelee: null } as never, exercice: E2034 });
+    const p = await svc.proposer('t', 'k1', 'e34');
+    expect(p.refus.join(' ')).toContain('garantie de valeur résiduelle');
+  });
+  it('non appelée, la clôture passe et dit la part de dette qui reste au 17', async () => {
+    const { svc } = monter({ contrat: { garantieValeurResiduelle: 50000, garantieAppelee: false } as never, exercice: E2034 });
+    const p = await svc.proposer('t', 'k1', 'e34');
+    expect(p.refus.join(' ')).not.toContain('garantie');
+    expect(p.avertissements.join(' ')).toContain('non appelée');
+  });
+  it('la déclaration se pose une fois, conditionnellement, et jamais sur un contrat sans garantie', async () => {
+    const { svc, prisma } = monter({ contrat: { garantieValeurResiduelle: 50000, garantieAppelee: null } as never });
+    await svc.declarerGarantie('t', 'k1', true);
+    expect(prisma.contratLocationAcquisition.update.mock.calls[0][0]).toMatchObject({
+      where: { id: 'k1', garantieAppelee: null },
+      data: { garantieAppelee: true },
+    });
+    const sans = monter();
+    await expect(sans.svc.declarerGarantie('t', 'k1', true)).rejects.toThrow('rien à déclarer');
+  });
+});

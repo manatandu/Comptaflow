@@ -27,11 +27,26 @@ import { PrismaService } from '../../common/prisma.service';
  * s'interdit.
  */
 
-const ligne = (numero: string, intitule: string, credit: number, debit = 0) => ({
+const ligne = (numero: string, intitule: string, credit: number, debit = 0, duModule = false) => ({
   debit,
   credit,
   compte: { numero, intitule },
+  duModule,
 });
+
+/**
+ * LA DOUBLURE HONORE LA REQUÊTE · une ligne de l'écriture que le module de
+ * réévaluation retient (lot 14) ne revient qu'à une requête qui ne l'écarte
+ * pas par `ecriture.reevaluationBilan: null`.
+ */
+const lignesSelon = (lignes: ReturnType<typeof ligne>[]) =>
+  jest.fn(({ where }: { where?: { ecriture?: { reevaluationBilan?: unknown } } }) =>
+    Promise.resolve(
+      lignes
+        .filter((l) => !(l.duModule && where?.ecriture && 'reevaluationBilan' in where.ecriture && where.ecriture.reevaluationBilan === null))
+        .map(({ duModule: _d, ...l }) => l),
+    ),
+  );
 
 function service(
   lignes: ReturnType<typeof ligne>[],
@@ -49,7 +64,7 @@ function service(
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes), groupBy: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: { findMany: lignesSelon(lignes), groupBy: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
@@ -101,6 +116,18 @@ describe('écart de réévaluation hors module', () => {
     // L'action rappelle l'interdiction de la réévaluation partielle, qui est
     // le piège le plus courant du chapitre.
     expect(a!.action).toContain('partielle est');
+  });
+
+  it('se tait sur l’écart que le module a lui-même posé (lot 14) · il ne fabrique pas une anomalie', async () => {
+    // L'écart du module est porté par les fiches · dire « que le module ne
+    // connaît pas » et faire reprendre le plan à la main amortirait deux fois.
+    expect(await signale([ligne('10610000', 'Écarts de réévaluation légale', 240, 0, true)])).toBeUndefined();
+    // Un écart passé à la main À CÔTÉ reste signalé, pour son seul montant.
+    const a = await signale([
+      ligne('10610000', 'Écarts de réévaluation légale', 240, 0, true),
+      ligne('10610000', 'Écarts de réévaluation légale', 1_000),
+    ]);
+    expect(a!.occurrences[0].montant).toBe(1_000);
   });
 
   it('se tait quand le dossier ne tient aucune immobilisation dans le module', async () => {

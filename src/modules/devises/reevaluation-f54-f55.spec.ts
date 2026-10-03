@@ -206,6 +206,8 @@ describe('F55 · la clôture passe la devise au report', () => {
     };
     const prisma = {
       exercice: {
+        // Aucun exercice antérieur ouvert · l'ordre des réévaluations ne bloque rien (A5).
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) =>
           Promise.resolve(where.dateFin || where.dateDebut ? null : N),
         ),
@@ -230,9 +232,12 @@ describe('F54 · une seule réévaluation passée par exercice', () => {
   function service(dejaPassee: { dateReevaluation: Date } | null) {
     const prisma = {
       exercice: {
+        // Aucun exercice antérieur ouvert · l'ordre des réévaluations ne bloque rien (A5).
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue({ id: 'ex1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: 'OUVERT' }),
       },
       ligneEcriture: {
+        aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 } }),
         findMany: jest.fn().mockResolvedValue([
           {
             compteId: 'c411',
@@ -248,7 +253,13 @@ describe('F54 · une seule réévaluation passée par exercice', () => {
       coursDevise: { findFirst: jest.fn().mockResolvedValue({ cours: 2500 }) },
       // La doublure honore le filtre · une réévaluation d'une AUTRE date ne
       // répond qu'à une question qui ne porte pas sur la date.
+      provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
+      // Le verrou des gestes de provision (A5) · une ligne par dossier.
+      verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
+      // Un à-nouveau validé existe, sans ligne sur les comptes de provision (A5).
+      ecriture: { count: jest.fn().mockResolvedValue(1) },
       reevaluation: {
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockImplementation(({ where }: { where: { dateReevaluation?: Date } }) =>
           Promise.resolve(
             dejaPassee && (!where.dateReevaluation || where.dateReevaluation.getTime() === dejaPassee.dateReevaluation.getTime())

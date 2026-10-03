@@ -90,7 +90,12 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000', demantelement)).toBe(true);
     expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000', { typeComposant: TypeComposant.COMPOSANT })).toBe(false);
     expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000')).toBe(false);
-    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '19840000', demantelement)).toBe(false);
+    // Lot 15 · au SYCEBNL aussi, par l'introduction de sa classe 2 (« le
+    // SYCOHADA autorise que le sous-compte composant démantèlement soit débité
+    // par le crédit du compte de provisions 1984 »), et toujours pour lui seul.
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '19840000', demantelement)).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '19840000', { typeComposant: TypeComposant.COMPOSANT })).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '19840000')).toBe(false);
   });
 
   it('ce que la fiche du bien ajoute · SYCEBNL Partie 2 ch. 3 (passe R5, B2)', () => {
@@ -177,5 +182,21 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     await svc.contrepartiesAcquisition('t1', { familleId: 'f1' });
     const sans = (findMany.mock.calls[1][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
     expect(sans).not.toContain('1984');
+  });
+
+  it('au Système minimal de trésorerie, le 1984 n’est plus offert (aucun poste de provision)', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: EBNL, jeuEtatsFinanciersSycebnl: 'SYSTEME_MINIMAL_TRESORERIE' }) },
+      familleImmobilisation: {
+        findFirst: jest.fn().mockResolvedValue({ compteImmobilisation: { numero: '24420000' } }),
+      },
+      compte: { findMany },
+    };
+    const svc = new ImmobilisationService(prisma as never, {} as never);
+    await svc.contrepartiesAcquisition('t1', { familleId: 'f1' }, TypeComposant.DEMANTELEMENT);
+    const racines = (findMany.mock.calls[0][0].where.OR as { numero: { startsWith: string } }[]).map((o) => o.numero.startsWith);
+    expect(racines).not.toContain('1984');
+    expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '19840000', { typeComposant: TypeComposant.DEMANTELEMENT, systemeMinimal: true })).toBe(false);
   });
 });

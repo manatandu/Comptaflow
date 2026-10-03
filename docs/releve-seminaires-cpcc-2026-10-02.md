@@ -78,3 +78,57 @@ compétences.
 Module CPCC d'analyse financière (KALUMBU MAKULU, mai 2024,
 `analyse-financiere-diagnostic-rdc`) ; § 17.5 « Contrôle des états financiers
 de synthèse par le CPCC » (`mes-cours-comptabilite-audit/generale-mbuyamba/`).
+
+## Second passage (2026-10-02) · analyse financière et contrôle des états par le CPCC
+
+### Module CPCC d'analyse financière (KALUMBU MAKULU, mai 2024)
+
+Le cœur « équilibre financier » est déjà servi par les notes officielles
+(NOTE 34 SYSCOHADA, NOTE 33 SYCEBNL : fonds de roulement, besoin de
+financement, trésorerie nette, CAFG, rentabilité financière). Manque une
+LECTURE d'analyse, sans écriture ni état déposé, aux définitions d'OmegaX
+dites à l'écran (le texte officiel ne définit aucun de ces ratios ; glossaire
+AUDCIF, « Ratio », « Bilan liquidité », « Bilan fonctionnel ») :
+
+| # | Manque | Effort |
+|---|---|---|
+| F1 | Ratios de liquidité, solvabilité, structure de l'endettement, autonomie, fonds de roulement face aux stocks (deux référentiels, noms distincts des ratios officiels, N, N-1, variation en points) | petit |
+| F2 | Profitabilité, rentabilité économique avant impôt (nom distinct de celle de la NOTE 34), effet de levier (SYSCOHADA, Système normal) | petit |
+| F3 | Répartition de la valeur ajoutée, VA* et EBE* (SYSCOHADA) | petit |
+| F4 | Analyse pluriannuelle en francs constants (cours ou indice déclaré, année de base, null sans cours, sans valeur légale) | moyen |
+| F5 | Bilan financier retraité, condensé et synthétique, montants déclarés, cinq contrôles de bouclage | gros |
+| F6 | Effet de ciseau (petit) ; point mort (voir A20) | petit |
+
+Relevés au passage, à trancher : commentaire périmé dans
+`correspondance-notes-syscohada-3.ts` (renvoi (a) de la rentabilité
+économique, dit « appliquée depuis la fiscalité » alors qu'elle reste en
+saisie) ; NOTE 33 SYCEBNL prend les provisions (DC) dans les dettes
+financières, NOTE 34 SYSCOHADA non, sous le même renvoi.
+
+À ne pas reprendre · erreurs du corrigé (anomalies de `audit-source`), compte
+599 pour l'écart de conversion (4991, 4997 ou 194 selon le ch. 22), IBP.
+
+### Contrôle des états financiers par le CPCC (cours Mbuyamba § 17.5, CPCC ch. 7)
+
+Le § 17.5 nomme trois contrôles (conformité, matérialité ou exactitude,
+cohérence) sans les détailler · tout contrôle précis est une règle de forme
+CPCC, à confirmer sur la circulaire.
+
+| # | Manque | Fondement | Effort |
+|---|---|---|---|
+| L1 | La liasse dit combien d'écritures au brouillard restent hors des états (feuille ANOMALIES des cinq liasses) | AUDCIF art. 22, 2° | petit |
+| L2 | La liasse dit si l'exercice N ou le N-1 comparatif n'est pas clos (liasse provisoire) | AUDCIF art. 34 ; SYCEBNL art. 16, 4) | petit |
+| L3 | Cartouche « Certifié sincère et conforme » au pied de chaque page du classeur | forme CPCC | petit |
+| L4 | Arrondi au franc entier des postes avant écriture (un total imprimé égal à la somme des lignes imprimées) ; écart d'arrondi actif/passif à trancher | forme CPCC | moyen |
+| L5 | NIF absent dit (« NIF non renseigné ») comme la date d'arrêté | forme CPCC | très petit |
+| L6 | Dépôt enregistré par destinataire (date, version figée, note d'observations) | pratique CPCC | moyen |
+| L7 | Volet 2, 19 notes statistiques et fiscales · bloqué faute de l'imprimé en vigueur | forme CPCC, DGI | gros |
+
+Écarts · (É1) liasse SYSCOHADA en couleurs alors que le Titre IX ch. 2 dit
+« N'utiliser que des imprimés en noir et blanc » · le texte a raison, thème
+monochrome à prévoir ; (É2) postes à zéro du bilan et du compte de résultat
+SYCEBNL imprimés en « - » alors que la Partie 4 § 1.4 dit « ne doivent pas
+être présentés », le CPCC demandant le contraire · à trancher ; (É3) toutes
+les notes jointes avec NEANT, décision déjà écrite, renforcée par la
+doctrine CPCC ; (É4) feuilles de travail (balances, contrôles, anomalies)
+dans le classeur déposé, à marquer « hors dépôt » ou sortir.

@@ -6,7 +6,11 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { EXERCICE_REQUIS } from '../../../common/exercice-requis';
-import { ClotureLocationAcquisitionDto, DeclarerOptionLocationAcquisitionDto } from '../dto/immobilisation.dto';
+import {
+  ClotureLocationAcquisitionDto,
+  DeclarerGarantieLocationAcquisitionDto,
+  DeclarerOptionLocationAcquisitionDto,
+} from '../dto/immobilisation.dto';
 import { LocationAcquisitionService } from './location-acquisition.service';
 
 /** Clôture des contrats de location-acquisition · mêmes droits que la dotation. */
@@ -37,6 +41,17 @@ export class LocationAcquisitionController {
     @Body() dto: ClotureLocationAcquisitionDto,
   ) {
     return this.service.passer(user.tenantId, user.userId, id, dto);
+  }
+
+  /** Lot 15 · l'appel de la garantie de valeur résiduelle, déclaré une fois. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/garantie')
+  declarerGarantie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DeclarerGarantieLocationAcquisitionDto,
+  ) {
+    return this.service.declarerGarantie(user.tenantId, id, dto.appelee);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
