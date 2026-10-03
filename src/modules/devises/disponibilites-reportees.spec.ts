@@ -195,10 +195,12 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       { compteId: 'c-676', numero: '67600000', debit: -(r.passeSurLaCaisse ?? -300_000), credit: 0 },
       { compteId: 'c-5712', numero: '57120000', debit: 0, credit: -(r.passeSurLaCaisse ?? -300_000) },
     ];
+    const exo = exercices.find((x) => x.id === r.exerciceId);
     return {
       id: `r-${r.exerciceId}`,
       exerciceId: r.exerciceId,
-      dateReevaluation: r.dateReevaluation ?? N.dateFin,
+      exercice: exo ? { id: exo.id, dateDebut: exo.dateDebut, dateFin: exo.dateFin } : { id: r.exerciceId, dateDebut: N.dateDebut, dateFin: N.dateFin },
+      dateReevaluation: r.dateReevaluation ?? exo?.dateFin ?? N.dateFin,
       ecritureExtourneId: r.contrePassee || r.extourneInverseLaCaisse ? 'cp' : null,
       createdAt: new Date('2027-01-05'),
       annuleeLe: null,
@@ -232,9 +234,19 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
   };
   const creer = jest.fn().mockResolvedValue({ id: 'ecr' });
   const create = jest.fn().mockResolvedValue({ id: 'r27' });
-  const update = jest.fn(async (a: { data: Record<string, unknown> }) => {
+  const update = jest.fn(async (a: { where?: { id?: string }; data: Record<string, unknown> }) => {
     const r = reevals[0];
     if (r && a.data.ventilationDisponibilites) r.ventilation = a.data.ventilationDisponibilites as Reeval['ventilation'];
+    // La contre-passation liée par `extourner` · la réévaluation visée est
+    // désormais contre-passée, dans l'exercice de la pièce que `creer` a reçue.
+    if (typeof a.data.ecritureExtourneId === 'string') {
+      const visee = reevals.find((x) => `r-${x.exerciceId}` === a.where?.id);
+      const derniere = creer.mock.calls.at(-1)?.[2] as { exerciceId?: string } | undefined;
+      if (visee) {
+        visee.contrePassee = true;
+        visee.contrePasseeDans = derniere?.exerciceId;
+      }
+    }
     return { id: 'r' };
   });
   const prisma = {
@@ -256,7 +268,20 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       fields: { credit: CHAMP_CREDIT },
     },
     reevaluation: {
-      findMany: jest.fn().mockResolvedValue([]),
+      // Le portillon (troisième tour) · TOUTES les réévaluations non annulées
+      // des exercices antérieurs, la plus récente d'abord. Une autre lecture
+      // ne ramène rien · ce n'est pas l'objet de ce spec.
+      findMany: jest.fn(async (a: { where?: Record<string, unknown> } = {}) => {
+        const w = a.where ?? {};
+        const borne = (w.exercice as { dateFin?: { lt: Date } } | undefined)?.dateFin?.lt;
+        if (!borne) return [];
+        const sauf = (w.exerciceId as { not?: string } | undefined)?.not;
+        return reevals
+          .filter((r) => r.exerciceId !== sauf)
+          .map((r) => reevaluationDe(r.exerciceId)!)
+          .filter((r) => r.exercice.dateFin.getTime() < borne.getTime())
+          .sort((x, y) => y.dateReevaluation.getTime() - x.dateReevaluation.getTime());
+      }),
       findFirst: jest.fn(async (a: { where?: Record<string, unknown> } = {}) => {
         const id = a.where?.id;
         if (typeof id === 'string') return reevaluationDe(id.replace(/^r-/, ''));
@@ -805,6 +830,108 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
         /Annuler la contre-passation[\s\S]*passez-la à l'ouverture de cet exercice/,
       );
     });
+  });
+
+  /**
+   * TROISIÈME TOUR, BLOQUANT (s11) · LE JUMEAU DE B-II. 41110000, 1 000 USD
+   * pour 2 000 000. N réévalué au cours de 2 500 (D 411 / C 479 de 500 000),
+   * contre-passation OUBLIÉE ; N+1 réévalué au cours de 2 400 depuis le coût
+   * (+400 000, sous une version sans portillon), puis clôturé ; sa
+   * contre-passation passée à l'ouverture de N+2. Le 411 s'ouvre en N+2 à
+   * 2 900 000. Le portillon ne lisait que N+1, contre-passée · N+2 passait,
+   * 411 à 3 100 000 et 479 à −1 100 000. Il lit toutes les réévaluations.
+   */
+  describe('s11 · N oubliée derrière N+1 réévalué et contre-passé', () => {
+    const N2: Exo = { id: 'e28', dateDebut: new Date('2028-01-01'), dateFin: new Date('2028-12-31'), statut: 'OUVERT' };
+    const exercices = [N, { ...N1, statut: 'CLOTURE' }, N2];
+    const ecartsN: Reeval['lignesEcarts'] = [
+      { compteId: 'c-4111', numero: '41110000', debit: 500_000, credit: 0 },
+      { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 500_000 },
+    ];
+    const ecartsN1: Reeval['lignesEcarts'] = [
+      { compteId: 'c-4111', numero: '41110000', debit: 400_000, credit: 0 },
+      { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 400_000 },
+    ];
+    /** Le livre en N+2 avant tout geste · à-nouveau (coût en devise, écarts de N et N+1 en francs) et contre-passation de N+1. */
+    const livreN2 = [
+      { compteId: 'c-4111', solde: 2_000_000 + 500_000 + 400_000 - 400_000 },
+      { compteId: 'c-4791', solde: -500_000 - 400_000 + 400_000 },
+    ];
+    const monterS11 = () =>
+      monter({
+        exercices,
+        lignes: [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }],
+        reevals: [
+          { exerciceId: 'e26', lignesEcarts: ecartsN },
+          { exerciceId: 'e27', lignesEcarts: ecartsN1, dateReevaluation: N1.dateFin, contrePassee: true, contrePasseeDans: 'e28' },
+        ],
+        cours: 2600,
+      });
+    /** Le solde d'un compte · le livre de N+2, plus tout ce que le module y a passé. */
+    const solde = (creer: jest.Mock, compte: string, depart: number) =>
+      creer.mock.calls.reduce((t, [, , dto]) => {
+        const lignes = (dto as { lignes: { compteId: string; debit?: number; credit?: number }[] }).lignes;
+        return t + lignes.filter((l) => l.compteId.startsWith(compte)).reduce((s, l) => s + (l.debit ?? 0) - (l.credit ?? 0), 0);
+      }, depart);
+
+    it('N+2 refusé · le refus nomme N, son exercice et les montants à contre-passer, pas N+1 déjà contre-passée ; rien écrit', async () => {
+      const { svc, creer } = monterS11();
+      const refus = svc.reevaluer('t', 'u', { exerciceId: 'e28' });
+      await expect(refus).rejects.toThrow(
+        /La réévaluation du 2026-12-31 n'est pas contre-passée \(exercice du 2026-01-01 au 2026-12-31\)[\s\S]*41110000 au crédit de 500000\.00, 47910000 au débit de 500000\.00[\s\S]*à l'ouverture de cet exercice/,
+      );
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.not.toThrow(/2027-12-31/);
+      expect(creer).not.toHaveBeenCalled();
+    });
+
+    it('la contre-passation de N passée dans N+2, sa cible · N+2 passe · 411 à 2 600 000 et 479 à −600 000', async () => {
+      const { svc, creer } = monterS11();
+      await svc.extourner('t', 'u', 'r-e26', 'e28');
+      expect(creer.mock.calls[0][2]).toMatchObject({
+        exerciceId: 'e28',
+        lignes: [{ compteId: 'c-4111', credit: 500_000 }, { compteId: 'c-4791', debit: 500_000 }],
+      });
+      const { rapport } = await svc.reevaluer('t', 'u', { exerciceId: 'e28' });
+      expect(rapport.positions.find((x) => x.numero === '41110000')).toMatchObject({ valeurComptable: 2_000_000, ecart: 600_000 });
+      expect(solde(creer, 'c-4111', livreN2[0].solde)).toBe(2_600_000);
+      expect(solde(creer, 'c-479', livreN2[1].solde)).toBe(-600_000);
+    });
+
+    it('cinquante réévaluations lues au plus · le dépassement est dit avec la réévaluation passée', async () => {
+      const { svc } = monterS11();
+      // Doublure · cinquante et une réévaluations antérieures, toutes réglées.
+      const regles = Array.from({ length: 51 }, (_, i) => ({
+        id: `r-${i}`,
+        dateReevaluation: new Date(Date.UTC(1970 + i, 11, 31)),
+        exercice: { id: `x-${i}`, dateDebut: new Date(Date.UTC(1970 + i, 0, 1)), dateFin: new Date(Date.UTC(1970 + i, 11, 31)) },
+        ecritureExtourneId: null,
+        ecritureExtourne: null,
+        ecritureEcarts: null,
+      }));
+      const prisma = (svc as unknown as { prisma: { reevaluation: { findMany: jest.Mock } } }).prisma;
+      prisma.reevaluation.findMany.mockImplementationOnce(async (a: { take: number; orderBy: unknown }) => {
+        expect(a.orderBy).toEqual([{ dateReevaluation: 'desc' }, { id: 'asc' }]);
+        return regles.slice(0, a.take);
+      });
+      const { rapport } = await svc.reevaluer('t', 'u', { exerciceId: 'e28' });
+      expect(rapport.avertissements).toEqual(
+        expect.arrayContaining([expect.stringMatching(/vérifiées sur les 50 réévaluations antérieures les plus récentes/)]),
+      );
+    });
+  });
+
+  it('mineur 1 (s12) · seules disponibilités, ancienne contre-passation posée en N+2, N+1 ouvert · N+1 n’est pas refusé (rien à repasser)', async () => {
+    const N2: Exo = { id: 'e28', dateDebut: new Date('2028-01-01'), dateFin: new Date('2028-12-31'), statut: 'OUVERT' };
+    const { svc, creer } = monter({
+      exercices: [N, N1, N2],
+      lignes: [caisseN, ouvertureN1()],
+      reeval: { exerciceId: 'e26', extourneInverseLaCaisse: true, contrePasseeDans: 'e28' },
+      cours: 2400,
+    });
+    const { rapport } = await svc.reevaluer('t', 'u', { exerciceId: 'e27' });
+    // La contre-passation posée en N+2 n'a pas eu lieu pour N+1 · l'écart de N se reporte (B-I), la perte de N+1 est de 100 000.
+    expect(caisse(rapport)).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+    expect(creer).toHaveBeenCalled();
   });
 
   it('une réévaluation qui ne portait que des disponibilités n’a rien à contre-passer · ne bloque pas', async () => {

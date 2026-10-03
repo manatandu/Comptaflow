@@ -299,7 +299,11 @@ function dossier(
         }
         return Promise.resolve(reevaluations.find((r) => r.exerciceId === where.exerciceId) ?? null);
       }),
-      findMany: jest.fn(({ where }: { where: { ecritureProvisionId: { not: null } } }) => {
+      findMany: jest.fn(({ where }: { where: { ecritureProvisionId?: { not: null }; exercice?: unknown } }) => {
+        // Le portillon de la contre-passation (A5 bis, troisième tour) · les
+        // réévaluations de cette doublure ne relisent pas leur écriture des
+        // écarts, il n'a rien à exiger · ce n'est pas l'objet de ce spec.
+        if (where.exercice) return Promise.resolve([]);
         expect(where.ecritureProvisionId).toEqual({ not: null });
         return Promise.resolve(
           reevaluations

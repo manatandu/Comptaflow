@@ -18,6 +18,8 @@ import {
   partagerLignesDEcarts,
   ventilerEcartPasse,
 } from './ecarts-disponibilites';
+import { PLAFOND_REEVALUATIONS_EXAMINEES } from './contre-passations-de-disponibilites';
+import { libelleMontantsAContrePasser, montantsAContrePasser } from './contre-passation-manuelle';
 import { CreerDeviseDto, DeclarerVentilationDisponibilitesDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -1133,104 +1135,162 @@ export class DevisesService {
    * Un antérieur CLÔTURÉ ne bloque pas.
    */
   /**
-   * L'ÉCART DE CONVERSION DE L'EXERCICE PRÉCÉDENT DOIT ÊTRE CONTRE-PASSÉ
+   * L'ÉCART DE CONVERSION D'UNE RÉÉVALUATION ANTÉRIEURE DOIT ÊTRE CONTRE-PASSÉ
    * AVANT DE RÉÉVALUER (ligne A5 bis). Une créance ou une dette se réévalue
    * depuis ses lignes en devise, au coût historique (`calculer`) · l'écart de
    * N, passé sans devise au 478 ou 479 et au compte du tiers, n'est soldé que
-   * par la contre-passation de l'ouverture (Guide, Partie 2 ch. 22,
-   * Application 84, « Contrepassation de l'écart au 01/01/N+1 : 411 · 4781 » ;
-   * Application 85, « 4793 · 4812 »). Oubliée, la réévaluation de
-   * N+1 repassait l'écart de N au tiers et laissait le 478 ou le 479 de N en
-   * place · deux fois le même écart, écriture équilibrée, balance bouclée.
-   * Vise la DERNIÈRE réévaluation non annulée antérieure à l'exercice, à
-   * travers les exercices qui n'en ont pas (second tour, B-II) · un N+1
-   * clôturé sans réévaluation ne fait pas oublier la contre-passation de N.
-   * Et seulement si elle porte un écart de conversion (une réévaluation des
-   * seules disponibilités n'a rien à contre-passer, AUDCIF art. 57).
+   * par la contre-passation de l'ouverture (Guide, Partie 2 ch. 22, « Écarts
+   * de conversion à la clôture (478 actif / 479 passif), contrepassés à la
+   * réouverture » ; Application 84, « Contrepassation de l'écart au 01/01/N+1 :
+   * 411 · 4781 » ; Application 85, « 4793 · 4812 »). Oubliée, la réévaluation
+   * de N+1 repassait l'écart de N au tiers et laissait le 478 ou le 479 de N
+   * en place · deux fois le même écart, écriture équilibrée, balance bouclée.
+   *
+   * TOUTES LES RÉÉVALUATIONS ANTÉRIEURES NON ANNULÉES (troisième tour,
+   * BLOQUANT) · ne lire que la DERNIÈRE laissait passer N oubliée dès que N+1
+   * avait été réévalué (sous une version sans portillon) puis contre-passé ·
+   * 411 à 3 100 000 au lieu de 2 600 000, 479 à −1 100 000 au lieu de
+   * −600 000. Chacune passe par la même règle · écarts de conversion non
+   * contre-passés, ou contre-passation hors de sa place. Une réévaluation des
+   * seules disponibilités n'a rien à contre-passer (AUDCIF art. 57) et ne se
+   * juge pas, pas même sur la place d'une ancienne contre-passation (mineur
+   * 1) · la banque, elle, se reporte par `ecartsReportesDesDisponibilites`.
+   * Bornée aux réévaluations des cinquante exercices les plus récents (une
+   * non annulée par exercice, index unique, audit final F54 ; dix ans de
+   * conservation, AUDCIF art. 24, et au-delà) · le dépassement est DIT avec
+   * la réévaluation passée, jamais tu.
    *
    * LA CONTRE-PASSATION DOIT ÊTRE À SA PLACE (relecture adverse, M1 ; second
    * tour, B-II) · à l'ouverture du premier exercice OUVERT qui suit la
    * réévaluation, tous ceux d'entre eux clôturés (`cibleDeContrePassation`),
-   * au plus tard dans celui-ci. Plus loin, l'écart de N restait en place
-   * pendant un exercice ouvert, que sa réévaluation repassait depuis le coût
-   * historique. L'issue est nommée · annuler cette contre-passation
-   * (Devises), puis la repasser dans la cible.
+   * au plus tard dans celui-ci (`contrePassationASaPlace`). Plus loin,
+   * l'écart de N restait en place pendant un exercice ouvert, que sa
+   * réévaluation repassait depuis le coût historique. L'issue est nommée ·
+   * annuler cette contre-passation (Devises), puis la repasser dans la cible.
    */
-  private async motifContrePassationManquante(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
+  private async motifContrePassationManquante(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date },
+  ): Promise<{ refus: string | null; depassement: string | null }> {
     const jourDe = (d: Date) => d.toISOString().slice(0, 10);
-    // Borne de sûreté · dix ans de conservation (AUDCIF art. 24), et au-delà.
-    const anterieurs = await this.prisma.exercice.findMany({
-      where: { tenantId, dateFin: { lt: exercice.dateDebut } },
-      orderBy: { dateFin: 'desc' },
-      take: 50,
-      select: { id: true, dateDebut: true, dateFin: true },
+    const lues = await this.prisma.reevaluation.findMany({
+      where: { tenantId, annuleeLe: null, exerciceId: { not: exercice.id }, exercice: { dateFin: { lt: exercice.dateDebut } } },
+      // Tri STABLE · la plus récente d'abord pour la borne (les plus anciennes
+      // sont les plus sûrement réglées), l'identifiant pour départager.
+      orderBy: [{ dateReevaluation: 'desc' }, { id: 'asc' }],
+      take: PLAFOND_REEVALUATIONS_EXAMINEES + 1,
+      select: {
+        id: true,
+        dateReevaluation: true,
+        exercice: { select: { id: true, dateDebut: true, dateFin: true } },
+        ecritureExtourneId: true,
+        ecritureExtourne: { select: { id: true, numeroPiece: true, date: true, exercice: { select: { dateDebut: true } } } },
+        ecritureEcarts: {
+          select: { lignes: { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } } },
+        },
+      },
     });
-    let exerciceReevalue: { id: string; dateDebut: Date; dateFin: Date } | null = null;
-    let reeval: {
-      dateReevaluation: Date;
-      ecritureExtourneId: string | null;
-      ecritureExtourne: { exerciceId: string; numeroPiece: number | null; date: Date; exercice: { dateDebut: Date } } | null;
-      ecritureEcarts: { lignes: { debit: unknown; credit: unknown; compte: { numero: string } }[] } | null;
-    } | null = null;
-    for (const e of anterieurs) {
-      if (e.id === exercice.id) continue;
-      reeval = await this.prisma.reevaluation.findFirst({
-        where: { tenantId, exerciceId: e.id, annuleeLe: null },
-        select: {
-          dateReevaluation: true,
-          ecritureExtourneId: true,
-          ecritureExtourne: { select: { exerciceId: true, numeroPiece: true, date: true, exercice: { select: { dateDebut: true } } } },
-          ecritureEcarts: { select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } } },
-        },
-      });
-      if (reeval) {
-        exerciceReevalue = e;
-        break;
+    const depassement =
+      lues.length > PLAFOND_REEVALUATIONS_EXAMINEES
+        ? `Contre-passations vérifiées sur les ${PLAFOND_REEVALUATIONS_EXAMINEES} réévaluations antérieures les plus récentes · ` +
+          "les plus anciennes n'ont pas été relues ; vérifiez qu'elles sont contre-passées."
+        : null;
+    const cibles = new Map<string, Awaited<ReturnType<DevisesService['cibleDeContrePassation']>>>();
+    const manquantes: Array<{ jour: string; periode: string; montants: string; ouvertureCible: string; integrale: boolean }> = [];
+    const malPlacees: Array<{ jour: string; periode: string; piece: string; ouvertureCible: string }> = [];
+    // De la plus ancienne à la plus récente · le refus les nomme dans l'ordre
+    // où elles se règlent.
+    for (const r of lues.slice(0, PLAFOND_REEVALUATIONS_EXAMINEES).reverse()) {
+      if (!r.ecritureEcarts) continue;
+      const lignes = r.ecritureEcarts.lignes.map((l) => ({
+        compteId: l.compteId,
+        compteNumero: l.compte.numero,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      }));
+      const partage = partagerLignesDEcarts(lignes);
+      // Rien à contre-passer · rien à exiger, AVANT toute question de place
+      // (mineur 1) · l'issue « passez-la » serait refusée par `extourner`.
+      if (partage.aContrePasser.length === 0) continue;
+      let cible = cibles.get(r.exercice.id);
+      if (cible === undefined) {
+        cible = await this.cibleDeContrePassation(tenantId, r.exercice.dateFin);
+        cibles.set(r.exercice.id, cible);
       }
-    }
-    if (!reeval?.ecritureEcarts || !exerciceReevalue) return null;
-    const jour = jourDe(reeval.dateReevaluation);
-    const cible = await this.cibleDeContrePassation(tenantId, exerciceReevalue.dateFin);
-    const ouvertureCible =
-      !cible || cible.id === exercice.id
-        ? "à l'ouverture de cet exercice"
-        : `à l'ouverture de l'exercice du ${jourDe(cible.dateDebut)} au ${jourDe(cible.dateFin)}, le premier ouvert après la réévaluation`;
-    if (reeval.ecritureExtourneId) {
-      const y = reeval.ecritureExtourne;
-      if (!y) return null;
-      // À SA PLACE · au plus tard dans cet exercice, et aucun exercice OUVERT
-      // entre la réévaluation et elle.
-      const auPlusTardIci = y.exercice.dateDebut.getTime() <= exercice.dateDebut.getTime();
-      const ouvertEntreDeux = await this.prisma.exercice.findFirst({
-        where: {
-          tenantId,
-          statut: StatutExercice.OUVERT,
-          dateDebut: { gt: exerciceReevalue.dateFin, lt: y.exercice.dateDebut },
-        },
-        select: { id: true },
+      const jour = jourDe(r.dateReevaluation);
+      const periode = `exercice du ${jourDe(r.exercice.dateDebut)} au ${jourDe(r.exercice.dateFin)}`;
+      const ouvertureCible =
+        !cible || cible.id === exercice.id
+          ? "à l'ouverture de cet exercice"
+          : `à l'ouverture de l'exercice du ${jourDe(cible.dateDebut)} au ${jourDe(cible.dateFin)}, le premier ouvert après la réévaluation`;
+      if (r.ecritureExtourneId) {
+        const y = r.ecritureExtourne;
+        if (y && (await this.contrePassationASaPlace(tenantId, r.exercice, y.exercice, exercice))) continue;
+        malPlacees.push({
+          jour,
+          periode,
+          piece: y ? `pièce n° ${y.numeroPiece ?? '·'} du ${jourDe(y.date)}` : 'pièce introuvable',
+          ouvertureCible,
+        });
+        continue;
+      }
+      manquantes.push({
+        jour,
+        periode,
+        montants: libelleMontantsAContrePasser(montantsAContrePasser(partage.aContrePasser)),
+        ouvertureCible,
+        integrale: partage.motifRefus !== null,
       });
-      if (auPlusTardIci && !ouvertEntreDeux) return null;
-      return (
-        `La contre-passation de la réévaluation du ${jour} (pièce n° ${y.numeroPiece ?? '·'} du ${jourDe(y.date)}) n'est pas ` +
-        "à l'ouverture du premier exercice ouvert qui suit la réévaluation · ses écarts de conversion y sont donc toujours en " +
-        'place, et réévaluer cet exercice les repasserait. Annulez cette contre-passation (Devises, « Annuler la ' +
-        `contre-passation »), passez-la ${ouvertureCible}, puis réévaluez.`
+    }
+    const messages: string[] = [];
+    for (const m of malPlacees) {
+      messages.push(
+        `La contre-passation de la réévaluation du ${m.jour} (${m.periode}, ${m.piece}) n'est pas à l'ouverture du premier ` +
+          "exercice ouvert qui suit la réévaluation · ses écarts de conversion y sont donc toujours en place, et réévaluer cet " +
+          'exercice les repasserait. Annulez cette contre-passation (Devises, « Annuler la contre-passation »), passez-la ' +
+          `${m.ouvertureCible}, puis réévaluez.`,
       );
     }
-    const partage = partagerLignesDEcarts(
-      reeval.ecritureEcarts.lignes.map((l) => ({ compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
-    );
-    if (partage.aContrePasser.length === 0) return null;
-    return (
-      `La réévaluation du ${jour} n'est pas contre-passée · ses écarts de conversion (478, 479 et comptes de tiers) sont ` +
-      "toujours en place, et réévaluer cet exercice repasserait le même écart sur les créances et dettes en devise. " +
-      `Passez la contre-passation de la réévaluation du ${jour} (Devises) ${ouvertureCible}, puis réévaluez · ` +
-      "si la première période en est close, la pièce est reportée au premier jour non clôturé, sa date de valeur restant " +
-      "l'ouverture (AUDCIF art. 22, 4°)." +
-      (partage.motifRefus
-        ? " Son écriture des écarts ne se partage pas · demandez la contre-passation intégrale (« Contre-passation intégrale »)."
-        : '')
-    );
+    for (const m of manquantes) {
+      messages.push(
+        `La réévaluation du ${m.jour} n'est pas contre-passée (${m.periode}) · ses écarts de conversion sont toujours en place ` +
+          `(à contre-passer · ${m.montants}), et réévaluer cet exercice repasserait le même écart sur les créances et dettes en ` +
+          `devise. Passez la contre-passation de la réévaluation du ${m.jour} (Devises) ${m.ouvertureCible}, puis réévaluez · ` +
+          'si la première période en est close, la pièce est reportée au premier jour non clôturé, sa date de valeur restant ' +
+          "l'ouverture (AUDCIF art. 22, 4°)." +
+          (m.integrale
+            ? " Son écriture des écarts ne se partage pas · demandez la contre-passation intégrale (« Contre-passation intégrale »)."
+            : ''),
+      );
+    }
+    return { refus: messages.length > 0 ? messages.join(' ') : null, depassement };
+  }
+
+  /**
+   * LA CONTRE-PASSATION EST-ELLE À SA PLACE ? Dans un exercice qui commence
+   * après celui de la réévaluation, sans exercice OUVERT entre les deux (M1,
+   * B-II) · un exercice ouvert intermédiaire a vécu avec l'écart de N en
+   * place, et sa réévaluation le repasserait depuis le coût historique. Et,
+   * pour l'exercice qu'on réévalue, au plus tard dans celui-ci · posée après,
+   * elle n'a pas encore eu lieu pour lui.
+   */
+  private async contrePassationASaPlace(
+    tenantId: string,
+    exerciceReevalue: { dateFin: Date },
+    exerciceContrePassation: { dateDebut: Date },
+    exercice: { dateDebut: Date } | null,
+  ): Promise<boolean> {
+    if (exerciceContrePassation.dateDebut.getTime() <= exerciceReevalue.dateFin.getTime()) return false;
+    if (exercice && exerciceContrePassation.dateDebut.getTime() > exercice.dateDebut.getTime()) return false;
+    const ouvertEntreDeux = await this.prisma.exercice.findFirst({
+      where: {
+        tenantId,
+        statut: StatutExercice.OUVERT,
+        dateDebut: { gt: exerciceReevalue.dateFin, lt: exerciceContrePassation.dateDebut },
+      },
+      select: { id: true },
+    });
+    return !ouvertEntreDeux;
   }
 
   /**
@@ -1314,9 +1374,11 @@ export class DevisesService {
     if (!exerciceCourant) throw new BadRequestException('Exercice introuvable pour ce dossier');
     const refusOrdre = await this.motifRefusOrdre(tenantId, exerciceCourant);
     if (refusOrdre) throw new BadRequestException(refusOrdre);
-    const contrePassationManquante = await this.motifContrePassationManquante(tenantId, exerciceCourant);
-    if (contrePassationManquante) throw new BadRequestException(contrePassationManquante);
+    const contrePassation = await this.motifContrePassationManquante(tenantId, exerciceCourant);
+    if (contrePassation.refus) throw new BadRequestException(contrePassation.refus);
     const rapport = await this.calculer(tenantId, dto);
+    // La borne de lecture se DIT avec la réévaluation passée, jamais tue.
+    if (contrePassation.depassement) rapport.avertissements.push(contrePassation.depassement);
     // La réserve et la version incohérente se disent AVANT « aucune position »
     // (sixième passe, m1) · un exercice sans devise mais à provision
     // d'ouverture non déclarée doit dire ce qui manque, pas qu'il n'a rien.
