@@ -43,6 +43,7 @@ const AN = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false };
 function doublure(lignes: L[], reevaluations: Array<{ ecritureEcartsId?: string; ecritureExtourneId?: string; tenantId?: string }>) {
   const tient = (x: L, w: any): boolean => {
     if (w.ecritureId?.in && !w.ecritureId.in.includes(x.ecritureId)) return false;
+    if (w.lettrageId?.in && !w.lettrageId.in.includes(x.lettrageId)) return false;
     if (w.compteId?.in && !w.compteId.in.includes(x.compteId)) return false;
     if ('lettre' in w && w.lettre === null && x.lettre !== null) return false;
     if ('deviseId' in w && w.deviseId === null && x.deviseId !== null) return false;
@@ -129,5 +130,25 @@ describe('les lignes d’écart de réévaluation sur les tiers', () => {
       compteIds: ['c411'],
     });
     expect([...r]).toEqual([]);
+  });
+
+  // A6 TER, seconde relecture, mineur b · le jeu du vérificateur (p4) · 401 au
+  // Détail, F de 1 000 USD à 2 800, clôture à 2 850 · perte latente de 50 000
+  // au crédit du 401. En N+1, la ligne reportée de l'écart est lettrée avec
+  // sa contre-passation (lettrage automatique) ; H, vraie facture de 50 000 FC
+  // reportée, reste ouverte. Écartée du rapprochement, la ligne lettrée
+  // laissait l'écart de N s'apparier à H, qui disparaissait des échéances.
+  it('la ligne reportée de l’écart, lettrée avec sa contre-passation, consomme l’écart · la vraie facture du même montant reste', async () => {
+    const h = l('c401', 0, 50_000, AN); // lue la première (identifiant le plus petit)
+    const ecartDeN = l('c401', 0, 50_000, { exerciceId: 'n0' }, { ecritureId: 'eR' });
+    const report = l('c401', 0, 50_000, AN, { lettrageId: 'L', lettre: 'L' });
+    const extourne = l('c401', 50_000, 0, {}, { ecritureId: 'eX', lettrageId: 'L', lettre: 'L' });
+    const r = await lignesDeReevaluationSurLesTiers(
+      doublure([h, ecartDeN, report, extourne], [{ ecritureEcartsId: 'eR', ecritureExtourneId: 'eX' }]) as never,
+      { tenantId: 't', exercice: ex, compteIds: ['c401'] },
+    );
+    expect(r.has(h.id)).toBe(false);
+    expect(r.has(report.id)).toBe(true);
+    expect(r.has(extourne.id)).toBe(true);
   });
 });

@@ -73,19 +73,41 @@ export async function lignesDeReevaluationSurLesTiers(
     where: {
       compteId: { in: [...new Set(anterieures.map((l) => l.compteId))] },
       deviseId: null,
-      lettrageId: null,
+      // LETTRÉES COMPRISES (A6 ter, seconde relecture, mineur b) · la ligne
+      // reportée d'un écart, lettrée dans l'exercice avec sa contre-passation,
+      // doit CONSOMMER sa ligne de réévaluation ; écartée, la ligne restée
+      // sans paire s'appariait à une vraie facture en francs du même montant,
+      // qui disparaissait des échéances.
       ecriture: {
         tenantId: p.tenantId,
         exerciceId: p.exercice.id,
         OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
       },
     },
-    select: { id: true, compteId: true, debit: true, credit: true },
+    select: { id: true, compteId: true, debit: true, credit: true, lettrageId: true },
     orderBy: { id: 'asc' },
   });
+  // L'ORDRE D'APPARIEMENT · d'abord la ligne lettrée dans un groupe qui porte
+  // une ligne d'écriture de réévaluation (sa contre-passation, par liaison),
+  // puis toute autre ligne lettrée (elle n'est pas due), et la ligne ouverte
+  // en dernier · à montant égal, une vraie facture ouverte n'est jamais prise
+  // pour un écart tant qu'une ligne qui ne se paie pas peut l'être.
+  const groupes = [...new Set(candidates.flatMap((l) => (l.lettrageId ? [l.lettrageId] : [])))];
+  const groupesDeReevaluation = new Set(
+    groupes.length === 0
+      ? []
+      : (
+          await prisma.ligneEcriture.findMany({
+            where: { lettrageId: { in: groupes }, ecritureId: { in: ecritures }, ecriture: { tenantId: p.tenantId } },
+            select: { lettrageId: true },
+          })
+        ).flatMap((l) => (l.lettrageId ? [l.lettrageId] : [])),
+  );
+  const rang = (l: { lettrageId: string | null }) => (l.lettrageId === null ? 2 : groupesDeReevaluation.has(l.lettrageId) ? 0 : 1);
   for (const compteId of new Set(anterieures.map((l) => l.compteId))) {
     const restes = anterieures.filter((l) => l.compteId === compteId).map((l) => ({ d: centimes(l.debit), c: centimes(l.credit) }));
-    const libres = candidates.filter((l) => l.compteId === compteId);
+    // Tri stable · le rang, puis l'ordre de lecture.
+    const libres = candidates.filter((l) => l.compteId === compteId).sort((a, b) => rang(a) - rang(b));
     const sansPaire: typeof libres = [];
     // Au Détail · une ligne de réévaluation, une ligne d'à-nouveau.
     for (const l of libres) {
@@ -93,7 +115,7 @@ export async function lignesDeReevaluationSurLesTiers(
       if (i >= 0) {
         restes.splice(i, 1);
         resultat.add(l.id);
-      } else {
+      } else if (l.lettrageId === null) {
         sansPaire.push(l);
       }
     }
