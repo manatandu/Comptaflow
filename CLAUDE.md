@@ -755,7 +755,21 @@ choix écrit) ; l'écart non arbitré reste le PREMIER motif. Contenu de l'attes
 non défini · seuls existence, date, signataire. Ajouts de l'éditeur : l'HEURE, et la
 VENTILATION PAR COUPURE facultative (fiche du compte 57, « le solde du compte caisse
 doit toujours correspondre exactement à la somme disponible réellement »). Solde
-FIGÉ sur le PV.
+FIGÉ sur le PV. CAISSE COMPTÉE APRÈS LA CLÔTURE (ligne A10, 2026-10-03,
+`inventaire/solde-caisse-au-comptage.ts`) · le solde comparé est celui du
+LIVRE-JOURNAL à la DATE DU COMPTAGE, lu par le serveur, jamais saisi (art. 16,
+al. 4) ; un comptage postérieur RECONSTITUE la clôture (art. 42, CPCC § VI) ·
+solde de N, mouvements intercalés, opérations de N+1 à date de valeur
+antérieure ISOLÉES, à-nouveaux et bilan importé jamais comptés deux fois. Une
+caisse dont toutes les lignes portent UNE devise se compare dans cette devise
+(sens par débit moins crédit, lignes inscrites en négatif SOUSTRAITES, écarts de
+réévaluation écartés) ; lignes mêlées · en francs au cours historique, AVEC la
+mention, jamais refusé. Aperçu GET avant de figer ; lecture et création dans UNE
+transaction, unité de l'aperçu rejouée (409 si elle a changé), `etabliLe` posé
+après la lecture ; mentions écrites par le serveur (écart au jour du comptage,
+solde créditeur cité de la fiche du 57, espèces reconstituées négatives) ;
+concordance relue sur quatre totaux, les validations postérieures au PV
+comptées à part.
 
 **Composant « révisions majeures ».** AUDCIF art. 38-2, Titre VIII ch. 5 § 1 :
 amorti « JUSQU'À LA PROCHAINE RÉVISION », puis chaque révision réalisée « amorti[e]
