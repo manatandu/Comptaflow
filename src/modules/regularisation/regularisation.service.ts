@@ -16,6 +16,7 @@ import {
   ModifierAbonnementDto,
 } from './dto/regularisation.dto';
 import { ajouterMois } from '../../common/ajouter-mois';
+import { compteInteretsCourus, motifRefusChargeInterets } from './interets-courus';
 
 /** Un jour, en millisecondes. */
 const JOUR = 86_400_000;
@@ -69,7 +70,7 @@ export function dateReprise(
  * entièrement, et les deux plans le rangent chacun dans le compte de tiers
  * concerné, jamais dans un compte fourre-tout.
  */
-export type NatureTiersRattachement = 'FOURNISSEURS' | 'CLIENTS' | 'PERSONNEL' | 'ORGANISMES_SOCIAUX' | 'ETAT';
+export type NatureTiersRattachement = 'FOURNISSEURS' | 'CLIENTS' | 'PERSONNEL' | 'ORGANISMES_SOCIAUX' | 'ETAT' | 'PRETEURS';
 
 /** Compte de report par défaut selon le type de régularisation. */
 const RACINE_DIFFERE: Record<TypeRegularisation, string> = {
@@ -119,6 +120,9 @@ const RATTACHEMENT: Record<
   PERSONNEL: { charge: '4286', produit: '4287', libelle: 'Personnel' },
   ORGANISMES_SOCIAUX: { charge: '4386', produit: '4387', libelle: 'Organismes sociaux' },
   ETAT: { charge: '4486', produit: '4487', libelle: 'État et collectivités publiques' },
+  // Ligne A12 · le compte des intérêts courus se lit sur l'EMPRUNT
+  // (interets-courus.ts), jamais sur cette table · charge vide, résolue à part.
+  PRETEURS: { charge: '', produit: '', libelle: 'Prêteurs (intérêts courus sur emprunts)' },
 };
 
 /**
@@ -276,6 +280,11 @@ export class RegularisationService {
     });
     if (!tenant) throw new BadRequestException('Dossier introuvable');
 
+    if (dto.natureTiers === 'PRETEURS') return this.trouverCompteInteretsCourus(tenantId, tenant.referentiel, dto);
+    if (dto.compteEmpruntId) {
+      throw new BadRequestException("L'emprunt ne se désigne que pour des intérêts courus (nature « prêteurs »).");
+    }
+
     const { racine } = RegularisationService.compteRattachement(tenant.referentiel, dto.natureTiers, dto.type);
     const compte = await this.prisma.compte.findFirst({
       where: { tenantId, numero: { startsWith: racine } },
@@ -285,6 +294,49 @@ export class RegularisationService {
       throw new BadRequestException(
         `Le compte de rattachement ${racine} n'existe pas dans le plan de ce dossier. Il est prévu par le ` +
           "référentiel : le créer plutôt que d'en choisir un autre.",
+      );
+    }
+    return compte;
+  }
+
+  /**
+   * LIGNE A12 · les intérêts courus d'un emprunt (interets-courus.ts) · une
+   * charge à payer seulement, l'emprunt désigné, la période close au plus tard
+   * à la clôture (« courus jusqu'au jour de la clôture », fiche du compte 16
+   * au SYSCOHADA, du compte 18 au SYCEBNL), le compte de charge au 671 ou au
+   * 674. Le compte d'intérêts courus est résolu par le serveur, jamais reçu.
+   */
+  private async trouverCompteInteretsCourus(tenantId: string, referentiel: Referentiel, dto: CreerRegularisationDto) {
+    if (dto.type !== TypeRegularisation.CHARGE_A_PAYER) {
+      throw new BadRequestException('Les intérêts courus sur emprunts sont une charge à payer, jamais un produit à recevoir.');
+    }
+    if (!dto.compteEmpruntId) {
+      throw new BadRequestException(
+        "Désignez l'emprunt · c'est lui qui décide du compte d'intérêts courus (166 au SYSCOHADA, 186 au SYCEBNL).",
+      );
+    }
+    const emprunt = await this.prisma.compte.findFirst({ where: { id: dto.compteEmpruntId, tenantId }, select: { numero: true } });
+    if (!emprunt) throw new BadRequestException('Emprunt introuvable pour ce dossier');
+    const resolu = compteInteretsCourus(referentiel, emprunt.numero);
+    if ('refus' in resolu) throw new BadRequestException(resolu.refus);
+    const charge = await this.prisma.compte.findFirst({ where: { id: dto.compteChargeProduitId, tenantId }, select: { numero: true } });
+    if (!charge) throw new BadRequestException('Compte de charge introuvable');
+    const refusCharge = motifRefusChargeInterets(charge.numero);
+    if (refusCharge) throw new BadRequestException(refusCharge);
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { dateFin: true } });
+    if (exercice && new Date(dto.periodeFin).getTime() > exercice.dateFin.getTime()) {
+      throw new BadRequestException(
+        "Les intérêts courus se comptent « jusqu'au jour de la clôture » · la période ne dépasse pas la fin de l'exercice.",
+      );
+    }
+    const compte = await this.prisma.compte.findFirst({
+      where: { tenantId, numero: { startsWith: resolu.racine }, typeCompte: 'DETAIL' },
+      orderBy: { numero: 'asc' },
+    });
+    if (!compte) {
+      throw new BadRequestException(
+        `Le compte d'intérêts courus ${resolu.racine} n'existe pas dans le plan de ce dossier · il est prévu par le ` +
+          "référentiel, créez-le plutôt que d'en choisir un autre.",
       );
     }
     return compte;

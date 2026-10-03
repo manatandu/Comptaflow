@@ -34,9 +34,11 @@ describe('F67 · les régularisations à l’écran', () => {
   it('les natures proposées sont celles que la table du serveur ouvre, type par type', () => {
     const table = /const RATTACHEMENT[\s\S]*?= \{([\s\S]*?)\n\};/.exec(service)![1];
     const lignes = [...table.matchAll(/(\w+): \{ charge: '(\d*)', produit: '(\d*)'/g)];
-    expect(lignes).toHaveLength(5);
+    expect(lignes).toHaveLength(6);
     const ouvertes = (colonne: 2 | 3) => lignes.filter((l) => l[colonne] !== '').map((l) => l[1]).sort();
-    expect([...naturesTiersProposees('CHARGE_A_PAYER')].sort()).toEqual(ouvertes(2));
+    // Ligne A12 · les prêteurs n'ont pas de compte dans la table, il se lit
+    // sur l'emprunt (interets-courus.ts) · charge à payer seulement.
+    expect([...naturesTiersProposees('CHARGE_A_PAYER')].sort()).toEqual([...ouvertes(2), 'PRETEURS'].sort());
     expect([...naturesTiersProposees('PRODUIT_A_RECEVOIR')].sort()).toEqual(ouvertes(3));
     expect(naturesTiersProposees('CHARGE_CONSTATEE_AVANCE')).toEqual([]);
   });
