@@ -20,7 +20,10 @@ Premier tour de relecture adverse (2026-10-03) ·
 - [x] mineur 7 · groupe MANUEL jamais défait ; retrait en une transaction ; ré-extinction
 - [x] mineur 8 · méthode des cotisations du jour ; impayé d'adhérent admis avec avertissement
 - [x] mineur 9 · B2a restreinte ; index `compteCreanceId` ; citation CPCC ; CLAUDE.md
-- [ ] fusion de `origin/main`, puis bloc du § 3 des deux côtés (`npx jest --maxWorkers=2`)
+- [x] fusion de `origin/main` (f4ab9bb), puis bloc du § 3 des deux côtés · serveur `tsc` vert, `npx jest
+  --maxWorkers=2` 714 suites, 9 997 tests (deux suites tuées par le système, SIGKILL mémoire, rejouées seules et
+  vertes · `graphe-applicatif`, `classeur-en-memoire-borne`), `npm run build` vert ; client `tsc` vert, 208
+  fichiers, 1 697 tests, construction verte ; e2e typé · le parcours sur base réelle reste à la CI
 
 ## Fait (premier tour)
 
