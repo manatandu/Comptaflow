@@ -259,7 +259,8 @@ export interface Ecriture {
 }
 
 export type StatutLettrage = 'PARTIEL' | 'SOLDE';
-export type OrigineLettrage = 'MANUEL' | 'AUTOMATIQUE_PIECE' | 'AUTOMATIQUE_MONTANT';
+/** `MODULE` · posé par un module sur ses propres lignes (créance douteuse éteinte, ligne A7 ter), défait par lui seul. */
+export type OrigineLettrage = 'MANUEL' | 'AUTOMATIQUE_PIECE' | 'AUTOMATIQUE_MONTANT' | 'MODULE';
 
 export interface LigneLettrage {
   id: string;
@@ -330,8 +331,8 @@ export interface EtatLettrage {
  * n'existe plus.
  */
 export interface PropositionPreLettrage {
-  /** Toujours automatique · un groupe composé à la main passe par le lettrage manuel. */
-  origine: Exclude<OrigineLettrage, 'MANUEL'>;
+  /** Toujours automatique · un groupe composé à la main passe par le lettrage manuel, celui d'un module est posé par lui. */
+  origine: Exclude<OrigineLettrage, 'MANUEL' | 'MODULE'>;
   ligneIds: string[];
   lignes: Array<{
     ligneId: string;

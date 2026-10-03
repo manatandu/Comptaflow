@@ -1948,6 +1948,7 @@ enum OrigineLettrage {
   MANUEL
   AUTOMATIQUE_PIECE // « a priori » · appariement par référence de pièce
   AUTOMATIQUE_MONTANT // « a posteriori » · appariement par montant
+  MODULE // posé par un module sur ses propres lignes (créance douteuse éteinte, ligne A7 ter) · lui seul le défait
 }
 
 model Lettrage {
@@ -9071,6 +9072,7 @@ model CreanceDouteuse {
 
   @@index([tenantId])
   @@index([exerciceId])
+  @@index([compteCreanceId])
   @@map("creances_douteuses")
 }
 

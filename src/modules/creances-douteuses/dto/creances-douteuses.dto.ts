@@ -143,6 +143,23 @@ export class AnnulerMouvementDto extends AnnulerRevueDto {}
 export class AnnulerReclassementDto extends AnnulerRevueDto {}
 
 /**
+ * Second tour d'A7 ter, B-1 · LE LETTRAGE AU 416 D'UNE CRÉANCE ÉTEINTE, posé
+ * par le module · `ligneIds`, les lignes d'À-NOUVEAU du 416 que le cabinet
+ * désigne (aucune liaison ne les relie au reclassement d'un exercice
+ * précédent, ni à une créance déclarée à l'ouverture) ; le module y joint les
+ * lignes ouvertes de la créance dans l'exercice.
+ */
+export class Lettrer416Dto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  ligneIds!: string[];
+}
+
+/**
  * DOSSIER REPRIS · la créance déjà au 416 et sa dépréciation déjà au 491
  * avant OmegaX, déclarées au premier jour de l'exercice choisi, sans écriture.
  */

@@ -15,6 +15,7 @@ interface Liste {
   creances: Array<{ id: string; compte416: { numero: string }; resteALaCloture: number; depreciationALaCloture: number; revue: { id: string; ecritureId: string | null } | null }>;
   rapprochement: { solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
 }
+interface LigneLettrage { id: string; debit: number; credit: number; lettre: string | null }
 
 for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
   test(`${referentiel} · une créance reclassée au 416, dépréciée à la clôture, retenue par le module`, async ({ page }) => {
@@ -33,6 +34,9 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     // SYSCOHADA · le client (411) ; SYCEBNL · le client-usager (412).
     const client = detail(referentiel === 'SYSCOHADA' ? '411' : '412');
     const produit = detail('7');
+    // La vente porte sa TVA facturée (443, « TVA facturée » aux deux plans) · le lettrage de la
+    // facture avec le reclassement est refusé avec ou sans elle (règle d'A7, B3).
+    const tvaFacturee = detail('443');
     const debut = exercice.dateDebut.slice(0, 10);
     const annee = debut.slice(0, 4);
     await appelApi(page, 'POST', '/ecritures', {
@@ -42,7 +46,8 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
       libelle: 'Vente e2e à crédit',
       lignes: [
         { compteId: client.id, debit: 1_160_000, credit: 0 },
-        { compteId: produit.id, debit: 0, credit: 1_160_000 },
+        { compteId: produit.id, debit: 0, credit: 1_000_000 },
+        { compteId: tvaFacturee.id, debit: 0, credit: 160_000 },
       ],
     });
 
@@ -97,7 +102,16 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(ligne.resteALaCloture).toBe(1_160_000);
     expect(ligne.depreciationALaCloture).toBe(400_000);
     // Le module et la balance disent la même chose du 416 et du 491.
-    expect(liste.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 400_000, depreciationModule: 400_000 });
+    // A7 ter · le rapprochement dit aussi le report provisoire (B1) et la part du 491 hors module (m8).
+    expect(liste.rapprochement).toEqual({
+      provisoire: false,
+      reportProvisoire: false,
+      solde416: 1_160_000,
+      resteModule: 1_160_000,
+      solde491: 400_000,
+      depreciationModule: 400_000,
+      horsModule491: 0,
+    });
 
     // L'écriture de la dotation est TENUE · elle ne se supprime pas du journal.
     await expect(appelApi(page, 'DELETE', `/ecritures/${ligne.revue!.ecritureId}`)).rejects.toThrow(/400 · .*créance douteuse/);
@@ -114,7 +128,15 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     const apres = await appelApi<Liste & { creances: Array<{ revuesAnnulees: unknown[] }> }>(page, 'GET', `/creances-douteuses?exerciceId=${exercice.id}`);
     expect(apres.creances[0].revue).toBeNull();
     expect(apres.creances[0].revuesAnnulees).toHaveLength(1);
-    expect(apres.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 0, depreciationModule: 0 });
+    expect(apres.rapprochement).toEqual({
+      provisoire: false,
+      reportProvisoire: false,
+      solde416: 1_160_000,
+      resteModule: 1_160_000,
+      solde491: 0,
+      depreciationModule: 0,
+      horsModule491: 0,
+    });
     // Une créance dont une revue est gardée, même annulée, ne se retire plus.
     await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*même annulés/);
 
@@ -136,6 +158,49 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(fin.creances[0].resteALaCloture).toBe(1_060_000);
     expect(fin.creances[0].mouvementsAnnules).toHaveLength(1);
     expect(fin.rapprochement?.solde416).toBe(1_060_000);
+
+    // A7 ter, B3 · le lettrage automatique du compte client n'apparie plus la
+    // facture et le reclassement, de même montant (la TVA deviendrait
+    // exigible) ; le lettrage manuel est refusé par le motif nommé.
+    const auto = await appelApi<{ groupes: number }>(page, 'POST', `/comptes/${client.id}/lettrage/auto`, {});
+    expect(auto.groupes).toBe(0);
+    const lignesClient = await appelApi<{ lignes: LigneLettrage[] }>(page, 'GET', `/comptes/${client.id}/lettrage`);
+    expect(lignesClient.lignes).toHaveLength(2);
+    expect(lignesClient.lignes.every((l) => l.lettre === null)).toBe(true);
+    await expect(
+      appelApi(page, 'POST', `/comptes/${client.id}/lettrage`, { ligneIds: lignesClient.lignes.map((l) => l.id) }),
+    ).rejects.toThrow(/400 · .*Ne lettrez pas la facture avec le reclassement/);
+
+    // A7 ter, B2 · la perte qui éteint la créance lettre ses lignes du 416.
+    const derniere = await appelApi<{ id: string; lettrage416: { pose: boolean; code?: string } | null }>(page, 'POST', `/creances-douteuses/${creance.id}/perte`, {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      date: `${annee}-12-21`,
+      montant: 1_060_000,
+      motif: 'Solde irrécouvrable',
+      pieces: [{ nature: 'Certificat d’irrécouvrabilité', reference: 'CI-2' }],
+    });
+    expect(derniere.lettrage416).toMatchObject({ pose: true });
+
+    // A7 ter, B2b · la période close APRÈS l'extinction n'enferme pas la
+    // créance. Tout est validé, la période est close au 30 novembre · la ligne
+    // du reclassement (15 novembre) fige le groupe du module. L'annulation de
+    // la dernière perte s'inscrit en négatif à côté du groupe, qui reste en
+    // place, et la balance rend 1 060 000 au 416 et 100 000 à la perte.
+    await appelApi(page, 'POST', '/ecritures/valider-jusqua', { exerciceId: exercice.id, dateLimite: `${annee}-12-31` });
+    await appelApi(page, 'POST', `/exercices/${exercice.id}/clotures/periode`, { dateLimite: `${annee}-11-30` });
+    const annulee = await appelApi<{ annulation: { traitement: string; lettrageMaintenu?: string }; information?: string }>(
+      page,
+      'POST',
+      `/creances-douteuses/${creance.id}/mouvements/${derniere.id}/annuler`,
+      { motif: 'Le liquidateur annonce un dividende' },
+    );
+    expect(annulee.annulation).toMatchObject({ traitement: 'INSCRITE_EN_NEGATIF', lettrageMaintenu: expect.any(String) });
+    expect(annulee.information).toMatch(/reste en place/);
+    const { lignes: balance } = await appelApi<{ lignes: Array<{ numero: string; solde: number }> }>(page, 'GET', `/ecritures/balance?exerciceId=${exercice.id}`);
+    const soldeSous = (racine: string) => balance.filter((l) => l.numero.startsWith(racine)).reduce((t, l) => t + l.solde, 0);
+    expect(soldeSous('416')).toBe(1_060_000);
+    expect(soldeSous('651')).toBe(100_000);
     expect(pannes).toEqual([]);
   });
 }

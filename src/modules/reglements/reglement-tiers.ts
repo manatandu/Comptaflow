@@ -29,12 +29,77 @@ export type SensReglement = 'FOURNISSEUR' | 'CLIENT';
  *  · 409 « fournisseurs débiteurs » et 419 « clients créditeurs » · des
  *    avances et acomptes, qui sont l'inverse d'une échéance.
  */
-const DIVISIONS_EXCLUES = ['408', '409', '418', '419'];
+const DIVISIONS_EXCLUES = ['408', '409', '418', '419', '416'];
+
+/**
+ * A7 ter, mineur 1 · LE 416 NE SE RÈGLE PAS ICI · « Créances clients
+ * litigieuses ou douteuses » au SYSCOHADA, « Créances adhérents,
+ * clients-usagers litigieuses ou douteuses » au SYCEBNL (fiche du compte 41
+ * des deux plans). La créance reclassée se suit dans « Créances douteuses ou
+ * litigieuses » · son encaissement est le RECOUVREMENT du module (D trésorerie
+ * / C 416), qui le compte dans le reste de la créance. Réglée ici, la ligne
+ * sortait du 416 sans que le module le sache · reste faux, revue et clôture
+ * lues sur une créance déjà encaissée.
+ */
+export const MOTIF_416_PAR_LE_MODULE =
+  'se règle par « Recouvrement » dans « Créances douteuses ou litigieuses » · le module compte l’encaissement dans le reste de la créance.';
 
 export function estEcheanceAReglerSur(numeroCompte: string, sens: SensReglement): boolean {
   const racine = sens === 'FOURNISSEUR' ? '40' : '41';
   if (!numeroCompte.startsWith(racine)) return false;
   return !DIVISIONS_EXCLUES.some((d) => numeroCompte.startsWith(d));
+}
+
+/** Le refus d'une ligne qui ne se règle pas ici · le 416 renvoie au module. */
+export function motifHorsEcheance(numeroCompte: string): string {
+  return numeroCompte.startsWith('416')
+    ? `Le compte ${numeroCompte} (créance litigieuse ou douteuse) ${MOTIF_416_PAR_LE_MODULE}`
+    : `Le compte ${numeroCompte} ne porte pas d'échéance à régler dans ce sens.`;
+}
+
+/**
+ * Second tour d'A7 ter, m-d · LE RÈGLEMENT SE BORNE AU SOLDE NET du compte d'un
+ * client qui porte une créance reclassée en vigueur. La facture reclassée reste
+ * ouverte au compte du client (le reclassement ne la lettre pas, règle d'A7),
+ * mais sa valeur est au 416 · la régler ici en entier laissait le compte du
+ * client créditeur de 1 160 000, le 416 à 1 160 000 et la dépréciation de
+ * 400 000 sur une créance encaissée (scénario d, base réelle). Au-delà du solde
+ * net, refus nommé, avec l'ISSUE RÉELLE (troisième passage, m3) · régler au
+ * plus le solde net, chiffré ; un encaissement de la créance reclassée passe
+ * par le « Recouvrement » du module, un autre (avance, trop-perçu) par une
+ * pièce au journal. « Ne réglez que les autres factures » était faux quand la
+ * facture choisie EN EST une, et que le net est entamé par un crédit non
+ * affecté du compte (cas e2 · 200 000 non affectés, facture B de 500 000).
+ */
+export function motifReglementAuDelaDuNet(numeroCompte: string, compte416: string, dateReclassement: string, net: number, montant: number): string | null {
+  const c = (x: number) => Math.round(x * 100) / 100;
+  if (c(montant) <= c(net) + 0.005) return null;
+  const plafond = Math.max(0, c(net)).toFixed(2);
+  return (
+    `Le compte ${numeroCompte} porte une créance reclassée au ${compte416} le ${dateReclassement} · son solde net n'est que de ` +
+    `${plafond} (la créance reclassée est au ${compte416}), et un règlement de ${c(montant).toFixed(2)} le rendrait créditeur. ` +
+    `Réglez ici au plus ${plafond}. Un encaissement de la créance reclassée se passe par « Recouvrement » dans « Créances ` +
+    'douteuses ou litigieuses » ; un autre encaissement (avance, trop-perçu) se passe en pièce au journal.'
+  );
+}
+
+/**
+ * A7 ter, mineur 1 · L'AVERTISSEMENT DU RÈGLEMENT d'une facture dont le compte
+ * porte une créance reclassée au 416 en vigueur · si ce règlement encaisse la
+ * créance, il passe par le module. Réglée ici, dans la borne du solde net
+ * (m-d), la facture reclassée se solde au compte du client pendant que le 416
+ * garde la créance, et c'est une AUTRE facture du client qui paraît alors
+ * impayée (troisième passage, m4 · le compte ne devient plus créditeur, m-d
+ * l'empêche). Un avertissement, jamais un refus · une vente postérieure au
+ * reclassement se règle ici comme une autre.
+ */
+export function avertissementCreanceReclassee(numeroCompte: string, compte416: string, dateReclassement: string): string {
+  return (
+    `Le compte ${numeroCompte} porte une créance reclassée au ${compte416} le ${dateReclassement} (« Créances douteuses ou ` +
+    'litigieuses »). Si ce règlement encaisse cette créance, passez-le par « Recouvrement » dans ce module · réglée ici, la ' +
+    `facture reclassée se solde au ${numeroCompte} pendant que le ${compte416} garde la créance, et une autre facture du client ` +
+    'paraît impayée. Au brouillard, la pièce se supprime ; validée, elle s’annule par inscription en négatif.'
+  );
 }
 
 /** Montant restant dû d'une ligne, positif, dans le sens de l'échéance. */

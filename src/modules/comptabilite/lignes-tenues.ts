@@ -15,9 +15,23 @@ import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-le
 const ISSUE_RAPPROCHEMENT_CLOS =
   'Un rapprochement encore en cours se dépointe directement ; clos, seul l’administrateur le rouvre (« Rouvrir le rapprochement », ' +
   'le dernier clos du compte seulement, motif exigé), puis la ligne se dépointe.';
+/**
+ * Second tour d'A7 ter, B-1 · l'issue d'un lettrage FIGÉ dépend de l'exercice.
+ * Clôturé, l'erreur relève du report à nouveau (AUDCIF art. 20, al. 3). Encore
+ * OUVERT (une clôture de période ou totale seulement), l'erreur est de
+ * l'exercice en cours · son inscription en négatif reste due (art. 20, al. 2),
+ * au premier jour non clôturé (art. 22, 4°) · renvoyer au report à nouveau
+ * était faux. Le module des créances douteuses l'inscrit à côté de son groupe
+ * figé ; pour une autre écriture, OmegaX ne l'inscrit pas sur une ligne
+ * lettrée, et le message le dit plutôt que de promettre une issue (relevé au
+ * suivi).
+ */
 const ISSUE_LETTRAGE_FIGE =
-  'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives, ' +
-  'et l’erreur relève alors du report à nouveau (AUDCIF art. 20, al. 3).';
+  'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives. ' +
+  'Exercice clôturé · l’erreur relève du report à nouveau (AUDCIF art. 20, al. 3). Exercice encore ouvert · l’inscription en ' +
+  'négatif reste due dans l’exercice (art. 20, al. 2), au premier jour non clôturé (art. 22, 4°), mais OmegaX ne l’inscrit pas ' +
+  'sur une ligne lettrée, hors les gestes des créances douteuses, qui l’inscrivent à côté de leur lettrage figé · saisissez ' +
+  'vous-même l’écriture en négatif, au premier jour non clôturé.';
 
 /** Une ligne telle que le refus la lit · son lettrage et son pointage. */
 export interface LigneTenue {
@@ -37,9 +51,22 @@ export interface LigneTenue {
  * l'annulation d'une réévaluation des devises (D6). `objet` nomme ce qui est
  * lu (« cette écriture », « l'écriture n° 12 »), `geste` ce qui est refusé.
  * `null` si rien ne tient.
+ *
+ * `groupeTolere` · le SEUL groupe qu'un module a posé sur ses propres lignes
+ * et qu'il garde en place parce qu'une clôture l'a figé (ligne A7 ter, B2b ·
+ * une créance douteuse éteinte dont une ligne tombe dans une période close).
+ * L'annulation s'inscrit alors en négatif à côté du groupe, qui reste soldé
+ * sur les lignes qu'il réunit ; la ligne en négatif, ouverte, porte le reste
+ * rétabli. Toute autre ligne lettrée ou pointée refuse comme avant.
  */
-export function motifLignesTenues(lignes: LigneTenue[], objet: string, geste: string, issue = ''): string | null {
-  const lettrees = lignes.filter(estTenueParUnLettrage);
+export function motifLignesTenues(
+  lignes: LigneTenue[],
+  objet: string,
+  geste: string,
+  issue = '',
+  groupeTolere: string | null = null,
+): string | null {
+  const lettrees = lignes.filter((l) => estTenueParUnLettrage(l) && !(groupeTolere !== null && l.lettrageId === groupeTolere));
   if (lettrees.length > 0) {
     return (
       `${lettrees.length} ligne(s) de ${objet} sont lettrées (${[...new Set(lettrees.map(designationLettrage))].join(', ')}). ` +
