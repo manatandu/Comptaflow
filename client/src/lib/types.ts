@@ -2161,6 +2161,13 @@ export interface CandidatesContrePassationManuelle {
     exercice: { dateDebut: string; dateFin: string; statut: string };
   }[];
   tronque: boolean;
+  /**
+   * Ce que l'écran dit quand la liste est vide (quatrième tour), servi par le
+   * serveur · des écritures manuelles touchent déjà l'écart sans l'inverser
+   * exactement (les corriger), ou l'ouverture ne le porte pas (le rétablir) ;
+   * `null` · rien de manuel, la contre-passation par le module convient.
+   */
+  motifHorsModule: string | null;
 }
 
 /** Une banque ou caisse dont l'écart passé sans devise ne se relit pas (relecture adverse d'A5 bis, B1). */

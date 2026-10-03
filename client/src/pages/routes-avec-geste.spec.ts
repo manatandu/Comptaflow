@@ -28,7 +28,7 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     controleur: 'devises/devises.controller.ts',
     decorateur: "@Delete('reevaluations/:id/contre-passation-manuelle')",
     page: 'DevisesPage.tsx',
-    appel: 'api.delete(`/devises/reevaluations/${r.id}/contre-passation-manuelle`)',
+    appel: 'api.delete(`/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation-manuelle`, { motif: aAnnuler.motif.trim() })',
   },
   {
     route: 'DELETE /facturation/:id',

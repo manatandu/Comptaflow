@@ -102,15 +102,37 @@ describe('écran Devises · la contre-passation manuelle déclarée', () => {
     expect(corps).toContain('`/devises/reevaluations/${aDeclarer.reevaluation.id}/contre-passation-manuelle`');
     expect(corps).toContain('ecritureId: aDeclarer.ecritureId');
     expect(corps).toContain('motif: aDeclarer.motif.trim()');
-    expect(source).toContain('api.delete(`/devises/reevaluations/${r.id}/contre-passation-manuelle`)');
+    // Le retrait passe par la modale du motif (quatrième tour, m3) · motif exigé, envoyé.
+    const annulation = source.slice(source.indexOf('const annulerReevaluation = async'));
+    const corpsAnnulation = annulation.slice(0, annulation.indexOf('\n  };\n'));
+    expect(corpsAnnulation).toContain(
+      'api.delete(`/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation-manuelle`, { motif: aAnnuler.motif.trim() })',
+    );
+    expect(source).toContain("setAAnnuler({ reevaluation: r, motif: '', geste: 'DECLARATION' });");
+    expect(source).not.toContain('window.confirm(`Retirer la déclaration');
   });
 
   it('une liste vide dit pourquoi et ce qu’il faut faire ; une seule candidate se présélectionne ; l’erreur reste dans la modale', () => {
     const modale = source.slice(source.indexOf('{aDeclarer && ('));
     const corps = modale.slice(0, modale.indexOf('</PortailModale>'));
-    expect(corps).toContain("Aucune écriture de ce dossier n'inverse exactement ces montants");
+    // Quatrième tour · la liste vide dit ce que le serveur sert (`motifHorsModule` · corriger, rétablir) ;
+    // « contre-passez par le module » seulement quand rien de manuel ne touche ces comptes.
+    expect(corps).toContain('aDeclarer.lues.motifHorsModule ??');
+    expect(corps).toContain('Aucune écriture passée à la main ne touche ces comptes');
+    expect(corps).not.toContain("Aucune écriture de ce dossier n'inverse exactement ces montants");
     expect(corps).toContain('{erreurDeclaration}');
     expect(source).toContain('lues.candidates.length === 1 ? lues.candidates[0].id');
+  });
+
+  it('m4 · une lecture périmée est jetée au succès COMME à l’échec ; Échap ferme la modale', () => {
+    const debut = source.indexOf('const ouvrirDeclaration = async');
+    const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
+    const succes = corps.slice(corps.indexOf('try {'), corps.indexOf('} catch'));
+    const echec = corps.slice(corps.indexOf('} catch'));
+    expect(succes).toContain('if (jeton !== jetonDeclaration.current) return;');
+    expect(echec).toContain('if (jeton !== jetonDeclaration.current) return;');
+    const echap = source.slice(source.indexOf('if (!declarationOuverte) return;'));
+    expect(echap.slice(0, echap.indexOf('}, ['))).toContain('ecouterEchap(');
   });
 
   it('mineur 2 · la ventilation passe par `lireVentilationSaisie`, qui refuse le champ vide', () => {
