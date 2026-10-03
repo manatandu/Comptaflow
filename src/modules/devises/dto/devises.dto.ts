@@ -1,3 +1,4 @@
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
 
 export class CreerDeviseDto {
@@ -72,4 +73,48 @@ export class ReevaluerDto {
 export class ExtournerReevaluationDto {
   @IsUUID()
   exerciceSuivantId!: string;
+}
+
+/**
+ * Provision pour pertes de change existant à l'ouverture, déclarée par le
+ * cabinet (ligne A5, décision de Manasse du 2026-10-02). Le compte, le
+ * montant, la date et la SOURCE · la règle complète vit dans
+ * `motifRefusDeclarationOuverture`, jouée par le service.
+ */
+export class DeclarerProvisionOuvertureDto {
+  @IsString()
+  @Length(3, 4, { message: 'Le compte de provision est une racine (194, 4991 ou 4997)' })
+  compteProvision!: string;
+
+  @IsNumber()
+  @Min(0)
+  montant!: number;
+
+  @IsDateString()
+  dateReference!: string;
+
+  @IsString()
+  @Length(1, 2000, { message: 'La source du montant déclaré est exigée' })
+  source!: string;
+
+  /** Motif d'une nouvelle version · exigé par le service dès qu'une version antérieure existe. */
+  @IsOptional()
+  @IsString()
+  @Length(0, 2000)
+  motif?: string;
+
+  /**
+   * La provision passée par OmegaX jusqu'à la clôture précédente est déclarée
+   * ERRONÉE · seule déclaration qui admet une version sous elle. Le motif de
+   * correction ne l'ouvre jamais.
+   */
+  @FacultatifNonNul('La contestation de la provision du module est vraie ou fausse · omettez le champ pour ne rien contester.')
+  @IsBoolean()
+  provisionModuleContestee?: boolean;
+
+  /** Motif de la contestation · exigé, non vide, quand elle est déclarée. */
+  @IsOptional()
+  @IsString()
+  @Length(0, 2000)
+  motifContestation?: string;
 }

@@ -10,6 +10,7 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { sousFonctionServie } from '../lib/profil-dossier';
 import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
 import { libelleExercice } from '../lib/libelle-exercice';
+import { ProvisionChangeOuverture } from '../components/ProvisionChangeOuverture';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -36,6 +37,15 @@ import { libelleExercice } from '../lib/libelle-exercice';
 function cours(n: number | string): string {
   return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 6 });
 }
+/**
+ * Une réévaluation sans position peut encore avoir à REPRENDRE la provision
+ * d'une créance ou d'une dette dénouée (AUDCIF Titre VIII ch. 22 § 2.3) · le
+ * bouton se montre alors aussi, comme le serveur l'admet.
+ */
+function aAjusterLaProvision(r: Pick<RapportReevaluation, 'ajustementsProvision'>): boolean {
+  return r.ajustementsProvision.some((a) => a.dotation > 0.005 || a.reprise > 0.005);
+}
+
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');
 }
@@ -454,7 +464,21 @@ export function DevisesPage() {
                 >
                   Calculer
                 </button>
-                {peutEcrire && rapport && rapport.positions.length > 0 && (
+                {peutEcrire && rapport && rapport.provisionsOuvertureNonDeclarees.length > 0 && (
+                  <span className="text-[11.5px] text-warning" data-testid="reserve-provision-ouverture">
+                    Déclarez la provision d’ouverture ({rapport.provisionsOuvertureNonDeclarees.map((n) => n.compteProvision).join(', ')}) avant de passer les écritures
+                  </span>
+                )}
+                {peutEcrire && rapport && rapport.provisionsOuvertureExcessives.length > 0 && (
+                  <span className="text-[11.5px] text-warning" data-testid="provision-ouverture-excessive">
+                    Mettez à jour la provision d’ouverture déclarée ({rapport.provisionsOuvertureExcessives.map((n) => n.compteProvision).join(', ')}) · elle ne concorde pas avec l’ouverture
+                  </span>
+                )}
+                {peutEcrire &&
+                  rapport &&
+                  rapport.provisionsOuvertureNonDeclarees.length === 0 &&
+                  rapport.provisionsOuvertureExcessives.length === 0 &&
+                  (rapport.positions.length > 0 || aAjusterLaProvision(rapport)) && (
                   <button
                     onClick={reevaluer}
                     disabled={envoi}
@@ -470,7 +494,7 @@ export function DevisesPage() {
               <>
                 {rapport.avertissements.length > 0 && (
                   <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-2 leading-[1.55]">
-                    <strong title="AUDCIF, art. 56">Étalement à décider.</strong>
+                    <strong title="AUDCIF art. 56 · Titre VIII ch. 22 § 2.3">À vérifier.</strong>
                     <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
                       {rapport.avertissements.map((a) => (
                         <li key={a}>{a}</li>
@@ -506,22 +530,84 @@ export function DevisesPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-3 border-b border-border">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-3 border-b border-border">
                   {[
                     ['Perte latente (478)', rapport.perteLatente, 'text-danger'],
                     ['Gain latent (479)', rapport.gainLatent, 'text-positive'],
                     ['Perte réalisée (676)', rapport.perteRealisee, 'text-danger'],
                     ['Gain réalisé (776)', rapport.gainRealise, 'text-positive'],
-                    ['Provision (194)', rapport.provision, 'text-warning'],
+                    ['Provision requise', rapport.provision, 'text-warning'],
+                    // Réserve ouverte · la part non déclarée manque, jamais un zéro nu (M2).
+                    ['Provision en place', rapport.provisionEnPlaceIncomplete ? null : rapport.provisionEnPlace, 'text-text'],
                   ].map(([libelle, valeur, couleur]) => (
                     <div key={libelle as string}>
                       <div className="text-[11px] text-text-dim">{libelle}</div>
-                      <div className={`text-[13px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}>
-                        {montant(valeur as number)}
+                      <div
+                        className={`text-[13px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}
+                        title={valeur === null ? 'Incomplète · provision d’ouverture non déclarée' : undefined}
+                      >
+                        {montant(valeur)}
+                        {valeur === null && <span className="ml-1 text-[11px] font-sans text-warning">incomplète</span>}
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {rapport.ajustementsProvision.length > 0 && (
+                  <div className="border-b border-border" data-testid="ajustement-provision">
+                    <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim flex items-center gap-1.5">
+                      Ajustement de la provision pour pertes de change
+                      <Aide
+                        titre="Provision ajustée, jamais empilée"
+                        texte="La provision en place est celle déclarée à l'ouverture, plus celle des réévaluations postérieures à sa date. Seul l'écart avec la provision requise se passe : dotation de la hausse, reprise de la baisse au compte de reprise de sa famille. Une provision dont la position a été dénouée est reprise, même sans aucune position à réévaluer."
+                        source="AUDCIF Titre VIII ch. 22 § 2.3 · fiche du compte 19"
+                      />
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr_1fr_1fr_1fr] min-w-[640px] gap-2 px-3 py-1 text-[11px] font-bold text-text-dim border-b border-border/40">
+                      <span>PROVISION</span>
+                      <span className="text-right">Requise</span>
+                      <span className="text-right">En place</span>
+                      <span className="text-right">Dotation</span>
+                      <span className="text-right">Reprise</span>
+                    </div>
+                    {rapport.ajustementsProvision.map((a) => (
+                      <div
+                        key={a.compteProvision}
+                        className="grid grid-cols-[110px_1fr_1fr_1fr_1fr] min-w-[640px] gap-2 px-3 py-1 text-[11.5px] border-b border-border/40"
+                      >
+                        <span>{a.compteProvision}</span>
+                        <span className="text-right font-mono">{montant(a.requise)}</span>
+                        <span
+                          className="text-right font-mono"
+                          title={
+                            a.enPlaceIncomplete
+                              ? 'Incomplète · provision d’ouverture non déclarée'
+                              : a.declaree == null
+                                ? 'Aucune provision déclarée à l’ouverture'
+                                : `Dont ${montant(a.declaree)} déclarés à l’ouverture`
+                          }
+                        >
+                          {a.enPlaceIncomplete ? (
+                            <>
+                              {montant(null)} <span className="font-sans text-warning">incomplète</span>
+                            </>
+                          ) : (
+                            montant(a.enPlace)
+                          )}
+                        </span>
+                        {/* Calculées sur une provision incomplète · provisoires, dit par le serveur. */}
+                        <span className="text-right font-mono" title={a.montantsProvisoires ? 'Provisoire · provision d’ouverture non déclarée' : undefined}>
+                          {a.dotation > 0 ? `${montant(a.dotation)} (${a.compteDotation})` : montant(0)}
+                          {a.montantsProvisoires && <span className="ml-1 font-sans text-warning">provisoire</span>}
+                        </span>
+                        <span className="text-right font-mono" title={a.montantsProvisoires ? 'Provisoire · provision d’ouverture non déclarée' : undefined}>
+                          {a.reprise > 0 ? `${montant(a.reprise)} (${a.compteReprise})` : montant(0)}
+                          {a.montantsProvisoires && <span className="ml-1 font-sans text-warning">provisoire</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                   <span>COMPTE</span>
@@ -563,6 +649,11 @@ export function DevisesPage() {
               </>
             )}
 
+            {exerciceCourant && (
+              // Relue après chaque réévaluation · une version utilisée se fige.
+              <ProvisionChangeOuverture key={`${exerciceCourant.id}-${reevaluations.length}`} exerciceId={exerciceCourant.id} />
+            )}
+
             {reevaluations.length > 0 && (
               <div className="border-t border-border">
                 <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim flex items-center gap-1.5">
@@ -580,11 +671,11 @@ export function DevisesPage() {
                   >
                     <span className="font-mono">{jour(r.dateReevaluation)}</span>
                     <span className="text-text-dim">
-                      Écarts pièce {r.ecritureEcarts?.numeroPiece ?? '·'}
+                      {r.ecritureEcarts ? `Écarts pièce ${r.ecritureEcarts.numeroPiece ?? '·'}` : 'Aucun écart'}
                       {r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
                     </span>
                     <span>
-                      {r.ecritureExtourne ? (
+                      {!r.ecritureEcarts ? null : r.ecritureExtourne ? (
                         <span className="text-[11.5px] text-positive font-semibold">
                           Contre-passée le {jour(r.ecritureExtourne.date)}
                         </span>

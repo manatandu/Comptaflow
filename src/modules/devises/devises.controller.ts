@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -6,7 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
-import { CreerDeviseDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import { CreerDeviseDto, DeclarerProvisionOuvertureDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -90,6 +90,29 @@ export class DevisesController {
   @Get('reevaluation/liste')
   async listerReevaluations(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.devises.listerReevaluations(user.tenantId, exerciceId);
+  }
+
+  /**
+   * Provision pour pertes de change existant à l'ouverture (ligne A5) · un
+   * dossier repris la porte déjà au 194, 4991 ou 4997, et le cabinet la
+   * DÉCLARE pour que l'ajustement ne la dote pas une seconde fois. La lecture
+   * propose le solde d'ouverture, jamais ne l'impose.
+   */
+  @Get('provision-ouverture')
+  async provisionsOuverture(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.devises.provisionsOuverture(user.tenantId, exerciceId);
+  }
+
+  @Post('provision-ouverture')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async declarerProvisionOuverture(@CurrentUser() user: AuthenticatedUser, @Body() dto: DeclarerProvisionOuvertureDto) {
+    return this.devises.declarerProvisionOuverture(user.tenantId, user.userId, dto);
+  }
+
+  @Delete('provision-ouverture/:id')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async retirerProvisionOuverture(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.devises.retirerProvisionOuverture(user.tenantId, id);
   }
 
   @Post('reevaluation/:id/extourne')

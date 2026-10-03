@@ -63,6 +63,11 @@ export const MODELES_AUDITES = new Set<string>([
   'Lettrage',
   'Regularisation',
   'Reevaluation',
+  // La provision pour pertes de change existant à l'ouverture (A5) · une
+  // DÉCLARATION, comme l'en-cours d'ouverture · retouchée après coup, elle
+  // change la dotation ou la reprise de la réévaluation suivante sans
+  // qu'aucune écriture n'en garde la cause.
+  'ProvisionChangeOuverture',
   'RapprochementBancaire',
   // L'en-cours d'ouverture est une DÉCLARATION, comme le solde de départ qu'il
   // explique · retouché après coup, il referme l'écart d'ouverture sans
@@ -284,6 +289,8 @@ export const MODELES_AUDITES = new Set<string>([
 const LIGNES_DE_LA_TETE =
   "Lignes d'une tête journalisée, réécrites avec elle · l'événement de la tête date et attribue la retouche.";
 export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
+  VerrouProvisionChange:
+    "Verrou technique d'un geste sur la provision pour pertes de change (A5) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (déclaration, réévaluation, écritures).",
   // ── Lignes d'une tête journalisée
   LigneEcriture:
     "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",

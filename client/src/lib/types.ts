@@ -2004,7 +2004,34 @@ export interface RapportReevaluation {
   gainLatent: number;
   perteRealisee: number;
   gainRealise: number;
+  /** Provision REQUISE par la perte latente du jour (AUDCIF art. 54), pas la dotation. */
   provision: number;
+  /** Provision en place · déclarée à l'ouverture, plus les réévaluations postérieures à sa date. */
+  provisionEnPlace: number;
+  /** Comptes sans version déclarée dont l'à-nouveau n'est pas expliqué par OmegaX · réserve, passage refusé. */
+  provisionsOuvertureNonDeclarees: {
+    compteProvision: string;
+    soldeOuverture: number;
+    explique: number;
+    statutOuverture: StatutSoldeOuverture;
+  }[];
+  /** Vrai pendant une réserve · la provision en place est incomplète. */
+  provisionEnPlaceIncomplete: boolean;
+  /** Versions hors de leurs bornes à l'ouverture (plancher, plafond) · passage refusé jusqu'à correction. */
+  provisionsOuvertureExcessives: {
+    compteProvision: string;
+    enPlaceOuverture: number;
+    borne: 'PLAFOND' | 'PLANCHER';
+    plancher: number;
+    plafond: number;
+    plafondFiable: boolean;
+    provisionModule: number;
+  }[];
+  /**
+   * Écart à passer, famille par famille (Titre VIII ch. 22 § 2.3, « ajustée ») ·
+   * dotation de la hausse ou reprise de la baisse, jamais les deux.
+   */
+  ajustementsProvision: AjustementProvision[];
   /** Dotation avant limitation par la position globale de change (AUDCIF art. 58). */
   provisionSansPositionGlobale: number;
   positionGlobaleRetenue: boolean;
@@ -2013,6 +2040,73 @@ export interface RapportReevaluation {
   coursManquants: string[];
   /** Immobilisations, titres, stocks, fonds propres · gardent le cours d'origine (AUDCIF Titre VIII ch. 22). */
   positionsNonReevaluees: { numero: string; intitule: string; deviseCode: string; montantDevise: number; motif: string }[];
+}
+
+export interface AjustementProvision {
+  compteProvision: string;
+  compteDotation: string;
+  compteReprise: string;
+  requise: number;
+  enPlace: number;
+  /** Part déclarée à l'ouverture · null quand rien n'est déclaré, jamais zéro par défaut. */
+  declaree?: number | null;
+  /** Réserve ouverte sur ce compte · `enPlace` manque la part non déclarée. */
+  enPlaceIncomplete?: boolean;
+  /** Dotation et reprise calculées sur une provision incomplète · provisoires, servi par le serveur. */
+  montantsProvisoires?: boolean;
+  dotation: number;
+  reprise: number;
+}
+
+/** Une version déclarée de la provision pour pertes de change existant à l'ouverture (ligne A5). */
+export interface VersionProvisionOuverture {
+  id: string;
+  montant: number;
+  /** Début d'un exercice du dossier. */
+  dateReference: string;
+  source: string;
+  motif: string | null;
+  /** La provision du module est déclarée erronée · seule déclaration qui admet une version sous elle. */
+  provisionModuleContestee: boolean;
+  motifContestation: string | null;
+  /** Provision du module contestée, figée par le serveur à la déclaration. */
+  provisionModuleContesteeMontant: number | null;
+  /** Une réévaluation de sa période l'a utilisée · elle ne se modifie plus. */
+  utilisee: boolean;
+}
+
+/** Nature du solde d'ouverture lu · seul VALIDE est au livre-journal. */
+export type StatutSoldeOuverture = 'VALIDE' | 'IMPORTE' | 'CLOTURE_PRECEDENTE' | 'AUCUN';
+
+/** Provision pour pertes de change existant à l'ouverture, par compte de la famille (ligne A5). */
+export interface ProvisionChangeOuvertureLigne {
+  compteProvision: string;
+  /** À-nouveau de l'exercice · PROPOSÉ, jamais imposé. */
+  soldeOuverturePropose: number;
+  statutSoldeOuverture: StatutSoldeOuverture;
+  /** Solde comptable fiable (validé, importé, rien) · sinon la provision du module à la clôture précédente. */
+  ouvertureFiable: boolean;
+  /** Version en vigueur + réévaluations depuis son début, à l'ouverture · servi par le serveur. */
+  provisionEnPlaceOuverture: number | null;
+  /** Le serveur juge la version hors de ses bornes · l'écran ne recalcule rien. */
+  depasseSoldeOuverture: boolean;
+  /** Provision pour pertes de change du module à la clôture précédente (à défaut, la part expliquée). */
+  provisionModuleOuverture: number;
+  /** Bornes d'une version · plancher (module, borné par le solde) et plafond (le solde). */
+  plancherVersion: number;
+  plafondVersion: number;
+  horsBornes: 'PLAFOND' | 'PLANCHER' | null;
+  /** Réserve « non déclarée » ouverte sur ce compte. */
+  reserve: boolean;
+  /** Part du solde d'ouverture expliquée par les réévaluations OmegaX. */
+  explique: number;
+  versions: VersionProvisionOuverture[];
+  enVigueur: VersionProvisionOuverture | null;
+}
+
+export interface ProvisionsOuverture {
+  dateOuverture: string;
+  comptes: ProvisionChangeOuvertureLigne[];
 }
 
 export interface Reevaluation {

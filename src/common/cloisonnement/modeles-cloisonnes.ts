@@ -119,6 +119,8 @@ export const MODELES_CLOISONNES = new Set<string>([
   'RattachementNote',
   'SaisieNote',
   'Reevaluation',
+  'ProvisionChangeOuverture',
+  'VerrouProvisionChange',
   'Regularisation',
   'Relance',
   'RetraitementFiscal',

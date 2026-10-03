@@ -789,6 +789,8 @@ model Tenant {
   lignesReevaluationBilan     LigneReevaluationBilan[]
   reprisesProvisionReeval     RepriseProvisionReevaluation[]
   mouvementsDemantelement     MouvementDemantelement[]
+  provisionsChangeOuverture   ProvisionChangeOuverture[]
+  verrouProvisionChange       VerrouProvisionChange?
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -3369,6 +3371,80 @@ model Reevaluation {
   // seconde repasserait l'écart entier. Posé en base contre deux clics.
   @@unique([tenantId, exerciceId])
   @@map("reevaluations")
+}
+
+// Provision pour pertes de change EXISTANT À L'OUVERTURE, déclarée par le
+// cabinet (ligne A5 du suivi, décision de Manasse du 2026-10-02). Fiche du
+// compte 19 · « Le compte 19 est réajusté à la clôture de chaque exercice,
+// soit par dotations supplémentaires, soit par reprises des provisions
+// antérieures » ; fiche du compte 77 · le 779 reprend les provisions
+// « existant au début de l'exercice ». La provision à ajuster est celle qui
+// EXISTE, pas seulement celle qu'OmegaX a passée · un dossier repris porte
+// déjà sa provision au 194, au 4991 ou au 4997, et la lire à zéro la ferait
+// doter une seconde fois. Le solde du compte n'en décide pas (le 4991 et le
+// 4997 portent aussi d'autres risques à court terme) · le cabinet DÉCLARE,
+// avec sa source. Absente, rien n'est présumé (null n'est pas zéro).
+//
+// VERSIONS DATÉES (décision de Manasse du 2026-10-02, AUDCIF art. 22, 2° et
+// art. 20) · une déclaration qu'une réévaluation a utilisée ne se réécrit
+// pas ; fausse, elle se corrige par une NOUVELLE version datée plus tard, avec
+// motif, qui vaut à partir de sa date sans toucher au passé. La date est
+// toujours le DÉBUT d'un exercice du dossier (fiche du compte 77, « existant
+// au début de l'exercice »).
+model ProvisionChangeOuverture {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  // Racine du compte de provision · 194, 4991 ou 4997 au SYSCOHADA, 194 seul
+  // au SYCEBNL (`motifRefusDeclarationOuverture`).
+  compteProvision String
+  montant         Decimal  @db.Decimal(18, 2)
+  // Date à laquelle la provision existait · seules les réévaluations
+  // POSTÉRIEURES s'y ajoutent.
+  dateReference   DateTime @db.Date
+  // Pièce ou raisonnement qui fonde le montant · exigé, jamais vide.
+  source          String
+  // Motif de la nouvelle version · exigé dès qu'une version antérieure existe.
+  motif           String?
+  // CONTESTATION de la provision du module (huitième relecture) · seule elle
+  // admet une version SOUS la provision que les réévaluations OmegaX ont
+  // passée jusqu'à la clôture précédente. Déclaration explicite, distincte du
+  // motif de correction, qui ne l'ouvre jamais (une correction exige déjà un
+  // motif, et rouvrirait la double dotation).
+  provisionModuleContestee Boolean @default(false)
+  // Son motif · exigé, non vide, quand la contestation est déclarée ; nul sinon.
+  motifContestation        String?
+  // La provision du module CONTESTÉE, figée par le SERVEUR à la déclaration
+  // (jamais reçue du client) · la contestation ne vaut que tant que la
+  // provision du module à la clôture précédente lui reste égale. Une
+  // réévaluation passée ensuite la change, et la contestation ne couvre pas
+  // ce qu'elle n'a pas vu (neuvième relecture, Y9).
+  provisionModuleContesteeMontant Decimal? @db.Decimal(18, 2)
+  createdAt       DateTime @default(now())
+  createdBy       String
+  updatedAt       DateTime @updatedAt
+  modifiedBy      String?
+
+  @@unique([tenantId, compteProvision, dateReference])
+  @@map("provisions_change_ouverture")
+}
+
+// Verrou d'un geste sur la provision pour pertes de change (A5, quatrième
+// relecture) · UNE ligne par dossier, posée par une insertion sur la clé
+// unique et retirée à la fin du geste. Un second geste reçoit aussitôt un 409,
+// sans retenir de connexion · un verrou consultatif tenu dans une transaction
+// ouverte figeait le pool. L'échéance ne sert qu'à reprendre la ligne d'un
+// processus tombé.
+model VerrouProvisionChange {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  // REEVALUATION, DECLARATION ou RETRAIT · dit, rien ne s'en déduit.
+  geste     String
+  echeance  DateTime
+  createdAt DateTime @default(now())
+
+  @@map("verrous_provision_change")
 }
 
 // ---------------------------------------------------------------------------

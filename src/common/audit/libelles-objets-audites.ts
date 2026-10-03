@@ -42,6 +42,7 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   Lettrage: 'Lettrage',
   Regularisation: 'Régularisation',
   Reevaluation: 'Réévaluation',
+  ProvisionChangeOuverture: 'Provision pour pertes de change à l’ouverture',
   RapprochementBancaire: 'Rapprochement bancaire',
   EncoursOuvertureRapprochement: "En-cours d'ouverture d'un rapprochement",
   Immobilisation: 'Immobilisation',

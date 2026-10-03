@@ -47,6 +47,8 @@ function service(lignes: LigneTest[], cours: Record<string, number>) {
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     exercice: {
+      // Aucun exercice antérieur ouvert · l'ordre des réévaluations ne bloque rien (A5).
+      findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue({
         id: 'ex1',
         dateDebut: new Date('2026-01-01'),
@@ -55,6 +57,7 @@ function service(lignes: LigneTest[], cours: Record<string, number>) {
       }),
     },
     ligneEcriture: {
+      aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 } }),
       findMany: jest.fn().mockResolvedValue(
         lignes.map((l, i) => ({
           compteId: `c-${l.compteNumero}`,
@@ -67,6 +70,12 @@ function service(lignes: LigneTest[], cours: Record<string, number>) {
         })),
       ),
     },
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]), },
+    provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le verrou des gestes de provision (A5) · une ligne par dossier.
+    verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
+    // Un à-nouveau validé existe, sans ligne sur les comptes de provision (A5).
+    ecriture: { count: jest.fn().mockResolvedValue(1) },
     coursDevise: {
       findFirst: jest.fn().mockImplementation(({ where }: { where: { deviseId: string } }) => {
         const code = where.deviseId.replace('d-', '');

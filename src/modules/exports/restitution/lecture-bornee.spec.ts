@@ -81,8 +81,10 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // incorporés (lot 13), 137 avec la réévaluation des immobilisations, ses
     // lignes par bien et les reprises de sa provision spéciale, chacune bornée
     // par son propre tenantId (lot 14), 138 avec les mouvements de la
-    // provision pour démantèlement, bornés de même (lot 15).
-    expect(modeles).toHaveLength(138);
+    // provision pour démantèlement, bornés de même (lot 15), 139 avec la
+    // provision pour pertes de change déclarée à l'ouverture (A5), 140 avec
+    // le verrou de ses gestes, borné par son tenantId (A5, quatrième passe).
+    expect(modeles).toHaveLength(140);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
     for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
       expect(modeles).toContain(m);
