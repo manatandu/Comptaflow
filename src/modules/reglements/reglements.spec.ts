@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { estEcheanceAReglerSur, lignesDuReglement, montantDu, motifRefusMontant } from './reglement-tiers';
+import { estEcheanceAReglerSur, lignesDuReglement, montantDu, motifRefusMontant, motifHorsEcheance, avertissementCreanceReclassee } from './reglement-tiers';
 import { ReglementsService } from './reglements.service';
 import type { OrdresVirementService } from './ordres-virement.service';
 import { PrismaService } from '../../common/prisma.service';
@@ -23,6 +23,13 @@ describe('ce qui se règle', () => {
     for (const n of ['40800000', '40910000', '41810000', '41900000']) {
       expect(estEcheanceAReglerSur(n, n.startsWith('40') ? 'FOURNISSEUR' : 'CLIENT')).toBe(false);
     }
+  });
+
+  it('A7 ter, mineur 1 · le 416 ne se règle pas ici · le refus renvoie au « Recouvrement » du module', () => {
+    expect(estEcheanceAReglerSur('41620000', 'CLIENT')).toBe(false);
+    expect(estEcheanceAReglerSur('41610000', 'CLIENT')).toBe(false);
+    expect(motifHorsEcheance('41620000')).toMatch(/41620000 \(créance litigieuse ou douteuse\) se règle par « Recouvrement » dans « Créances douteuses ou litigieuses »/);
+    expect(motifHorsEcheance('40910000')).toMatch(/ne porte pas d'échéance à régler/);
   });
 
   it('le dû se lit dans le sens de l’échéance', () => {
@@ -58,7 +65,12 @@ describe('l’écriture du règlement', () => {
   });
 });
 
-function monter(clotures: { granularite: string; journalId: string | null; dateLimite: Date }[] = []) {
+function monter(
+  clotures: { granularite: string; journalId: string | null; dateLimite: Date }[] = [],
+  creancesReclassees: Array<{ compteCreanceId: string; dateReclassement: Date; compte416: { numero: string } }> = [],
+  /** m-d · les crédits de reclassement au compte du client, ouverts (la facture reste, sa valeur est au 416). */
+  reclassements: Record<string, number> = {},
+) {
   const lignes = [
     { id: 'f1', compteId: 'c401', debit: 0, credit: 600, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
     { id: 'f2', compteId: 'c401', debit: 0, credit: 400, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
@@ -69,8 +81,24 @@ function monter(clotures: { granularite: string; journalId: string | null; dateL
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'BQ', type: 'TRESORERIE', compteTresorerieId: 'c521' })) },
     ligneEcriture: {
       findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => lignes.filter((l) => where.id.in.includes(l.id))),
+      // m-d · le solde net du compte, toutes ses lignes de l'exercice (la doublure honore le compte).
+      aggregate: jest.fn(async ({ where }: { where: { compteId: string } }) => {
+        const siennes = lignes.filter((l) => l.compteId === where.compteId);
+        return {
+          _sum: {
+            debit: siennes.reduce((t, l) => t + l.debit, 0),
+            credit: siennes.reduce((t, l) => t + l.credit, 0) + (reclassements[where.compteId] ?? 0),
+          },
+        };
+      }),
     },
     cloture: { findMany: jest.fn(async () => clotures) },
+    // A7 ter, mineur 1 · les créances reclassées en vigueur des comptes réglés (la doublure honore les comptes).
+    creanceDouteuse: {
+      findMany: jest.fn(async ({ where }: { where: { compteCreanceId: { in: string[] } } }) =>
+        creancesReclassees.filter((c) => where.compteCreanceId.in.includes(c.compteCreanceId)),
+      ),
+    },
   } as unknown as PrismaService;
   let n = 0;
   type Piece = { id: string; lignes: { compteId: string; id: string }[] };
@@ -164,6 +192,48 @@ describe('enregistrer', () => {
     await expect(service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['g1'] }] })).rejects.toThrow(/compte du tiers/);
     (lignes[0] as { lettrageId: string | null }).lettrageId = 'L';
     await expect(service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] })).rejects.toThrow(/déjà lettrée/);
+  });
+
+  // A7 TER, MINEUR 1 · la facture d'un client dont une créance est reclassée
+  // au 416 se règle encore ici (une vente postérieure en est une autre), mais
+  // le règlement le DIT et renvoie au « Recouvrement » du module.
+  it('A7 ter, mineur 1 · le règlement d’un compte qui porte une créance reclassée avertit, sans refuser', async () => {
+    const { service, creer } = monter([], [{ compteCreanceId: 'c411', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }]);
+    const r = await service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] });
+    expect(creer).toHaveBeenCalledTimes(1);
+    expect(r.avertissements).toEqual([
+      expect.stringMatching(/41110000 porte une créance reclassée au 41620000 le 2026-11-15.*passez-le par « Recouvrement » dans ce module.*une autre facture du client paraît impayée/),
+    ]);
+    // Un fournisseur ne lit aucune créance.
+    const f = monter([], [{ compteCreanceId: 'c401', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }]);
+    const rf = await f.service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] });
+    expect(rf.avertissements).toEqual([]);
+  });
+
+  // SECOND TOUR, m-d · la facture reclassée réglée ici en entier laissait le
+  // client créditeur, le 416 plein et la dépréciation sur une créance
+  // encaissée · le règlement se borne au solde NET du compte.
+  it('m-d · au-delà du solde net d’un compte qui porte une créance reclassée, refus nommé AVANT toute pièce', async () => {
+    const reclassee = [{ compteCreanceId: 'c411', dateReclassement: new Date('2026-11-15'), compte416: { numero: '41620000' } }];
+    // La facture de 500 est reclassée · net 0.
+    const { service, creer } = monter([], reclassee, { c411: 500 });
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] }),
+    ).rejects.toThrow(/41110000 porte une créance reclassée au 41620000 le 2026-11-15 · son solde net n'est que de 0\.00.*Réglez ici au plus 0\.00.*« Recouvrement ».*pièce au journal/);
+    expect(creer).not.toHaveBeenCalled();
+    // Une part reclassée seulement · 300 restent dus, 300 se règlent, 301 non.
+    const partiel = monter([], reclassee, { c411: 200 });
+    await expect(
+      partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 301 }] }),
+    ).rejects.toThrow(/solde net n'est que de 300\.00.*Réglez ici au plus 300\.00/);
+    // m3 (troisième passage) · l'issue réelle, jamais « ne réglez que les autres factures ».
+    await expect(
+      partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 301 }] }),
+    ).rejects.not.toThrow(/ne réglez que les autres factures/);
+    // m4 · le compte ne devient plus créditeur · l'avertissement ne le dit plus.
+    expect(avertissementCreanceReclassee('41110000', '41620000', '2026-11-15')).not.toMatch(/devient créditeur/);
+    await partiel.service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['k1'], montant: 300 }] });
+    expect(partiel.creer).toHaveBeenCalledTimes(1);
   });
 
   it('le contrôleur réserve l’enregistrement aux rôles qui écrivent', () => {

@@ -16,7 +16,10 @@ import {
   compte416Initial,
   compte491Initial,
   comptes491DeLaNature,
+  ecartsRapprochement,
   etatRapprochement,
+  libelleSoldesProvisoires,
+  messageLettrage416,
   racine491,
   LIBELLE_NATURE,
   montantPourChamp,
@@ -25,8 +28,12 @@ import {
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
   type ComptesRevue,
+  type IssueLettrage416,
   type NatureCreance,
   type PieceSaisie,
+  type RapprochementCreances,
+  ecartLettrage416,
+  type PropositionLettrage416,
 } from '../lib/creances-douteuses';
 
 /**
@@ -40,10 +47,12 @@ import {
  * Les écritures partent au brouillard ; retirées d'ici tant qu'elles y sont.
  *
  * LES BOUTONS SUIVENT LES DROITS DU SERVEUR (relecture « écran », 9) ·
- * reclasser, déclarer, recouvrer et retirer sont ouverts à qui écrit
- * (`peutEcrire`) ; la revue, la perte et les annulations sont réservées au
- * comptable (`peutValider`, `@ReserveAuComptable`). Masquer n'est pas
- * refuser · le serveur tient seul les droits.
+ * reclasser, déclarer, recouvrer et retirer une créance sont ouverts à qui
+ * écrit (`peutEcrire`) ; la revue, la perte, les annulations et le retrait
+ * d'un mouvement (A7 ter, m7) sont réservés au comptable (`peutValider`,
+ * `@ReserveAuComptable`). Le retrait d'une créance suit le verdict SERVI
+ * (`retirable`, m6). Masquer n'est pas refuser · le serveur tient seul les
+ * droits.
  */
 
 interface CreanceCandidate {
@@ -53,6 +62,9 @@ interface CreanceCandidate {
   tiers: string | null;
   solde: number;
   propose416: Record<NatureCreance, string | null>;
+  /** m9 · servis · le refus que le geste opposera (cotisations à l'encaissement), ou l'avertissement. */
+  refusCotisations?: string | null;
+  avertissementCotisations?: string | null;
 }
 interface ComptesFormulaire {
   creances: CreanceCandidate[];
@@ -61,6 +73,8 @@ interface ComptesFormulaire {
   filtreNumero: string | null;
   comptes416: { id: string; numero: string; intitule: string }[];
   comptes491: { id: string; numero: string; intitule: string }[];
+  /** m5 · les listes de 416 et 491 bornées disent leur total. */
+  listes416491?: { plafond: number; total416: number; tronque416: boolean; total491: number; tronque491: boolean };
 }
 interface CreanceDouteuse {
   id: string;
@@ -85,6 +99,8 @@ interface CreanceDouteuse {
   mouvementsAnnules: { id: string; type: 'PERTE' | 'RECOUVREMENT'; date: string; montant: number; annuleeLe: string; motif: string | null }[];
   /** M-c · mouvements de l'exercice sans revue · une information. */
   mouvementsSansRevue: number;
+  /** m6 · la règle du retrait, servie par le serveur, jamais recalculée ici. */
+  retirable: boolean;
 }
 interface Mouvement {
   id: string;
@@ -101,7 +117,7 @@ interface Liste {
   creances: CreanceDouteuse[];
   /** M5 · les annulations de l'exercice, bornées · leur total le dit. */
   annulations?: { revues: { total: number; tronque: boolean }; mouvements: { total: number; tronque: boolean } };
-  rapprochement: { provisoire: boolean; solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
+  rapprochement: RapprochementCreances | null;
 }
 interface PropositionRevue {
   depreciationEnPlace: number;
@@ -147,6 +163,8 @@ export function CreancesDouteusesPage() {
   const exerciceId = exerciceCourant?.id ?? '';
   const [liste, setListe] = useState<Liste | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // A7 ter · ce qu'un geste réussi a à dire (lettrage du 416, cotisations) · jamais tu.
+  const [info, setInfo] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [journaux, setJournaux] = useState<Journal[] | null>(null);
   const [erreurJournaux, setErreurJournaux] = useState<string | null>(null);
@@ -161,6 +179,13 @@ export function CreancesDouteusesPage() {
   // L'annulation d'une revue ou d'un mouvement (AUDCIF art. 20, al. 2) · motif de 3 à 500 caractères.
   const [annulation, setAnnulation] = useState<{ creance: CreanceDouteuse; motif: string; mouvementId?: string; reclassement?: boolean } | null>(null);
   const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
+  // Second tour d'A7 ter, B-1 · « Lettrer au 416 » · le module pose le lettrage, le cabinet désigne l'à-nouveau.
+  const [lettrage416, setLettrage416] = useState<{
+    creance: CreanceDouteuse;
+    proposition: PropositionLettrage416 | null;
+    choisies: Set<string>;
+    erreur: string | null;
+  } | null>(null);
   useGardeFermeture(form || annulation ? 'Un geste sur une créance douteuse est en cours de saisie · il serait perdu.' : null);
 
   // UNE RÉPONSE PÉRIMÉE NE REMPLIT JAMAIS UN FORMULAIRE (relecture « écran »,
@@ -172,10 +197,12 @@ export function CreancesDouteusesPage() {
   envoiEnCours.current = envoi;
   const refFormulaire = useRef<HTMLFormElement | null>(null);
   const refAnnulation = useRef<HTMLFormElement | null>(null);
+  const refLettrage = useRef<HTMLFormElement | null>(null);
   const idBase = useId();
   const id = (nom: string) => `${idBase}-${nom}`;
   const formOuvert = form !== null;
   const annulationOuverte = annulation !== null;
+  const lettrageOuvert = lettrage416 !== null;
 
   // CHANGER D'EXERCICE VIDE LA LISTE (relecture « écran », 4) · l'ancienne ne
   // reste jamais affichée sous le nouvel exercice, et sa réponse, si elle
@@ -203,6 +230,8 @@ export function CreancesDouteusesPage() {
     jeton.current++;
     setForm(null);
     setAnnulation(null);
+    setLettrage416(null);
+    setInfo(null);
   }, [exerciceId]);
 
   // L'ÉCHEC DE LECTURE DES JOURNAUX SE DIT DANS LA MODALE (relecture
@@ -229,17 +258,20 @@ export function CreancesDouteusesPage() {
   // consommée, la fenêtre dessous ne se ferme pas ; pendant l'envoi elle ne
   // ferme rien, la réponse du serveur reste à lire.
   useEffect(() => {
-    if (!formOuvert && !annulationOuverte) return;
+    if (!formOuvert && !annulationOuverte && !lettrageOuvert) return;
     return ecouterEchap(() => {
       if (envoiEnCours.current) return true;
-      if (annulationOuverte) setAnnulation(null);
+      if (lettrageOuvert) {
+        jeton.current++;
+        setLettrage416(null);
+      } else if (annulationOuverte) setAnnulation(null);
       else {
         jeton.current++;
         setForm(null);
       }
       return true;
     });
-  }, [formOuvert, annulationOuverte]);
+  }, [formOuvert, annulationOuverte, lettrageOuvert]);
 
   useEffect(() => {
     if (formOuvert) premierChamp(refFormulaire.current)?.focus({ preventScroll: true });
@@ -247,6 +279,49 @@ export function CreancesDouteusesPage() {
   useEffect(() => {
     if (annulationOuverte) premierChamp(refAnnulation.current)?.focus({ preventScroll: true });
   }, [annulationOuverte]);
+  // Le focus va à la modale de lettrage dès qu'elle s'ouvre (le bouton « Fermer » tant que la lecture court).
+  useEffect(() => {
+    if (lettrageOuvert) (premierChamp(refLettrage.current) ?? refLettrage.current?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
+  }, [lettrageOuvert, lettrage416?.proposition]);
+
+  /** B-1 · ouvre « Lettrer au 416 » et lit la proposition du serveur · une réponse périmée est jetée. */
+  function ouvrirLettrage416(c: CreanceDouteuse) {
+    const j = ++jeton.current;
+    setLettrage416({ creance: c, proposition: null, choisies: new Set(), erreur: null });
+    api.get<PropositionLettrage416>(`/creances-douteuses/${c.id}/lettrage-416?exerciceId=${encodeURIComponent(exerciceId)}`).then(
+      (p) => {
+        if (jeton.current === j) setLettrage416((l) => (l ? { ...l, proposition: p, choisies: new Set(p.propose) } : l));
+      },
+      (e) => {
+        if (jeton.current === j) setLettrage416((l) => (l ? { ...l, erreur: messageDe(e) } : l));
+      },
+    );
+  }
+  function fermerLettrage() {
+    if (envoi) return;
+    jeton.current++;
+    setLettrage416(null);
+  }
+  async function lettrer(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!lettrage416?.proposition || envoi) return;
+    setEnvoi(true);
+    setLettrage416((l) => (l ? { ...l, erreur: null } : l));
+    try {
+      const r = await api.post<{ code: string }>(`/creances-douteuses/${lettrage416.creance.id}/lettrage-416`, {
+        exerciceId,
+        ligneIds: [...lettrage416.choisies],
+      });
+      setInfo(`Lignes de la créance lettrées au ${lettrage416.proposition.compte416} (${r.code}).`);
+      jeton.current++;
+      setLettrage416(null);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setLettrage416((l) => (l ? { ...l, erreur: messageDe(e) } : l));
+    } finally {
+      setEnvoi(false);
+    }
+  }
 
   function fermerFormulaire() {
     if (envoi) return;
@@ -355,7 +430,8 @@ export function CreancesDouteusesPage() {
       if (form.geste === 'declarer') {
         const deprec = montantSaisi(form.depreciationOuverture);
         if (deprec == null) throw new Error('Saisissez la dépréciation existante · zéro se tape, vide n’est pas zéro.');
-        await api.post('/creances-douteuses/declarations', {
+        // Mineur 4 · une borne lue sur le report reconstitué n'est pas sûre, et le serveur le dit.
+        const r = await api.post<{ borneProvisoire?: boolean; information?: string; avertissement?: string | null }>('/creances-douteuses/declarations', {
           exerciceId,
           compteCreanceId: form.compteCreanceId,
           compte416Id: form.compte416Id,
@@ -367,8 +443,9 @@ export function CreancesDouteusesPage() {
           motif: form.motif || undefined,
           pieces: piecesAEnvoyer(form.pieces),
         });
+        setInfo([r?.information, r?.avertissement].filter(Boolean).join(' ') || null);
       } else if (form.geste === 'reclasser') {
-        await api.post('/creances-douteuses', {
+        const r = await api.post<{ avertissement?: string | null }>('/creances-douteuses', {
           ...commun,
           date: form.date,
           compteCreanceId: form.compteCreanceId,
@@ -377,18 +454,25 @@ export function CreancesDouteusesPage() {
           nature: form.nature,
           montant: valeur,
         });
+        setInfo(r?.avertissement ?? null);
       } else if (form.geste === 'revue') {
         await api.post(`/creances-douteuses/${form.creance!.id}/revue`, { ...commun, depreciationNecessaire: necessaire });
       } else if (form.geste === 'perte') {
         // AU TTC ENTIER, D 651 / C 416 · aucune ligne de TVA (A7 scindée).
-        await api.post(`/creances-douteuses/${form.creance!.id}/perte`, {
+        const r = await api.post<{ lettrage416?: IssueLettrage416 }>(`/creances-douteuses/${form.creance!.id}/perte`, {
           ...commun,
           date: form.date,
           montant: valeur,
           comptePerteId: form.comptePerteId || undefined,
         });
+        setInfo(messageLettrage416(r?.lettrage416));
       } else {
-        await api.post(`/creances-douteuses/${form.creance!.id}/recouvrement`, { ...commun, date: form.date, montant: valeur });
+        const r = await api.post<{ lettrage416?: IssueLettrage416 }>(`/creances-douteuses/${form.creance!.id}/recouvrement`, {
+          ...commun,
+          date: form.date,
+          montant: valeur,
+        });
+        setInfo(messageLettrage416(r?.lettrage416));
       }
       jeton.current++;
       setForm(null);
@@ -414,7 +498,9 @@ export function CreancesDouteusesPage() {
     setEnvoi(true);
     setErreurAnnulation(null);
     try {
-      await api.post(chemin, { motif: annulation.motif });
+      // B2b · le lettrage du module figé par une clôture reste en place, et le serveur le dit.
+      const r = await api.post<{ information?: string }>(chemin, { motif: annulation.motif });
+      setInfo(r?.information ?? null);
       setAnnulation(null);
       setVersion((v) => v + 1);
     } catch (e) {
@@ -440,8 +526,10 @@ export function CreancesDouteusesPage() {
   }
 
   const r = liste?.rapprochement;
-  const ecart416 = r ? Math.round((r.solde416 - r.resteModule) * 100) / 100 : 0;
-  const ecart491 = r ? Math.round((r.solde491 - r.depreciationModule) * 100) / 100 : 0;
+  const ecarts = r ? ecartsRapprochement(r) : null;
+  const ecart416 = ecarts?.ecart416 ?? 0;
+  const ecart491 = ecarts?.ecart491 ?? 0;
+  const creanceChoisie = form ? comptes?.creances.find((c) => c.id === form.compteCreanceId) ?? null : null;
   const journauxDuGeste = (journaux ?? []).filter((j) =>
     form?.geste === 'recouvrement' ? j.type === 'TRESORERIE' && j.compteTresorerieId : j.type === 'GENERAL',
   );
@@ -481,6 +569,14 @@ export function CreancesDouteusesPage() {
       </div>
 
       {erreur && <div className="mb-1.5 max-w-[1240px] border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 text-[11.5px]">{erreur}</div>}
+      {info && (
+        <div className="mb-1.5 max-w-[1240px] border border-bord rounded-[3px] px-2 py-1 text-[11.5px] flex items-start justify-between gap-2">
+          <span>{info}</span>
+          <button type="button" className="text-sel hover:underline" onClick={() => setInfo(null)}>
+            Fermer
+          </button>
+        </div>
+      )}
       {!exerciceId && <div className="text-[11.5px] text-text-dim">Aucun exercice choisi · choisissez-le, ou créez-le dans Exercices.</div>}
       {exerciceId && liste === null && !erreur && <div className="text-[11.5px] text-text-dim">Chargement…</div>}
 
@@ -498,18 +594,27 @@ export function CreancesDouteusesPage() {
           )}
           {r?.provisoire && (
             <div className="text-[11.5px] text-text-dim flex items-center gap-1.5">
-              Soldes du 416 et du 491 provisoires · à-nouveau non passé
+              {libelleSoldesProvisoires(r)}
               <Aide
                 titre="Soldes provisoires"
-                texte="Les soldes du 416 et du 491 sont lus sur le report reconstitué de l'exercice précédent, tant que l'à-nouveau de cet exercice n'est pas passé."
+                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Le module ne lit jamais le report à-nouveau provisoire : le relancer ne change rien ici. Clôturez l'exercice précédent ou passez un bilan d'ouverture."
                 source="Convention d'OmegaX"
               />
             </div>
           )}
-          {r && (Math.abs(ecart416) >= 0.01 || Math.abs(ecart491) >= 0.01) && (
+          {r && ecarts && (Math.abs(ecart416) >= 0.01 || Math.abs(ecart491) >= 0.01) && (
             <div className="border border-rouge/40 bg-rouge/5 rounded-[3px] px-2 py-1 text-[11.5px] text-rouge">
               {Math.abs(ecart416) >= 0.01 && <div>Le solde du 416 ({montant(r.solde416)}) diffère des créances suivies ici ({montant(r.resteModule)}).</div>}
-              {Math.abs(ecart491) >= 0.01 && <div>Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)}).</div>}
+              {Math.abs(ecart491) >= 0.01 && (
+                <div>
+                  Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)})
+                  {Math.abs(ecarts.horsModule491) >= 0.01 && <> · dont {montant(ecarts.horsModule491)} passés hors de ce module dans l'exercice</>}
+                  {Math.abs(ecarts.horsModule491) >= 0.01 && Math.abs(ecarts.reste491) >= 0.01 && (
+                    <> · le reste ({montant(ecarts.reste491)}) vient de l'ouverture (à-nouveau, ou exercice précédent tant qu'il n'est pas clôturé) ou d'une écriture du module retouchée</>
+                  )}
+                  .
+                </div>
+              )}
             </div>
           )}
           {etatRapprochement(liste) === 'non-calcule-tronque' && (
@@ -584,6 +689,11 @@ export function CreancesDouteusesPage() {
                                 Perte
                               </button>
                             )}
+                            {ouvert && c.resteALaCloture === 0 && c.mouvements.length > 0 && (
+                              <button type="button" className="text-sel hover:underline" onClick={() => ouvrirLettrage416(c)}>
+                                Lettrer au 416
+                              </button>
+                            )}
                             {peutValider && ouvert && c.revue && (
                               <button
                                 type="button"
@@ -620,7 +730,7 @@ export function CreancesDouteusesPage() {
                                 Annuler le reclassement
                               </button>
                             )}
-                            {ouvert && c.mouvements.length > 0 && (
+                            {peutValider && ouvert && c.mouvements.length > 0 && (
                               <button
                                 type="button"
                                 className="text-rouge hover:underline"
@@ -633,7 +743,7 @@ export function CreancesDouteusesPage() {
                                 Retirer le dernier mouvement
                               </button>
                             )}
-                            {ouvert && c.revues.length === 0 && c.revuesAnnulees.length === 0 && c.mouvements.length === 0 && (
+                            {ouvert && c.retirable && (
                               <button
                                 type="button"
                                 className="text-rouge hover:underline"
@@ -814,6 +924,14 @@ export function CreancesDouteusesPage() {
                           <span className="text-text-dim">Aucun compte 416 de détail au plan · ouvrez-le dans Plan comptable.</span>
                         </>
                       )}
+                      {comptes?.listes416491?.tronque416 && (
+                        <>
+                          <span />
+                          <span className="text-rouge">
+                            Liste limitée aux {comptes.listes416491.plafond} premiers comptes 416 sur {comptes.listes416491.total416}.
+                          </span>
+                        </>
+                      )}
                       <label htmlFor={id('compte-491')} className="text-right">
                         Compte 491 :
                       </label>
@@ -831,6 +949,26 @@ export function CreancesDouteusesPage() {
                           <span className="text-text-dim">Aucun compte {racine491(form.nature)} de détail au plan · ouvrez-le dans Plan comptable.</span>
                         </>
                       )}
+                      {comptes?.listes416491?.tronque491 && (
+                        <>
+                          <span />
+                          <span className="text-rouge">
+                            Liste limitée aux {comptes.listes416491.plafond} premiers comptes 491 sur {comptes.listes416491.total491}.
+                          </span>
+                        </>
+                      )}
+                      {creanceChoisie?.refusCotisations && (
+                        <>
+                          <span />
+                          <span className="text-rouge">{creanceChoisie.refusCotisations}</span>
+                        </>
+                      )}
+                      {creanceChoisie?.avertissementCotisations && (
+                        <>
+                          <span />
+                          <span className="text-warning">{creanceChoisie.avertissementCotisations}</span>
+                        </>
+                      )}
                       {form.geste === 'reclasser' && (
                         <>
                           <span />
@@ -838,7 +976,7 @@ export function CreancesDouteusesPage() {
                             Ne lettrez pas la facture avec le reclassement
                             <Aide
                               titre="Reclassement et lettrage"
-                              texte="Le reclassement passe D 416 / C compte du client et ne lettre pas ce compte ; il n'exige aucun lettrage. Ne lettrez pas la facture avec la pièce du reclassement : le calcul de la TVA lirait ce lettrage comme un encaissement, et la TVA d'une prestation de services, exigible à l'encaissement du prix, deviendrait exigible sans qu'aucun prix ne soit perçu."
+                              texte="Le reclassement passe D 416 / C compte du client et ne lettre pas ce compte ; il n'exige aucun lettrage. Ne lettrez pas la facture avec la pièce du reclassement : le calcul de la TVA lirait ce lettrage comme un encaissement, et la TVA d'une prestation de services, exigible à l'encaissement du prix, deviendrait exigible sans qu'aucun prix ne soit perçu ; figé par une clôture, le groupe ne se déferait plus. Le lettrage le refuse."
                               source="O.-L. n° 10/001, art. 25, 2° ; décret n° 011/42, art. 57"
                             />
                           </span>
@@ -1127,6 +1265,122 @@ export function CreancesDouteusesPage() {
                   </button>
                   <button type="submit" disabled={envoi || !motifAnnulationValide(annulation.motif)} className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50">
                     {annulation.reclassement ? 'Annuler le reclassement' : annulation.mouvementId ? 'Annuler le mouvement' : 'Annuler la revue'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+
+      {peutEcrire && lettrage416 && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              ref={refLettrage}
+              onSubmit={lettrer}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={id('titre-lettrage')}
+              className="anim-modale w-full max-w-[560px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span id={id('titre-lettrage')}>Lettrer au 416</span>
+                <button
+                  type="button"
+                  aria-label="Fermer"
+                  disabled={envoi}
+                  onClick={fermerLettrage}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 text-[11.5px] space-y-2">
+                {lettrage416.erreur && <div className="border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 whitespace-pre-wrap">{lettrage416.erreur}</div>}
+                <div className="flex items-center gap-1.5">
+                  {lettrage416.creance.compteCreance.numero} · {lettrage416.creance.tiers ?? lettrage416.creance.compteCreance.intitule}
+                  <Aide
+                    titre="Lettrage au 416"
+                    texte="Le module lettre lui-même les lignes de la créance éteinte au 416. Quand celles de l'exercice ne soldent pas seules (reclassement d'un exercice précédent, créance déclarée à l'ouverture), le reste est porté par l'à-nouveau, qu'aucune liaison ne relie à la créance : cochez ces lignes d'à-nouveau. Le groupe se pose soldé, ou pas du tout. Ne lettrez pas ces lignes à la main : figé par une clôture de période, un lettrage manuel ne se déferait plus."
+                    source="Convention d'OmegaX ; CPCC ch. 6 § 2 (lettrage a priori)"
+                  />
+                </div>
+                {!lettrage416.proposition && !lettrage416.erreur && <div className="text-text-dim">Lecture…</div>}
+                {lettrage416.proposition && lettrage416.proposition.ouvertes === 0 && (
+                  <div>Les lignes de la créance au {lettrage416.proposition.compte416} sont déjà lettrées dans cet exercice.</div>
+                )}
+                {lettrage416.proposition && lettrage416.proposition.ouvertes > 0 && (
+                  <>
+                    <div>
+                      À apporter par l'à-nouveau · <span className="tabular-nums font-semibold">{montant(lettrage416.proposition.aApporter)}</span>
+                    </div>
+                    {lettrage416.proposition.aNouveaux.length === 0 ? (
+                      <div className="text-text-dim">
+                        {Math.abs(lettrage416.proposition.aApporter) < 0.005
+                          ? "Les lignes de l'exercice soldent seules · aucune ligne d'à-nouveau à désigner."
+                          : `Aucune ligne d'à-nouveau ouverte au ${lettrage416.proposition.compte416} dans cet exercice · clôturez l'exercice précédent ou passez le bilan d'ouverture.`}
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th scope="col" className="w-[28px]" />
+                            <th scope="col" className="text-left px-1.5">Date</th>
+                            <th scope="col" className="text-left px-1.5">Pièce</th>
+                            <th scope="col" className="text-left px-1.5">Libellé</th>
+                            <th scope="col" className="text-right px-1.5">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lettrage416.proposition.aNouveaux.map((l) => (
+                            <tr key={l.id}>
+                              <td className="px-1.5">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Désigner la ligne d'à-nouveau ${l.libelle ?? ''}`}
+                                  checked={lettrage416.choisies.has(l.id)}
+                                  onChange={(e) =>
+                                    setLettrage416((x) => {
+                                      if (!x) return x;
+                                      const choisies = new Set(x.choisies);
+                                      if (e.target.checked) choisies.add(l.id);
+                                      else choisies.delete(l.id);
+                                      return { ...x, choisies };
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="px-1.5">{jour(l.date)}</td>
+                              <td className="px-1.5">{l.numeroPiece ?? '·'}</td>
+                              <td className="px-1.5">{l.libelle ?? '·'}</td>
+                              <td className="px-1.5 text-right tabular-nums">{montant(l.montant)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {lettrage416.proposition.tronque && <div className="text-text-dim">Liste tronquée aux premières lignes d'à-nouveau du compte.</div>}
+                    {Math.abs(ecartLettrage416(lettrage416.proposition, lettrage416.choisies)) >= 0.005 && (
+                      <div className="text-warning">Écart · {montant(ecartLettrage416(lettrage416.proposition, lettrage416.choisies))} · le groupe ne se pose que soldé.</div>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button type="button" disabled={envoi} onClick={fermerLettrage} className="border border-bord rounded-[3px] px-3 py-[3px] disabled:opacity-50">
+                    Fermer
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      envoi ||
+                      !lettrage416.proposition ||
+                      lettrage416.proposition.ouvertes === 0 ||
+                      Math.abs(ecartLettrage416(lettrage416.proposition, lettrage416.choisies)) >= 0.005
+                    }
+                    className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50"
+                  >
+                    Lettrer
                   </button>
                 </div>
               </div>

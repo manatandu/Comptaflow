@@ -144,3 +144,77 @@ export const LIBELLE_NATURE: Record<NatureCreance, string> = {
   LITIGIEUSE: 'Litigieuse (le client conteste)',
   DOUTEUSE: 'Douteuse (le client se dérobe)',
 };
+
+/** Le rapprochement servi par le serveur (A7 ter, m10 · toujours calculé, par agrégat). */
+export interface RapprochementCreances {
+  provisoire: boolean;
+  /** B1 · l'exercice n'a qu'un report à-nouveau PROVISOIRE, qui ne fait pas foi. */
+  reportProvisoire?: boolean;
+  solde416: number;
+  resteModule: number;
+  solde491: number;
+  depreciationModule: number;
+  /** m8 · la part du 491 passée hors du module dans l'EXERCICE (mineur 5, jamais la chaîne), en positif. */
+  horsModule491?: number;
+}
+
+const auCentime = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * LES ÉCARTS DU RAPPROCHEMENT (A7 ter, m8) · l'écart du 491 se DÉCOMPOSE ·
+ * la part passée hors du module (servie), et le reste, qui vient de
+ * l'à-nouveau ou d'une écriture du module retouchée. Un écart nu laissait
+ * croire que le module se trompait quand un 4912 porte aussi des
+ * dépréciations passées à la main.
+ */
+export function ecartsRapprochement(r: RapprochementCreances) {
+  const ecart416 = auCentime(r.solde416 - r.resteModule);
+  const ecart491 = auCentime(r.solde491 - r.depreciationModule);
+  const horsModule491 = auCentime(r.horsModule491 ?? 0);
+  return { ecart416, ecart491, horsModule491, reste491: auCentime(ecart491 - horsModule491) };
+}
+
+/**
+ * B1 · pourquoi les soldes du rapprochement sont provisoires. Mineur 3 · le
+ * module ne lit jamais le report à-nouveau provisoire · le relancer ne change
+ * rien, et le libellé ne le propose plus.
+ */
+export function libelleSoldesProvisoires(r: RapprochementCreances): string | null {
+  if (!r.provisoire) return null;
+  return r.reportProvisoire
+    ? "Soldes du 416 et du 491 provisoires · lus sur l'exercice précédent, le report à-nouveau provisoire n'étant pas lu"
+    : 'Soldes du 416 et du 491 provisoires · à-nouveau non passé';
+}
+
+/**
+ * L'issue du lettrage d'une créance éteinte (A7 ter, B2), servie avec le geste ·
+ * `aDesigner` (second tour, B-1) · le reste est à l'à-nouveau, que le cabinet
+ * désigne par « Lettrer au 416 ».
+ */
+export type IssueLettrage416 = { pose: true; code: string } | { pose: false; motif: string; aDesigner?: boolean } | null | undefined;
+
+/** B-1 · ce que « Lettrer au 416 » montre, servi par le serveur. */
+export interface PropositionLettrage416 {
+  eteinte: boolean;
+  compte416: string;
+  ouvertes: number;
+  aApporter: number;
+  aNouveaux: Array<{ id: string; date: string; numeroPiece: number | null; libelle: string | null; montant: number }>;
+  tronque: boolean;
+  propose: string[];
+}
+
+/**
+ * B-1 · L'ÉCART qui reste entre ce que l'à-nouveau doit apporter et les lignes
+ * cochées · le lettrage ne part qu'à zéro (le serveur pose le groupe SOLDÉ ou
+ * pas du tout). Au centime.
+ */
+export function ecartLettrage416(p: PropositionLettrage416, choisies: ReadonlySet<string>): number {
+  const somme = p.aNouveaux.filter((l) => choisies.has(l.id)).reduce((t, l) => t + l.montant, 0);
+  return auCentime(p.aApporter - somme);
+}
+
+export function messageLettrage416(issue: IssueLettrage416): string | null {
+  if (!issue) return null;
+  return issue.pose ? `Créance éteinte · ses lignes du 416 sont lettrées (${issue.code}).` : issue.motif;
+}

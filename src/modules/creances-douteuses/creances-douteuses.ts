@@ -149,6 +149,111 @@ export function comptePertePropose(referentiel: Referentiel, numeroSource: strin
   return debiteur === 'ADHERENT' ? '6512' : debiteur === 'CLIENT_USAGER' ? '6511' : null;
 }
 
+/**
+ * AU SYCEBNL, LE 651 SE LIT SUR LE DÉBITEUR, COMME LE 416 (ligne A7 ter, m3).
+ * Fiche SYCEBNL du compte 65 · « 651 Pertes sur créances adhérents clients et
+ * autres débiteurs (6511 Clients - usagers, 6512 Adhérents, 6515 Autres
+ * débiteurs) ». La fiche nomme les sous-comptes par leur débiteur sans écrire
+ * de renvoi depuis le compte d'origine · la règle est une ANALOGIE de celle du
+ * 416 (E3, fiche du compte 41, qui range les créances d'adhérents au 4161) ·
+ * la perte d'un adhérent (411, 4131, 4133) va au 6512, celle d'un
+ * client-usager (412, 4132, 4138) au 6511. Croisé, le compte rangerait la
+ * perte sous un débiteur qui n'est pas le sien ; un 413 non subdivisé, ou un
+ * compte hors de la table, reste au choix. Rien au SYSCOHADA, où la créance se
+ * range par sa nature, jamais par son débiteur.
+ */
+export function motifRefus651Croise(referentiel: Referentiel, numeroSource: string, numeroPerte: string): string | null {
+  if (referentiel !== Referentiel.SYCEBNL) return null;
+  const attendu = comptePertePropose(referentiel, numeroSource);
+  if (!attendu || numeroPerte.startsWith(attendu)) return null;
+  return (
+    `Au SYCEBNL, le compte ${numeroSource} désigne ${attendu === '6512' ? 'un adhérent' : 'un client-usager'}, et sa perte va au ` +
+    `${attendu} · fiche du compte 65, « 6511 Clients - usagers, 6512 Adhérents, 6515 Autres débiteurs ». Règle lue par analogie ` +
+    'avec le 416 (fiche du compte 41, « 4161 Adhérents cotisations litigieuses ou douteuses »).'
+  );
+}
+
+/** La méthode de comptabilisation des cotisations déclarée par le dossier (`Tenant.methodeCotisations`). */
+export type MethodeCotisationsDeclaree = 'APPEL' | 'ENCAISSEMENT' | null;
+
+const PARAGRAPHE_5421 =
+  'cadre conceptuel du SYCEBNL, § 5.4.2.1, « Toutefois, si l’entité ne peut justifier d’un droit d’agir en recouvrement, les ' +
+  'cotisations et le droit d’entrée sont comptabilisés lors de leur encaissement effectif »';
+
+/** La fiche SYCEBNL du compte 41, sur les impayés (Commentaires). */
+const FICHE_41_IMPAYES =
+  'fiche SYCEBNL du compte 41, « Les chèques, effets à payer et autres valeurs revenus impayés doivent être enregistrés dans le ' +
+  'compte 413 Adhérents, clients-usagers chèques, et autres valeurs impayés pour un meilleur suivi des incidents de paiements »';
+
+/**
+ * A7 ter, mineur 8 · UN IMPAYÉ D'ADHÉRENT (4131 chèques, 4133 autres valeurs)
+ * sous la méthode de l'ENCAISSEMENT · le corpus ne tranche pas. La fiche du
+ * compte 41 impose le 413 pour les valeurs revenues impayées ; le § 5.4.2.1
+ * dit que la cotisation se comptabilise « lors de son encaissement
+ * effectif ». Un chèque remis puis rejeté a-t-il été encaissé ? Aucun texte
+ * lu ne le dit · rien tranché n'est pas bloqué, le reclassement passe avec
+ * cet avertissement, et la question est remontée à Manasse (suivi, A7 bis).
+ */
+function estImpayeAdherent(numeroSource: string): boolean {
+  return numeroSource.startsWith('4131') || numeroSource.startsWith('4133');
+}
+
+/**
+ * LA MÉTHODE LUE EST CELLE DÉCLARÉE AUJOURD'HUI · `Tenant.methodeCotisations`
+ * ne garde aucun historique (A7 ter, mineur 8) · une créance née sous une
+ * méthode antérieure se juge sur la méthode déclarée au jour du geste, et le
+ * message le dit.
+ */
+const METHODE_DU_JOUR = 'méthode déclarée aujourd’hui dans Paramètres du dossier, qui ne garde pas l’historique de ses changements';
+
+/**
+ * UNE COTISATION COMPTABILISÉE À L'ENCAISSEMENT N'EST PAS UNE CRÉANCE (ligne
+ * A7 ter, m9). Au SYCEBNL, le 4161 reçoit les « Adhérents cotisations
+ * litigieuses ou douteuses » (fiche du compte 41), et la cotisation n'est une
+ * créance que si elle a été APPELÉE (§ 5.4.2.1, « le fait générateur [...] est
+ * l'appel de cotisation »). Le dossier qui a DÉCLARÉ l'encaissement ne peut
+ * justifier d'un droit d'agir · une cotisation impayée n'y est pas
+ * comptabilisée, et rien ne se reclasse au 4161 (refus). Méthode non
+ * déclarée · AVERTISSEMENT seulement, comme `METHODE_COTISATIONS_NON_PRECISEE`
+ * (rien tranché n'est pas bloqué).
+ */
+export function motifRefusCotisationsEncaissement(
+  referentiel: Referentiel,
+  numeroSource: string,
+  methode: MethodeCotisationsDeclaree,
+): string | null {
+  if (referentiel !== Referentiel.SYCEBNL || methode !== 'ENCAISSEMENT') return null;
+  if (debiteurSycebnl(numeroSource) !== 'ADHERENT') return null;
+  // Mineur 8 · un impayé d'adhérent (4131, 4133) n'est pas refusé · le corpus ne tranche pas (avertissement).
+  if (estImpayeAdherent(numeroSource)) return null;
+  return (
+    `Le dossier comptabilise les cotisations à leur ENCAISSEMENT (${METHODE_DU_JOUR}) · ${PARAGRAPHE_5421}. Une cotisation ` +
+    `non encaissée n'y est pas une créance, et ne se reclasse pas au 4161 · si le compte ${numeroSource} porte une créance, c'est ` +
+    "la méthode déclarée ou l'écriture d'appel qui est à revoir."
+  );
+}
+
+export function avertissementMethodeCotisations(
+  referentiel: Referentiel,
+  numeroSource: string,
+  methode: MethodeCotisationsDeclaree,
+): string | null {
+  if (referentiel !== Referentiel.SYCEBNL) return null;
+  if (debiteurSycebnl(numeroSource) !== 'ADHERENT') return null;
+  if (methode === 'ENCAISSEMENT' && estImpayeAdherent(numeroSource)) {
+    return (
+      `Le dossier comptabilise les cotisations à leur ENCAISSEMENT (${METHODE_DU_JOUR}) et le compte ${numeroSource} est un ` +
+      `impayé d'adhérent · ${FICHE_41_IMPAYES} ; ${PARAGRAPHE_5421}. Aucun texte lu ne dit si une valeur remise puis revenue ` +
+      'impayée a été encaissée · le reclassement au 4161 est admis, vérifiez que l’entité peut en poursuivre le recouvrement.'
+    );
+  }
+  if (methode !== null) return null;
+  return (
+    'La méthode de comptabilisation des cotisations n’est pas déclarée (Paramètres du dossier) · le reclassement au 4161 suppose ' +
+    `une cotisation APPELÉE, dont l'entité peut poursuivre le recouvrement ; sinon, ${PARAGRAPHE_5421}.`
+  );
+}
+
 export const centimes = (x: number) => Math.round(x * 100) / 100;
 
 export interface PieceJustificative {
@@ -202,6 +307,18 @@ export function motifRefus416Croise(
   );
 }
 
+/**
+ * Une créance en devise non réglée ne se reclasse ni ne se déclare (AUDCIF
+ * art. 54 et 55). Jugée sur la POSITION NETTE par devise (A7 ter, mineur 2),
+ * jamais sur la présence d'une ligne non lettrée · une facture en dollars de
+ * N réglée en N+1 sur sa ligne d'à-nouveau provisoire laisse en N une ligne
+ * non lettrée et une position nulle.
+ */
+export const MOTIF_CREANCE_EN_DEVISE =
+  "Le compte du client porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture (AUDCIF art. 54) " +
+  'et se règle dans sa devise (art. 55), et son reclassement au 416 en perdrait la devise. Ce cas n’est pas servi par le module · ' +
+  'lettrez ce qui est réglé, ou passez le reclassement à la main.';
+
 export interface EntreeReclassement {
   referentiel: Referentiel;
   nature: NatureCreanceDouteuse;
@@ -218,13 +335,15 @@ export interface EntreeReclassement {
    * reclassement antidaté reprendrait.
    */
   soldeDernier?: number;
-  /** Une ligne en devise non lettrée sur le compte d'origine. */
-  ligneEnDevise: boolean;
+  /** Une position en devise non soldée sur le compte d'origine (mineur 2 · nette, par devise). */
+  positionEnDevise: boolean;
   motif: string | null | undefined;
   pieces: PieceJustificative[];
   exerciceOuvert: boolean;
   dateDansExercice: boolean;
   journalGeneral: boolean;
+  /** m9 · la méthode des cotisations déclarée (SYCEBNL) · absente, rien n'est vérifié. */
+  methodeCotisations?: MethodeCotisationsDeclaree;
 }
 
 export function motifRefusReclassement(e: EntreeReclassement): string | null {
@@ -244,13 +363,9 @@ export function motifRefusReclassement(e: EntreeReclassement): string | null {
   }
   const croise = motifRefus416Croise(e.referentiel, e.nature, e.numeroSource, e.numero416);
   if (croise) return croise;
-  if (e.ligneEnDevise) {
-    return (
-      "Le compte du client porte une créance en devise non lettrée · une créance en devise se réévalue à la clôture (AUDCIF art. 54) " +
-      'et se règle dans sa devise (art. 55), et son reclassement au 416 en perdrait la devise. Ce cas n’est pas servi par le module · ' +
-      'lettrez ce qui est réglé, ou passez le reclassement à la main.'
-    );
-  }
+  const cotisations = e.methodeCotisations === undefined ? null : motifRefusCotisationsEncaissement(e.referentiel, e.numeroSource, e.methodeCotisations);
+  if (cotisations) return cotisations;
+  if (e.positionEnDevise) return MOTIF_CREANCE_EN_DEVISE;
   if (!(e.montant > 0)) return 'Le montant reclassé doit être positif.';
   if (centimes(e.montant) > centimes(e.soldeDebiteur) + 0.005) {
     return (
@@ -378,6 +493,9 @@ export interface EntreeMouvement {
   /** Perte · le 651 choisi, ou proposé. */
   numeroPerte?: string | null;
   numeroPerteEstDetail?: boolean;
+  /** m3 · le plan et le compte d'origine, qui disent le 651 du débiteur au SYCEBNL. */
+  referentiel?: Referentiel;
+  numeroSource?: string;
 }
 
 export function motifRefusMouvement(e: EntreeMouvement): string | null {
@@ -416,6 +534,10 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
         `Le compte ${e.numeroPerte} n'est pas un compte de détail du 651 · les créances irrécouvrables « sont enregistrées au débit ` +
         'du compte 651 » (fiche du compte 65).'
       );
+    }
+    if (e.referentiel && e.numeroSource) {
+      const croise = motifRefus651Croise(e.referentiel, e.numeroSource, e.numeroPerte);
+      if (croise) return croise;
     }
   }
   return motifEtPieces(e.motif, e.pieces);
@@ -483,6 +605,92 @@ export function motifClotureDepreciationsOrphelines(liste: readonly Depreciation
     `exercice · ${detail}${liste.length > 20 ? ' ; …' : ''}. Passez la revue de chacune dans « Créances douteuses ou litigieuses » ` +
     '(la reprise au 759 se proposera) avant de clôturer · fiche du compte 49, « débité à la clôture de l’exercice de la reprise des ' +
     'dépréciations [...] dont les raisons qui les ont motivées ont cessé d’exister ».'
+  );
+}
+
+/**
+ * LE RETRAIT D'UNE CRÉANCE, UNE RÈGLE POUR LE SERVEUR ET L'ÉCRAN (ligne A7
+ * ter, m6) · on ne retire que ce qui n'a rien produit · aucune revue ni aucun
+ * mouvement, même annulés (ils se gardent, AUDCIF art. 20, al. 2), un exercice
+ * ouvert, et une écriture de reclassement encore au BROUILLARD, ni lettrée ni
+ * pointée (AUDCIF art. 22, 2°). L'écran recevait des listes de l'exercice et
+ * recalculait de travers (une revue annulée d'un autre exercice, l'exercice
+ * de la créance) · il reçoit ce verdict, servi.
+ */
+export function motifNonRetirable(p: {
+  revuesTotal: number;
+  mouvementsTotal: number;
+  exerciceClos: boolean;
+  ecriture: { statut: 'BROUILLARD' | 'VALIDEE'; tenue: boolean } | null;
+}): string | null {
+  if (p.revuesTotal > 0 || p.mouvementsTotal > 0) {
+    return (
+      'Cette créance porte déjà une revue ou un mouvement (même annulés, ils se gardent) · la créance ne se retire plus, ' +
+      'sa sortie se fait par la perte ou le recouvrement.'
+    );
+  }
+  if (p.exerciceClos) return "L'exercice de cette créance est clôturé.";
+  if (p.ecriture && p.ecriture.statut !== 'BROUILLARD') {
+    return "L'écriture du reclassement est validée · elle ne se retire plus, le reclassement s'annule (inscription en négatif).";
+  }
+  if (p.ecriture && p.ecriture.tenue) return "Une ligne de l'écriture du reclassement est lettrée ou pointée · défaites-la d'abord.";
+  return null;
+}
+
+/**
+ * B2b (relecture adverse d'A7 ter) · LE LETTRAGE DU MODULE FIGÉ PAR UNE
+ * CLÔTURE. Une clôture de période, totale ou d'exercice fige le lettrage
+ * (`gel-cloture.ts`) · le groupe que le module a posé à l'extinction de la
+ * créance ne se défait plus dès qu'une de ses lignes tombe sous la clôture
+ * (le reclassement du 15 novembre, la période close au 30). Il RESTE EN
+ * PLACE · soldé sur les lignes qu'il réunit, ce qu'il affirme reste vrai.
+ *
+ * Validée, l'écriture du geste s'annule par inscription en négatif à côté de
+ * lui (AUDCIF art. 20, al. 2), datée au premier jour non clôturé si sa date
+ * l'est (art. 22, 4°) · la ligne en négatif, ouverte, porte le reste rétabli.
+ * Au brouillard, la supprimer laisserait le groupe « soldé » sur une ligne
+ * disparue · refus nommé, avec l'issue · valider, puis annuler.
+ */
+export function motifLettrageFigeAuBrouillard(code: string, figee: string, objet: 'le mouvement' | 'le reclassement'): string {
+  return (
+    `Le lettrage ${code} des lignes de la créance au 416 ne se défait plus · ${figee}. ` +
+    `Supprimer cette écriture au brouillard le laisserait soldé sur une ligne disparue · validez l'écriture puis annulez ${objet} ` +
+    "(l'inscription en négatif laisse le lettrage en place, et sa ligne ouverte porte le reste rétabli)."
+  );
+}
+
+/**
+ * A7 ter, mineur 4 · UNE DÉCLARATION BORNÉE PAR LE REPORT RECONSTITUÉ n'est
+ * jamais présentée comme sûre · sans à-nouveau qui fait foi, le 416 et le 491
+ * d'ouverture se lisent sur la clôture précédente reconstituée, brouillard
+ * compris, qu'une écriture passée ensuite dans l'exercice précédent change.
+ */
+export const INFORMATION_BORNE_RECONSTITUEE =
+  "Déclarée sur le report RECONSTITUÉ de l'exercice précédent · l'à-nouveau de cet exercice n'est pas passé, et la borne " +
+  "du 416 et du 491 n'est pas sûre (une écriture passée ensuite dans l'exercice précédent la change). Clôturez l'exercice " +
+  "précédent ou passez un bilan d'ouverture, puis vérifiez la déclaration.";
+
+/**
+ * Second tour d'A7 ter, B-1 · LE MODULE NE CONSEILLE PLUS LE LETTRAGE MANUEL du
+ * 416 · un groupe ainsi posé, figé ensuite par une clôture de période,
+ * enfermait la créance. Quand les lignes de l'exercice ne soldent pas seules
+ * (reclassement d'un exercice précédent, créance déclarée à l'ouverture), ce
+ * qui manque est porté par l'à-nouveau, que rien ne relie à la créance · le
+ * cabinet DÉSIGNE ces lignes, le module pose le groupe lui-même.
+ */
+export function motifLignesANouveauADesigner(numero416: string): string {
+  return (
+    `Créance éteinte · ses lignes de l'exercice ne soldent pas seules au ${numero416} · le reste est porté par l'à-nouveau ` +
+    '(reclassement d’un exercice précédent, ou créance déclarée à l’ouverture), qu’aucune liaison ne relie à la créance. ' +
+    'Désignez ces lignes d’à-nouveau dans « Lettrer au 416 » · le module pose le lettrage lui-même.'
+  );
+}
+
+/** B2b · ce que l'annulation dit quand le lettrage du module reste en place. */
+export function informationLettrageMaintenu(code: string, figee: string): string {
+  return (
+    `Le lettrage ${code} des lignes de la créance reste en place (${figee}) · l'annulation est inscrite en négatif à côté, ` +
+    'et sa ligne ouverte porte le reste rétabli de la créance.'
   );
 }
 
@@ -580,6 +788,14 @@ export interface EntreeDeclaration {
   /** Crédit net de l'à-nouveau du 491 de la nature, et ce qui est déjà déclaré sur lui. */
   aNouveau491: number;
   dejaDeclare491: number;
+  /** m4 · le compte d'origine est de détail · absent, non vérifié. */
+  sourceEstDetail?: boolean;
+  /** m4 · les comptes choisis en sommeil (numéros) · absent, non vérifié. */
+  comptesEnSommeil?: string[];
+  /** m4 · une position en devise non soldée sur le compte du client ou le 416 (mineur 2 · nette, par devise). */
+  positionEnDevise?: boolean;
+  /** m9 · la méthode des cotisations déclarée (SYCEBNL). */
+  methodeCotisations?: MethodeCotisationsDeclaree;
 }
 
 /**
@@ -602,6 +818,22 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   }
   const croise = motifRefus416Croise(e.referentiel, e.nature, e.numeroSource, e.numero416);
   if (croise) return croise;
+  // m4 · mêmes refus que le reclassement · un compte de regroupement ne
+  // désigne pas le débiteur, un compte en sommeil ne reçoit plus de créance
+  // suivie, une créance en devise ne se suit pas ici (AUDCIF art. 54 et 55).
+  if (e.sourceEstDetail === false) return `Le compte ${e.numeroSource} est un compte de regroupement · choisissez le compte du client.`;
+  if (e.comptesEnSommeil && e.comptesEnSommeil.length > 0) {
+    return `Le compte ${e.comptesEnSommeil.join(', ')} est en sommeil · réveillez-le dans Plan comptable, ou choisissez-en un autre.`;
+  }
+  const cotisations = e.methodeCotisations === undefined ? null : motifRefusCotisationsEncaissement(e.referentiel, e.numeroSource, e.methodeCotisations);
+  if (cotisations) return cotisations;
+  if (e.positionEnDevise) {
+    return (
+      'Le compte du client ou le 416 porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture ' +
+      '(AUDCIF art. 54) et se règle dans sa devise (art. 55), et sa déclaration au module en perdrait la devise. Ce cas n’est ' +
+      'pas servi par le module.'
+    );
+  }
   if (!e.source || e.source.trim().length === 0) {
     return (
       'La source est exigée (balance de reprise, dossier de l’ancien cabinet, état des créances douteuses) · une déclaration ' +

@@ -315,6 +315,16 @@ export const DETENTEUR_IMPOT_RESULTAT: DetenteurEcriture = "l'écriture de l'imp
 export interface SuppressionPourLeModule {
   detenteur: DetenteurEcriture;
   liberer: (tx: Prisma.TransactionClient) => Promise<unknown>;
+  /**
+   * Le groupe de lettrage que le module a posé sur ses propres lignes et que
+   * `liberer` DÉFAIT dans la transaction (ligne A7 ter, B2b · le retrait d'un
+   * mouvement d'une créance douteuse éteinte). Le refus des lignes lettrées
+   * l'ignore avant la transaction, et le rejoue dedans, après `liberer` · une
+   * ligne encore lettrée à ce moment refuse, rien ne part. Deux transactions
+   * (défaire, puis supprimer) laissaient, sur un échec de la seconde, une
+   * créance éteinte sans son lettrage.
+   */
+  lettrageTolere?: string | null;
 }
 
 /** Une ligne telle que les contrôles d'entrée la lisent · saisie, import ou canevas. */
@@ -915,7 +925,7 @@ export class EcritureService {
   // signale nommément, et ControlesService applique le même barème.
   // ==========================================================================
 
-  private async trouverEnBrouillard(tenantId: string, ecritureId: string) {
+  private async trouverEnBrouillard(tenantId: string, ecritureId: string, lettrageTolere: string | null = null) {
     const ecriture = await this.prisma.ecriture.findFirst({
       where: { id: ecritureId, tenantId },
       include: { lignes: true, journal: true, exercice: true },
@@ -954,7 +964,7 @@ export class EcritureService {
       }
     }
     // Soldé OU partiel (audit final F50, lettrage/ligne-lettree.ts).
-    const lettree = ecriture.lignes.find(estTenueParUnLettrage);
+    const lettree = ecriture.lignes.find((l) => estTenueParUnLettrage(l) && !(lettrageTolere !== null && l.lettrageId === lettrageTolere));
     if (lettree) {
       throw new BadRequestException(
         `Une ligne de cette écriture est lettrée (${designationLettrage(lettree)}) : délettrez-la avant de modifier l'écriture.`,
@@ -1083,13 +1093,28 @@ export class EcritureService {
    * comptable.
    */
   async supprimer(tenantId: string, ecritureId: string, pourLeModule?: SuppressionPourLeModule) {
-    await this.trouverEnBrouillard(tenantId, ecritureId);
+    const tolere = pourLeModule?.lettrageTolere ?? null;
+    await this.trouverEnBrouillard(tenantId, ecritureId, tolere);
     await this.verifierAucunModuleNeLaTient(tenantId, [ecritureId], 'se supprime', pourLeModule?.detenteur);
     await transactionJournalisee(this.prisma, async (tx) => {
       // Le module libère son marqueur DANS la même transaction · jamais
       // avant (un échec laisserait l'écriture sans son opération), jamais
       // après (l'écriture partie, le marqueur interdirait encore la période).
       if (pourLeModule) await pourLeModule.liberer(tx);
+      if (tolere !== null) {
+        // Le groupe toléré est défait par `liberer` · ce qui reste lettré
+        // (un groupe posé entre-temps) refuse, dans la transaction.
+        const restantes = await tx.ligneEcriture.findMany({
+          where: { ecritureId, ecriture: { tenantId } },
+          select: { lettre: true, lettrageId: true },
+        });
+        const lettree = restantes.find(estTenueParUnLettrage);
+        if (lettree) {
+          throw new BadRequestException(
+            `Une ligne de cette écriture est lettrée (${designationLettrage(lettree)}) : délettrez-la avant de supprimer l'écriture.`,
+          );
+        }
+      }
       await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
       await tx.ecriture.delete({ where: { id: ecritureId } });
     });
@@ -2032,6 +2057,7 @@ export class EcritureService {
     ecritureId: string,
     motif: string,
     tx?: Prisma.TransactionClient,
+    options: { groupeTolere?: string | null } = {},
   ) {
     const db = tx ?? this.prisma;
     const origine = await db.ecriture.findFirst({
@@ -2050,16 +2076,26 @@ export class EcritureService {
     }
     // Lettrée ou pointée · le module appelant l'a refusée avant la
     // transaction ; le refus est rejoué ici, à la source, pour tout appelant.
-    const tenues = motifLignesTenues(origine.lignes, `l'écriture n° ${origine.numeroPiece ?? '·'}`, 'annuler');
+    // `groupeTolere` · le groupe qu'un module a posé sur ses lignes et garde
+    // en place, figé par une clôture (A7 ter, B2b, `motifLignesTenues`).
+    const tenues = motifLignesTenues(origine.lignes, `l'écriture n° ${origine.numeroPiece ?? '·'}`, 'annuler', '', options.groupeTolere ?? null);
     if (tenues) throw new BadRequestException(tenues);
     let date = origine.date;
     let dateValeur: Date | null = null;
     const premier = await this.exerciceService.premierJourOuvert(tenantId, origine.journalId, date);
     if (premier.getTime() !== date.getTime()) {
       if (premier > origine.exercice.dateFin) {
+        // Second tour d'A7 ter, m-a · une clôture de période ou totale est
+        // DÉFINITIVE (« ne peut pas être annulée ») · « rouvrez la période »
+        // promettait un geste qui n'existe pas. La vérité · l'exercice est clos
+        // jusqu'à sa fin pour ce journal, rien ne s'y inscrit plus, et
+        // l'annulation ne passe pas dans l'exercice suivant (la charge
+        // changerait d'exercice).
         throw new BadRequestException(
           `Le premier jour non clôturé du journal ${origine.journal.code} (${premier.toISOString().slice(0, 10)}) tombe hors de l'exercice · ` +
-            "rouvrez la période pour inscrire l'annulation (AUDCIF art. 22, 4°).",
+            "la période est close jusqu'à la fin de l'exercice, définitivement, et plus rien ne s'y inscrit (AUDCIF art. 22, 4°). " +
+            "L'annulation ne passe pas dans l'exercice suivant, la charge changerait d'exercice · une fois l'exercice clôturé, " +
+            "l'erreur relève du report à nouveau (art. 20, al. 3).",
         );
       }
       dateValeur = date;
