@@ -894,13 +894,17 @@ export class CreancesDouteusesService {
     const c491 = await this.compte491Choisi(tenantId, dto.nature, dto.compte491Id);
     const date = ex.dateDebut;
     const { ids } = await this.chaine(tenantId, ex);
-    const [ouverture, dejaPorte, enDevise] = await Promise.all([
+    const [ouverture, dejaPorte, positions] = await Promise.all([
       this.soldesALOuverture(tenantId, ex, c416.id, c491.id),
       this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
-      // m4 · une créance en devise non réglée, sur le compte du client ou le
-      // 416, à l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas.
-      this.positionEnDeviseOuverte(tenantId, [source.id, c416.id], ids, ex.dateDebut),
+      // m4 · une créance en devise non réglée sur le compte du client, à
+      // l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas ;
+      // A7 quater, m3 · sur le 416 partagé, ses francs sont retranchés de la
+      // borne, jamais un refus (une autre créance, d'un autre client).
+      this.positionsEnDevise(tenantId, [source.id, c416.id], ids, ex.dateDebut),
     ]);
+    const enDevise = positions.some((p) => p.ouverte && p.compteId === source.id);
+    const enDevise416 = centimes(positions.filter((p) => p.ouverte && p.compteId === c416.id).reduce((t, p) => t + p.francs, 0));
     let motif = motifRefusDeclaration({
       referentiel,
       nature: dto.nature,
@@ -920,6 +924,7 @@ export class CreancesDouteusesService {
       sourceEstDetail: source.typeCompte === TypeCompteDetailTotal.DETAIL,
       comptesEnSommeil: [source, c416, c491].filter((k) => 'estActif' in k && k.estActif === false).map((k) => k.numero),
       positionEnDevise: enDevise,
+      enDevise416,
       methodeCotisations: methodeCotisations ?? null,
     });
     // B1 · une borne lue sur le report reconstitué se dit, avec son issue.
@@ -973,33 +978,48 @@ export class CreancesDouteusesService {
    * d'un compte n'est pas soldée au centime.
    */
   private async positionEnDeviseOuverte(tenantId: string, comptes: string[], ids: string[], au: Date | null): Promise<boolean> {
+    return (await this.positionsEnDevise(tenantId, comptes, ids, au)).some((p) => p.ouverte);
+  }
+
+  /**
+   * Les positions en devise par compte et par devise (voir ci-dessus), avec
+   * les FRANCS qu'elles portent (débit moins crédit de leurs lignes) · A7
+   * quater, m3, la borne de la déclaration d'ouverture retranche ceux d'une
+   * position non soldée sur le 416 partagé.
+   */
+  private async positionsEnDevise(
+    tenantId: string,
+    comptes: string[],
+    ids: string[],
+    au: Date | null,
+  ): Promise<Array<{ compteId: string; deviseId: string; ouverte: boolean; francs: number }>> {
     const date = au ? { date: { lte: au } } : {};
+    const lire = (sens: Prisma.LigneEcritureWhereInput[]) =>
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: sens,
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true, debit: true, credit: true },
+      });
     const [debits, credits] = await Promise.all([
-      this.prisma.ligneEcriture.groupBy({
-        by: ['compteId', 'deviseId'],
-        where: {
-          compteId: { in: comptes },
-          deviseId: { not: null },
-          OR: [{ debit: { gt: 0 } }, { credit: { lt: 0 } }],
-          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
-        },
-        _sum: { montantDevise: true },
-      }),
-      this.prisma.ligneEcriture.groupBy({
-        by: ['compteId', 'deviseId'],
-        where: {
-          compteId: { in: comptes },
-          deviseId: { not: null },
-          OR: [{ credit: { gt: 0 } }, { debit: { lt: 0 } }],
-          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
-        },
-        _sum: { montantDevise: true },
-      }),
+      lire([{ debit: { gt: 0 } }, { credit: { lt: 0 } }]),
+      lire([{ credit: { gt: 0 } }, { debit: { lt: 0 } }]),
     ]);
-    const net = new Map<string, number>();
-    for (const g of debits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) + n(g._sum.montantDevise));
-    for (const g of credits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) - n(g._sum.montantDevise));
-    return [...net.values()].some((v) => Math.abs(v) >= 0.005);
+    const parCle = new Map<string, { compteId: string; deviseId: string; devise: number; francs: number }>();
+    const cumuler = (g: (typeof debits)[number], signe: 1 | -1) => {
+      const cle = `${g.compteId}|${g.deviseId}`;
+      const p = parCle.get(cle) ?? { compteId: g.compteId, deviseId: g.deviseId as string, devise: 0, francs: 0 };
+      p.devise += signe * n(g._sum.montantDevise);
+      p.francs += n(g._sum.debit) - n(g._sum.credit);
+      parCle.set(cle, p);
+    };
+    for (const g of debits) cumuler(g, 1);
+    for (const g of credits) cumuler(g, -1);
+    return [...parCle.values()].map((p) => ({ compteId: p.compteId, deviseId: p.deviseId, ouverte: Math.abs(p.devise) >= 0.005, francs: centimes(p.francs) }));
   }
 
   /**

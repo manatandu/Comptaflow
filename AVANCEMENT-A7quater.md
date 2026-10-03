@@ -24,9 +24,13 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    expliqué par une bulle `Aide` ; (m8) dates du Règlement des tiers mises
    en forme par `lib/jour-fr.ts` (sorti de `controles-agregat-groupe.ts`).
 
+4. (m3) Déclaration d'ouverture · une position en devise non soldée sur le
+   416 partagé ne refuse plus ; ses francs sont retranchés de la borne
+   (`positionsEnDevise`, `enDevise416`) et nommés dans le dépassement. Le
+   refus reste pour une position sur le compte du CLIENT, avec l'issue.
+
 ## Reste
 
-- (m3) position en devise sur le 416 partagé à la déclaration.
 - Scénario sur vraie base à travers une clôture ; bloc du § 3.
 
 ## Décisions
@@ -47,6 +51,12 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
   mouvement de la créance).
 - (m1) Le calcul du lettrage automatique se fait dans sa transaction · le
   délai de la transaction se règle sur le nombre de lignes ouvertes du compte.
+
+- (m3) Décision · le refus ne mord que sur le compte du client (la créance
+  déclarée est en francs, le module ne suit pas les créances en devise,
+  AUDCIF art. 54 et 55) ; sur le 416 partagé, la contrevaleur d'une autre
+  créance en devise ne peut pas servir de borne à une créance en francs ·
+  elle est retranchée, pas refusée.
 
 ## Vérification
 

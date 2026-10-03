@@ -553,11 +553,14 @@ describe('créances douteuses · service', () => {
               (e.estANouveauProvisoire !== false || !l.provisoire) &&
               (auDebit ? l.debit > 0 || l.credit < 0 : l.credit > 0 || l.debit < 0),
           );
-          const groupes = new Map<string, { compteId: string; deviseId: string; _sum: { montantDevise: number } }>();
+          // A7 quater, m3 · les francs des positions sont sommés aussi.
+          const groupes = new Map<string, { compteId: string; deviseId: string; _sum: { montantDevise: number; debit: number; credit: number } }>();
           for (const l of retenues) {
             const cle = `${l.compteId}|${l.deviseId}`;
-            const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId!, _sum: { montantDevise: 0 } };
+            const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId!, _sum: { montantDevise: 0, debit: 0, credit: 0 } };
             g._sum.montantDevise += l.montantDevise ?? 0;
+            g._sum.debit += l.debit;
+            g._sum.credit += l.credit;
             groupes.set(cle, g);
           }
           return Promise.resolve([...groupes.values()]);
@@ -1885,6 +1888,30 @@ describe('créances douteuses · service', () => {
       Promise.resolve(where.id === 'cli' ? { id: 'cli', numero: '41110000', intitule: 'Clients', typeCompte: TypeCompteDetailTotal.TOTAL, estActif: true } : plan.find((c) => c.id === where.id) ?? plan.find((c) => c.numero.startsWith(where.numero?.startsWith)) ?? null),
     );
     await expect(regroupement.service.declarer('t', 'u', dtoDeclaration)).rejects.toThrow(/compte de regroupement/);
+  });
+
+  // A7 QUATER, m3 · une créance en dollars d'un AUTRE client, au 416 partagé,
+  // refusait la déclaration de toute créance en francs, sans issue. Ses
+  // francs sont désormais retranchés de la borne, et le dépassement le dit.
+  it('m3 · une position en devise sur le 416 partagé ne refuse plus · ses francs sont retranchés de la borne, et nommés', async () => {
+    const lignes = [
+      // À-nouveau du 4162 · 1 000 000 en francs, et 600 000 d'une créance de 400 USD d'un autre client.
+      { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true },
+      { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 600_000, credit: 0, aNouveau: true, deviseId: 'usd', montantDevise: 400 },
+    ];
+    const admis = monter({ lignes, aNouveauDans: ['ex-26'] });
+    await expect(admis.service.declarer('t', 'u', dtoDeclaration)).resolves.toMatchObject({ montant: 500_000 });
+    // 1 100 000 en francs dépasse le 1 000 000 qui n'est pas en devise · refusé, la part en devise nommée.
+    const trop = monter({ lignes, aNouveauDans: ['ex-26'] });
+    await expect(trop.service.declarer('t', 'u', { ...dtoDeclaration, montant: 1_100_000 })).rejects.toThrow(
+      /dépasse son à-nouveau \(1600000\.00, dont 600000\.00 portés par une créance en devise non réglée, hors du module et retranchés\)/,
+    );
+    // Soldée en devise (réglée en N-1), la position ne retranche rien.
+    const soldee = monter({
+      lignes: [...lignes, { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 0, credit: 600_000, aNouveau: true, deviseId: 'usd', montantDevise: 400 }],
+      aNouveauDans: ['ex-26'],
+    });
+    await expect(soldee.service.declarer('t', 'u', { ...dtoDeclaration, montant: 1_000_000 })).resolves.toMatchObject({ montant: 1_000_000 });
   });
 
   it('m5 · les listes des 416 et 491 de détail disent leur total et si elles sont tronquées', async () => {

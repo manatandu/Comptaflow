@@ -792,8 +792,14 @@ export interface EntreeDeclaration {
   sourceEstDetail?: boolean;
   /** m4 · les comptes choisis en sommeil (numéros) · absent, non vérifié. */
   comptesEnSommeil?: string[];
-  /** m4 · une position en devise non soldée sur le compte du client ou le 416 (mineur 2 · nette, par devise). */
+  /** m4 · une position en devise non soldée sur le compte du client (mineur 2 · nette, par devise). */
   positionEnDevise?: boolean;
+  /**
+   * A7 quater, m3 · les francs que portent, dans l'à-nouveau du 416 choisi,
+   * des positions en devise non soldées · une AUTRE créance, en devise, que le
+   * module ne suit pas. Retranchés de la borne, jamais un refus.
+   */
+  enDevise416?: number;
   /** m9 · la méthode des cotisations déclarée (SYCEBNL). */
   methodeCotisations?: MethodeCotisationsDeclaree;
 }
@@ -827,11 +833,16 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   }
   const cotisations = e.methodeCotisations === undefined ? null : motifRefusCotisationsEncaissement(e.referentiel, e.numeroSource, e.methodeCotisations);
   if (cotisations) return cotisations;
+  // A7 QUATER, m3 · LE REFUS NE MORD QUE SUR LE COMPTE DU CLIENT. Le 416 est
+  // partagé · une créance en dollars d'un autre client, passée au 416 à la
+  // main, refusait la déclaration de toute créance en francs, sans issue.
+  // Ses francs sont retranchés de la borne (`enDevise416`) · la créance en
+  // francs déclarée ne peut pas emprunter la contrevaleur de celle en devise.
   if (e.positionEnDevise) {
     return (
-      'Le compte du client ou le 416 porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture ' +
+      'Le compte du client porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture ' +
       '(AUDCIF art. 54) et se règle dans sa devise (art. 55), et sa déclaration au module en perdrait la devise. Ce cas n’est ' +
-      'pas servi par le module.'
+      'pas servi par le module · lettrez ce qui est réglé en devise ; une créance en devise encore due se suit hors du module.'
     );
   }
   if (!e.source || e.source.trim().length === 0) {
@@ -847,11 +858,17 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   if (!e.aNouveau) {
     return "Cet exercice n'a pas encore d'à-nouveau (bilan d'ouverture ou report) · la déclaration se borne par lui, passez-le d'abord.";
   }
-  if (centimes(e.dejaDeclare416 + e.montant) > centimes(e.aNouveau416) + 0.005) {
+  const enDevise416 = centimes(e.enDevise416 ?? 0);
+  const borne416 = centimes(e.aNouveau416 - enDevise416);
+  if (centimes(e.dejaDeclare416 + e.montant) > borne416 + 0.005) {
     return (
       `Ce que le module porte déjà sur le ${e.numero416} à l'ouverture (${centimes(e.dejaDeclare416).toFixed(2)}, créances reclassées ` +
       `avant et non sorties, ou déjà déclarées) plus cette créance (${centimes(e.montant).toFixed(2)}) dépasse son à-nouveau ` +
-      `(${centimes(e.aNouveau416).toFixed(2)}) · on ne déclare que ce que le bilan d'ouverture porte, et une seule fois.`
+      `(${centimes(e.aNouveau416).toFixed(2)}` +
+      (Math.abs(enDevise416) >= 0.005
+        ? `, dont ${enDevise416.toFixed(2)} portés par une créance en devise non réglée, hors du module et retranchés`
+        : '') +
+      `) · on ne déclare que ce que le bilan d'ouverture porte, et une seule fois.`
     );
   }
   if (centimes(e.dejaDeclare491 + e.depreciation) > centimes(e.aNouveau491) + 0.005) {
