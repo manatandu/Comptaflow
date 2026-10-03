@@ -197,13 +197,25 @@ export function libelleEcartRealise(ecart: number): string {
  * cours saisi donne la contrevaleur ; le débit réel saisi en francs prime, et
  * le cours s'en déduit à six décimales ; les deux saisis doivent s'accorder à
  * la tolérance près. Ni l'un ni l'autre · refus, jamais un cours deviné.
+ *
+ * RIEN DE NUL NI DE NÉGATIF NE PASSE (A6 bis, B1) · un règlement de 600 USD
+ * « payé » zéro franc soldait 1 008 000 au 401 contre un 52 à zéro, le tout
+ * porté en GAIN au 756 ; un montant de -600 rendait un cours de -1. La pièce
+ * était équilibrée et la balance bouclée (§ 10 bis). Le montant réglé en
+ * devise, les francs payés et le cours, saisi ou déduit, sont tous
+ * strictement positifs, contrôlés ICI, sur la valeur que la pièce porterait
+ * (arrondie), quelle que soit la porte · un `null` ou un `NaN` venu d'un
+ * appelant qui aurait sauté le DTO tombe sous le même refus.
  */
 export function coursEtFrancsDuReglement(p: {
   montantDevise: number;
-  cours?: number;
-  francs?: number;
+  cours?: number | null;
+  francs?: number | null;
   tolerance: (montantDevise: number, cours: number, francs: number) => boolean;
 }): { cours: number; francs: number } | { motif: string } {
+  if (!(p.montantDevise > 0)) {
+    return { motif: 'le montant réglé en devise doit être strictement positif · un règlement nul ou négatif ne règle rien.' };
+  }
   if (p.cours === undefined && p.francs === undefined) {
     return {
       motif:
@@ -211,18 +223,36 @@ export function coursEtFrancsDuReglement(p: {
         'se mesurant contre lui (AUDCIF art. 55).',
     };
   }
-  if (p.francs === undefined) return { cours: p.cours!, francs: Math.round(p.montantDevise * p.cours! * 100) / 100 };
-  const francs = Math.round(p.francs * 100) / 100;
-  if (p.cours === undefined) return { cours: Math.round((francs / p.montantDevise) * 1e6) / 1e6, francs };
-  if (!p.tolerance(p.montantDevise, p.cours, francs)) {
-    const attendu = Math.round(p.montantDevise * p.cours * 100) / 100;
+  const motifCours =
+    'le cours du jour du règlement doit être strictement positif · un cours nul ou négatif ferait passer ce que le tiers éteint pour un gain ' +
+    '(AUDCIF art. 52 et 55).';
+  const motifFrancs =
+    'le montant payé en francs doit être strictement positif · un règlement à zéro franc solderait le tiers contre une trésorerie vide ' +
+    'et ferait du dû entier un gain de change (AUDCIF art. 55).';
+  if (p.cours !== undefined && !(Number(p.cours) > 0)) return { motif: motifCours };
+  if (p.francs === undefined) {
+    const cours = Number(p.cours);
+    const francsDuCours = Math.round(p.montantDevise * cours * 100) / 100;
+    if (!(francsDuCours > 0)) return { motif: motifFrancs };
+    return { cours, francs: francsDuCours };
+  }
+  const francs = Math.round(Number(p.francs) * 100) / 100;
+  if (!(francs > 0)) return { motif: motifFrancs };
+  if (p.cours === undefined) {
+    const deduit = Math.round((francs / p.montantDevise) * 1e6) / 1e6;
+    if (!(deduit > 0)) return { motif: motifCours };
+    return { cours: deduit, francs };
+  }
+  const cours = Number(p.cours);
+  if (!p.tolerance(p.montantDevise, cours, francs)) {
+    const attendu = Math.round(p.montantDevise * cours * 100) / 100;
     return {
       motif:
-        `${p.montantDevise.toFixed(2)} au cours de ${p.cours} font ${attendu.toFixed(2)} en francs, et le montant saisi est ${francs.toFixed(2)} · ` +
+        `${p.montantDevise.toFixed(2)} au cours de ${cours} font ${attendu.toFixed(2)} en francs, et le montant saisi est ${francs.toFixed(2)} · ` +
         'saisissez le seul montant payé, le cours s’en déduit (AUDCIF art. 52).',
     };
   }
-  return { cours: p.cours, francs };
+  return { cours, francs };
 }
 
 /**

@@ -26,9 +26,16 @@ export class ReglementTiersDto {
   @IsUUID('4', { each: true })
   ligneIds!: string[];
 
-  /** Montant réglé, s'il est inférieur au dû · absent, le dû entier. */
-  @IsOptional()
+  /**
+   * Montant réglé, s'il est inférieur au dû · absent, le dû entier. En devise,
+   * le débit RÉEL en francs (le cours s'en déduit). FACULTATIF, MAIS JAMAIS
+   * `null`, ZÉRO NI NÉGATIF (A6 bis, B1) · `null` passait `@IsOptional()` et valait le dû
+   * entier en francs, ou zéro franc payé en devise, la pièce soldant le tiers
+   * contre une trésorerie vide et portant le dû en gain de change.
+   */
+  @FacultatifNonNul('Omettez le montant pour régler le dû entier · un montant payé est un nombre strictement positif.')
   @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   montant?: number;
 
   /** Numéro du chèque ou du virement, porté en référence de la pièce. */

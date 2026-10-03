@@ -196,7 +196,9 @@ export class ReglementsService {
             `${numero} · les factures choisies sont en francs · ni montant en devise, ni cours, ni compte d'écart de change.`,
           );
         }
-        const montant = p.r.montant ?? p.du;
+        // `undefined` seul vaut « le dû entier » · un `null` venu d'un appelant
+        // qui aurait sauté le DTO tombe sous le refus du montant (A6 bis, B1).
+        const montant = p.r.montant === undefined ? p.du : p.r.montant;
         const refus = motifRefusMontant(montant, p.du);
         if (refus) throw new BadRequestException(`${numero} · ${refus}`);
         prepares.push({ r: p.r, compte: p.compte, du: p.du, montant, enDevise: null });
@@ -391,7 +393,7 @@ export class ReglementsService {
       );
     }
     const duDevise = Math.round(factures.reduce((s, f) => s + f.montantDevise, 0) * 100) / 100;
-    const montantDevise = r.montantDevise ?? duDevise;
+    const montantDevise = r.montantDevise === undefined ? duDevise : r.montantDevise;
     if (Math.round(montantDevise * 100) > Math.round(duDevise * 100)) {
       throw new BadRequestException(
         `${numero} · le montant réglé (${montantDevise.toFixed(2)}) dépasse le dû en devise des factures choisies ` +

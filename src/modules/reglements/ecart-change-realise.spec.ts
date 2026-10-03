@@ -15,7 +15,10 @@ import {
   libelleEcartRealise,
   coursEtFrancsDuReglement,
 } from './ecart-change-realise';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { ReglementsService } from './reglements.service';
+import { ReglementTiersDto } from './reglements.dto';
 import * as reevaluationModule from './reevaluation-et-ecart-realise';
 import type { OrdresVirementService } from './ordres-virement.service';
 import type { PrismaService } from '../../common/prisma.service';
@@ -191,6 +194,37 @@ describe('les comptes admis pour l’écart, serveur et écran sur une seule tab
 
   it('ni cours ni débit saisi · refus, jamais un cours deviné', () => {
     expect(coursEtFrancsDuReglement({ montantDevise: 600, tolerance: () => true })).toHaveProperty('motif');
+  });
+
+  // A6 bis, B1 · la règle pure refuse elle-même ce qui est nul ou négatif,
+  // quelle que soit la porte, sur la valeur que la pièce porterait (arrondie).
+  it('rien de nul ni de négatif · francs, cours saisi ou déduit, montant en devise', () => {
+    const t = () => true;
+    for (const francs of [0, -600, null, Number.NaN, 0.004]) {
+      expect(coursEtFrancsDuReglement({ montantDevise: 600, francs, tolerance: t })).toEqual({ motif: expect.stringMatching(/francs doit être strictement positif/) });
+    }
+    for (const cours of [0, -1, null, Number.NaN]) {
+      expect(coursEtFrancsDuReglement({ montantDevise: 600, cours, tolerance: t })).toEqual({ motif: expect.stringMatching(/cours du jour du règlement doit être strictement positif/) });
+    }
+    // Un cours qui ne fait pas un centime · la trésorerie porterait zéro.
+    expect(coursEtFrancsDuReglement({ montantDevise: 0.01, cours: 0.1, tolerance: t })).toEqual({ motif: expect.stringMatching(/francs doit être/) });
+    // Des francs qui ne font pas un cours à six décimales.
+    expect(coursEtFrancsDuReglement({ montantDevise: 1_000_000, francs: 0.01, tolerance: t })).toEqual({ motif: expect.stringMatching(/cours du jour/) });
+    for (const montantDevise of [0, -600, Number.NaN]) {
+      expect(coursEtFrancsDuReglement({ montantDevise, cours: 1750, tolerance: t })).toEqual({ motif: expect.stringMatching(/devise doit être strictement positif/) });
+    }
+    expect(coursEtFrancsDuReglement({ montantDevise: 600, cours: 1750, tolerance: t })).toEqual({ cours: 1750, francs: 1050000 });
+  });
+
+  it('la porte · `montant` facultatif, jamais `null`, zéro ni négatif', async () => {
+    const uuid = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    const erreurs = async (montant: unknown) =>
+      (await validate(plainToInstance(ReglementTiersDto, { compteId: uuid, ligneIds: [uuid], montant }))).map((e) => e.property);
+    expect(await erreurs(null)).toEqual(['montant']);
+    expect(await erreurs(0)).toEqual(['montant']);
+    expect(await erreurs(-600)).toEqual(['montant']);
+    expect(await erreurs(1050000)).toEqual([]);
+    expect((await validate(plainToInstance(ReglementTiersDto, { compteId: uuid, ligneIds: [uuid] }))).length).toBe(0);
   });
 });
 
@@ -489,6 +523,28 @@ describe('enregistrer un règlement en devise', () => {
     await expect(
       service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montant: 500000 }] }),
     ).rejects.toThrow(/saisissez aussi le montant réglé en devise/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  // A6 bis, B1 · reproduit par la relecture adverse. 600 USD « payés » zéro
+  // franc passaient D 401 1 008 000 / C 52 0 / C 756 1 008 000 ; `null`
+  // idem ; -600 donnait un cours de -1. Refus avant toute pièce.
+  it.each([
+    ['zéro franc payé', { montantDevise: 600, montant: 0 }],
+    ['des francs nuls (null)', { montantDevise: 600, montant: null }],
+    ['des francs négatifs', { montantDevise: 600, montant: -600 }],
+    ['un cours nul', { montantDevise: 600, coursReglement: 0 }],
+    ['un cours négatif', { montantDevise: 600, coursReglement: -1 }],
+    ['un montant en devise nul (null)', { montantDevise: null, coursReglement: 1750 }],
+  ])('%s · refus nommé, avant toute pièce', async (_cas, saisie) => {
+    const { service, creer } = monter();
+    await expect(
+      service.enregistrer('t', 'u', {
+        ...base,
+        sens: 'FOURNISSEUR',
+        reglements: [{ compteId: 'c401', ligneIds: ['fm'], ...(saisie as Record<string, number>) }],
+      }),
+    ).rejects.toThrow(/strictement positif/);
     expect(creer).not.toHaveBeenCalled();
   });
 

@@ -19,11 +19,14 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 
 ## Fait
 
-(tenu à jour à chaque commit)
+- B1 · `coursEtFrancsDuReglement` refuse montant en devise, francs et cours
+  (saisi ou déduit) nuls, négatifs, `null` ou NaN, sur la valeur arrondie que
+  la pièce porterait ; DTO `montant` en `@FacultatifNonNul` + `@IsPositive` ;
+  service · `undefined` seul vaut « le dû entier ». Tests · règle pure, porte
+  (class-validator), service (six cas, aucune pièce).
 
 ## Reste
 
-- B1 · règlement en devise à zéro franc, cours nul ou négatif.
 - B2 · groupe de lettrage à cheval sur deux exercices.
 - B3 · banque en devise qui paie des factures en francs.
 - M1 à M7.
