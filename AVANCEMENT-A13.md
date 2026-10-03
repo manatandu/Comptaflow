@@ -126,6 +126,11 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
   courus), rien changé.
 - **(k)** `rapprochement.dto.ts` · `@IsDateString` et le fuseau · hors ligne,
   NON corrigé (consigne du coordinateur).
+- Bloc du § 3 rejoué après corrections (2026-10-03) · serveur `tsc` et `nest
+  build` propres ; `npx jest --maxWorkers=2` une fois · 700 suites, 9 718
+  tests, un seul rouge (`citations-articles.spec.ts`, le titre d'un test lu
+  « SYCEBNL art. 42 ») corrigé puis relancé seul, vert ; aucune suite tuée.
+  Client `tsc`, `vitest` (203 fichiers, 1 656 tests) et `vite build` propres.
 - Doublures · `rapprochementBancaire.groupBy` ajouté dans sept specs qui
   passent par `analyser` avec un 52, sans quoi elles tomberaient après le
   31 décembre 2026.

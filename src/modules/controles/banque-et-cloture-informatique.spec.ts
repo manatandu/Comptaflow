@@ -505,7 +505,7 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
     expect(m.cloture.findMany).not.toHaveBeenCalled();
   });
 
-  it('au SYCEBNL, la fiche du 52, l’art. 42 et l’art. 22 sont cités par le chemin du SYCEBNL', async () => {
+  it('chez une association, fiche du 52, AUDCIF art. 42 et AUDCIF art. 22 passent par le chemin du SYCEBNL', async () => {
     le('2027-01-15');
     const m = monter({ referentiel: Referentiel.SYCEBNL });
     const rapport = await m.svc.analyser('t', 'ex');
