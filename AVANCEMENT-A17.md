@@ -49,10 +49,24 @@ Branche de sauvegarde · `travail/a17`, partie de `main` a95f723.
 - Tests · `banque-et-cloture-informatique.spec.ts` (semis des deux plans,
   règle pure, câblage dans les deux référentiels).
 
+- Rejeu sur vraie base (§ 10), PostgreSQL 16 jetable, serveur compilé, API ·
+  quatorze vérifications vertes. SYCEBNL (N = 2024, N+1 = 2025) · 585 à
+  120 000 signalé sur N avec la fiche SYCEBNL ; l'autre moitié au brouillard
+  dite « reste à valider » ; validée, silence, balance du 585 à 120 000 /
+  120 000 / 0 ; N clôturé, silence sur N et N+1 ; en N+1 un 588 créditeur de
+  7 550,50 signalé, d'abord au brouillard (livre-journal nul) puis validé.
+  SYSCOHADA · 585 à 300 000 laissé ouvert, 581 (régie) jamais signalé, fiche
+  AUDCIF citée ; N clôturé, toujours signalé sur N ; en N+1 l'à-nouveau
+  validé du 585 signalé ; soldé par la caisse, silence, balance du 585
+  report 300 000, mouvement crédit 300 000, solde 0.
+
+- Bloc du § 3 vert des deux côtés · serveur tsc, jest 720 suites et 10 192
+  tests, build ; client tsc, 211 fichiers et 1 722 tests, build.
+
 ## Reste
 
-- Rejeu sur vraie base à travers une clôture (§ 10).
-- Bloc du § 3 des deux côtés.
+- Relectures (silent-failure-hunter, typescript-reviewer), intégration sur
+  `main` et tests navigateur, retrait de cette fiche.
 
 ## Vérification
 
