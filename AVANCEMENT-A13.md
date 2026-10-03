@@ -17,9 +17,17 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
    (règles pures, deux semis relus, câblage sur doublure qui honore le `where`).
    Doublures complétées (`cloture.findMany`) dans six specs de la batterie.
 
+4. Bloc du § 3 passé des deux côtés (2026-10-03) · serveur `tsc` et `nest
+   build` propres ; `npx jest --maxWorkers=2` · 700 suites, 663 vertes au
+   premier passage, 37 tombées par processus TUÉS (SIGKILL, mémoire de la
+   machine partagée) ou délai de 5 s dépassé sous charge, toutes RELANCÉES
+   seules (`--runInBand`) · 37 vertes, 554 tests ; premier passage 9 214 tests
+   verts sur 9 225 comptés, les 11 rouges sont dans les suites relancées. Client
+   `tsc`, `vitest` (203 fichiers, 1 656 tests) et `vite build` propres.
+
 ## Reste
 
-- Bloc du § 3 complet des deux côtés avant le dernier commit (voir plus bas).
+- Relecture adverse et intégration (hors de cette copie).
 - Aucun écran à toucher · les anomalies passent par la fenêtre « Analyse et
   contrôles » existante, qui affiche toute anomalie rendue par le serveur.
 
