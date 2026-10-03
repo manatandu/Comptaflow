@@ -109,6 +109,27 @@ const EPSILON = 0.005;
 const solde = (lignes: LigneDEcart[]) => lignes.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
 
 /**
+ * L'ÉCRITURE QUI NE SE PARTAGE PAS (relecture adverse d'A5 bis, M2) · une
+ * réévaluation passée sous une règle antérieure a pu porter au 676 ou au 776
+ * l'écart d'un compte qui n'est plus tenu pour une disponibilité (un
+ * découvert 56, avant que le périmètre ne soit resserré), ou avoir été
+ * retouchée au brouillard. Les deux parts ne s'équilibrent plus, et rien ne
+ * dit, sans deviner, quelle ligne va avec quelle autre. L'issue est RÉELLE et
+ * DITE · la contre-passation INTÉGRALE, comme avant A5 bis, demandée
+ * expressément et écrite au libellé · la réévaluation suivante mesure alors
+ * la banque depuis son coût historique (`ecartsReportesDesDisponibilites` ne
+ * reporte rien d'un écart contre-passé), et le total de l'exercice suivant
+ * reste juste. Jamais l'annulation, que l'exercice clos refuse.
+ */
+export const MOTIF_PARTAGE_IMPOSSIBLE =
+  "L'écriture des écarts de cette réévaluation ne se sépare pas en deux parts équilibrées · d'un côté les disponibilités " +
+  "et leur 676 ou 776 (écart réalisé, AUDCIF art. 57, jamais contre-passé), de l'autre les créances et dettes et leur 478 " +
+  "ou 479 (écart de conversion, art. 54, contre-passé à l'ouverture) · elle a été passée sous une règle antérieure ou " +
+  "retouchée. Demandez la contre-passation INTÉGRALE (Devises, « Contre-passation intégrale ») · toute l'écriture est " +
+  "contre-passée, comme avant A5 bis, et le libellé le dit ; la réévaluation suivante mesure alors la banque et la caisse " +
+  'depuis leur coût historique.';
+
+/**
  * PARTAGE l'écriture des écarts d'une réévaluation par la RACINE du compte,
  * jamais par le montant ni par le libellé · une ligne de disponibilité (52,
  * 53, 55, 57, 58, `estDisponibilite`) ou de sa contrepartie (676, 776) est
@@ -128,12 +149,7 @@ export function partagerLignesDEcarts<L extends LigneDEcart>(lignes: L[]): Parta
   return {
     aContrePasser,
     realisees,
-    motifRefus: desequilibre
-      ? "L'écriture des écarts de cette réévaluation ne se sépare pas en deux parts équilibrées · d'un côté les " +
-        "disponibilités et leur 676 ou 776 (écart réalisé, AUDCIF art. 57, jamais contre-passé), de l'autre les créances " +
-        "et dettes et leur 478 ou 479 (écart de conversion, art. 54, contre-passé à l'ouverture). Elle a été retouchée · " +
-        'annulez la réévaluation et repassez-la, ou contre-passez à la main les seuls 478 et 479 et leurs comptes de tiers.'
-      : null,
+    motifRefus: desequilibre ? MOTIF_PARTAGE_IMPOSSIBLE : null,
   };
 }
 
@@ -159,4 +175,87 @@ export function ecartsDisponibilitesEnregistres(valeur: unknown): EcartDeDisponi
     sortie.push({ compteId, deviseId, ecart });
   }
   return sortie;
+}
+
+/** Les sommes en devise d'une disponibilité, pour une devise, telles que la réévaluation les a lues. */
+export interface SommeDeviseDuCompte {
+  deviseId: string;
+  /** Montant en devise, signé par le sens des lignes. */
+  devise: number;
+  /** Débit moins crédit des mêmes lignes, en francs. */
+  francs: number;
+}
+
+const centimes = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * VENTILE, entre ses devises, la ligne qu'une réévaluation antérieure à A5
+ * bis a passée SANS devise sur une disponibilité (relecture adverse, B1) ·
+ * jamais deviné, toujours vérifié contre la ligne passée.
+ *
+ *  (a) une devise nulle en devise ET en francs n'a rien porté · ignorée (une
+ *      devise soldée en N n'empêche plus de lire celle qui reste) ;
+ *  (b) une seule devise vivante · la ligne lui revient ;
+ *  (c) plusieurs · chacune recalculée comme la réévaluation l'a fait
+ *      (montant en devise × cours, moins ses francs), au cours qu'elle a
+ *      gardé (D5) ou, à défaut, à celui de la table à sa date ; la somme doit
+ *      rendre la ligne passée AU CENTIME, sinon `null` · l'appelant fait
+ *      déclarer la ventilation (`declarerVentilationDisponibilites`).
+ */
+export function ventilerEcartPasse(
+  compteId: string,
+  passe: number,
+  sommes: SommeDeviseDuCompte[],
+  cours: (deviseId: string) => number | null,
+): EcartDeDisponibilite[] | null {
+  if (Math.abs(passe) < EPSILON) return [];
+  const vivantes = sommes.filter((s) => Math.abs(s.devise) >= EPSILON || Math.abs(s.francs) >= EPSILON);
+  if (vivantes.length === 0) return null;
+  if (vivantes.length === 1) return [{ compteId, deviseId: vivantes[0].deviseId, ecart: centimes(passe) }];
+  const recalcules: EcartDeDisponibilite[] = [];
+  for (const s of vivantes) {
+    const c = cours(s.deviseId);
+    if (c === null) return null;
+    recalcules.push({ compteId, deviseId: s.deviseId, ecart: centimes(centimes(s.devise * c) - s.francs) });
+  }
+  const somme = recalcules.reduce((t, e) => t + e.ecart, 0);
+  if (Math.abs(somme - passe) > EPSILON) return null;
+  return recalcules.filter((e) => Math.abs(e.ecart) >= EPSILON);
+}
+
+/**
+ * LA VENTILATION DÉCLARÉE par le cabinet, quand la ligne passée ne se relit
+ * pas (B1, c) · même rigueur que la déclaration de la provision d'ouverture
+ * (`ProvisionChangeOuverture`) · une SOURCE, chaque compte de disponibilité
+ * de l'écriture couvert, sa somme égale AU CENTIME à la ligne passée sur lui,
+ * une devise du dossier, une seule fois par compte et devise. `null` si
+ * recevable.
+ */
+export function motifRefusVentilationDeclaree(
+  passeParCompte: Map<string, number>,
+  ventilation: { compteId: string; deviseId: string; ecart: number }[],
+  devisesDuDossier: Set<string>,
+  source: string | null | undefined,
+): string | null {
+  if (!source || source.trim().length < 3) return 'La source de la ventilation est obligatoire (pièce, relevé, calcul du cabinet).';
+  if (passeParCompte.size === 0) return "Cette réévaluation n'a passé aucun écart sur une banque ou une caisse · il n'y a rien à ventiler.";
+  const vues = new Set<string>();
+  const parCompte = new Map<string, number>();
+  for (const v of ventilation) {
+    if (!passeParCompte.has(v.compteId)) return "Un compte de la ventilation n'est pas une disponibilité réévaluée par cette écriture.";
+    if (!devisesDuDossier.has(v.deviseId)) return 'Une devise de la ventilation est introuvable pour ce dossier.';
+    if (typeof v.ecart !== 'number' || !Number.isFinite(v.ecart)) return 'Chaque écart se déclare en francs, montant signé (perte en négatif).';
+    const cle = `${v.compteId}|${v.deviseId}`;
+    if (vues.has(cle)) return 'Une même devise est déclarée deux fois sur le même compte.';
+    vues.add(cle);
+    parCompte.set(v.compteId, (parCompte.get(v.compteId) ?? 0) + v.ecart);
+  }
+  for (const [compteId, passe] of passeParCompte) {
+    const declare = parCompte.get(compteId);
+    if (declare === undefined) return 'Chaque banque ou caisse de l’écriture doit être ventilée.';
+    if (Math.abs(centimes(declare) - centimes(passe)) > EPSILON) {
+      return `La ventilation d'un compte (${centimes(declare).toFixed(2)}) ne rend pas la ligne passée sur lui (${centimes(passe).toFixed(2)}).`;
+    }
+  }
+  return null;
 }

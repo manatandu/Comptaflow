@@ -8,11 +8,14 @@ import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPosi
 import {
   EcartDeDisponibilite,
   RACINES_CHANGE_DISPONIBILITES,
+  SommeDeviseDuCompte,
   ecartsDisponibilitesEnregistres,
   estDisponibilite,
+  motifRefusVentilationDeclaree,
   partagerLignesDEcarts,
+  ventilerEcartPasse,
 } from './ecarts-disponibilites';
-import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import { CreerDeviseDto, DeclarerVentilationDisponibilitesDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
  * Comptes de la réévaluation, par racine du plan SYCEBNL.
@@ -585,6 +588,41 @@ const ECRITURES_D_UNE_REEVALUATION_ANNULEE: Prisma.EcritureWhereInput[] = [
   { reevaluationExtourne: ANNULEE },
   { corrigeEcriture: { is: { OR: [{ reevaluationEcarts: ANNULEE }, { reevaluationProvision: ANNULEE }, { reevaluationExtourne: ANNULEE }] } } },
 ];
+
+/**
+ * Ce qu'il faut d'une réévaluation pour relire l'écart de ses disponibilités
+ * (`ecartsDeDisponibilitesDe`) · une seule sélection, partagée par le report,
+ * la contre-passation, la déclaration et la liste.
+ */
+const SELECTION_REEVALUATION_RELUE = {
+  id: true,
+  exerciceId: true,
+  dateReevaluation: true,
+  createdAt: true,
+  annuleeLe: true,
+  coursUtilises: true,
+  ecartsDisponibilites: true,
+  ventilationDisponibilites: true,
+  ecritureEcarts: {
+    select: {
+      statut: true,
+      valideeAt: true,
+      lignes: { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } },
+    },
+  },
+} satisfies Prisma.ReevaluationSelect;
+
+type ReevaluationRelue = Prisma.ReevaluationGetPayload<{ select: typeof SELECTION_REEVALUATION_RELUE }>;
+
+/** Débit moins crédit de l'écriture des écarts, par banque ou caisse (52, 53, 55, 57, 58). */
+function passeSurLesDisponibilites(reeval: Pick<ReevaluationRelue, 'ecritureEcarts'>): Map<string, number> {
+  const passe = new Map<string, number>();
+  for (const l of reeval.ecritureEcarts?.lignes ?? []) {
+    if (!estDisponibilite(l.compte.numero)) continue;
+    passe.set(l.compteId, (passe.get(l.compteId) ?? 0) + Number(l.debit) - Number(l.credit));
+  }
+  return passe;
+}
 
 @Injectable()
 export class DevisesService {
@@ -1465,13 +1503,11 @@ export class DevisesService {
       );
     }
     // UNE RÉÉVALUATION ANTÉRIEURE À A5 BIS n'a pas gardé l'écart de ses
-    // disponibilités · il est relu sur son écriture et gardé ici, tant que
-    // l'exercice de la réévaluation ne bouge plus sous lui. Ce qui ne se relit
-    // pas sans deviner reste nul, et la réévaluation suivante le dira.
-    const ecartsAGarder =
-      partage.realisees.length > 0 && ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites) === null
-        ? await this.ecartsDeDisponibilitesDe(tenantId, reeval)
-        : null;
+    // disponibilités, et RIEN NE L'ÉCRIT ICI (relecture adverse, B2) · nul,
+    // `ecartsDisponibilites` dit qu'elle a été passée sous l'ancien régime,
+    // et c'est sur ce fait que la contre-passation de l'exercice précédent se
+    // règle. La réévaluation suivante relit l'écart sur le compte tel qu'il
+    // était (`ecartsDeDisponibilitesDe`), sans dépendre de ce geste.
 
     const journal = await this.journalGeneral(tenantId);
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
@@ -1494,10 +1530,7 @@ export class DevisesService {
     // première restait au journal sans détenteur.
     const { count } = await this.prisma.reevaluation.updateMany({
       where: { id: reevaluationId, tenantId, ecritureExtourneId: null },
-      data: {
-        ecritureExtourneId: ecriture.id,
-        ...(ecartsAGarder ? { ecartsDisponibilites: ecartsAGarder as unknown as Prisma.InputJsonValue } : {}),
-      },
+      data: { ecritureExtourneId: ecriture.id },
     });
     if (count === 0) {
       await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
@@ -1678,10 +1711,32 @@ export class DevisesService {
     });
     // Une réévaluation passée AVANT la décision D1 à une autre date que la
     // clôture n'est pas retouchée · elle est SIGNALÉE, avec son motif.
-    return reevaluations.map((r) => ({
-      ...r,
-      horsCloture: exercice ? motifDateReevaluation(r.dateReevaluation.toISOString().slice(0, 10), exercice.dateFin) : null,
-    }));
+    // Ce que l'écran doit savoir sans le recalculer (relecture adverse d'A5
+    // bis) · s'il reste un écart de conversion à contre-passer (une
+    // réévaluation des seules disponibilités n'en a aucun, AUDCIF art. 57),
+    // et la ventilation à déclarer d'une réévaluation antérieure (B1).
+    const relues = await this.prisma.reevaluation.findMany({
+      where: { tenantId, exerciceId, id: { in: reevaluations.map((r) => r.id) } },
+      select: SELECTION_REEVALUATION_RELUE,
+    });
+    const relueDe = new Map(relues.map((r) => [r.id, r]));
+    return Promise.all(
+      reevaluations.map(async (r) => {
+        const relue = relueDe.get(r.id);
+        const partage = relue?.ecritureEcarts
+          ? partagerLignesDEcarts(
+              relue.ecritureEcarts.lignes.map((l) => ({ compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
+            )
+          : null;
+        return {
+          ...r,
+          horsCloture: exercice ? motifDateReevaluation(r.dateReevaluation.toISOString().slice(0, 10), exercice.dateFin) : null,
+          ecartsDeConversionAContrePasser: partage ? partage.aContrePasser.length > 0 : false,
+          partageImpossible: partage ? partage.motifRefus !== null : false,
+          ventilationAExiger: relue ? await this.ventilationAExiger(tenantId, relue) : null,
+        };
+      }),
+    );
   }
 
   /**
@@ -2434,75 +2489,260 @@ export class DevisesService {
   /**
    * L'ÉCART QUE CHAQUE DISPONIBILITÉ A REÇU d'une réévaluation, par compte et
    * par devise (ligne A5 bis) · celui qu'elle a gardé
-   * (`Reevaluation.ecartsDisponibilites`), sinon, pour une réévaluation
-   * antérieure, relu sur son écriture des écarts, où il est passé SANS devise.
+   * (`Reevaluation.ecartsDisponibilites`) ; sinon, pour une réévaluation
+   * antérieure, la ventilation que le cabinet a DÉCLARÉE ; sinon la ligne
+   * passée SANS devise sur le compte, relue (`ventilerEcartPasse`).
    *
-   * Deux lectures seulement, chacune exacte · (1) le compte ne portait
-   * qu'UNE devise dans l'exercice réévalué · la ligne lui revient ; (2) le
-   * cours retenu est gardé (`coursUtilises`, D5) · l'écart de chaque devise
-   * est recalculé comme la réévaluation l'a fait (montant en devise × cours,
-   * moins les francs de ses lignes) et la somme doit rendre, au centime, la
-   * ligne passée sur le compte. Sinon `null` · rien n'est deviné, et
-   * l'appelant le dit.
+   * LA RELECTURE VOIT LE COMPTE TEL QU'IL ÉTAIT (relecture adverse, B1, même
+   * règle que `reglements/reevaluation-et-ecart-realise.ts`) · les écritures
+   * datées au plus tard d'elle et SAISIES avant elle, sauf l'à-nouveau du
+   * début d'exercice, qui se recrée ; les lignes alors ouvertes (non
+   * lettrées, ou lettrées soldées après elle). Une ligne saisie ou lettrée
+   * depuis ne change pas ce qu'elle a lu. Les sommes sont demandées à la base
+   * (M5) · par compte, devise et SENS de chaque ligne, le montant en devise
+   * étant gardé sans signe (même lecture que `lireComptesDuReport`).
+   *
+   * `null` · rien ne se relit sans deviner, et l'appelant le dit avec son
+   * issue (déclarer la ventilation).
    */
-  private async ecartsDeDisponibilitesDe(
-    tenantId: string,
-    reeval: {
-      exerciceId: string;
-      dateReevaluation: Date;
-      coursUtilises: Prisma.JsonValue;
-      ecartsDisponibilites: Prisma.JsonValue;
-      ecritureEcarts: { lignes: { compteId: string; debit: unknown; credit: unknown; compte: { numero: string } }[] } | null;
-    },
-  ): Promise<EcartDeDisponibilite[] | null> {
+  private async ecartsDeDisponibilitesDe(tenantId: string, reeval: ReevaluationRelue): Promise<EcartDeDisponibilite[] | null> {
     const enregistres = ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites);
     if (enregistres) return enregistres;
-    const passeParCompte = new Map<string, number>();
-    for (const l of reeval.ecritureEcarts?.lignes ?? []) {
-      if (!estDisponibilite(l.compte.numero)) continue;
-      passeParCompte.set(l.compteId, (passeParCompte.get(l.compteId) ?? 0) + Number(l.debit) - Number(l.credit));
-    }
+    const passeParCompte = passeSurLesDisponibilites(reeval);
     if (passeParCompte.size === 0) return [];
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId: { in: [...passeParCompte.keys()] },
-        deviseId: { not: null },
-        lettre: null,
-        ecriture: { tenantId, exerciceId: reeval.exerciceId, date: { lte: reeval.dateReevaluation } },
-      },
-      select: { compteId: true, deviseId: true, debit: true, credit: true, montantDevise: true },
-    });
-    const cours =
+    const declares = ecartsDisponibilitesEnregistres(reeval.ventilationDisponibilites);
+    if (declares) {
+      // Revérifiée à chaque lecture · une écriture des écarts retouchée
+      // depuis la déclaration ne se lit plus par elle.
+      const devises = new Set(declares.map((d) => d.deviseId));
+      return motifRefusVentilationDeclaree(passeParCompte, declares, devises, 'déclarée') === null ? declares : null;
+    }
+    return this.relireLaLignePassee(tenantId, reeval, passeParCompte);
+  }
+
+  /** La relecture seule, sans la ventilation déclarée (la déclaration la refuse quand elle aboutit). */
+  private async relireLaLignePassee(
+    tenantId: string,
+    reeval: ReevaluationRelue,
+    passeParCompte: Map<string, number>,
+  ): Promise<EcartDeDisponibilite[] | null> {
+    const sommes = await this.sommesDesDisponibilitesALaReevaluation(tenantId, reeval, [...passeParCompte.keys()]);
+    const gardes =
       reeval.coursUtilises && typeof reeval.coursUtilises === 'object' && !Array.isArray(reeval.coursUtilises)
         ? (reeval.coursUtilises as Record<string, unknown>)
-        : null;
+        : {};
+    // (b) À défaut du cours gardé (D5), celui de la table à la date de la
+    // réévaluation · c'est celui qu'elle a lu, sauf correction depuis, que
+    // la vérification au centime contre la ligne passée écarte.
+    const coursDeLaTable = new Map<string, number | null>();
+    for (const liste of sommes.values()) {
+      for (const s of liste) {
+        if (typeof gardes[s.deviseId] === 'number' || coursDeLaTable.has(s.deviseId)) continue;
+        coursDeLaTable.set(s.deviseId, await this.coursA(s.deviseId, reeval.dateReevaluation));
+      }
+    }
+    const cours = (deviseId: string) => {
+      const garde = gardes[deviseId];
+      return typeof garde === 'number' ? garde : (coursDeLaTable.get(deviseId) ?? null);
+    };
     const sortie: EcartDeDisponibilite[] = [];
     for (const [compteId, passe] of passeParCompte) {
-      const parDevise = new Map<string, { devise: number; francs: number }>();
-      for (const l of lignes) {
-        if (l.compteId !== compteId || !l.deviseId) continue;
-        const d = parDevise.get(l.deviseId) ?? { devise: 0, francs: 0 };
-        const francs = Number(l.debit) - Number(l.credit);
-        d.devise += (francs >= 0 ? 1 : -1) * Number(l.montantDevise ?? 0);
-        d.francs += francs;
-        parDevise.set(l.deviseId, d);
-      }
-      if (parDevise.size === 1) {
-        sortie.push({ compteId, deviseId: [...parDevise.keys()][0], ecart: Math.round(passe * 100) / 100 });
-        continue;
-      }
-      if (!cours || parDevise.size === 0) return null;
-      const recalcules: EcartDeDisponibilite[] = [];
-      for (const [deviseId, d] of parDevise) {
-        const c = cours[deviseId];
-        if (typeof c !== 'number') return null;
-        recalcules.push({ compteId, deviseId, ecart: Math.round((Math.round(d.devise * c * 100) / 100 - d.francs) * 100) / 100 });
-      }
-      const somme = recalcules.reduce((t, e) => t + e.ecart, 0);
-      if (Math.abs(somme - passe) > 0.005) return null;
-      sortie.push(...recalcules.filter((e) => Math.abs(e.ecart) >= 0.005));
+      const ventile = ventilerEcartPasse(compteId, passe, sommes.get(compteId) ?? [], cours);
+      if (ventile === null) return null;
+      sortie.push(...ventile);
     }
     return sortie;
+  }
+
+  /**
+   * Les sommes, par compte et par devise, des lignes en devise que la
+   * réévaluation a lues sur les disponibilités · TELLES QU'ELLES ÉTAIENT
+   * (voir `ecartsDeDisponibilitesDe`). Le sens se lit sur chaque ligne par
+   * une référence de champ (débit supérieur ou égal au crédit), comme au
+   * calcul · une ligne inscrite en négatif retranche son montant en devise.
+   */
+  private async sommesDesDisponibilitesALaReevaluation(
+    tenantId: string,
+    reeval: ReevaluationRelue,
+    comptes: string[],
+  ): Promise<Map<string, SommeDeviseDuCompte[]>> {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: reeval.exerciceId, tenantId },
+      select: { dateDebut: true },
+    });
+    const ecriture: Prisma.EcritureWhereInput = {
+      tenantId,
+      exerciceId: reeval.exerciceId,
+      date: { lte: reeval.dateReevaluation },
+      OR: [
+        { createdAt: { lte: reeval.createdAt } },
+        ...(exercice
+          ? [
+              {
+                date: exercice.dateDebut,
+                OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+              },
+            ]
+          : []),
+      ],
+    };
+    const base = {
+      compteId: { in: comptes },
+      deviseId: { not: null },
+      ecriture,
+      // Ouverte à la réévaluation · non lettrée, ou lettrée SOLDE après elle
+      // (le calcul d'alors lisait `lettre: null`).
+      OR: [{ lettre: null }, { lettrage: { soldeAt: { gt: reeval.createdAt } } }],
+    } satisfies Prisma.LigneEcritureWhereInput;
+    const credit = this.prisma.ligneEcriture.fields.credit;
+    const [positifs, negatifs] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: { ...base, debit: { gte: credit } },
+        _sum: { debit: true, credit: true, montantDevise: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: { ...base, debit: { lt: credit } },
+        _sum: { debit: true, credit: true, montantDevise: true },
+      }),
+    ]);
+    const nombre = (x: Prisma.Decimal | number | null | undefined) => (x === null || x === undefined ? 0 : Number(x));
+    const parCompte = new Map<string, Map<string, SommeDeviseDuCompte>>();
+    for (const [groupes, sens] of [
+      [positifs, 1],
+      [negatifs, -1],
+    ] as const) {
+      for (const g of groupes) {
+        if (!g.deviseId) continue;
+        const duCompte = parCompte.get(g.compteId) ?? new Map<string, SommeDeviseDuCompte>();
+        const s = duCompte.get(g.deviseId) ?? { deviseId: g.deviseId, devise: 0, francs: 0 };
+        s.devise += sens * nombre(g._sum.montantDevise);
+        s.francs += nombre(g._sum.debit) - nombre(g._sum.credit);
+        duCompte.set(g.deviseId, s);
+        parCompte.set(g.compteId, duCompte);
+      }
+    }
+    return new Map([...parCompte].map(([compteId, m]) => [compteId, [...m.values()]]));
+  }
+
+  /**
+   * DÉCLARER LA VENTILATION DES DISPONIBILITÉS d'une réévaluation antérieure
+   * (relecture adverse d'A5 bis, B1, c). Quand l'écart passé sans devise sur
+   * une banque tenue en plusieurs devises ne se relit pas au centime, ni par
+   * le cours gardé ni par celui de la table, rien ne se devine · le cabinet
+   * déclare l'écart de chaque devise, avec sa SOURCE, comme la provision
+   * d'ouverture. Ouverte même sur un exercice clôturé · elle n'écrit rien au
+   * journal, elle dit ce qui a été passé, et c'est la seule issue quand
+   * l'annulation (D6) n'y est plus ouverte.
+   *
+   * REFUS · réévaluation annulée ; écart gardé ou ligne qui se relit (rien à
+   * déclarer) ; source absente ; compte ou devise étrangers ; somme d'un
+   * compte qui ne rend pas la ligne passée au centime ; ventilation déjà
+   * déclarée qu'une réévaluation postérieure a lue (on ne change pas ce
+   * qu'un calcul passé a utilisé, art. 22, 2°). Sous le verrou du dossier,
+   * au journal d'audit par un `update` unitaire.
+   */
+  async declarerVentilationDisponibilites(
+    tenantId: string,
+    userId: string,
+    reevaluationId: string,
+    dto: DeclarerVentilationDisponibilitesDto,
+  ) {
+    return this.sousVerrouDuDossier(tenantId, 'VENTILATION', () =>
+      this.declarerVentilationSousVerrou(tenantId, userId, reevaluationId, dto),
+    );
+  }
+
+  private async declarerVentilationSousVerrou(
+    tenantId: string,
+    userId: string,
+    reevaluationId: string,
+    dto: DeclarerVentilationDisponibilitesDto,
+  ) {
+    const reeval = await this.prisma.reevaluation.findFirst({
+      where: { id: reevaluationId, tenantId },
+      select: SELECTION_REEVALUATION_RELUE,
+    });
+    if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+    if (reeval.annuleeLe) {
+      throw new ConflictException("Cette réévaluation est annulée · ses écritures sont neutralisées, il n'y a rien à ventiler.");
+    }
+    if (ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites)) {
+      throw new ConflictException("Cette réévaluation a gardé l'écart de chaque devise · il n'y a rien à déclarer.");
+    }
+    const passeParCompte = passeSurLesDisponibilites(reeval);
+    if (passeParCompte.size === 0) {
+      throw new BadRequestException("Cette réévaluation n'a passé aucun écart sur une banque ou une caisse · il n'y a rien à ventiler.");
+    }
+    if (reeval.ventilationDisponibilites !== null) {
+      const lectrice = await this.prisma.reevaluation.findFirst({
+        where: { tenantId, annuleeLe: null, dateReevaluation: { gt: reeval.dateReevaluation } },
+        orderBy: { dateReevaluation: 'asc' },
+        select: { dateReevaluation: true },
+      });
+      if (lectrice) {
+        throw new ConflictException(
+          `La ventilation déclarée a servi à la réévaluation du ${lectrice.dateReevaluation.toISOString().slice(0, 10)} · ` +
+            "elle ne se modifie plus. Annulez d'abord cette réévaluation postérieure (Devises) si la ventilation est fausse.",
+        );
+      }
+    }
+    const relue = await this.relireLaLignePassee(tenantId, reeval, passeParCompte);
+    if (relue !== null) {
+      throw new ConflictException(
+        "L'écart passé sur les disponibilités se relit devise par devise sans déclaration · il n'y a rien à déclarer.",
+      );
+    }
+    const devises = await this.prisma.devise.findMany({ where: { tenantId }, select: { id: true } });
+    const ventilation = (dto.ventilation ?? []).map((v) => ({
+      compteId: v.compteId,
+      deviseId: v.deviseId,
+      ecart: Math.round(Number(v.ecart) * 100) / 100,
+    }));
+    const motif = motifRefusVentilationDeclaree(passeParCompte, ventilation, new Set(devises.map((d) => d.id)), dto.source);
+    if (motif) throw new BadRequestException(motif);
+    // Un `update` UNITAIRE · le journal d'audit garde l'avant et l'après.
+    await this.prisma.reevaluation.update({
+      where: { id: reeval.id, tenantId },
+      data: {
+        ventilationDisponibilites: ventilation.filter((v) => Math.abs(v.ecart) >= 0.005) as unknown as Prisma.InputJsonValue,
+        ventilationDisponibilitesSource: dto.source.trim(),
+        ventilationDisponibilitesLe: new Date(),
+        ventilationDisponibilitesPar: userId,
+      },
+    });
+    return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+  }
+
+  /**
+   * CE QU'UNE RÉÉVALUATION ANTÉRIEURE DEMANDE À DÉCLARER (B1, c), pour
+   * l'écran · la ligne passée sur chaque banque ou caisse et ses devises
+   * lues, quand ni l'écart gardé, ni la ventilation déclarée, ni la relecture
+   * ne la rendent. `null` · rien à déclarer.
+   */
+  private async ventilationAExiger(tenantId: string, reeval: ReevaluationRelue) {
+    if (reeval.annuleeLe || ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites)) return null;
+    const passeParCompte = passeSurLesDisponibilites(reeval);
+    if (passeParCompte.size === 0) return null;
+    if ((await this.ecartsDeDisponibilitesDe(tenantId, reeval)) !== null) return null;
+    const sommes = await this.sommesDesDisponibilitesALaReevaluation(tenantId, reeval, [...passeParCompte.keys()]);
+    const devises = await this.prisma.devise.findMany({ where: { tenantId }, select: { id: true, code: true } });
+    const code = new Map(devises.map((d) => [d.id, d.code]));
+    const numeros = new Map((reeval.ecritureEcarts?.lignes ?? []).map((l) => [l.compteId, l.compte.numero] as const));
+    return [...passeParCompte].map(([compteId, passe]) => ({
+      compteId,
+      numero: numeros.get(compteId) ?? '',
+      passe: Math.round(passe * 100) / 100,
+      devises: (sommes.get(compteId) ?? [])
+        .filter((s) => Math.abs(s.devise) >= 0.005 || Math.abs(s.francs) >= 0.005)
+        .map((s) => ({
+          deviseId: s.deviseId,
+          code: code.get(s.deviseId) ?? '',
+          montantDevise: Math.round(s.devise * 100) / 100,
+          francs: Math.round(s.francs * 100) / 100,
+        })),
+    }));
   }
 
   /**
@@ -2521,9 +2761,9 @@ export class DevisesService {
    * reste en francs · rien à lui ajouter.
    *
    * Ne compte pas · une réévaluation annulée (D6, ses écritures sont
-   * neutralisées) ; une réévaluation dont l'ancienne contre-passation a
-   * inversé la banque (avant A5 bis) · l'écart est déjà sorti, et la banque
-   * est revenue au coût historique.
+   * neutralisées) ; une réévaluation dont la contre-passation a inversé la
+   * banque (avant A5 bis, ou intégrale par exception, `extourner`) · l'écart
+   * est déjà sorti, et la banque est revenue au coût historique.
    *
    * RÉSERVES · un à-nouveau provisoire passé AVANT que l'écart n'entre au
    * livre-journal ne le porte pas (il ne lit que le validé) ; un écart qui
@@ -2545,7 +2785,7 @@ export class DevisesService {
       const precedent = await this.prisma.exercice.findFirst({
         where: { tenantId, dateFin: { lt: courant.dateDebut } },
         orderBy: { dateFin: 'desc' },
-        select: { id: true, dateDebut: true, dateFin: true },
+        select: { id: true, dateDebut: true, dateFin: true, statut: true },
       });
       if (!precedent || precedent.id === courant.id || !(precedent.dateFin.getTime() < courant.dateDebut.getTime())) break;
       const aNouveau = await this.prisma.ligneEcriture.findMany({
@@ -2572,17 +2812,7 @@ export class DevisesService {
       const reeval = await this.prisma.reevaluation.findFirst({
         where: { tenantId, exerciceId: precedent.id, annuleeLe: null },
         select: {
-          exerciceId: true,
-          dateReevaluation: true,
-          coursUtilises: true,
-          ecartsDisponibilites: true,
-          ecritureEcarts: {
-            select: {
-              statut: true,
-              valideeAt: true,
-              lignes: { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } },
-            },
-          },
+          ...SELECTION_REEVALUATION_RELUE,
           ecritureExtourne: { select: { lignes: { select: { compte: { select: { numero: true } } } } } },
         },
       });
@@ -2591,11 +2821,17 @@ export class DevisesService {
       if (reeval?.ecritureEcarts && !inverseeParLAncienneContrePassation) {
         const ecarts = await this.ecartsDeDisponibilitesDe(tenantId, reeval);
         if (ecarts === null) {
+          // L'issue est RÉELLE dans les deux états de l'exercice (relecture
+          // adverse, B1, d) · la déclaration est ouverte même clôturé ;
+          // l'annulation (D6) n'est proposée que s'il est encore ouvert.
+          const ouvert = precedent.statut !== StatutExercice.CLOTURE;
           reserves.push(
             `L'écart passé sur les disponibilités par la réévaluation du ${jour(reeval.dateReevaluation)} ne se relit pas ` +
-              'devise par devise (compte en plusieurs devises, réévaluation antérieure sans cours gardé) · la banque ou la ' +
-              'caisse partirait du coût historique et cet écart, réalisé (AUDCIF art. 57), serait passé une seconde fois. ' +
-              "Annulez cette réévaluation et repassez-la pendant que son exercice est ouvert, elle gardera l'écart de chaque devise.",
+              'devise par devise (banque ou caisse en plusieurs devises, ligne passée sans devise, cours qui ne la rend pas au ' +
+              'centime) · la banque ou la caisse partirait du coût historique et cet écart, réalisé (AUDCIF art. 57), serait ' +
+              `passé une seconde fois. Déclarez l'écart de chaque devise, avec sa source (Devises, exercice du ` +
+              `${jour(precedent.dateDebut)} au ${jour(precedent.dateFin)}, « Ventiler l'écart des disponibilités »)` +
+              (ouvert ? ", ou annulez cette réévaluation et repassez-la · elle gardera l'écart de chaque devise." : '.'),
           );
           break;
         }
@@ -2610,10 +2846,18 @@ export class DevisesService {
               ecritureEcarts.valideeAt !== null &&
               ecritureEcarts.valideeAt.getTime() <= an.creeeLe.getTime());
           if (!dansLeReport) {
+            // L'issue dépend de l'état de l'écriture des écarts (relecture
+            // adverse, M3) · déjà validée, « validez » serait un geste
+            // impossible ; et la clôture de l'exercice précédent, qui reporte
+            // le livre-journal entier, lève la réserve aussi bien.
+            const validee = ecritureEcarts.statut === StatutEcriture.VALIDEE;
             reserves.push(
               `L'à-nouveau provisoire du ${jour(courant.dateDebut)} a été passé avant que la réévaluation du ` +
                 `${jour(reeval.dateReevaluation)} n'entre au livre-journal · il ne porte pas l'écart de la banque ou de la ` +
-                "caisse. Validez l'écriture des écarts et relancez l'à-nouveau provisoire avant de réévaluer.",
+                'caisse. ' +
+                (validee
+                  ? "Relancez l'à-nouveau provisoire, ou clôturez l'exercice précédent, avant de réévaluer."
+                  : "Validez l'écriture des écarts, puis relancez l'à-nouveau provisoire ou clôturez l'exercice précédent, avant de réévaluer."),
             );
             continue;
           }

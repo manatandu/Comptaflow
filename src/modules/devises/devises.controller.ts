@@ -6,7 +6,16 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AccesRolesCantonnes, ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
-import { AnnulerReevaluationDto, CreerDeviseDto, DeclarerProvisionOuvertureDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import {
+  AnnulerReevaluationDto,
+  CreerDeviseDto,
+  DeclarerProvisionOuvertureDto,
+  DeclarerVentilationDisponibilitesDto,
+  ExtournerReevaluationDto,
+  ModifierDeviseDto,
+  PoserCoursDto,
+  ReevaluerDto,
+} from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -135,5 +144,21 @@ export class DevisesController {
   @ReserveAuComptable()
   async annulerReevaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
     return this.devises.annulerReevaluation(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * VENTILER L'ÉCART DES DISPONIBILITÉS d'une réévaluation antérieure
+   * (relecture adverse d'A5 bis, B1) · une déclaration avec sa source, comme
+   * la provision d'ouverture, mêmes rôles qu'elle ; rien n'est écrit au
+   * journal.
+   */
+  @Post('reevaluations/:id/ventilation-disponibilites')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async declarerVentilationDisponibilites(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: DeclarerVentilationDisponibilitesDto,
+  ) {
+    return this.devises.declarerVentilationDisponibilites(user.tenantId, user.userId, id, body);
   }
 }

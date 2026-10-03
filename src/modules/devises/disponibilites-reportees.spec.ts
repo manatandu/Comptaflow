@@ -80,6 +80,10 @@ interface Reeval {
   lignesEcarts?: { compteId: string; numero: string; debit: number; credit: number }[];
   /** La contre-passation est passée (`ecritureExtourneId`), dans sa forme d'A5 bis. */
   contrePassee?: boolean;
+  /** L'exercice qui porte la contre-passation (par défaut, celui qui suit immédiatement). */
+  contrePasseeDans?: string;
+  /** La ventilation déclarée par le cabinet (B1, c). */
+  ventilation?: { compteId: string; deviseId: string; ecart: number }[];
 }
 
 function correspond(valeur: unknown, filtre: unknown): boolean {
@@ -100,7 +104,13 @@ function correspond(valeur: unknown, filtre: unknown): boolean {
   return valeur === filtre;
 }
 
-function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours?: number | ((date: Date) => number); exercices?: Exo[] }) {
+/** Le cours de la table · un nombre, ou une fonction de la date et de la devise. */
+type CoursDeLaTable = number | ((date: Date, deviseId: string) => number | null);
+
+/** La référence de champ `fields.credit` · la doublure la reconnaît dans `debit: { gte | lt }`. */
+const CHAMP_CREDIT = { champ: 'credit' };
+
+function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours?: CoursDeLaTable; exercices?: Exo[] }) {
   const exercices = p.exercices ?? [N, N1];
   const reevals = [...(p.reeval ? [p.reeval] : []), ...(p.reevals ?? [])];
   const filtrerExercices = (where: Record<string, unknown> = {}) =>
@@ -138,6 +148,44 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     devise: l.deviseId ? { id: l.deviseId, code: l.deviseId.toUpperCase() } : null,
     ecriture: { estANouveauProvisoire: l.ouverture === 'PROVISOIRE', createdAt: l.creeeLe ?? new Date('2027-01-10') },
   });
+  // LA RELECTURE DES SOMMES (M5) · par compte, devise et sens, sur le compte
+  // TEL QU'IL ÉTAIT · la doublure honore la saisie avant la réévaluation
+  // (`createdAt`, à défaut le 1er juin 2026) et l'à-nouveau du début.
+  const grouper = (a: { where: Record<string, unknown> }) => {
+    const w = a.where;
+    const e = (w.ecriture ?? {}) as Record<string, unknown>;
+    const branches = Array.isArray(e.OR) ? (e.OR as Record<string, unknown>[]) : null;
+    const sens = w.debit as { gte?: unknown; lt?: unknown } | undefined;
+    const retenues = p.lignes.filter((l) => {
+      if (!correspond(l.compteId, w.compteId) || !correspond(l.deviseId, w.deviseId)) return false;
+      if (!correspond(l.exerciceId, e.exerciceId) || !correspond(l.date, e.date)) return false;
+      if (branches) {
+        const saisieAvant = branches.some((b) =>
+          b.createdAt
+            ? correspond(l.creeeLe ?? new Date('2026-06-01'), b.createdAt)
+            : b.date !== undefined && correspond(l.date, b.date) && (l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE'),
+        );
+        if (!saisieAvant) return false;
+      }
+      if (sens?.gte === CHAMP_CREDIT && !(l.debit >= l.credit)) return false;
+      if (sens?.lt === CHAMP_CREDIT && !(l.debit < l.credit)) return false;
+      return true;
+    });
+    const groupes = new Map<string, { compteId: string; deviseId: string | null; _sum: { debit: number; credit: number; montantDevise: number } }>();
+    for (const l of retenues) {
+      const cle = `${l.compteId}|${l.deviseId}`;
+      const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId, _sum: { debit: 0, credit: 0, montantDevise: 0 } };
+      g._sum.debit += l.debit;
+      g._sum.credit += l.credit;
+      g._sum.montantDevise += l.montantDevise ?? 0;
+      groupes.set(cle, g);
+    }
+    return [...groupes.values()];
+  };
+  const suivantDe = (exerciceId: string) => {
+    const i = exercices.findIndex((x) => x.id === exerciceId);
+    return i >= 0 && i + 1 < exercices.length ? exercices[i + 1].id : 'e-suivant';
+  };
   const reevaluationDe = (exerciceId: string) => {
     const r = reevals.find((x) => x.exerciceId === exerciceId);
     if (!r) return null;
@@ -151,8 +199,10 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       dateReevaluation: r.dateReevaluation ?? N.dateFin,
       ecritureExtourneId: r.contrePassee || r.extourneInverseLaCaisse ? 'cp' : null,
       createdAt: new Date('2027-01-05'),
+      annuleeLe: null,
       coursUtilises: r.coursUtilises === undefined ? { usd: 2500 } : r.coursUtilises,
       ecartsDisponibilites: r.ecartsDisponibilites ?? null,
+      ventilationDisponibilites: r.ventilation ?? null,
       ecritureEcarts: {
         statut: r.statutEcarts ?? 'VALIDEE',
         valideeAt: r.valideeAt === undefined ? new Date('2027-01-05') : r.valideeAt,
@@ -160,14 +210,22 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       },
       // L'ancienne contre-passation inversait toute l'écriture ; celle d'A5 bis, le seul écart de conversion.
       ecritureExtourne: r.extourneInverseLaCaisse
-        ? { lignes: lignesEcarts.map((l) => ({ compte: { numero: l.numero } })) }
+        ? { exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId), lignes: lignesEcarts.map((l) => ({ compte: { numero: l.numero } })) }
         : r.contrePassee
-          ? { lignes: lignesEcarts.filter((l) => !/^(52|53|55|57|58|676|776)/.test(l.numero)).map((l) => ({ compte: { numero: l.numero } })) }
+          ? {
+              exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId),
+              lignes: lignesEcarts.filter((l) => !/^(52|53|55|57|58|676|776)/.test(l.numero)).map((l) => ({ compte: { numero: l.numero } })),
+            }
           : null,
     };
   };
   const creer = jest.fn().mockResolvedValue({ id: 'ecr' });
   const create = jest.fn().mockResolvedValue({ id: 'r27' });
+  const update = jest.fn(async (a: { data: Record<string, unknown> }) => {
+    const r = reevals[0];
+    if (r && a.data.ventilationDisponibilites) r.ventilation = a.data.ventilationDisponibilites as Reeval['ventilation'];
+    return { id: 'r' };
+  });
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     exercice: {
@@ -181,19 +239,29 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     ligneEcriture: {
       aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: { debit: 0, credit: 0 } }),
       findMany: jest.fn(async (a: { where?: Record<string, unknown> } = {}) => lignesFiltrees(a.where).map(habiller)),
+      groupBy: jest.fn(async (a: { where: Record<string, unknown> }) => grouper(a)),
+      fields: { credit: CHAMP_CREDIT },
     },
     reevaluation: {
       findMany: jest.fn().mockResolvedValue([]),
-      findFirst: jest.fn(async (a: { where?: Record<string, unknown> } = {}) => reevaluationDe(String(a.where?.exerciceId ?? ''))),
+      findFirst: jest.fn(async (a: { where?: Record<string, unknown> } = {}) => {
+        const id = a.where?.id;
+        if (typeof id === 'string') return reevaluationDe(id.replace(/^r-/, ''));
+        return reevaluationDe(String(a.where?.exerciceId ?? ''));
+      }),
+      findFirstOrThrow: jest.fn(async () => ({ id: 'r' })),
       create,
+      update,
     },
+    devise: { findMany: jest.fn().mockResolvedValue([{ id: 'usd', code: 'USD' }, { id: 'eur', code: 'EUR' }]) },
     provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
     verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
     ecriture: { count: jest.fn().mockResolvedValue(1), findFirst: jest.fn().mockResolvedValue(null) },
     coursDevise: {
-      findFirst: jest.fn(async (a: { where: { date: { lte: Date } } }) => ({
-        cours: typeof p.cours === 'function' ? p.cours(a.where.date.lte) : (p.cours ?? 2400),
-      })),
+      findFirst: jest.fn(async (a: { where: { deviseId: string; date: { lte: Date } } }) => {
+        const c = typeof p.cours === 'function' ? p.cours(a.where.date.lte, a.where.deviseId) : (p.cours ?? 2400);
+        return c === null ? null : { cours: c };
+      }),
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od' }) },
     compte: { findFirst: jest.fn(async (a: { where: { numero: { startsWith: string } } }) => ({ id: `c-${a.where.numero.startsWith}` })) },
@@ -202,6 +270,7 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     svc: new DevisesService(prisma as unknown as PrismaService, { creer, retirerCompensation: jest.fn() } as unknown as EcritureService),
     creer,
     create,
+    update,
   };
 }
 
@@ -249,10 +318,31 @@ describe('A5 bis · la caisse en devise part de sa valeur de clôture précéden
       reeval: { exerciceId: 'e26', ecartsDisponibilites: [{ compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 }], valideeAt: new Date('2027-01-05') },
     });
     const r = await svc.calculer('t', { exerciceId: 'e27' });
-    expect(r.reportsDisponibilitesNonEtablis).toEqual([expect.stringMatching(/relancez l'à-nouveau provisoire/)]);
-    expect(r.avertissements).toEqual(expect.arrayContaining([expect.stringMatching(/relancez l'à-nouveau provisoire/)]));
-    await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(/relancez l'à-nouveau provisoire/);
+    // Écriture des écarts déjà validée (M3) · on ne demande pas de la valider,
+    // et la clôture de l'exercice précédent est nommée comme seconde issue.
+    expect(r.reportsDisponibilitesNonEtablis).toEqual([
+      expect.stringMatching(/Relancez l'à-nouveau provisoire, ou clôturez l'exercice précédent/),
+    ]);
+    expect(r.reportsDisponibilitesNonEtablis[0]).not.toMatch(/Validez/);
+    expect(r.avertissements).toEqual(expect.arrayContaining([expect.stringMatching(/Relancez l'à-nouveau provisoire/)]));
+    await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(/Relancez l'à-nouveau provisoire/);
     expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('écriture des écarts encore au brouillard (M3) · « validez-la », puis relancer ou clôturer', async () => {
+    const { svc } = monter({
+      lignes: [caisseN, ouvertureN1('PROVISOIRE', new Date('2027-01-02'))],
+      reeval: {
+        exerciceId: 'e26',
+        ecartsDisponibilites: [{ compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 }],
+        statutEcarts: 'BROUILLARD',
+        valideeAt: null,
+      },
+    });
+    const r = await svc.calculer('t', { exerciceId: 'e27' });
+    expect(r.reportsDisponibilitesNonEtablis).toEqual([
+      expect.stringMatching(/Validez l'écriture des écarts, puis relancez l'à-nouveau provisoire ou clôturez l'exercice précédent/),
+    ]);
   });
 
   it('la réévaluation garde l’écart de chaque disponibilité pour la suivante', async () => {
@@ -285,6 +375,88 @@ describe('A5 bis · la caisse en devise part de sa valeur de clôture précéden
         await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(/ne se relit pas/);
         expect(creer).not.toHaveBeenCalled();
       }
+    });
+
+    // --- Relecture adverse d'A5 bis, B1 · le dossier n'est plus enfermé ------
+
+    it('(a) une devise soldée en N, nulle en devise ET en francs, ne compte plus · la devise restante reçoit la ligne', async () => {
+      const entreeEur: Ligne = { ...caisseN, deviseId: 'eur', debit: 300_000, montantDevise: 100 };
+      const sortieEur: Ligne = { ...caisseN, deviseId: 'eur', debit: 0, credit: 300_000, montantDevise: 100, date: new Date('2026-07-01') };
+      const { svc } = monter({
+        lignes: [caisseN, entreeEur, sortieEur, ouvertureN1()],
+        reeval: { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -300_000 },
+      });
+      const r = await svc.calculer('t', { exerciceId: 'e27' });
+      expect(r.reportsDisponibilitesNonEtablis).toEqual([]);
+      expect(caisse(r)).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+    });
+
+    it('(b) sans cours gardé, le cours de la table à la date de la réévaluation rend la ligne au centime · reporté', async () => {
+      const cours = (date: Date, deviseId: string) =>
+        date.getTime() <= N.dateFin.getTime() ? (deviseId === 'eur' ? 3100 : 2500) : deviseId === 'eur' ? 3000 : 2400;
+      const { svc } = monter({ lignes, reeval: { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -290_000 }, cours });
+      const r = await svc.calculer('t', { exerciceId: 'e27' });
+      expect(r.reportsDisponibilitesNonEtablis).toEqual([]);
+      const usd = r.positions.find((x) => x.deviseCode === 'USD');
+      expect(usd).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+    });
+
+    it('la relecture voit la caisse TELLE QU’ELLE ÉTAIT · une ligne saisie après la réévaluation, même antidatée, ne la fausse pas', async () => {
+      const tardive: Ligne = { ...caisseN, deviseId: 'eur', debit: 30_000, montantDevise: 10, date: new Date('2026-11-01'), creeeLe: new Date('2027-02-01') };
+      const { svc } = monter({
+        lignes: [...lignes, tardive],
+        reeval: { exerciceId: 'e26', coursUtilises: { usd: 2500, eur: 3100 }, passeSurLaCaisse: -290_000 },
+      });
+      const r = await svc.calculer('t', { exerciceId: 'e27' });
+      expect(r.reportsDisponibilitesNonEtablis).toEqual([]);
+    });
+
+    it('(c) rien ne se relit · la ventilation se DÉCLARE avec sa source, vérifiée au centime, puis sert au report', async () => {
+      const reeval: Reeval = { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -290_000 };
+      const { svc, update } = monter({ lignes, reeval });
+      const ventilation = [
+        { compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 },
+        { compteId: 'c-5712', deviseId: 'eur', ecart: 10_000 },
+      ];
+      // Une somme qui ne rend pas la ligne passée, ou sans source · refus nommé, rien écrit.
+      await expect(
+        svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', {
+          ventilation: [{ ...ventilation[0], ecart: -310_000 }, ventilation[1]],
+          source: 'Relevé USD et EUR',
+        }),
+      ).rejects.toThrow(/ne rend pas la ligne passée/);
+      await expect(svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', { ventilation, source: ' ' })).rejects.toThrow(/source/);
+      expect(update).not.toHaveBeenCalled();
+      await svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', { ventilation, source: 'Relevés USD et EUR au 31/12/2026' });
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'r-e26', tenantId: 't' },
+          data: expect.objectContaining({ ventilationDisponibilites: ventilation, ventilationDisponibilitesSource: 'Relevés USD et EUR au 31/12/2026' }),
+        }),
+      );
+      const r = await svc.calculer('t', { exerciceId: 'e27' });
+      expect(r.reportsDisponibilitesNonEtablis).toEqual([]);
+      expect(r.positions.find((x) => x.deviseCode === 'USD')).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+    });
+
+    it('(c) une ligne qui se relit n’admet pas de déclaration · rien à déclarer', async () => {
+      const { svc, update } = monter({ lignes, reeval: { exerciceId: 'e26', coursUtilises: { usd: 2500, eur: 3100 }, passeSurLaCaisse: -290_000 } });
+      await expect(
+        svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', {
+          ventilation: [{ compteId: 'c-5712', deviseId: 'usd', ecart: -290_000 }],
+          source: 'Relevé',
+        }),
+      ).rejects.toThrow(/rien à déclarer/);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('(d) exercice clôturé · la réserve nomme la déclaration, jamais l’annulation ; ouvert · les deux', async () => {
+      const reeval: Reeval = { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -290_000 };
+      const clos = await monter({ lignes, reeval }).svc.calculer('t', { exerciceId: 'e27' });
+      expect(clos.reportsDisponibilitesNonEtablis[0]).toMatch(/Ventiler l'écart des disponibilités/);
+      expect(clos.reportsDisponibilitesNonEtablis[0]).not.toMatch(/annulez/i);
+      const ouvert = await monter({ lignes, reeval, exercices: [{ ...N, statut: 'OUVERT' }, N1] }).svc.calculer('t', { exerciceId: 'e27' });
+      expect(ouvert.reportsDisponibilitesNonEtablis[0]).toMatch(/Ventiler l'écart des disponibilités.*ou annulez cette réévaluation/);
     });
   });
 });

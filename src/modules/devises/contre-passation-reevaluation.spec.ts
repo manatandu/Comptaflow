@@ -143,13 +143,10 @@ describe('A5 bis · la contre-passation ne touche pas les disponibilités (AUDCI
     expect(creer).not.toHaveBeenCalled();
   });
 
-  it('réévaluation antérieure à A5 bis · l’écart de la caisse est relu sur son écriture (une seule devise) et gardé', async () => {
+  it('réévaluation antérieure à A5 bis · rien n’est écrit sur elle, `ecartsDisponibilites` nul dit l’ancien régime (B2)', async () => {
     const { svc, updateMany } = monter('2027-01-01', CAISSE_ET_CREANCE, { lignesDuCompte: [{ compteId: 'c-5712', deviseId: 'usd' }] });
     await svc.extourner('t', 'u', 'r1', 'e');
-    expect(updateMany.mock.calls[0][0].data).toMatchObject({
-      ecritureExtourneId: 'ex',
-      ecartsDisponibilites: [{ compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 }],
-    });
+    expect(updateMany.mock.calls[0][0].data).toEqual({ ecritureExtourneId: 'ex' });
   });
 
   it('écart déjà gardé par la réévaluation · rien n’est relu ni réécrit', async () => {

@@ -1,5 +1,19 @@
+import { Type } from 'class-transformer';
 import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
-import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class CreerDeviseDto {
   @IsString()
@@ -128,4 +142,36 @@ export class DeclarerProvisionOuvertureDto {
   @IsString()
   @Length(0, 2000)
   motifContestation?: string;
+}
+
+/** Une ligne de la ventilation déclarée · l'écart d'une devise sur une banque ou une caisse, en francs, signé. */
+export class LigneVentilationDisponibiliteDto {
+  @IsUUID()
+  compteId!: string;
+
+  @IsUUID()
+  deviseId!: string;
+
+  /** Débit moins crédit de l'écart sur le compte, en francs (perte en négatif). */
+  @IsNumber()
+  ecart!: number;
+}
+
+/**
+ * VENTILER L'ÉCART DES DISPONIBILITÉS d'une réévaluation antérieure (relecture
+ * adverse d'A5 bis, B1) · quand la ligne passée sans devise ne se relit pas
+ * au centime, le cabinet déclare l'écart de chaque devise, avec sa SOURCE.
+ * La règle complète vit dans `motifRefusVentilationDeclaree`.
+ */
+export class DeclarerVentilationDisponibilitesDto {
+  @IsArray()
+  @ArrayMinSize(1, { message: "Déclarez l'écart d'au moins une devise." })
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => LigneVentilationDisponibiliteDto)
+  ventilation!: LigneVentilationDisponibiliteDto[];
+
+  @IsString()
+  @Length(3, 2000, { message: 'La source de la ventilation est exigée (pièce, relevé, calcul du cabinet).' })
+  source!: string;
 }
