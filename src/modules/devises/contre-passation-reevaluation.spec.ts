@@ -110,8 +110,13 @@ function monter(
     exercice: {
       findFirst: jest.fn(async (a: { where: Record<string, unknown> }) => {
         if (typeof a.where.id === 'string') return exercices.find((x) => x.id === a.where.id) ?? null;
+        // La cible (B-II) · le premier exercice OUVERT qui commence après la réévaluation.
         const apres = (a.where.dateDebut as { gt: Date }).gt.getTime();
-        return [...exercices].sort((x, y) => x.dateDebut.getTime() - y.dateDebut.getTime()).find((x) => x.dateDebut.getTime() > apres) ?? null;
+        return (
+          [...exercices]
+            .sort((x, y) => x.dateDebut.getTime() - y.dateDebut.getTime())
+            .find((x) => x.dateDebut.getTime() > apres && (a.where.statut === undefined || x.statut === a.where.statut)) ?? null
+        );
       }),
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od' }) },
@@ -144,9 +149,24 @@ describe('contre-passation de la réévaluation', () => {
     }
   });
 
-  it('M1 · sur un exercice plus lointain que celui qui suit immédiatement · refusée, l’exercice suivant nommé, rien passé', async () => {
+  it('M1 · sur un exercice plus lointain que celui qui suit immédiatement, ouvert · refusée, la cible nommée, rien passé', async () => {
     const { svc, creer } = monter('2027-01-01', undefined, { exercices: [N, N1, N2] });
-    await expect(svc.extourner('t', 'u', 'r1', 'e2')).rejects.toThrow(/suit immédiatement la réévaluation, celui du 2027-01-01 au 2027-12-31/);
+    await expect(svc.extourner('t', 'u', 'r1', 'e2')).rejects.toThrow(
+      /premier exercice ouvert qui suit la réévaluation, celui du 2027-01-01 au 2027-12-31/,
+    );
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('B-II · l’exercice qui suit est clôturé · la contre-passation va au premier exercice ouvert après lui', async () => {
+    const { svc, creer } = monter('2027-01-01', undefined, { exercices: [N, { ...N1, statut: 'CLOTURE' }, N2] });
+    await expect(svc.extourner('t', 'u', 'r1', 'e')).rejects.toThrow(/celui du 2028-01-01 au 2028-12-31/);
+    await svc.extourner('t', 'u', 'r1', 'e2');
+    expect(creer.mock.calls[0][2]).toMatchObject({ exerciceId: 'e2', date: '2028-01-01' });
+  });
+
+  it('B-II · aucun exercice ouvert après la réévaluation · refus nommé, l’issue dite', async () => {
+    const { svc, creer } = monter('2027-01-01', undefined, { exercices: [N, { ...N1, statut: 'CLOTURE' }] });
+    await expect(svc.extourner('t', 'u', 'r1', 'e')).rejects.toThrow(/Aucun exercice ouvert après celui de la réévaluation/);
     expect(creer).not.toHaveBeenCalled();
   });
 

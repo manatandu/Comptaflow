@@ -752,7 +752,7 @@ export function DevisesPage() {
                   Réévaluations passées sur cet exercice
                   <Aide
                     titre="Contre-passation"
-                    texte="Les écarts de conversion (478, 479 et comptes de tiers) se contre-passent à l'OUVERTURE de l'exercice qui suit immédiatement : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. La banque et la caisse ne se contre-passent plus : leur écart est réalisé et reste au résultat de l'exercice où il est constaté. Deux exceptions, dites au bouton et au libellé : l'exercice suivant a été réévalué avant cette règle (contre-passation intégrale imposée), ou l'écriture des écarts ne se partage pas (contre-passation intégrale à demander). Une première période close reporte la pièce au premier jour non clôturé, sa date de valeur restant l'ouverture."
+                    texte="Les écarts de conversion (478, 479 et comptes de tiers) se contre-passent à l'OUVERTURE de l'exercice qui suit immédiatement, ou du premier exercice ouvert après lui s'il est clôturé (la contre-passation ne touche que le bilan) : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. La banque et la caisse ne se contre-passent plus : leur écart est réalisé et reste au résultat de l'exercice où il est constaté. Deux exceptions, dites au bouton et au libellé : l'exercice suivant a été réévalué avant cette règle (contre-passation intégrale imposée), ou l'écriture des écarts ne se partage pas (contre-passation intégrale à demander). Une première période close reporte la pièce au premier jour non clôturé, sa date de valeur restant l'ouverture."
                     source="AUDCIF art. 54 et 57 ; art. 22, 4° ; Guide, Partie 2 ch. 22, Applications 84 à 86"
                   />
                 </div>
@@ -1000,7 +1000,8 @@ export function DevisesPage() {
  * d'A5 bis, M1, M2, M8, B2) · ce que le serveur sert, jamais recalculé ·
  * aucun « Contre-passer » pour une réévaluation des seules disponibilités
  * (leur écart est réalisé, AUDCIF art. 57) ; la cible est l'exercice qui suit
- * IMMÉDIATEMENT, et lui seul ; l'exception intégrale est dite au bouton.
+ * IMMÉDIATEMENT s'il est ouvert, sinon le premier ouvert après des clôturés
+ * (B-II), et lui seul ; l'exception intégrale est dite au bouton.
  */
 function ColonneContrePassation(p: {
   r: Reevaluation;
@@ -1040,9 +1041,10 @@ function ColonneContrePassation(p: {
   const cible =
     (r.exerciceDeContrePassation && p.exercices.find((ex) => ex.id === r.exerciceDeContrePassation?.id)) ??
     exerciceDeContrePassation(p.exercices, r.dateReevaluation);
-  if (!cible) return <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>;
-  if (cible.statut !== 'OUVERT') {
-    return <span className="text-[11.5px] text-warning">L'exercice suivant ({libelleExercice(cible)}) est clôturé</span>;
+  // La cible est le premier exercice OUVERT après la réévaluation (B-II) ·
+  // un exercice suivant clôturé ne ferme plus la contre-passation.
+  if (!cible || cible.statut !== 'OUVERT') {
+    return <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>;
   }
   return (
     <button

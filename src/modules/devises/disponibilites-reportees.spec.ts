@@ -186,6 +186,8 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     const i = exercices.findIndex((x) => x.id === exerciceId);
     return i >= 0 && i + 1 < exercices.length ? exercices[i + 1].id : 'e-suivant';
   };
+  /** L'exercice qui porte une contre-passation, tel que le portillon le lit (son début). */
+  const exerciceDe = (id: string) => ({ dateDebut: exercices.find((x) => x.id === id)?.dateDebut ?? new Date('2028-01-01') });
   const reevaluationDe = (exerciceId: string) => {
     const r = reevals.find((x) => x.exerciceId === exerciceId);
     if (!r) return null;
@@ -212,6 +214,7 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       ecritureExtourne: r.extourneInverseLaCaisse
         ? {
             exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId),
+            exercice: exerciceDe(r.contrePasseeDans ?? suivantDe(r.exerciceId)),
             numeroPiece: 12,
             date: new Date('2027-01-01'),
             lignes: lignesEcarts.map((l) => ({ compte: { numero: l.numero } })),
@@ -219,6 +222,7 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
         : r.contrePassee
           ? {
               exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId),
+              exercice: exerciceDe(r.contrePasseeDans ?? suivantDe(r.exerciceId)),
               numeroPiece: 12,
               date: new Date('2028-01-01'),
               lignes: lignesEcarts.filter((l) => !/^(52|53|55|57|58|676|776)/.test(l.numero)).map((l) => ({ compte: { numero: l.numero } })),
@@ -236,8 +240,10 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     exercice: {
+      // La doublure honore le filtre de statut (`not: CLOTURE` de l'ordre,
+      // aucun pour le portillon, qui traverse les exercices clôturés, B-II).
       findMany: jest.fn(async (a: { where?: Record<string, unknown>; orderBy?: Record<string, string> } = {}) =>
-        trier(filtrerExercices(a.where), a.orderBy).filter((e) => e.statut === 'OUVERT'),
+        trier(filtrerExercices(a.where), a.orderBy),
       ),
       findFirst: jest.fn(async (a: { where?: Record<string, unknown>; orderBy?: Record<string, string> } = {}) =>
         trier(filtrerExercices(a.where), a.orderBy)[0] ?? null,
@@ -678,9 +684,64 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
       cours: 2150,
     });
     await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(
-      /n'est pas à l'ouverture de cet exercice[\s\S]*Annuler la contre-passation/,
+      /n'est pas à l'ouverture du premier exercice ouvert[\s\S]*Annuler la contre-passation[\s\S]*passez-la à l'ouverture de cet exercice/,
     );
     expect(creer).not.toHaveBeenCalled();
+  });
+
+  /**
+   * B-II (second tour) · LA CONTRE-PASSATION DE N OUBLIÉE, N+1 CLÔTURÉ SANS
+   * RÉÉVALUATION. 41110000, 1 000 USD pour 2 000 000 ; N au cours de 2 500
+   * (D 411 / C 479 de 500 000) ; N+2 au cours de 2 600. Le portillon ne
+   * lisait que N+1, sans réévaluation · N+2 passait, depuis le coût, 600 000
+   * de plus au tiers · 411 à 3 100 000 au lieu de 2 600 000, 479 à
+   * −1 100 000. Il lit la DERNIÈRE réévaluation antérieure, à travers N+1.
+   */
+  describe('B-II · N+1 clôturé sans réévaluation', () => {
+    const N2: Exo = { id: 'e28', dateDebut: new Date('2028-01-01'), dateFin: new Date('2028-12-31'), statut: 'OUVERT' };
+    const exercices = [N, { ...N1, statut: 'CLOTURE' }, N2];
+    const ecarts500: Reeval['lignesEcarts'] = [
+      { compteId: 'c-4111', numero: '41110000', debit: 500_000, credit: 0 },
+      { compteId: 'c-4791', numero: '47910000', debit: 0, credit: 500_000 },
+    ];
+    const lignes: Ligne[] = [creanceN, report, { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' }];
+
+    it('non contre-passée · N+2 refusé, la cible (cet exercice) nommée, rien écrit', async () => {
+      const { svc, creer } = monter({ exercices, lignes, reeval: { exerciceId: 'e26', lignesEcarts: ecarts500 }, cours: 2600 });
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.toThrow(
+        /réévaluation du 2026-12-31 n'est pas contre-passée[\s\S]*Passez la contre-passation de la réévaluation du 2026-12-31 \(Devises\) à l'ouverture de cet exercice/,
+      );
+      expect(creer).not.toHaveBeenCalled();
+    });
+
+    it('contre-passée à l’ouverture de N+2 · N+2 passe depuis le coût · 411 à 2 600 000 et 479 à −600 000', async () => {
+      const { svc } = monter({
+        exercices,
+        lignes,
+        reeval: { exerciceId: 'e26', lignesEcarts: ecarts500, contrePassee: true, contrePasseeDans: 'e28' },
+        cours: 2600,
+      });
+      const { rapport } = await svc.reevaluer('t', 'u', { exerciceId: 'e28' });
+      const p = rapport.positions.find((x) => x.numero === '41110000')!;
+      expect(p).toMatchObject({ valeurComptable: 2_000_000, ecart: 600_000 });
+      // Le tiers · à-nouveau au coût (2 000 000) et écart de N reporté sans devise (500 000), contre-passation (−500 000), écart de N+2.
+      expect(2_000_000 + 500_000 - 500_000 + p.ecart).toBe(2_600_000);
+      // Le 479 · écart de N (−500 000), contre-passation (+500 000), écart de N+2.
+      expect(-500_000 + 500_000 - p.ecart).toBe(-600_000);
+    });
+
+    it('N+1 OUVERT, contre-passation posée en N+2 · N+2 attend N+1, et N+1 nomme la contre-passation à annuler et à repasser chez lui', async () => {
+      const { svc } = monter({
+        exercices: [N, N1, N2],
+        lignes,
+        reeval: { exerciceId: 'e26', lignesEcarts: ecarts500, contrePassee: true, contrePasseeDans: 'e28' },
+        cours: 2600,
+      });
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.toThrow(/antérieur et encore ouvert, n'est pas réévalué/);
+      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(
+        /Annuler la contre-passation[\s\S]*passez-la à l'ouverture de cet exercice/,
+      );
+    });
   });
 
   it('une réévaluation qui ne portait que des disponibilités n’a rien à contre-passer · ne bloque pas', async () => {

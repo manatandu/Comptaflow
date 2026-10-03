@@ -1,22 +1,25 @@
 /**
  * L'EXERCICE OÙ LES ÉCARTS SE CONTRE-PASSENT · celui qui suit IMMÉDIATEMENT
- * la réévaluation (« à l'ouverture de l'exercice suivant »), et lui seul
- * (relecture adverse d'A5 bis, M1). La liste servait tout exercice ouvert
- * commençant après la réévaluation · une contre-passation posée deux
- * exercices plus loin laissait l'écart de conversion vivre pendant tout
- * l'exercice intermédiaire, que sa réévaluation repassait depuis le coût
- * historique. Le serveur le refuse aussi (`DevisesService.extourner`), et le
- * sert lui-même (`exerciceDeContrePassation` de la liste des réévaluations).
+ * la réévaluation s'il est OUVERT, sinon le premier exercice ouvert dont
+ * tous les intermédiaires sont clôturés (relecture adverse d'A5 bis, M1 et
+ * second tour, B-II), et lui seul. La liste servait tout exercice ouvert
+ * commençant après la réévaluation · une contre-passation posée plus loin
+ * laissait l'écart de conversion vivre pendant un exercice ouvert, que sa
+ * réévaluation repassait depuis le coût historique ; refuser un exercice
+ * suivant clôturé, à l'inverse, enfermait la contre-passation oubliée. Le
+ * serveur tient la même règle (`DevisesService.cibleDeContrePassation`) et
+ * sert la cible lui-même (`exerciceDeContrePassation` de la liste).
  *
- * `null` · aucun exercice ne suit encore ; un exercice suivant CLÔTURÉ est
- * rendu tel quel, l'écran le dit au lieu d'en proposer un autre.
+ * `null` · aucun exercice ouvert après la réévaluation.
  */
 export function exerciceDeContrePassation<E extends { dateDebut: string; statut: string }>(exercices: E[], dateReevaluation: string): E | null {
   const date = new Date(dateReevaluation).getTime();
   const suivants = exercices
     .filter((e) => new Date(e.dateDebut).getTime() > date)
     .sort((a, b) => new Date(a.dateDebut).getTime() - new Date(b.dateDebut).getTime());
-  return suivants[0] ?? null;
+  // Le premier ouvert · ceux qui le précèdent dans la liste sont clôturés (un
+  // exercice est ouvert ou clôturé, rien d'autre).
+  return suivants.find((e) => e.statut === 'OUVERT') ?? null;
 }
 
 /**

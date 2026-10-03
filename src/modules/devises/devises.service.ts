@@ -1142,45 +1142,79 @@ export class DevisesService {
    * Application 85, « 4793 · 4812 »). Oubliée, la réévaluation de
    * N+1 repassait l'écart de N au tiers et laissait le 478 ou le 479 de N en
    * place · deux fois le même écart, écriture équilibrée, balance bouclée.
-   * Ne vise que la réévaluation non annulée de l'exercice qui PRÉCÈDE
-   * IMMÉDIATEMENT, et seulement si elle porte un écart de conversion (une
-   * réévaluation des seules disponibilités n'a rien à contre-passer, AUDCIF
-   * art. 57).
+   * Vise la DERNIÈRE réévaluation non annulée antérieure à l'exercice, à
+   * travers les exercices qui n'en ont pas (second tour, B-II) · un N+1
+   * clôturé sans réévaluation ne fait pas oublier la contre-passation de N.
+   * Et seulement si elle porte un écart de conversion (une réévaluation des
+   * seules disponibilités n'a rien à contre-passer, AUDCIF art. 57).
    *
-   * LA CONTRE-PASSATION DOIT ÊTRE DANS CET EXERCICE-CI (relecture adverse,
-   * M1) · une contre-passation qu'une version antérieure a laissé passer
-   * dans un exercice plus lointain laissait l'écart de N en place pendant
-   * tout celui-ci, et sa réévaluation le repassait depuis le coût historique.
-   * L'issue est nommée · annuler cette contre-passation (Devises), puis la
-   * repasser à l'ouverture de cet exercice.
+   * LA CONTRE-PASSATION DOIT ÊTRE À SA PLACE (relecture adverse, M1 ; second
+   * tour, B-II) · à l'ouverture du premier exercice OUVERT qui suit la
+   * réévaluation, tous ceux d'entre eux clôturés (`cibleDeContrePassation`),
+   * au plus tard dans celui-ci. Plus loin, l'écart de N restait en place
+   * pendant un exercice ouvert, que sa réévaluation repassait depuis le coût
+   * historique. L'issue est nommée · annuler cette contre-passation
+   * (Devises), puis la repasser dans la cible.
    */
   private async motifContrePassationManquante(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
-    const precedent = await this.prisma.exercice.findFirst({
+    const jourDe = (d: Date) => d.toISOString().slice(0, 10);
+    // Borne de sûreté · dix ans de conservation (AUDCIF art. 24), et au-delà.
+    const anterieurs = await this.prisma.exercice.findMany({
       where: { tenantId, dateFin: { lt: exercice.dateDebut } },
       orderBy: { dateFin: 'desc' },
-      select: { id: true, dateFin: true },
+      take: 50,
+      select: { id: true, dateDebut: true, dateFin: true },
     });
-    if (!precedent || precedent.id === exercice.id || !(precedent.dateFin.getTime() < exercice.dateDebut.getTime())) return null;
-    const reeval = await this.prisma.reevaluation.findFirst({
-      where: { tenantId, exerciceId: precedent.id, annuleeLe: null },
-      select: {
-        dateReevaluation: true,
-        ecritureExtourneId: true,
-        ecritureExtourne: { select: { exerciceId: true, numeroPiece: true, date: true } },
-        ecritureEcarts: { select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } } },
-      },
-    });
-    if (!reeval?.ecritureEcarts) return null;
-    const jour = reeval.dateReevaluation.toISOString().slice(0, 10);
+    let exerciceReevalue: { id: string; dateDebut: Date; dateFin: Date } | null = null;
+    let reeval: {
+      dateReevaluation: Date;
+      ecritureExtourneId: string | null;
+      ecritureExtourne: { exerciceId: string; numeroPiece: number | null; date: Date; exercice: { dateDebut: Date } } | null;
+      ecritureEcarts: { lignes: { debit: unknown; credit: unknown; compte: { numero: string } }[] } | null;
+    } | null = null;
+    for (const e of anterieurs) {
+      if (e.id === exercice.id) continue;
+      reeval = await this.prisma.reevaluation.findFirst({
+        where: { tenantId, exerciceId: e.id, annuleeLe: null },
+        select: {
+          dateReevaluation: true,
+          ecritureExtourneId: true,
+          ecritureExtourne: { select: { exerciceId: true, numeroPiece: true, date: true, exercice: { select: { dateDebut: true } } } },
+          ecritureEcarts: { select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } } },
+        },
+      });
+      if (reeval) {
+        exerciceReevalue = e;
+        break;
+      }
+    }
+    if (!reeval?.ecritureEcarts || !exerciceReevalue) return null;
+    const jour = jourDe(reeval.dateReevaluation);
+    const cible = await this.cibleDeContrePassation(tenantId, exerciceReevalue.dateFin);
+    const ouvertureCible =
+      !cible || cible.id === exercice.id
+        ? "à l'ouverture de cet exercice"
+        : `à l'ouverture de l'exercice du ${jourDe(cible.dateDebut)} au ${jourDe(cible.dateFin)}, le premier ouvert après la réévaluation`;
     if (reeval.ecritureExtourneId) {
-      const ailleurs = reeval.ecritureExtourne && reeval.ecritureExtourne.exerciceId !== exercice.id;
-      if (!ailleurs) return null;
+      const y = reeval.ecritureExtourne;
+      if (!y) return null;
+      // À SA PLACE · au plus tard dans cet exercice, et aucun exercice OUVERT
+      // entre la réévaluation et elle.
+      const auPlusTardIci = y.exercice.dateDebut.getTime() <= exercice.dateDebut.getTime();
+      const ouvertEntreDeux = await this.prisma.exercice.findFirst({
+        where: {
+          tenantId,
+          statut: StatutExercice.OUVERT,
+          dateDebut: { gt: exerciceReevalue.dateFin, lt: y.exercice.dateDebut },
+        },
+        select: { id: true },
+      });
+      if (auPlusTardIci && !ouvertEntreDeux) return null;
       return (
-        `La contre-passation de la réévaluation du ${jour} (pièce n° ${reeval.ecritureExtourne?.numeroPiece ?? '·'} du ` +
-        `${reeval.ecritureExtourne?.date.toISOString().slice(0, 10) ?? '·'}) n'est pas à l'ouverture de cet exercice, qui suit ` +
-        "immédiatement le sien · ses écarts de conversion y sont donc toujours en place, et réévaluer cet exercice les " +
-        'repasserait. Annulez cette contre-passation (Devises, « Annuler la contre-passation »), passez-la à l’ouverture de ' +
-        'cet exercice, puis réévaluez.'
+        `La contre-passation de la réévaluation du ${jour} (pièce n° ${y.numeroPiece ?? '·'} du ${jourDe(y.date)}) n'est pas ` +
+        "à l'ouverture du premier exercice ouvert qui suit la réévaluation · ses écarts de conversion y sont donc toujours en " +
+        'place, et réévaluer cet exercice les repasserait. Annulez cette contre-passation (Devises, « Annuler la ' +
+        `contre-passation »), passez-la ${ouvertureCible}, puis réévaluez.`
       );
     }
     const partage = partagerLignesDEcarts(
@@ -1190,13 +1224,39 @@ export class DevisesService {
     return (
       `La réévaluation du ${jour} n'est pas contre-passée · ses écarts de conversion (478, 479 et comptes de tiers) sont ` +
       "toujours en place, et réévaluer cet exercice repasserait le même écart sur les créances et dettes en devise. " +
-      `Passez la contre-passation de la réévaluation du ${jour} (Devises) à l'ouverture de cet exercice, puis réévaluez · ` +
+      `Passez la contre-passation de la réévaluation du ${jour} (Devises) ${ouvertureCible}, puis réévaluez · ` +
       "si la première période en est close, la pièce est reportée au premier jour non clôturé, sa date de valeur restant " +
       "l'ouverture (AUDCIF art. 22, 4°)." +
       (partage.motifRefus
         ? " Son écriture des écarts ne se partage pas · demandez la contre-passation intégrale (« Contre-passation intégrale »)."
         : '')
     );
+  }
+
+  /**
+   * L'EXERCICE QUI REÇOIT LA CONTRE-PASSATION (second tour, B-II) · celui
+   * qui suit immédiatement la réévaluation s'il est OUVERT, sinon le premier
+   * exercice ouvert dont tous les intermédiaires sont clôturés. Refuser un
+   * exercice suivant clôturé enfermait le dossier · la contre-passation
+   * oubliée ne pouvait plus se passer nulle part, et la réévaluation de
+   * N+2 repassait l'écart de N au tiers.
+   *
+   * La contre-passation des écarts de conversion ne touche que le BILAN (le
+   * 478, le 479 et le compte de tiers qu'ils ajustent) · posée plus tard,
+   * elle ne déplace aucun résultat ; l'exercice intermédiaire clôturé garde à
+   * son bilan l'écart de N, qu'il n'a pas réévalué. L'intégrale (B2, M2),
+   * qui touche le 676 ou le 776, se règle sur l'exercice qui la reçoit.
+   * `null` · aucun exercice ouvert après la réévaluation.
+   */
+  private async cibleDeContrePassation(
+    tenantId: string,
+    finExerciceReevalue: Date,
+  ): Promise<{ id: string; dateDebut: Date; dateFin: Date; statut: StatutExercice } | null> {
+    return this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { gt: finExerciceReevalue }, statut: StatutExercice.OUVERT },
+      orderBy: { dateDebut: 'asc' },
+      select: { id: true, dateDebut: true, dateFin: true, statut: true },
+    });
   }
 
   private async motifRefusOrdre(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
@@ -1553,22 +1613,24 @@ export class DevisesService {
         "La contre-passation se passe à l'ouverture d'un exercice qui commence après la réévaluation · choisissez l'exercice suivant.",
       );
     }
-    // M1 · l'exercice qui suit IMMÉDIATEMENT, et lui seul.
+    // M1 et B-II · l'exercice qui suit IMMÉDIATEMENT s'il est ouvert, sinon
+    // le premier ouvert dont tous les intermédiaires sont clôturés, et lui
+    // seul (`cibleDeContrePassation`).
     const fin = reeval.exercice?.dateFin ?? reeval.dateReevaluation;
-    const immediat = await this.prisma.exercice.findFirst({
-      where: { tenantId, dateDebut: { gt: fin } },
-      orderBy: { dateDebut: 'asc' },
-      select: { id: true, dateDebut: true, dateFin: true },
-    });
-    if (immediat && immediat.id !== suivant.id) {
-      const jour = (d: Date) => d.toISOString().slice(0, 10);
+    const cible = await this.cibleDeContrePassation(tenantId, fin);
+    if (!cible) {
       throw new BadRequestException(
-        `La contre-passation se passe à l'ouverture de l'exercice qui suit immédiatement la réévaluation, celui du ` +
-          `${jour(immediat.dateDebut)} au ${jour(immediat.dateFin)} · passée plus tard, l'écart de conversion vivrait pendant ` +
-          'tout cet exercice, que sa réévaluation repasserait depuis le coût historique.',
+        "Aucun exercice ouvert après celui de la réévaluation · ouvrez l'exercice suivant (Fin d'exercice…), puis contre-passez.",
       );
     }
-    if (suivant.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice suivant est clôturé.");
+    if (cible.id !== suivant.id) {
+      const jour = (d: Date) => d.toISOString().slice(0, 10);
+      throw new BadRequestException(
+        `La contre-passation se passe à l'ouverture du premier exercice ouvert qui suit la réévaluation, celui du ` +
+          `${jour(cible.dateDebut)} au ${jour(cible.dateFin)} · passée ailleurs, l'écart de conversion vivrait pendant un ` +
+          'exercice ouvert, que sa réévaluation repasserait depuis le coût historique.',
+      );
+    }
 
     // Partage par la RACINE du compte, jamais par le montant ni le libellé.
     const lignes = reeval.ecritureEcarts.lignes.map((l) => ({
@@ -1953,15 +2015,10 @@ export class DevisesService {
 
   async listerReevaluations(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
-    // L'exercice qui suit IMMÉDIATEMENT (M1) · le seul où la contre-passation
-    // se passe ; et s'il a été réévalué sous l'ancien régime (B2).
-    const suivant = exercice
-      ? await this.prisma.exercice.findFirst({
-          where: { tenantId, dateDebut: { gt: exercice.dateFin } },
-          orderBy: { dateDebut: 'asc' },
-          select: { id: true, dateDebut: true, dateFin: true, statut: true },
-        })
-      : null;
+    // L'exercice qui reçoit la contre-passation (M1, B-II) · celui qui suit
+    // immédiatement s'il est ouvert, sinon le premier ouvert après des
+    // clôturés ; et s'il a été réévalué sous l'ancien régime (B2).
+    const suivant = exercice ? await this.cibleDeContrePassation(tenantId, exercice.dateFin) : null;
     const suivantAncienRegime = suivant
       ? (await this.prisma.reevaluation.findFirst({
           where: { tenantId, exerciceId: suivant.id, annuleeLe: null, ecartsDisponibilites: { equals: Prisma.DbNull } },
