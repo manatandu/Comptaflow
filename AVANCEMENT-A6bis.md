@@ -54,6 +54,12 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   restants) ; des règlements qui dépassent les factures en devise sont
   écartés et comptés.
 - M2 · D4 · une écriture de clôture ou d'à-nouveau n'est jamais un règlement.
+- M3 · `natureDuCompte` (serveur et écran) · le 404 du SYSCOHADA est
+  FINANCIER (ch. 22 § 1.1, relu · prix payé d'une immobilisation, « charge
+  ou produit financier »), le 414 du SYSCOHADA SANS nature (aucun texte ne la
+  dit, le cabinet choisit parmi les comptes de change) ; le SYCEBNL n'ouvre
+  ni l'un ni l'autre (vérifié aux semis). Table `CAS_NATURE` au spec du
+  serveur, relue et rejouée par le spec du client ; cas ajoutés à `CAS_ADMIS`.
 
 ## Reste
 

@@ -18,13 +18,18 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
 /**
  * La nature d'une créance ou d'une dette, lue sur son compte · 40 et 41
  * commerciaux ; emprunts (16 SYSCOHADA, 18 SYCEBNL), location acquisition
- * (17 SYSCOHADA, 187 SYCEBNL sous le 18), prêts (27) et fournisseurs
- * d'investissements (481) financiers ; le reste `null`.
+ * (17 SYSCOHADA, 187 SYCEBNL sous le 18), prêts (27), fournisseurs
+ * d'investissements (481) et, au SYSCOHADA, fournisseurs d'acquisitions
+ * courantes d'immobilisations (404, Titre VIII ch. 22 § 1.1) financiers ; le
+ * 414 du SYSCOHADA (créances sur cessions courantes d'immobilisations) sans
+ * nature, aucun texte ne la disant (A6 bis, M3) ; le reste `null`. Recopie
+ * de `natureDuCompte` au serveur, rejouée par le spec sur `CAS_NATURE`.
  */
 export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
-  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '481'] : ['18', '27', '481'];
+  if (referentiel === 'SYSCOHADA' && numero.startsWith('414')) return null;
+  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '404', '481'] : ['18', '27', '481'];
   if (financieres.some((r) => numero.startsWith(r))) return 'FINANCIERE';
+  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
   return null;
 }
 

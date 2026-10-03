@@ -164,12 +164,53 @@ export const CAS_ADMIS: Array<[ 'SYSCOHADA' | 'SYCEBNL', 'COMMERCIALE' | 'FINANC
   ['SYCEBNL', null, 'GAIN', '75880000', true],
   ['SYCEBNL', null, 'GAIN', '75100000', false],
   ['SYCEBNL', null, 'GAIN', '75910000', false],
+  // A6 bis, M3 · le 404 du SYSCOHADA est financier · son écart va au 676 ou
+  // au 776, jamais au 656 ni au 756 ; le 414 sans nature · le cabinet choisit
+  // parmi les comptes de change.
+  ['SYSCOHADA', 'FINANCIERE', 'PERTE', '65600000', false],
+  ['SYSCOHADA', 'FINANCIERE', 'PERTE', '67600000', true],
+  ['SYSCOHADA', null, 'GAIN', '75600000', true],
+  ['SYSCOHADA', null, 'GAIN', '75800000', false],
+];
+
+/**
+ * LA NATURE LUE SUR LE COMPTE, serveur et écran sur une seule table (A6 bis,
+ * M3) · le spec du client la relit et la rejoue sur sa recopie.
+ */
+export const CAS_NATURE: Array<['SYSCOHADA' | 'SYCEBNL', string, 'COMMERCIALE' | 'FINANCIERE' | null]> = [
+  ['SYSCOHADA', '40110000', 'COMMERCIALE'],
+  ['SYSCOHADA', '40410000', 'FINANCIERE'],
+  ['SYSCOHADA', '40470000', 'FINANCIERE'],
+  ['SYSCOHADA', '48120000', 'FINANCIERE'],
+  ['SYSCOHADA', '41110000', 'COMMERCIALE'],
+  ['SYSCOHADA', '41420000', null],
+  ['SYSCOHADA', '16200000', 'FINANCIERE'],
+  ['SYCEBNL', '40110000', 'COMMERCIALE'],
+  ['SYCEBNL', '41200000', 'COMMERCIALE'],
+  ['SYCEBNL', '16200000', null],
+  ['SYCEBNL', '18710000', 'FINANCIERE'],
 ];
 
 describe('les comptes admis pour l’écart, serveur et écran sur une seule table', () => {
   it.each(CAS_ADMIS)('%s, nature %s, %s · %s admis : %s', (referentiel, nature, ecart, numero, admis) => {
     expect(compteAdmisPourEcart(racinesAdmises(referentiel, nature, ecart), numero)).toBe(admis);
     expect(motifRefusCompteEcart({ referentiel, nature, ecart, numero }) === null).toBe(admis);
+  });
+
+  it.each(CAS_NATURE)('%s · %s · nature %s', (referentiel, numero, nature) => {
+    expect(natureDuCompte(numero, referentiel)).toBe(nature);
+  });
+
+  // A6 bis, M3 · le Titre VIII ch. 22 § 1.1, relu · « Lorsque le prix payé
+  // [...] est différent du coût initial comptabilisé, par suite de modalités
+  // spéciales de règlement (cas de paiement à terme libellé en devises), la
+  // différence constitue une charge ou un produit financier ». Les semis
+  // disent ce que sont le 404 et le 414 ; le SYCEBNL n'ouvre ni l'un ni l'autre.
+  it('le 404 et le 414 tels que les semis les ouvrent · le SYCEBNL n’en a aucun', () => {
+    const syscohada = new Map(PLAN_COMPTES_SYSCOHADA.map((c) => [c.numero, c.intitule]));
+    expect(syscohada.get('404')).toMatch(/acquisitions courantes d.immobilisations/i);
+    expect(syscohada.get('414')).toMatch(/cessions courantes d.immobilisations/i);
+    expect(PLAN_COMPTES_SYCEBNL.some((c) => c.numero.startsWith('404') || c.numero.startsWith('414'))).toBe(false);
   });
 
   it('la nature lue · 17 et 481 au SYSCOHADA, 187 et 481 au SYCEBNL sont financiers ; le 17 du SYCEBNL est un fonds', () => {

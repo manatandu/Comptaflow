@@ -75,14 +75,26 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
  *    FINANCIÈRES »). Les fournisseurs d'investissements, au 481 des deux
  *    plans · le ch. 22 § 1.1 dit de l'immobilisation payée à terme en devise
  *    que « la différence constitue une charge ou un produit financier (perte
- *    ou gain de change) ».
+ *    ou gain de change) ». POUR LA MÊME RAISON, le 404 du SYSCOHADA
+ *    (A6 bis, M3) · « Fournisseurs, acquisitions courantes
+ *    d'immobilisations » (Titre VII, fiche du compte 40) · c'est le prix payé
+ *    d'une immobilisation, que le § 1.1 met en résultat FINANCIER ; lu
+ *    commercial par sa racine 40, son écart allait au 656. Le SYCEBNL
+ *    n'ouvre pas de 404 (Partie 2 ch. 2).
+ *  · SANS NATURE, et dit (A6 bis, M3) · le 414 du SYSCOHADA, « Créances sur
+ *    cessions courantes d'immobilisations ». Le § 1.1 ne vise que le prix
+ *    PAYÉ par l'acquéreur ; la fiche du compte 41 range la créance parmi les
+ *    comptes rattachés au client sans la dire « commerciale » au sens du
+ *    § 2.3 · aucun texte lu ne tranche, le cabinet choisit parmi les comptes
+ *    de change. Le SYCEBNL n'ouvre pas de 414.
  *  · Tout autre compte · `null`, la nature reste au cabinet, dans les seuls
  *    comptes de change (`racinesAdmises`).
  */
 export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
-  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '481'] : ['18', '27', '481'];
+  if (referentiel === 'SYSCOHADA' && numero.startsWith('414')) return null;
+  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '404', '481'] : ['18', '27', '481'];
   if (financieres.some((r) => numero.startsWith(r))) return 'FINANCIERE';
+  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
   return null;
 }
 
