@@ -44,6 +44,11 @@ import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
 import {
+  PLAFOND_REEVALUATIONS_EXAMINEES,
+  contrePassationsDeDisponibilites,
+  ecrituresDesContrePassationsAnnulees,
+} from '../devises/contre-passations-de-disponibilites';
+import {
   comptesBancairesSansRapprochement,
   estCompteBancaireARapprocher,
   journauxEnRetardDeClotureInformatique,
@@ -1170,7 +1175,11 @@ export class ControlesService {
     tenantId: string,
     ex: { statut: StatutExercice; dateDebut: Date; dateFin: Date },
     referentiel: Referentiel,
-    parcours: { journauxEcrits: Map<string, JournalEcrit>; comptesBancaires: Map<string, CompteBancaireMouvemente> },
+    parcours: {
+      journauxEcrits: Map<string, JournalEcrit>;
+      comptesBancaires: Map<string, CompteBancaireMouvemente>;
+      contrePassationsAnnuleesTronquees?: boolean;
+    },
     maintenant: number,
   ): Promise<AnomalieControle[]> {
     const anomalies: AnomalieControle[] = [];
@@ -1248,7 +1257,19 @@ export class ControlesService {
             'solde nul, daté au plus tôt de sa dernière opération, quand son solde comptable est nul. Pour un compte en devises, ' +
             'le solde du relevé se compare en francs au cours de clôture, une fois passée la réévaluation de l’exercice ' +
             '(Traitement > Clôture > Devises et réévaluation).',
-          occurrences: sans,
+          occurrences: [
+            ...(parcours.contrePassationsAnnuleesTronquees
+              ? [
+                  {
+                    reference: 'Lecture bornée',
+                    detail:
+                      `${PLAFOND_REEVALUATIONS_EXAMINEES} réévaluations à contre-passation annulée lues · une contre-passation annulée ` +
+                      "plus ancienne peut avancer la dernière opération d'un compte fermé, et le faire paraître non couvert.",
+                  },
+                ]
+              : []),
+            ...sans,
+          ],
         });
       }
     }
@@ -1341,6 +1362,12 @@ export class ControlesService {
     // Ligne A13 · relevés au passage, sans seconde lecture des écritures.
     const journauxEcrits = new Map<string, JournalEcrit>();
     const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
+    // Une contre-passation ANNULÉE (A5 bis, M1) et son négatif ne portent
+    // plus la liaison · la trace gardée sur la réévaluation les nomme (second
+    // tour, m3), sans quoi une ancienne contre-passation qui inversait la
+    // banque avançait la dernière ligne d'un compte fermé.
+    const tracesAnnulees = await ecrituresDesContrePassationsAnnulees(this.prisma, tenantId);
+    const contrePassationsAnnulees = tracesAnnulees.ids;
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1383,7 +1410,7 @@ export class ControlesService {
             // (seconde relecture, B-α) · elle compte au solde, jamais à la
             // date de la dernière ligne, sans quoi l'écart du 31/12 d'un
             // compte en devises fermé en juin le rendait non couvert.
-            const mouvementDeBanque = !estEcritureDeConversion(e);
+            const mouvementDeBanque = !estEcritureDeConversion(e) && !contrePassationsAnnulees.has(e.id);
             const vu = comptesBancaires.get(l.compte.id);
             if (vu === undefined) {
               comptesBancaires.set(l.compte.id, {
@@ -1508,6 +1535,10 @@ export class ControlesService {
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
+      // Au-delà de la borne, une contre-passation annulée plus ancienne
+      // pourrait passer pour une opération de banque · le contrôle 32 le DIT
+      // (troisième tour, mineur 3).
+      contrePassationsAnnuleesTronquees: tracesAnnulees.tronque,
       // Le solde a été tenu en centimes · il repart ici en francs.
       comptesBancaires: new Map(
         [...comptesBancaires].map(([id, c]) => [id, { ...c, soldeCloture: c.soldeCloture / 100 }]),
@@ -4475,6 +4506,120 @@ export class ControlesService {
       }
     }
 
+    // --- 34. Contre-passation qui a inversé une disponibilité (A5 bis) ------
+    //
+    // AUDCIF art. 57 · l'écart d'une disponibilité est inscrit « directement
+    // dans les produits et charges de l'exercice » · il est RÉALISÉ et ne se
+    // contre-passe pas (Titre VIII ch. 22, section 4 ; Application 86 du
+    // Guide). Avant A5 bis, la contre-passation inversait aussi la banque et
+    // la caisse. INFORMATION, jamais un retraitement · l'écriture est validée
+    // (art. 22, 2°) et tenue par la réévaluation, et la réévaluation de cet
+    // exercice-ci, qui mesure alors la banque sans l'écart contre-passé
+    // (`ecartsReportesDesDisponibilites` ne reporte pas un écart contre-passé
+    // dans un exercice traversé, B-I du second tour), la réaligne · le
+    // résultat CUMULÉ des exercices en sort juste une fois elle passée (pas
+    // forcément celui de chaque exercice, si un intermédiaire a été réévalué
+    // avant A5 bis), ses 676 et 776 en sont gonflés de part et d'autre, et la
+    // trésorerie est fausse jusque-là.
+    //
+    // L'ISSUE SE RÈGLE SUR L'EXERCICE QUI PORTE LA CONTRE-PASSATION (second
+    // tour, m2) · ouvert, la contre-passation s'annule seule (« Annuler la
+    // contre-passation ») et se repasse, sans annuler la réévaluation
+    // entière ; clôturé, elle ne s'annule plus.
+    //
+    // Le texte suit les faits (relecture adverse, M7) · la phrase de
+    // l'exercice clôturé ne vient que si l'un l'est ; l'annulation nomme ses
+    // préalables (D6 · une réévaluation postérieure s'annule d'abord, une
+    // version de provision d'ouverture déclarée après elle se retire ou se
+    // corrige) ; une contre-passation INTÉGRALE par exception nommée (B2, M2)
+    // est dite comme telle, sans issue à prendre.
+    //
+    // CINQUIÈME TOUR · ce contrôle lit la BANQUE inversée, que la règle d'état
+    // de l'écart (`DevisesService.etatDeLEcart`, le 478, le 479 et le tiers) ne
+    // lit pas ; l'issue qu'il nomme (annuler, ou retirer et corriger) remet
+    // l'écart en place, et « Contre-passer » la rejuge sur cet état avant de
+    // passer · le message le dit, sans promettre un geste que la règle
+    // refuserait.
+    {
+      const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
+      if (contrePassees.elements.length > 0 || contrePassees.tronque) {
+        const anciennes = contrePassees.elements.filter((e) => e.exception === null && !e.manuelle);
+        const annulable = anciennes.filter((e) => !e.exerciceContrePassationClos);
+        // Rien à repasser (troisième tour, mineur 1) · une réévaluation des
+        // seules disponibilités n'a aucun écart de conversion ; « repassez-la »
+        // nommerait un geste que `extourner` refuse.
+        const aRepasser = annulable.some((e) => e.aRepasser);
+        const rienARepasser = annulable.some((e) => !e.aRepasser);
+        const close = anciennes.some((e) => e.exerciceContrePassationClos);
+        const manuelles = contrePassees.elements.filter((e) => e.manuelle);
+        const manuelleOuverte = manuelles.some((e) => !e.exerciceContrePassationClos);
+        // L'OD groupée (quatrième tour, m5) · son négatif annule aussi les
+        // autres gestes qu'elle portait, à repasser.
+        const groupee = manuelles.some((e) => !e.exerciceContrePassationClos && e.autresGestes);
+        const manuelleClose = manuelles.some((e) => e.exerciceContrePassationClos);
+        const parException = contrePassees.elements.some((e) => e.exception !== null);
+        anomalies.push({
+          code: 'CONTRE_PASSATION_DE_DISPONIBILITE',
+          gravite: 'INFORMATION',
+          libelle: "Contre-passation d'écarts qui a inversé une banque ou une caisse en devise",
+          consequence:
+            "L'écart d'une disponibilité en devise est réalisé et reste au résultat de l'exercice où il est constaté (AUDCIF art. 57) · " +
+            "contre-passé, il remet la trésorerie au cours historique jusqu'à la réévaluation de cet exercice et inscrit au 676 ou au 776 " +
+            "le contraire d'une perte ou d'un gain déjà supporté. La réévaluation de clôture de l'exercice qui porte la contre-passation " +
+            "mesure la banque sans l'écart contre-passé et le repasse · une fois elle passée, le résultat cumulé des exercices en sort juste " +
+            "(d'ici là, l'exercice porte la contre-passation seule) ; la présentation des pertes et gains de change ne l’est pas.",
+          action:
+            (annulable.length > 0
+              ? 'Contre-passation dans un exercice encore ouvert · annulez-la (Devises, « Annuler la contre-passation », AUDCIF ' +
+                "art. 20, al. 2), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué" +
+                (aRepasser
+                  ? ', puis repassez-la · seuls le 478, le 479 et les comptes de tiers le seront, si leur état porte l’écart en place ' +
+                    '(« Contre-passer » le rejuge et nomme l’issue sinon)'
+                  : '') +
+                (rienARepasser
+                  ? `${aRepasser ? ' ; ' : ' · '}une réévaluation des seules disponibilités n'a aucun écart de conversion, il n'y a rien à repasser`
+                  : '') +
+                '. '
+              : '') +
+            (manuelleOuverte
+              ? "Contre-passation manuelle déclarée, dans un exercice encore ouvert · retirez la déclaration (Devises, « Retirer la " +
+                "déclaration »), après avoir annulé la réévaluation de cet exercice-ci s'il est déjà réévalué, corrigez l'écriture " +
+                'manuelle par inscription en négatif (AUDCIF art. 20, al. 2), puis contre-passez le seul 478, 479 et comptes de tiers ' +
+                '(« Contre-passer » rejuge l’état des comptes de l’écart et nomme l’issue s’il n’est pas en place)' +
+                (groupee
+                  ? " ; l'écriture portait d'autres gestes, que son inscription en négatif annule avec elle · repassez-les. "
+                  : '. ')
+              : '') +
+            (manuelleClose
+              ? "Contre-passation manuelle déclarée, dans un exercice clôturé · elle ne se corrige plus ; toute régularisation est à décider par le cabinet. "
+              : '') +
+            (close
+              ? "Contre-passation dans un exercice clôturé · elle ne s'annule plus ; toute régularisation est à décider par le cabinet. "
+              : '') +
+            (parException
+              ? "Contre-passation intégrale par exception nommée (exercice suivant réévalué sous l'ancien régime, ou écriture des écarts " +
+                'qui ne se partage pas) · voulue, rien à reprendre. '
+              : '') +
+            'Ne repassez pas à la main la seule ligne de la banque · la réévaluation de clôture, qui mesure la banque depuis son coût ' +
+            'historique, passerait l’écart une seconde fois.',
+          occurrences: [
+            ...(contrePassees.tronque
+              ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_REEVALUATIONS_EXAMINEES} réévaluations lues · d'autres contre-passations peuvent exister.` }]
+              : []),
+            ...contrePassees.elements.map((e) => ({
+              reference: `${e.compteNumero} · contre-passation n° ${e.piece ?? '·'}`,
+              detail:
+                `Réévaluation du ${e.dateReevaluation.toISOString().slice(0, 10)}${e.exerciceReevaluationClos ? ' (exercice clôturé)' : ''} · ` +
+                `disponibilité ${e.montant > 0 ? 'débitée' : 'créditée'} de ${Math.abs(e.montant).toFixed(2)} à l'ouverture` +
+                (e.exception ? ` · contre-passation intégrale par exception (${e.exception})` : '') +
+                (e.manuelle ? ' · contre-passation manuelle déclarée' : ''),
+              date: e.date.toISOString().slice(0, 10),
+              montant: e.montant,
+            })),
+          ],
+        });
+      }
+    }
     // --- 32 et 33. Ligne A13 · banque et clôture informatique ---------------
     //
     // Les règles, leurs textes et leurs bornes vivent dans

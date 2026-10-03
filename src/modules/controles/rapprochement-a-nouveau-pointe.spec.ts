@@ -56,6 +56,8 @@ function analyser(rapprochements: RapFaux[]) {
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     rapprochementBancaire: {
       findMany: jest.fn(async ({ where }: { where: { statut?: string; dateReleve?: { gte: Date; lte: Date } } }) => {
         if (where.statut === 'CLOTURE') return rapprochements.filter((r) => r.statut === 'CLOTURE');

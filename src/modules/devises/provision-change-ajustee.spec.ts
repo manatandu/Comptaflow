@@ -131,6 +131,11 @@ function dossier(
       findMany: jest.fn(({ where }: { where: { dateFin?: { lt: Date }; statut?: { not: string } } }) => {
         const tous = Object.values(EXERCICES).sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
         if (!where.dateFin) return Promise.resolve(tous);
+        // Le portillon de la contre-passation (second tour d'A5 bis, B-II) ·
+        // tous les antérieurs, du plus récent au plus ancien, clôturés compris.
+        if (where.statut === undefined) {
+          return Promise.resolve(tous.filter((e) => e.dateFin.getTime() < where.dateFin!.lt.getTime()).reverse());
+        }
         expect(where.statut).toEqual({ not: 'CLOTURE' });
         return Promise.resolve(
           tous.filter((e) => statuts[e.id] !== 'CLOTURE' && e.dateFin.getTime() < where.dateFin!.lt.getTime()),
@@ -138,16 +143,27 @@ function dossier(
       }),
       // Honore les trois questions du service · par identifiant, par début
       // (une déclaration se date au début d'un exercice), et le précédent.
-      findFirst: jest.fn(({ where }: { where: { id?: 'n' | 'n1' | 'n2'; dateDebut?: Date; dateFin?: { lt: Date } } }) => {
+      findFirst: jest.fn(
+        ({ where }: { where: { id?: 'n' | 'n1' | 'n2'; dateDebut?: Date | { gt: Date; lt?: Date }; dateFin?: { lt: Date }; statut?: string } }) => {
         const tous = Object.values(EXERCICES);
         if (where.id) return Promise.resolve(EXERCICES[where.id] ?? null);
-        if (where.dateDebut) return Promise.resolve(tous.find((e) => e.dateDebut.getTime() === where.dateDebut!.getTime()) ?? null);
+        // La cible de la contre-passation (B-II) · le premier exercice OUVERT après une date, borné s'il le faut.
+        if (where.dateDebut && !(where.dateDebut instanceof Date)) {
+          const borne = where.dateDebut;
+          const apres = tous
+            .filter((e) => e.dateDebut.getTime() > borne.gt.getTime() && (!borne.lt || e.dateDebut.getTime() < borne.lt.getTime()))
+            .filter((e) => !where.statut || (statuts[e.id] ?? 'OUVERT') === where.statut)
+            .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
+          return Promise.resolve(apres[0] ? { ...apres[0], statut: statuts[apres[0].id] ?? 'OUVERT' } : null);
+        }
+        if (where.dateDebut) return Promise.resolve(tous.find((e) => e.dateDebut.getTime() === (where.dateDebut as Date).getTime()) ?? null);
         if (where.dateFin) {
           const avant = tous.filter((e) => e.dateFin.getTime() < where.dateFin!.lt.getTime());
           return Promise.resolve(avant.sort((a, b) => b.dateFin.getTime() - a.dateFin.getTime())[0] ?? null);
         }
         return Promise.resolve(null);
-      }),
+      },
+      ),
     },
     ecriture: {
       // Honore la requête · à-nouveau NON provisoire seulement, au statut demandé s'il l'est.
@@ -283,7 +299,11 @@ function dossier(
         }
         return Promise.resolve(reevaluations.find((r) => r.exerciceId === where.exerciceId) ?? null);
       }),
-      findMany: jest.fn(({ where }: { where: { ecritureProvisionId: { not: null } } }) => {
+      findMany: jest.fn(({ where }: { where: { ecritureProvisionId?: { not: null }; exercice?: unknown } }) => {
+        // Le portillon de la contre-passation (A5 bis, troisième tour) · les
+        // réévaluations de cette doublure ne relisent pas leur écriture des
+        // écarts, il n'a rien à exiger · ce n'est pas l'objet de ce spec.
+        if (where.exercice) return Promise.resolve([]);
         expect(where.ecritureProvisionId).toEqual({ not: null });
         return Promise.resolve(
           reevaluations

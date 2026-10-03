@@ -1191,9 +1191,12 @@ export class EcritureService {
       // (audit du serveur I1, voir detenteurs-ecriture.ts).
       ["un reclassement d'immobilisation", this.prisma.reclassementImmobilisation.count({ where: parLEcriture })],
       // Une réévaluation ANNULÉE ne retient plus ses écritures (D6) · validées,
-      // elles sont neutralisées par leur inscription en négatif.
+      // elles sont neutralisées par leur inscription en négatif. La
+      // contre-passation faite à la main, DÉCLARÉE (A5 bis, troisième tour) ·
+      // retirée seule, l'écart de conversion reviendrait en place et la
+      // réévaluation suivante le repasserait.
       ['une réévaluation de devise', this.prisma.reevaluation.count({
-        where: { tenantId, annuleeLe: null, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }] },
+        where: { tenantId, annuleeLe: null, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }, { contrePassationDeclareeId: ecritureId }] },
       })],
       ['une régularisation', this.prisma.regularisation.count({
         where: { tenantId, OR: [{ ecritureConstatationId: ecritureId }, { ecritureRepriseId: ecritureId }] },

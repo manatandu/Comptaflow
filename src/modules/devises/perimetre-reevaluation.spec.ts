@@ -306,7 +306,8 @@ describe('réévaluation · à la date de clôture seulement', () => {
   function monterD1(reevaluations: Array<{ id: string; dateReevaluation: Date }> = []) {
     const prisma = {
       exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: 'OUVERT' }) },
-      reevaluation: { findMany: jest.fn().mockResolvedValue(reevaluations) },
+      // La liste lit aussi l'exercice suivant et sa réévaluation (relecture adverse d'A5 bis, M1 et B2) · aucune ici.
+      reevaluation: { findMany: jest.fn().mockResolvedValue(reevaluations), findFirst: jest.fn().mockResolvedValue(null) },
     };
     return new DevisesService(prisma as unknown as PrismaService, {} as EcritureService);
   }

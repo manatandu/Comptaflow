@@ -38,6 +38,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'Reevaluation.ecritureEcartsId',
   'Reevaluation.ecritureProvisionId',
   'Reevaluation.ecritureExtourneId',
+  // La contre-passation faite à la main, DÉCLARÉE (A5 bis, troisième tour) ·
+  // retirée seule, la réévaluation se dirait contre-passée sans l'écriture qui
+  // l'a fait, et la suivante repasserait l'écart de conversion.
+  'Reevaluation.contrePassationDeclareeId',
   'Regularisation.ecritureConstatationId',
   'Regularisation.ecritureRepriseId',
   'EcheanceAbonnement.ecritureId',

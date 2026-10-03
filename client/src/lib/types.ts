@@ -2121,6 +2121,73 @@ export interface Reevaluation {
   /** Annulée (décision D6) · date et motif ; jamais supprimée. */
   annuleeLe?: string | null;
   motifAnnulation?: string | null;
+  /**
+   * Ce qu'il reste à contre-passer, servi par le serveur (relecture adverse
+   * d'A5 bis) · les seuls écarts de conversion ; la contre-passation
+   * INTÉGRALE imposée par l'exercice suivant de l'ancien régime (B2) ; à
+   * demander, l'écriture ne se partageant pas (M2) ; rien (`null`), une
+   * réévaluation des seules disponibilités n'ayant aucun écart de conversion
+   * (AUDCIF art. 57), ou une contre-passation déjà passée.
+   */
+  contrePassationAPasser?: 'ECARTS_DE_CONVERSION' | 'INTEGRALE_ANCIEN_REGIME' | 'INTEGRALE_SUR_DEMANDE' | null;
+  /** L'exercice qui suit IMMÉDIATEMENT, le seul où elle se passe (M1). */
+  exerciceDeContrePassation?: { id: string; dateDebut: string; dateFin: string; statut: string } | null;
+  /** La contre-passation passée était intégrale, par exception nommée (B2, M2). */
+  contrePassationIntegrale?: 'EXERCICE_SUIVANT_ANCIEN_REGIME' | 'PARTAGE_IMPOSSIBLE' | null;
+  /** L'écart d'une banque ou caisse à plusieurs devises, à ventiler par le cabinet (B1). */
+  ventilationAExiger?: VentilationAExiger[] | null;
+  /** La ventilation déclarée, sa source. */
+  ventilationDisponibilites?: { compteId: string; deviseId: string; ecart: number }[] | null;
+  ventilationDisponibilitesSource?: string | null;
+  /**
+   * La contre-passation faite À LA MAIN et déclarée (A5 bis, troisième tour) ·
+   * l'écriture du cabinet, son motif, la date de la déclaration.
+   */
+  contrePassationDeclaree?: { id: string; numeroPiece: number | null; date: string } | null;
+  motifContrePassationDeclaree?: string | null;
+  contrePassationDeclareeLe?: string | null;
+  /**
+   * L'état de l'écart ATTESTÉ par le cabinet (vérification finale d'A5 bis) ·
+   * motif, date et auteur posés par le serveur ; les refus de la règle d'état
+   * deviennent des avertissements pour cette réévaluation.
+   */
+  etatAtteste?: boolean;
+  motifAttestation?: string | null;
+  etatAttesteLe?: string | null;
+}
+
+/** Les écritures qui peuvent être la contre-passation manuelle d'une réévaluation (proposition du serveur). */
+export interface CandidatesContrePassationManuelle {
+  /** Ce que la contre-passation doit inverser, compte par compte. */
+  montants: string;
+  candidates: {
+    id: string;
+    numeroPiece: number | null;
+    date: string;
+    libelle: string;
+    statut: string;
+    journal: { code: string };
+    exercice: { dateDebut: string; dateFin: string; statut: string };
+  }[];
+  tronque: boolean;
+  /**
+   * Ce que l'écran dit quand la liste est vide (quatrième tour), servi par le
+   * serveur · des écritures manuelles touchent déjà l'écart sans l'inverser
+   * exactement (les corriger), ou l'ouverture ne le porte pas (le rétablir) ;
+   * `null` · rien de manuel, la contre-passation par le module convient.
+   */
+  motifHorsModule: string | null;
+  /** L'état est attesté · les écritures exactes se proposent, `motifHorsModule` dit l'état lu. */
+  etatAtteste?: boolean;
+}
+
+/** Une banque ou caisse dont l'écart passé sans devise ne se relit pas (relecture adverse d'A5 bis, B1). */
+export interface VentilationAExiger {
+  compteId: string;
+  numero: string;
+  /** Débit moins crédit passé sur le compte par l'écriture des écarts. */
+  passe: number;
+  devises: { deviseId: string; code: string; montantDevise: number; francs: number }[];
 }
 
 // ---------------------------------------------------------------------------
