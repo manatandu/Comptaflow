@@ -791,6 +791,10 @@ model Tenant {
   mouvementsDemantelement     MouvementDemantelement[]
   provisionsChangeOuverture   ProvisionChangeOuverture[]
   verrouProvisionChange       VerrouProvisionChange?
+  creancesDouteuses           CreanceDouteuse[]
+  ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
+  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
+  verrouCreancesDouteuses     VerrouCreancesDouteuses?
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1169,6 +1173,11 @@ model Compte {
   // Rapprochements bancaires (§3.4) ouverts/clôturés sur ce compte de
   // trésorerie · voir RapprochementBancaire.
   rapprochements                RapprochementBancaire[]
+  // Créances douteuses (ligne A7) · le compte client d'origine, le 416 qui
+  // reçoit la créance et le 491 qui porte sa dépréciation.
+  creancesDouteusesSource       CreanceDouteuse[] @relation("CreanceDouteuseSource")
+  creancesDouteuses416          CreanceDouteuse[] @relation("CreanceDouteuse416")
+  creancesDouteuses491          CreanceDouteuse[] @relation("CreanceDouteuse491")
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
@@ -1427,6 +1436,9 @@ model Exercice {
   reevaluationsBilan          ReevaluationBilan[]
   reprisesProvisionReeval     RepriseProvisionReevaluation[]
   mouvementsDemantelement     MouvementDemantelement[]
+  creancesDouteuses           CreanceDouteuse[]
+  ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
+  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1509,6 +1521,9 @@ model Ecriture {
   reevaluationBilan           ReevaluationBilan?
   repriseProvisionReeval      RepriseProvisionReevaluation?
   mouvementDemantelement      MouvementDemantelement?
+  creanceDouteuseReclassement CreanceDouteuse?           @relation("CreanceDouteuseReclassement")
+  ajustementCreanceDouteuse   AjustementCreanceDouteuse?
+  mouvementCreanceDouteuse    MouvementCreanceDouteuse?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -8851,4 +8866,193 @@ enum NatureMouvementDemantelement {
 enum MotifRepriseDemantelement {
   ENGAGEMENT_COUTS
   CESSION_SOUS_JACENT
+}
+// ---------------------------------------------------------------------------
+// CRÉANCES DOUTEUSES OU LITIGIEUSES · dépréciation dossier par dossier (ligne
+// A7, relevé CPCC C3, décision de Manasse du 2026-10-02).
+//
+// AUDCIF Titre VII et SYCEBNL, fiches des comptes 41 et 49 · la créance qui
+// devient litigieuse ou douteuse se reclasse au 416 (« crédité des créances
+// litigieuses ou douteuses, par le débit du compte 416 »), et sa dépréciation
+// se constate au 491 « à la clôture de l'exercice », par le débit du 659, se
+// reprend au 759. La fiche du 49 exige que l'élément soit INDIVIDUALISÉ et que
+// l'entité puisse « justifier les motifs qui rendent les créances douteuses et
+// litigieuses » · d'où une ligne par créance, motif et pièces gardés, et aucun
+// pourcentage par âge. Le 416 n'a pas de compte individuel par tiers · c'est
+// cette table qui garde le compte d'origine.
+// ---------------------------------------------------------------------------
+
+enum NatureCreanceDouteuse {
+  LITIGIEUSE
+  DOUTEUSE
+}
+
+enum TypeMouvementCreanceDouteuse {
+  /// Créance irrécouvrable · D 651 / C 416 au TTC entier (fiche du compte 65).
+  PERTE
+  /// Encaissement d'une créance reclassée · D trésorerie / C 416.
+  RECOUVREMENT
+}
+
+model CreanceDouteuse {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// L'exercice du reclassement.
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  nature NatureCreanceDouteuse
+
+  /// Le compte client d'origine (411, 412 ou 413 selon le plan) · RESTRICT
+  /// déclaré, la créance ne se rattacherait plus à son débiteur.
+  compteCreanceId String
+  compteCreance   Compte @relation("CreanceDouteuseSource", fields: [compteCreanceId], references: [id], onDelete: Restrict)
+  compte416Id     String
+  compte416       Compte @relation("CreanceDouteuse416", fields: [compte416Id], references: [id], onDelete: Restrict)
+  compte491Id     String
+  compte491       Compte @relation("CreanceDouteuse491", fields: [compte491Id], references: [id], onDelete: Restrict)
+
+  dateReclassement DateTime @db.Date
+  /// Le montant reclassé, tel qu'il figurait au compte client.
+  montant          Decimal  @db.Decimal(18, 2)
+  /// Fiche du compte 49 · « justifier les motifs qui rendent les créances
+  /// douteuses et litigieuses ».
+  motif            String
+  /// Pièces justificatives, [{ nature, reference, date }] · au moins une.
+  pieces           Json
+
+  /// D 416 / C compte client. RESTRICT déclaré · retirée seule, la créance
+  /// se dirait reclassée sans l'écriture qui l'a fait. Nulle pour une
+  /// créance DÉCLARÉE à l'ouverture d'un dossier repris (aucune écriture).
+  ecritureReclassementId String?   @unique
+  ecritureReclassement   Ecriture? @relation("CreanceDouteuseReclassement", fields: [ecritureReclassementId], references: [id], onDelete: Restrict)
+
+  /// DOSSIER REPRIS (relecture adverse, M3) · la créance était déjà au 416
+  /// et sa dépréciation au 491 avant OmegaX. Déclarée au début d'un
+  /// exercice, source exigée, sans écriture, bornée par l'à-nouveau.
+  declareeOuverture     Boolean @default(false)
+  sourceDeclaration     String?
+  /// La dépréciation existant à la date de la déclaration · en place pour la
+  /// première revue.
+  depreciationOuverture Decimal @default(0) @db.Decimal(18, 2)
+
+  /// ANNULATION DU RECLASSEMENT (m2 · AUDCIF art. 20, al. 2) · la créance est
+  /// MARQUÉE, jamais supprimée une fois validée ; son écriture est supprimée
+  /// au brouillard (le lien est alors effacé) ou inscrite en négatif.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
+  ajustements AjustementCreanceDouteuse[]
+  mouvements  MouvementCreanceDouteuse[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([exerciceId])
+  @@map("creances_douteuses")
+}
+
+/// La dépréciation revue à la clôture d'un exercice · le cabinet déclare la
+/// dépréciation NÉCESSAIRE, motivée, et seul l'écart avec celle qui est en
+/// place se passe (D 659 / C 491 ou D 491 / C 759). Une revue par créance et
+/// par exercice ; `ecritureId` nul quand la dépréciation est maintenue.
+model AjustementCreanceDouteuse {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  creanceId  String
+  creance    CreanceDouteuse @relation(fields: [creanceId], references: [id], onDelete: Restrict)
+  exerciceId String
+  exercice   Exercice        @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  date                   DateTime @db.Date
+  depreciationNecessaire Decimal  @db.Decimal(18, 2)
+  depreciationEnPlace    Decimal  @db.Decimal(18, 2)
+  /// Signé · positif, dotation ; négatif, reprise ; nul, maintenue.
+  ecart                  Decimal  @db.Decimal(18, 2)
+  motif                  String
+  pieces                 Json
+
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  /// ANNULATION (relecture adverse, B2 · AUDCIF art. 20, al. 2) · la revue
+  /// s'annule, jamais ne se supprime une fois validée · son écriture est
+  /// supprimée au brouillard (le lien est alors effacé) ou inscrite en
+  /// négatif, et l'enregistrement garde la date, l'auteur et le motif.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  // Une seule revue NON ANNULÉE par créance et par exercice · l'index est
+  // créé NULLS NOT DISTINCT par la migration (deux `annuleeLe` nuls sont
+  // égaux), comme celui de la réévaluation des devises.
+  @@unique([creanceId, exerciceId, annuleeLe])
+  @@index([tenantId])
+  @@index([exerciceId])
+  @@map("ajustements_creances_douteuses")
+}
+
+model MouvementCreanceDouteuse {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  creanceId  String
+  creance    CreanceDouteuse @relation(fields: [creanceId], references: [id], onDelete: Restrict)
+  exerciceId String
+  exercice   Exercice        @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  type    TypeMouvementCreanceDouteuse
+  date    DateTime                     @db.Date
+  /// Le montant TTC sorti du 416.
+  montant Decimal                      @db.Decimal(18, 2)
+  motif   String
+  pieces  Json
+
+  /// Nulle quand l'écriture, restée au brouillard, est supprimée par
+  /// l'annulation du mouvement (K4).
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  /// L'ANNULATION (K4 · AUDCIF art. 20, al. 2) · le mouvement est MARQUÉ,
+  /// jamais supprimé ; son écriture est supprimée au brouillard, inscrite en
+  /// négatif validée.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@index([creanceId])
+  @@index([exerciceId])
+  @@map("mouvements_creances_douteuses")
+}
+
+/// Le verrou des gestes sur les créances douteuses · une ligne par dossier,
+/// posée par une insertion seule et retirée en `finally` · un second geste
+/// reçoit aussitôt un 409, sans qu'aucune connexion ne soit retenue (même
+/// modèle que `VerrouProvisionChange`, ligne A5).
+model VerrouCreancesDouteuses {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  geste     String
+  echeance  DateTime
+  createdAt DateTime @default(now())
+
+  @@map("verrous_creances_douteuses")
 }

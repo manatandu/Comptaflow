@@ -82,6 +82,13 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // sur un 1984 qui n'a pas bougé, ou la reprise se dirait faite sans
   // l'écriture qui a soldé la provision.
   'MouvementDemantelement.ecritureId',
+  // Les créances douteuses (ligne A7) · retirée seule, l'écriture laisserait
+  // la créance se dire reclassée, dépréciée, perdue ou recouvrée sans la pièce
+  // qui l'a fait, et la revue suivante lirait une dépréciation en place que
+  // le 491 ne porte plus.
+  'CreanceDouteuse.ecritureReclassementId',
+  'AjustementCreanceDouteuse.ecritureId',
+  'MouvementCreanceDouteuse.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

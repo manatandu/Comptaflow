@@ -122,20 +122,15 @@ describe('Guide, Application 2 · droit d’entrée et appel de cotisations', ()
 });
 
 describe('Guide, Application 13 · cotisations des membres', () => {
-  it('appel de 2 500 000, transfert en douteux de 12 000 000, dépréciation à 80 %', async () => {
+  it('appel de 2 500 000 · le transfert en douteux et la dépréciation renvoient au module des créances douteuses (A7)', async () => {
     expect((await ecriture('B6-APPEL-COTISATION', { cotisation: 2_500_000 })).table).toEqual([
       { numero: '41100000', debit: 2_500_000, credit: 0 },
       { numero: '70100000', debit: 0, credit: 2_500_000 },
     ]);
-    expect((await ecriture('B6-COTISATION-DOUTEUSE', { creanceDouteuse: 12_000_000 })).table).toEqual([
-      { numero: '41610000', debit: 12_000_000, credit: 0 },
-      { numero: '41100000', debit: 0, credit: 12_000_000 },
-    ]);
-    // 12 000 000 × 80 % = 9 600 000, le chiffre du Guide.
-    expect((await ecriture('B6-DEPRECIATION-COTISATION', { creanceDouteuse: 12_000_000, tauxDepreciation: 0.8 })).table).toEqual([
-      { numero: '65940000', debit: 9_600_000, credit: 0 },
-      { numero: '49120000', debit: 0, credit: 9_600_000 },
-    ]);
+    // Le 80 % du Guide est le chiffre de son Application · la dépréciation se
+    // DÉCLARE créance par créance (fiche du compte 49), jamais par un taux.
+    await expect(ecriture('B6-COTISATION-DOUTEUSE', { creanceDouteuse: 12_000_000 })).rejects.toThrow(/Créances douteuses/);
+    await expect(ecriture('B6-DEPRECIATION-COTISATION', { creanceDouteuse: 12_000_000, tauxDepreciation: 0.8 })).rejects.toThrow(/Créances douteuses/);
   });
 });
 
@@ -210,10 +205,21 @@ describe('Lot 9 · un bien passe par sa fiche (décision D-20)', () => {
     'B18-AMORTISSEMENT',
     'B18-REPRISE',
   ];
+  // Ligne A7 (relecture adverse, M4) · la créance douteuse passe par son module.
+  const RENVOYES_CREANCES = ['B6-COTISATION-DOUTEUSE', 'B6-DEPRECIATION-COTISATION'];
 
-  it('exactement ces neuf modèles renvoient au module', () => {
+  it('exactement ces onze modèles renvoient au module', () => {
     const marques = CATALOGUE.flatMap((o) => o.modeles).filter((m) => m.renvoiModule).map((m) => m.code);
-    expect(marques.sort()).toEqual([...RENVOYES].sort());
+    expect(marques.sort()).toEqual([...RENVOYES, ...RENVOYES_CREANCES].sort());
+  });
+
+  it.each(RENVOYES_CREANCES)('%s · renvoyé aux créances douteuses, motif propre, aucune écriture', async (code) => {
+    const { svc, creer } = service();
+    await expect(svc.proposer('t1', { codeModele: code, parametres: {} })).rejects.toThrow(/fenêtre Créances douteuses ou litigieuses .*revue de la dépréciation/);
+    await expect(
+      svc.appliquer('t1', 'u1', { codeModele: code, parametres: {}, exerciceId: 'ex', journalId: 'od', date: '2026-01-31' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(creer).not.toHaveBeenCalled();
   });
 
   it.each(RENVOYES)('%s · refusé à la proposition et à l’application, aucune écriture', async (code) => {

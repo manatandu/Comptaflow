@@ -627,6 +627,107 @@ francs sans montant en devise sont refusés ; un lot de virements ne rappelle pa
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.
 
+**Créances douteuses ou litigieuses (ligne A7, relevé CPCC C3, 2026-10-03).**
+Fiches des comptes 41, 49, 65 et 759 des deux plans, Guide SYSCOHADA Partie 1 ch. 6
+§ 3.3 et § 3.4, Application 19 (E4 · jamais le Titre VIII ch. 15, qui porte sur
+l'abandon, l'affacturage et la titrisation) (`creances-douteuses/`) · la
+créance qui devient litigieuse (le client conteste) ou douteuse (il se dérobe) se
+RECLASSE au 416 (D 416 / C compte du client), une ligne par créance
+(`CreanceDouteuse`), MOTIF et PIÈCES exigés (fiche du 49, « élément individualisé »,
+« justifier les motifs »). AUCUN POURCENTAGE PAR ÂGE · à chaque clôture le cabinet
+DÉCLARE la dépréciation nécessaire, motivée, et seul l'ÉCART avec celle en place
+se passe au dernier jour de l'exercice (D 6594 / C 491, ou D 491 / C 7594 ;
+maintenue, la revue est gardée sans écriture). En place = revues antérieures du
+MODULE, jamais le solde du 491 ; revue dans l'ordre (N+1 refusée tant que N ouvert
+n'est pas revu), bornée par ce qui reste au 416 ; dotation refusée au SMT
+(`motifRefusDepreciationSmt`), reprise ouverte. Perte D 651 / C 416 (fiche du 65),
+recouvrement D trésorerie du journal / C 416 ; un mouvement daté avant une revue
+déjà passée est refusé. UN NUMÉRO, DEUX SENS · 4161 et 4162 disent la NATURE au
+SYSCOHADA (litigieuses, douteuses ; croisé, refusé), le DÉBITEUR au SYCEBNL
+(E3 · fiche SYCEBNL du 41, « 4161 Adhérents cotisations litigieuses ou douteuses,
+4162 Créances litigieuses ou douteuses » · 4161 pour 411, 4131, 4133, 4162 pour 412,
+4132, 4138, DÉDUIT et croisé refusé ; un 413 non subdivisé reste au choix) ;
+491 (4911, 4912) commun ; 6512 « Adhérents » au SYCEBNL seul. Créance en devise non
+lettrée refusée (art. 54, 55), non servie. Trois tables d'acte au journal d'audit,
+écritures RETENUES (`detenteurs-ecriture.ts`). RELECTURE ADVERSE (2026-10-03) ·
+(B1) la CLÔTURE refuse une dépréciation en place supérieure au reste au 416 sans
+revue de l'exercice (`depreciationsOrphelines`, même modèle que D3 d'A6), créances,
+montants et issue nommés ; « À faire » seulement si la revue change quelque chose.
+(B2) une revue s'ANNULE (art. 20, al. 2, comme D6 d'A6) · brouillard supprimé,
+validée inscrite en négatif, `motifLignesTenues`, enregistrement marqué par un
+`update` unitaire avec motif (3 à 500), index unique sur les non annulées (NULLS
+NOT DISTINCT) ; le mouvement daté avant une revue nomme l'issue (annuler, passer,
+refaire). (M2) sans à-nouveau, soldes lus sur le report RECONSTITUÉ de l'exercice
+précédent, dit provisoire. (M3) créance reprise DÉCLARÉE au début d'un exercice,
+sans écriture, source exigée, bornée par l'à-nouveau du 416 et du 491. (M4) au
+catalogue, `B6-COTISATION-DOUTEUSE` et `B6-DEPRECIATION-COTISATION` renvoient au
+module (`renvoiModule`, motif propre). (M6) gestes sous un verrou par dossier
+sans connexion retenue (`VerrouCreancesDouteuses`, 409 qui dit le geste). (M9) revue
+et annulation `@ReserveAuComptable()`, boutons sous `peutValider`. Une créance
+revue, même annulée, ne se retire plus. (E1, décision de Manasse du 2026-10-03)
+LA BASE EST LE TTC INSCRIT AU 416 · la fiche du 49 compare à la « valeur
+comptable », que la fiche du 41 inscrit taxe comprise (crédit de la classe 7 hors
+taxes ET du 443) ; la seule mention « hors TVA » du corpus (Titre VIII ch. 15
+§ 1.3.1) vise l'ABANDON de créance. SECONDE RELECTURE (2026-10-03). (K4) UN
+MOUVEMENT S'ANNULE comme une revue · brouillard supprimé, validé inscrit en négatif,
+marqué par un `update` unitaire, motif ; refus · revue qui l'a compté non annulée,
+exercice clos ; annulé, il sort du reste, des revues, de la clôture et des
+détenteurs. (M-a) la déclaration d'ouverture se borne par l'à-nouveau MOINS ce que
+le module porte déjà sur ce 416 (reste à la veille des créances reclassées avant,
+déclarées comprises) et sur ce 491. (M-b) le rapprochement lit le seul 491 des
+créances du module. (M-c) mouvement de l'exercice sans revue · information. (M-d)
+perte et annulation `@ReserveAuComptable()`. A7 SCINDÉE (décision de Manasse du
+2026-10-03, après la cinquième relecture) · A7 NE TOUCHE PLUS AU MOTEUR DE TVA
+(`src/modules/tva/` identique à `main`, `EcritureService.valider` aussi). LA PERTE
+PASSE AU TTC ENTIER, D 651 / C 416, TOUJOURS · aucune ligne 443, aucune
+« récupération » ; la bulle `Aide` dit que la TVA d'une créance réellement et
+définitivement irrécouvrable se récupère par imputation (O.-L. n° 10/001, art. 52 ;
+décret n° 011/42, art. 126 et 127, duplicata surchargé) et que le cabinet la déclare
+lui-même pour l'instant. Aucune vente d'origine n'est gardée (elles ne servaient
+qu'à la TVA ; le 4161 / 4162 se lit sur le compte du client). LE RECLASSEMENT NE
+LETTRE PAS LE 411 et n'exige aucun lettrage · lettré avec la facture, le moteur de
+la TVA le lirait comme un ENCAISSEMENT (décret n° 011/42, art. 57), et la TVA d'une
+prestation deviendrait exigible au reclassement (art. 25, 2°) · dit en commentaire
+et dans la bulle (« ne lettrez pas la facture avec le reclassement »). La TVA des
+créances irrécouvrables et l'exigibilité à l'encaissement vont à la ligne A7 bis du
+suivi, avec le travail retiré et les constats ouverts. SIXIÈME RELECTURE (2026-10-03).
+(B-α) UN GESTE ANTIDATÉ EST BORNÉ PAR CE QUI EST POSTÉRIEUR · un mouvement par le plus
+petit du reste à sa date et du reste après TOUS les mouvements non annulés
+(`resteFinalDeLaCreance` · 1 000 000, recouvrement de 800 000 au 30 juin, perte de
+1 000 000 au 31 mars refusée, 200 000 admis) ; un reclassement par le plus petit du
+solde du client à la date et de son solde au plus tard enregistré, brouillard compris
+(chaîne de l'exercice toutes dates, et chaîne du dernier exercice du dossier). Un
+dossier déjà au reste NÉGATIF n'est pas enfermé · la clôture (B1, revue ou non, dès N)
+et la revue le nomment avec son issue (`motifResteNegatif` · annuler le mouvement en
+trop dans un exercice ouvert ; tous dans un exercice clos, le message dit qu'aucun
+geste d'OmegaX ne lève encore ce refus, la porte de régularisation restant au
+suivi). (m1) la borne d'ouverture ne compte que les
+créances DÉCLARÉES et celles RECLASSÉES AVANT l'ouverture. (m2) un reclassement
+S'ANNULE comme une revue (brouillard supprimé, validé en négatif, `update` unitaire,
+motif), refusé tant qu'une revue ou un mouvement non annulé porte sur lui ; annulé, il
+ne retient plus son écriture et sort de la liste, des bornes et de la clôture. (m3)
+liste des plus récentes d'abord, `tronque` et `total` le disent. (m4) le 416 du
+rapprochement est celui des créances du module, comme le 491. (m5) le 491 se choisit
+sous la racine de sa nature (`motifRefus491`). RELECTURES « ÉCHECS SILENCIEUX » ET
+« ÉCRAN » (2026-10-03). (M1) une annulation RELIT le statut de l'écriture DANS sa
+transaction et ne supprime que ce qui est ENCORE au brouillard (`deleteMany` filtré
+sur le statut, une ligne et une seule, sinon 409) · validée entre-temps, elle se
+relance et s'inscrit en négatif. (M2) les dépréciations orphelines se relisent DANS
+la transaction de clôture ; D3 d'A6 reste lu avant, le relire dedans touchant la
+lecture du report (F185). (M3) un retrait d'écriture manqué après l'échec d'un geste
+est consigné avec l'identifiant de l'écriture, et l'erreur d'origine remonte. (M4) la
+liste des comptes clients tronquée le dit et se restreint au début du numéro tapé
+(`numero`, chiffres seuls, sinon 400). (M5) annulations listées les plus récentes
+d'abord, total et `tronque`. (M6) un rapprochement non calculé sur liste tronquée se
+dit, jamais lu comme un écart nul. (M7) le reclassement se borne au plus petit solde
+du client sur TOUS les exercices qui finissent au plus tôt avec le sien. À l'écran ·
+boutons alignés sur le serveur (reclasser, déclarer, recouvrer, retirer à
+`peutEcrire` ; revue, perte, annulations à `peutValider`), modales en dialogue
+(Échap par `ecouterEchap`, focus au premier champ, fermeture tenue pendant l'envoi),
+réponses périmées jetées par jeton, comptes de l'annonce de la revue SERVIS
+(`propositionRevue.comptes`, le 491 de la créance), date bornée à l'exercice, montant
+prérempli au centime (`montantPourChamp`).
+
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
 caisse DE SECOURS » · un PV par caisse. QUATRE REFUS : un 57 seul (un 52 se

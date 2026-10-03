@@ -180,6 +180,8 @@ const N1 = { id: 'n1', tenantId: 't', statut: StatutExercice.OUVERT, dateDebut: 
 function base(comptes: Cpt[], lignes: Lgn[]) {
   const lus: Lgn[][] = [];
   const tx = {
+    // Relues DANS la transaction de clôture (A7, M2).
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     compte: {
       findMany: jest.fn(async (a: { where: unknown; select?: Record<string, unknown>; orderBy?: unknown; include?: unknown }) => {
         if (a.include) throw new Error('doublure : include non honoré');
@@ -234,6 +236,7 @@ function base(comptes: Cpt[], lignes: Lgn[]) {
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const service = new ExerciceService(prisma as never, { prochainNumeroPiece: jest.fn().mockResolvedValue(7) } as never);

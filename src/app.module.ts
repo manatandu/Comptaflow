@@ -54,6 +54,7 @@ import { ConstitutionModule } from './modules/constitution/constitution.module';
 import { QuestionnaireModule } from './modules/questionnaire/questionnaire.module';
 import { MonnaieFonctionnelleModule } from './modules/monnaie-fonctionnelle/monnaie-fonctionnelle.module';
 import { ProvisionsModule } from './modules/provisions/provisions.module';
+import { CreancesDouteusesModule } from './modules/creances-douteuses/creances-douteuses.module';
 import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
@@ -132,6 +133,7 @@ import { SurSiteModule } from './modules/sur-site/sur-site.module';
     QuestionnaireModule,
     MonnaieFonctionnelleModule,
     ProvisionsModule,
+    CreancesDouteusesModule,
     FiscaliteModule,
     PlateformeModule,
     GroupeModule,

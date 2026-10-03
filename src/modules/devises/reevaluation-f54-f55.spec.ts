@@ -203,6 +203,8 @@ describe('F55 · la clôture passe la devise au report', () => {
       exercice: { findFirst: jest.fn().mockResolvedValue(N1), create: jest.fn(), update: jest.fn().mockResolvedValue({ ...N, statut: 'CLOTURE' }) },
       ecriture: { findFirst: jest.fn().mockResolvedValue(null), delete: jest.fn(), create: jest.fn().mockResolvedValue({}) },
       ligneEcriture: { ...lecture.ligneEcriture, deleteMany: jest.fn() },
+      // Les dépréciations orphelines se relisent DANS la transaction de clôture (ligne A7, M2).
+      creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const prisma = {
       exercice: {
@@ -216,6 +218,8 @@ describe('F55 · la clôture passe la devise au report', () => {
       ecriture: { count: jest.fn().mockResolvedValue(0) },
       // Aucun lettrage dénoué en souffrance (décision D3).
       ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+      // Aucune créance douteuse à dépréciation orpheline (ligne A7, B1).
+      creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     const s = new ExerciceService(prisma as never, { prochainNumeroPiece: jest.fn().mockResolvedValue(1) } as never);

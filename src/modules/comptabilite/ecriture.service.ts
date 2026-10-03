@@ -300,6 +300,9 @@ export const PERIMETRES_BALANCE_AGEE: Record<
 export type DetenteurEcriture = string;
 export const DETENTEUR_LIQUIDATION_TVA: DetenteurEcriture = 'une liquidation de TVA';
 export const DETENTEUR_PAIE_DU_MOIS: DetenteurEcriture = 'la paie du mois (bulletins de paie)';
+export const DETENTEUR_RECLASSEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (reclassement au 416)';
+export const DETENTEUR_REVUE_CREANCE: DetenteurEcriture = 'une créance douteuse (revue de la dépréciation)';
+export const DETENTEUR_MOUVEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (perte ou recouvrement)';
 
 /**
  * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
@@ -1204,6 +1207,17 @@ export class EcritureService {
       ['la réévaluation des immobilisations', this.prisma.reevaluationBilan.count({ where: { tenantId, ecritureId } })],
       ['la reprise de la provision spéciale de réévaluation', this.prisma.repriseProvisionReevaluation.count({ where: { tenantId, ecritureId } })],
       ['la provision pour démantèlement', this.prisma.mouvementDemantelement.count({ where: { tenantId, ecritureId } })],
+      // Les créances douteuses (ligne A7) · elles se retirent depuis leur
+      // fenêtre, qui libère sa ligne dans la même transaction. Un reclassement
+      // ANNULÉ (m2) ne retient plus · son écriture validée est neutralisée par
+      // l'inscription en négatif.
+      [DETENTEUR_RECLASSEMENT_CREANCE, this.prisma.creanceDouteuse.count({ where: { tenantId, ecritureReclassementId: ecritureId, annuleeLe: null } })],
+      // Une revue ANNULÉE ne retient plus son écriture (B2) · validée, elle est
+      // neutralisée par son inscription en négatif.
+      [DETENTEUR_REVUE_CREANCE, this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
+      // Un mouvement annulé (K4) ne retient plus · son écriture validée est
+      // neutralisée par l'inscription en négatif, celle du brouillard est partie.
+      [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La
