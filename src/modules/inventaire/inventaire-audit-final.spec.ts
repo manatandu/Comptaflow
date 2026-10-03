@@ -20,7 +20,9 @@ function monter(statut: StatutCampagneInventaire) {
   const campagne = { id: 'camp1', tenantId: 't1', exerciceId: 'ex1', statut };
   const fiches = [{ id: 'f1', tenantId: 't1', campagneId: 'camp1', compteId: 'c1', valeurInventaire: null }];
   // Les doublures HONORENT leur filtre · dossier, identifiant et statut.
-  const prisma = {
+  const prisma: Record<string, unknown> = {
+    // Lecture du solde et création du PV dans UNE transaction (seconde passe A10).
+    $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
     campagneInventaire: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string } }) =>
         where.id === campagne.id && where.tenantId === campagne.tenantId ? { ...campagne } : null,
@@ -46,6 +48,17 @@ function monter(statut: StatutCampagneInventaire) {
       }),
     },
     compte: { findFirst: jest.fn(async () => ({ id: 'c57', numero: '57100000', intitule: 'Caisse siège' })) },
+    // Le solde du PV de caisse est LU au livre-journal (ligne A10) · exercice
+    // clos au 31 décembre 2025, comptage à cette date, rien au brouillard.
+    exercice: {
+      findFirst: jest.fn(async () => ({ id: 'ex1', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') })),
+      findMany: jest.fn(async () => []),
+    },
+    ligneEcriture: {
+      count: jest.fn(async () => 0),
+      aggregate: jest.fn(async () => ({ _sum: { debit: 100, credit: 0 }, _count: { _all: 1 } })),
+      groupBy: jest.fn(async () => [{ deviseId: null }]),
+    },
     sousCommissionInventaire: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string; campagneId: string } }) =>
         SOUS_COMMISSIONS.find((sc) => sc.id === where.id && sc.tenantId === where.tenantId && sc.campagneId === where.campagneId) ?? null,
@@ -78,9 +91,9 @@ describe('F134 · le premier comptage ouvre le recensement', () => {
     await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', {
       compteId: 'c57',
       sousCommissionId: 'sc1',
-      dateComptage: '2026-12-31',
-      soldeComptable: 100,
+      dateComptage: '2025-12-31',
       especesComptees: 100,
+      modeComparaison: 'FRANCS',
     } as never);
     expect(m.campagne.statut).toBe(StatutCampagneInventaire.RECENSEMENT);
   });
@@ -88,7 +101,7 @@ describe('F134 · le premier comptage ouvre le recensement', () => {
   it('une campagne déjà en arbitrage ne revient pas au recensement', async () => {
     const m = monter(StatutCampagneInventaire.ARBITRAGE);
     await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', {
-      compteId: 'c57', sousCommissionId: 'sc1', dateComptage: '2026-12-31', soldeComptable: 100, especesComptees: 100,
+      compteId: 'c57', sousCommissionId: 'sc1', dateComptage: '2025-12-31', especesComptees: 100, modeComparaison: 'FRANCS',
     } as never);
     expect(m.campagne.statut).toBe(StatutCampagneInventaire.ARBITRAGE);
   });

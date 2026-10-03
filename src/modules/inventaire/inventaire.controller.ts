@@ -189,6 +189,29 @@ export class InventaireController {
     return this.inventaire.etablirPvCaisse(user.tenantId, id, user.userId, dto);
   }
 
+  /**
+   * L'aperçu avant de figer (seconde passe A10, a) · ce que le PV figera pour
+   * cette caisse à cette date, ou le motif du refus · lecture seule.
+   */
+  @Get(':id/pv-caisse/apercu')
+  apercuPvCaisse(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('compteId') compteId: string,
+    @Query('dateComptage') dateComptage: string,
+  ) {
+    return this.inventaire.apercuPvCaisse(user.tenantId, id, compteId ?? '', dateComptage ?? '');
+  }
+
+  /**
+   * Les mouvements de caisse entre la clôture et le comptage, ligne à ligne,
+   * tels que le PV les a lus (ligne A10) · lecture seule, tranche bornée.
+   */
+  @Get('pv-caisse/:pvId/mouvements')
+  mouvementsReconstitution(@CurrentUser() user: AuthenticatedUser, @Param('pvId') pvId: string) {
+    return this.inventaire.mouvementsReconstitution(user.tenantId, pvId);
+  }
+
   /** Les caisses à solde non nul qui n'ont pas encore leur PV de comptage. */
   @Get(':id/caisses-non-comptees')
   caissesNonComptees(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

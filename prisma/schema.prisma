@@ -3339,6 +3339,8 @@ model Devise {
 
   cours  CoursDevise[]
   lignes LigneEcriture[]
+  // PV de caisse comptés dans cette devise (ligne A10).
+  pvComptageCaisse ProcesVerbalComptageCaisse[]
 
   @@unique([tenantId, code])
   @@map("devises")
@@ -6068,6 +6070,33 @@ model ProcesVerbalComptageCaisse {
   /// especesComptees − soldeComptableFige. Positif = excédent.
   ecart              Decimal @db.Decimal(18, 2)
 
+  /// RECONSTITUTION VERS LA CLÔTURE (ligne A10, relevé CPCC C6) · renseignée
+  /// quand la caisse est comptée APRÈS la clôture de l'exercice de la campagne,
+  /// nulle sinon. `soldeComptableFige` est alors le solde du livre-journal à la
+  /// DATE DU COMPTAGE (fiche du compte 57, « toujours ») et il vaut
+  /// soldeALaCloture + encaissementsPosterieurs − decaissementsPosterieurs ;
+  /// les espèces existant à la clôture se reconstituent dans l'autre sens
+  /// (AUDCIF art. 16, al. 4 et 5 ; art. 42). Les quatre colonnes vont
+  /// ensemble · toutes nulles ou toutes renseignées. Nulles sur un PV établi
+  /// avant la règle, et l'écran le dit.
+  soldeALaCloture          Decimal? @db.Decimal(18, 2)
+  encaissementsPosterieurs Decimal? @db.Decimal(18, 2)
+  decaissementsPosterieurs Decimal? @db.Decimal(18, 2)
+  mouvementsPosterieurs    Int?
+  /// Opérations d'un exercice suivant à date de valeur au plus tard à la
+  /// clôture (net) · au solde du jour du comptage, hors des mouvements
+  /// intercalés. Nulle quand rien n'est reconstitué.
+  mouvementsValeurAvantCloture Decimal? @db.Decimal(18, 2)
+
+  /// L'UNITÉ DE LA COMPARAISON (seconde passe A10, B1) · une caisse dont
+  /// toutes les lignes lues portent UNE devise se compte, se compare et se
+  /// ventile dans cette devise (`deviseId`), et soldes, espèces, écart et
+  /// coupures du PV sont alors dans cette devise ; lignes mêlées · francs au
+  /// cours historique, le PV le dit. FRANCS pour tout PV d'avant la règle.
+  modeComparaison ModeComparaisonCaisse @default(FRANCS)
+  deviseId        String?
+  devise          Devise?               @relation(fields: [deviseId], references: [id], onDelete: Restrict)
+
   /// CPCC · « Si oui, une attestation a-t-elle été établie ? », chaîné au
   /// comptage. AUCUNE SOURCE LUE NE DIT CE QUE CETTE ATTESTATION CONTIENT :
   /// le module en enregistre l'existence, sa date et son signataire, et
@@ -6087,6 +6116,14 @@ model ProcesVerbalComptageCaisse {
   @@unique([campagneId, compteId])
   @@index([tenantId, campagneId])
   @@map("proces_verbaux_comptage_caisse")
+}
+
+/// L'unité d'un PV de caisse (ligne A10) · francs, une devise, ou francs au
+/// cours historique de chaque mouvement quand les lignes mêlent les monnaies.
+enum ModeComparaisonCaisse {
+  FRANCS
+  DEVISE
+  FRANCS_COURS_HISTORIQUES
 }
 
 /// LA VENTILATION PAR COUPURE · AJOUT DE L'ÉDITEUR, nommé comme tel.
