@@ -23,7 +23,7 @@ la liste verrouillée sans décision de Manasse.
 |---|---|---|---|
 | C1 | Provision pour perte de change jamais reprise ni ajustée d'un exercice à l'autre (le 194 ou le 4991 s'empile) | AUDCIF art. 54 ; Titre VIII ch. 22 § 2.3 | petit à moyen |
 | C2 | Écart de change réalisé au règlement d'une créance ou dette en devise (656/756 commerciales, 676/776 financières ; SYCEBNL sans 656/756) ; un règlement plus élevé par le cours est aujourd'hui refusé | AUDCIF art. 55 ; ch. 22 § 2.3 | moyen |
-| C3 | Dépréciation des créances dossier par dossier (411 → 416, D 659 / C 491), motif et pièces gardés, aucun pourcentage par âge | AUDCIF Titre VII, comptes 41 et 49 | moyen |
+| C3 | Dépréciation des créances dossier par dossier (411 → 416, D 659 / C 491), motif et pièces gardés, aucun pourcentage par âge | AUDCIF Titre VII et SYCEBNL, fiches des comptes 41, 49, 65 et 759 ; Guide SYSCOHADA, Partie 1 ch. 6 § 3.3 et § 3.4, Application 19 (le Titre VIII ch. 15 de l'AUDCIF porte sur les abandons de créances, l'affacturage et la titrisation) | moyen |
 | C4 | Décompte final passé au journal (D 6614 / C 422), émis et figé avec retenues et net ; deux points à trancher (second bulletin du mois, impôt sur un versement unique) | AUDCIF Titre VIII ch. 21 § 5.2 ; Code du travail art. 103 ; arrêté de 2008 art. 2 | moyen à gros |
 | C5 | Décompte · art. 66 al. 1 (départ à mi-préavis, rémunération due) et art. 67 (nouvel emploi) non modélisés, le premier mal saisi fait payer le travailleur | Code du travail art. 66, 67 | petit |
 | C6 | Caisse comptée après le 31 décembre · solde lu au livre-journal à la date du comptage et reconstitution vers la clôture | AUDCIF art. 16 ; fiche du compte 57 | moyen |

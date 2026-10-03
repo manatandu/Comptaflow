@@ -618,7 +618,9 @@ facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.
 
 **Créances douteuses ou litigieuses (ligne A7, relevé CPCC C3, 2026-10-03).**
-Fiches des comptes 41, 49, 65 et 759 des deux plans (`creances-douteuses/`) · la
+Fiches des comptes 41, 49, 65 et 759 des deux plans, Guide SYSCOHADA Partie 1 ch. 6
+§ 3.3 et § 3.4, Application 19 (E4 · jamais le Titre VIII ch. 15, qui porte sur
+l'abandon, l'affacturage et la titrisation) (`creances-douteuses/`) · la
 créance qui devient litigieuse (le client conteste) ou douteuse (il se dérobe) se
 RECLASSE au 416 (D 416 / C compte du client), une ligne par créance
 (`CreanceDouteuse`), MOTIF et PIÈCES exigés (fiche du 49, « élément individualisé »,

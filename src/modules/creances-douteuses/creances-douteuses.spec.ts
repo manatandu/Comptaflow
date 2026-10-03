@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   NatureCreanceDouteuse,
   Prisma,
@@ -728,6 +730,20 @@ describe('créances douteuses · service', () => {
     const l = await service.lister('t', 'ex-27');
     expect(l.creances[0]).toMatchObject({ resteALaCloture: 0, depreciationOuverture: 400_000, revueAFaire: true });
     expect(l.rapprochement?.provisoire).toBe(false);
+  });
+});
+
+describe('créances douteuses · E4, les sources de la dépréciation', () => {
+  it('Guide SYSCOHADA, Application 19 · créance de 12 à 75 % en n (9), à 50 % en n+1 · reprise de 3 par ajustement', () => {
+    expect(ecartDeDepreciation(0, 12 * 0.75)).toBe(9);
+    expect(ecartDeDepreciation(9, 12 * 0.5)).toBe(-3);
+  });
+
+  it('la règle cite les fiches et le Guide, et le ch. 15 seulement pour l’abandon', () => {
+    const source = readFileSync(join(__dirname, 'creances-douteuses.ts'), 'utf8');
+    expect(source).toContain('Guide SYSCOHADA, Partie 1 ch. 6 § 3.3 et § 3.4, Application 19');
+    expect(source).toContain('Fiche du COMPTE 759');
+    expect(source).toContain("le Titre VIII ch. 15 de l'AUDCIF est « Abandons de\n * créances, opérations d'affacturage et titrisation »");
   });
 });
 

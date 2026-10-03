@@ -360,7 +360,7 @@ export function CreancesDouteusesPage() {
         <Aide
           titre="Dépréciation des créances"
           texte="La créance contestée ou dont le débiteur se dérobe se reclasse au 416. Sa dépréciation est décidée créance par créance, motivée et justifiée par pièces, revue à chaque clôture : seul l'écart avec la dépréciation en place se passe (659 ou 759). La créance irrécouvrable va au 651. Aucun pourcentage par âge."
-          source="AUDCIF Titre VII et SYCEBNL, fiches des comptes 41, 49, 65 et 759"
+          source="AUDCIF Titre VII et SYCEBNL, fiches des comptes 41, 49, 65 et 759 ; Guide SYSCOHADA, Partie 1 ch. 6 § 3.3 et § 3.4, Application 19"
         />
       </div>
 

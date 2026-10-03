@@ -27,6 +27,14 @@ import { NatureCreanceDouteuse, Referentiel, TypeMouvementCreanceDouteuse } from
  *  - Fiche du COMPTE 759 · crédité « du montant des dépréciations d'actif
  *    circulant [...] existant à l'ouverture de l'exercice, par [...] le débit
  *    du compte 49 ».
+ *  - Guide SYSCOHADA, Partie 1 ch. 6 § 3.3 et § 3.4, Application 19 · charges
+ *    pour dépréciations au 6594 par le crédit du 4912 ; « à n+1, annulation
+ *    systématique + nouvelle dépréciation, ou ajustement » · le module retient
+ *    l'AJUSTEMENT (créance de 12 dépréciée à 75 % en n, 9 ; à 50 % en n+1,
+ *    reprise de 3 au 7594).
+ * SOURCE CORRIGÉE (E4) · le Titre VIII ch. 15 de l'AUDCIF est « Abandons de
+ * créances, opérations d'affacturage et titrisation » · il ne fonde pas la
+ * dépréciation, et n'est cité ici que pour l'abandon (règle 4).
  *
  * TROIS RÈGLES QUE CE MODULE NE DÉFAIT PAS.
  *  1. AUCUN POURCENTAGE PAR ÂGE. Le texte veut un élément individualisé et un
