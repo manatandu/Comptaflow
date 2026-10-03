@@ -13,8 +13,16 @@ import type { EcritureService } from '../comptabilite/ecriture.service';
  * marquée, ou une annulation qui laisse une postérieure partir d'une
  * provision qui n'existe plus.
  */
-type Ecr = { id: string; statut: StatutEcriture; numeroPiece: number; exercice: { statut: StatutExercice } };
-const ecr = (id: string, statut: StatutEcriture, exercice: StatutExercice = StatutExercice.OUVERT): Ecr => ({ id, statut, numeroPiece: 7, exercice: { statut: exercice } });
+type LigneLue = { lettre: string | null; lettrageId: string | null; rapprochementId: string | null };
+type Ecr = { id: string; statut: StatutEcriture; numeroPiece: number; exercice: { statut: StatutExercice }; lignes: LigneLue[] };
+const libre: LigneLue = { lettre: null, lettrageId: null, rapprochementId: null };
+const ecr = (id: string, statut: StatutEcriture, exercice: StatutExercice = StatutExercice.OUVERT, lignes: LigneLue[] = [libre, libre]): Ecr => ({
+  id,
+  statut,
+  numeroPiece: 7,
+  exercice: { statut: exercice },
+  lignes,
+});
 
 function monter(p: {
   ecarts?: Ecr | null;
@@ -38,7 +46,7 @@ function monter(p: {
   };
   const tx = {
     reevaluation: {
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn().mockResolvedValue({ id: 'r1' }),
       findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'r1', annuleeLe: new Date() }),
     },
     ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
@@ -67,7 +75,8 @@ describe('annuler une réévaluation des devises (D6)', () => {
     expect(inscrire).toHaveBeenCalledWith('t', 'u', 'ecarts', 'Cours du 31/12 corrigé', tx);
     expect(tx.ecriture.deleteMany).toHaveBeenCalledWith({ where: { id: 'prov', tenantId: 't' } });
     expect(tx.ecriture.deleteMany).not.toHaveBeenCalledWith({ where: { id: 'ecarts', tenantId: 't' } });
-    const marque = tx.reevaluation.updateMany.mock.calls[0][0];
+    // M2 · un `update` UNITAIRE, que le journal d'audit relit avant et après.
+    const marque = tx.reevaluation.update.mock.calls[0][0];
     expect(marque.where).toEqual({ id: 'r1', tenantId: 't', annuleeLe: null });
     expect(marque.data).toMatchObject({ annuleePar: 'u', motifAnnulation: 'Cours du 31/12 corrigé', annuleeLe: expect.any(Date) });
     expect(marque.data.annulation).toEqual([
@@ -126,5 +135,40 @@ describe('annuler une réévaluation des devises (D6)', () => {
     const devises = readFileSync(join(__dirname, 'devises.service.ts'), 'utf8');
     const creation = devises.slice(devises.indexOf('reevaluation = await this.prisma.reevaluation.create({'), devises.indexOf('} catch (e) {', devises.indexOf('reevaluation = await this.prisma.reevaluation.create({')));
     expect(creation).toContain('coursUtilises: rapport.coursUtilises');
+  });
+
+  // B1 (sixième relecture) · l'écart de N lettré avec sa contre-passation de
+  // N+1 · le négatif naîtrait non lettré, la contre-passation au brouillard
+  // serait supprimée, et le groupe resterait « soldé » d'une seule ligne.
+  it('une ligne lettrée ou pointée · refus nommé AVANT la transaction, issue « délettrer puis annuler »', async () => {
+    const lettree = monter({
+      ecarts: ecr('ecarts', StatutEcriture.VALIDEE, StatutExercice.OUVERT, [{ lettre: 'C', lettrageId: 'g', rapprochementId: null }, libre]),
+      extourne: ecr('ext', StatutEcriture.BROUILLARD, StatutExercice.OUVERT, [{ lettre: 'C', lettrageId: 'g', rapprochementId: null }, libre]),
+    });
+    await expect(lettree.service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toThrow(
+      /1 ligne\(s\) de l'écriture d'écarts n° 7 sont lettrées \(C\).*Délettrez-les d’abord, puis annulez la réévaluation/,
+    );
+    expect(lettree.prisma.$transaction).not.toHaveBeenCalled();
+    expect(lettree.inscrire).not.toHaveBeenCalled();
+    const partielle = monter({ provision: ecr('prov', StatutEcriture.BROUILLARD, StatutExercice.OUVERT, [{ lettre: null, lettrageId: 'p', rapprochementId: null }]) });
+    await expect(partielle.service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toThrow(/provision n° 7 sont lettrées \(lettrage partiel\)/);
+    const pointee = monter({ ecarts: ecr('ecarts', StatutEcriture.VALIDEE, StatutExercice.OUVERT, [{ lettre: null, lettrageId: null, rapprochementId: 'r' }]) });
+    await expect(pointee.service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toThrow(/pointées dans un rapprochement bancaire.*puis annulez la réévaluation/);
+  });
+
+  it('B1 · le refus est UNE règle, servie à la correction et à l’annulation', () => {
+    const { readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs');
+    const { join } = jest.requireActual<typeof import('node:path')>('node:path');
+    const ecritures = readFileSync(join(__dirname, '../comptabilite/ecriture.service.ts'), 'utf8');
+    expect(ecritures).toContain("motifLignesTenues(e.lignes, 'cette écriture', 'corriger')");
+    expect(ecritures).toContain('motifLignesTenues(origine.lignes,');
+    expect(ecritures).not.toContain('sont pointées dans un rapprochement bancaire');
+  });
+
+  it('M2 · une annulation concurrente (P2025) · 409 nommé', async () => {
+    const { Prisma } = jest.requireActual<typeof import('@prisma/client')>('@prisma/client');
+    const { service, tx } = monter({});
+    tx.reevaluation.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('absente', { code: 'P2025', clientVersion: 'x' }));
+    await expect(service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toMatchObject({ status: 409 });
   });
 });

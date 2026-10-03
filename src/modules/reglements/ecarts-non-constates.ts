@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { groupesDenoues } from '../devises/perimetre-reevaluation';
+import { lireParLots, LOT_LECTURE, pageApres } from '../../common/lecture-par-lots';
 
 type Lecteur = Pick<PrismaService, 'ligneEcriture'>;
 
@@ -12,12 +12,14 @@ export interface EcartNonConstate {
   ecart: number;
 }
 
-/**
- * Borne de lecture · les lignes des groupes PARTIELS d'un exercice. Un
- * exercice qui en porterait davantage est lu jusque-là, et le refus le dit
- * (`tronque`) · jamais une clôture admise sur une lecture amputée.
- */
-export const PLAFOND_LIGNES_PARTIELLES = 20_000;
+/** Ce qu'un groupe accumule, tranche après tranche · la règle de `ecartDuGroupe`, en flux. */
+interface Cumul {
+  code: string;
+  compteNumero: string;
+  devises: Set<string>;
+  soldeDevise: number;
+  centimes: number;
+}
 
 /**
  * LES ÉCARTS DE CHANGE RÉALISÉS NON CONSTATÉS D'UN EXERCICE (décision D3 du
@@ -26,62 +28,70 @@ export const PLAFOND_LIGNES_PARTIELLES = 20_000;
  * date SONT CONSTATÉS par rapport à leur coût historique » · une obligation
  * de l'exercice du règlement. Un groupe de lettrage PARTIEL dont les lignes
  * de l'exercice sont soldées dans leur devise et pas en francs porte un
- * réalisé que rien n'a passé (`ecartDuGroupe`) · la réévaluation l'écarte
- * déjà (art. 54, la position n'en « subsiste » plus) ; c'est la CLÔTURE qui
- * le refuse, jamais la réévaluation.
+ * réalisé que rien n'a passé · la réévaluation l'écarte déjà (art. 54) ;
+ * c'est la CLÔTURE qui le refuse, jamais la réévaluation.
+ *
+ * LU PAR TRANCHES, SANS BORNE (§ 8 bis, relecture adverse M4) · un exercice
+ * aux lettrages partiels nombreux n'est jamais refusé pour son volume ; seuls
+ * des cumuls par groupe sont gardés (une seule devise, solde en devise, solde
+ * en francs), la règle d'`ecartDuGroupe` appliquée en flux.
  */
 export async function ecartsRealisesNonConstates(
   prisma: Lecteur,
   p: { tenantId: string; exerciceId: string },
-): Promise<{ ecarts: EcartNonConstate[]; tronque: boolean }> {
-  const lignes = await prisma.ligneEcriture.findMany({
-    where: {
-      lettrageId: { not: null },
-      lettre: null,
-      lettrage: { statut: 'PARTIEL' },
-      ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId },
+): Promise<{ ecarts: EcartNonConstate[] }> {
+  const cumuls = new Map<string, Cumul>();
+  await lireParLots(
+    (curseur) =>
+      prisma.ligneEcriture.findMany({
+        where: {
+          lettrageId: { not: null },
+          lettre: null,
+          lettrage: { statut: 'PARTIEL' },
+          ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId },
+        },
+        select: {
+          id: true,
+          lettrageId: true,
+          debit: true,
+          credit: true,
+          deviseId: true,
+          montantDevise: true,
+          lettrage: { select: { code: true, compte: { select: { numero: true } } } },
+        },
+        ...pageApres(curseur, LOT_LECTURE),
+      }),
+    (l) => {
+      const id = l.lettrageId!;
+      const c =
+        cumuls.get(id) ??
+        ({ code: l.lettrage?.code ?? '', compteNumero: l.lettrage?.compte.numero ?? '?', devises: new Set(), soldeDevise: 0, centimes: 0 } satisfies Cumul);
+      const debit = Number(l.debit);
+      const credit = Number(l.credit);
+      if (l.deviseId !== null && l.montantDevise !== null) {
+        c.devises.add(l.deviseId);
+        c.soldeDevise += (debit - credit >= 0 ? 1 : -1) * Number(l.montantDevise);
+      }
+      c.centimes += Math.round(debit * 100) - Math.round(credit * 100);
+      cumuls.set(id, c);
     },
-    select: {
-      lettrageId: true,
-      debit: true,
-      credit: true,
-      deviseId: true,
-      montantDevise: true,
-      lettrage: { select: { code: true, compte: { select: { numero: true } } } },
-    },
-    orderBy: { id: 'asc' },
-    take: PLAFOND_LIGNES_PARTIELLES + 1,
-  });
-  const tronque = lignes.length > PLAFOND_LIGNES_PARTIELLES;
-  const lues = lignes.slice(0, PLAFOND_LIGNES_PARTIELLES);
-  const numeros = new Map<string, string>();
-  for (const l of lues) if (l.lettrageId && l.lettrage) numeros.set(l.lettrageId, l.lettrage.compte.numero);
-  const denoues = groupesDenoues(
-    lues.map((l) => ({
-      lettrageId: l.lettrageId!,
-      code: l.lettrage?.code ?? '',
-      debit: Number(l.debit),
-      credit: Number(l.credit),
-      deviseId: l.deviseId,
-      montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-    })),
   );
-  const ecarts = [...denoues.entries()]
-    .filter(([, g]) => Math.abs(g.ecart) >= 0.005)
-    .map(([lettrageId, g]) => ({ lettrageId, code: g.code.toLowerCase(), compteNumero: numeros.get(lettrageId) ?? '?', ecart: Math.round(g.ecart * 100) / 100 }))
+  const ecarts = [...cumuls.entries()]
+    .filter(([, c]) => c.devises.size === 1 && Math.abs(c.soldeDevise) <= 0.005 && c.centimes !== 0)
+    .map(([lettrageId, c]) => ({ lettrageId, code: c.code.toLowerCase(), compteNumero: c.compteNumero, ecart: c.centimes / 100 }))
     .sort((a, b) => a.compteNumero.localeCompare(b.compteNumero) || a.code.localeCompare(b.code));
-  return { ecarts, tronque };
+  return { ecarts };
 }
 
-/** Le refus de la clôture, nommé · groupes, comptes, montants, et l'issue. `null` si rien n'est en souffrance. */
-export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[]; tronque: boolean }): string | null {
-  if (r.ecarts.length === 0 && !r.tronque) return null;
-  if (r.ecarts.length === 0) {
-    return (
-      `Plus de ${PLAFOND_LIGNES_PARTIELLES} lignes de lettrages partiels sur cet exercice · OmegaX n'a pas pu vérifier qu'aucun ` +
-      'écart de change réalisé ne reste à passer (AUDCIF art. 55). Soldez ou délettrez les lettrages partiels, puis clôturez.'
-    );
-  }
+/**
+ * Le refus de la clôture, nommé · groupes, comptes, montants, et LES TROIS
+ * ISSUES (relecture adverse M3), jamais une qui ferait passer l'écart deux
+ * fois · passer l'écart proposé ; l'écart DÉJÀ passé à la main, le lettrer
+ * dans le groupe (il le solde) ; le geste refusé (réévaluation qui l'a lu,
+ * cours corrigé), délettrer le groupe et traiter la cause. `null` si rien.
+ */
+export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }): string | null {
+  if (r.ecarts.length === 0) return null;
   const montant = (x: number) =>
     Math.abs(x).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ | /g, ' ');
   const liste = r.ecarts
@@ -90,8 +100,10 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[]; 
     .join(' ; ');
   const reste = r.ecarts.length > 10 ? `, et ${r.ecarts.length - 10} autre(s)` : '';
   return (
-    `${r.ecarts.length} lettrage(s) dénoué(s) dans leur devise portent un écart de change réalisé non passé · ${liste}${reste}. ` +
+    `${r.ecarts.length} lettrage(s) dénoué(s) dans leur devise portent un écart de change réalisé non constaté au lettrage · ${liste}${reste}. ` +
     "AUDCIF art. 55 · « à la date de règlement [...] les pertes et gains de change à cette date sont constatés ». " +
-    "Passez chaque écart depuis Interrogation et lettrage (« Écart de change »), puis clôturez."
+    'Pour chacun, UNE seule issue · passez l’écart proposé depuis Interrogation et lettrage (« Écart de change ») ; ' +
+    's’il a DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser ; si le geste est refusé ' +
+    '(réévaluation qui a lu le groupe, cours corrigé), délettrez le groupe et suivez le motif du refus. Puis clôturez.'
   );
 }

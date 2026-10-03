@@ -13,7 +13,9 @@ import { ecartsRealisesNonConstates, motifClotureEcartsNonConstates } from './ec
  * réglés au coût historique, le solde de 560 USD payé à 1 900 (1 064 000) ·
  * soldé en devise, 123 200 de perte en souffrance.
  */
+let n = 0;
 const ligne = (lettrageId: string, code: string, numero: string, debit: number, credit: number, montantDevise: number | null) => ({
+  id: `l${String(++n).padStart(4, '0')}`,
   lettrageId,
   debit,
   credit,
@@ -31,9 +33,9 @@ const partielOuvert = [ligne('M', 'B', '41110000', 1_948_800, 0, 1160), ligne('M
 
 describe('les écarts de change réalisés non constatés d’un exercice', () => {
   it('le groupe soldé en devise et non en francs est nommé · le partiel encore ouvert ne l’est pas', async () => {
-    const findMany = jest.fn().mockResolvedValue([...groupeEnSouffrance, ...partielOuvert]);
+    const findMany = jest.fn().mockResolvedValueOnce([...groupeEnSouffrance, ...partielOuvert]).mockResolvedValue([]);
     const r = await ecartsRealisesNonConstates({ ligneEcriture: { findMany } } as never, { tenantId: 't', exerciceId: 'n' });
-    expect(r).toEqual({ ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }], tronque: false });
+    expect(r).toEqual({ ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }] });
     // La requête · groupes PARTIELS, lignes non lettrées, de CET exercice, bornée.
     expect(findMany.mock.calls[0][0].where).toEqual({
       lettrageId: { not: null },
@@ -44,11 +46,29 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     expect(findMany.mock.calls[0][0].take).toBeGreaterThan(0);
   });
 
+  // M4 · LU PAR TRANCHES, sans borne · un groupe coupé entre deux tranches se
+  // recompose, et aucun refus pour volume.
+  it('par tranches · un groupe coupé entre deux tranches se recompose, le curseur avance', async () => {
+    const [a, b, c] = groupeEnSouffrance;
+    const findMany = jest
+      .fn()
+      .mockImplementationOnce(async ({ take }: { take: number }) => [a, ...Array.from({ length: take - 1 }, (_, i) => ligne(`X${i}`, 'Z', '40110000', 0, 1, null))])
+      .mockResolvedValueOnce([b, c])
+      .mockResolvedValue([]);
+    const r = await ecartsRealisesNonConstates({ ligneEcriture: { findMany } } as never, { tenantId: 't', exerciceId: 'n' });
+    expect(r.ecarts).toEqual([{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }]);
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: expect.any(String) }, skip: 1 });
+  });
+
   it('le refus nomme le compte, le groupe, le montant, l’article et l’issue', () => {
-    const motif = motifClotureEcartsNonConstates({ ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }], tronque: false });
+    const motif = motifClotureEcartsNonConstates({ ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }] });
     expect(motif).toMatch(/1 lettrage\(s\) dénoué\(s\).*40110000 lettrage a · perte de 123 200,00.*art\. 55.*« Écart de change »/);
-    expect(motifClotureEcartsNonConstates({ ecarts: [], tronque: false })).toBeNull();
-    expect(motifClotureEcartsNonConstates({ ecarts: [], tronque: true })).toMatch(/n'a pas pu vérifier/);
+    // M3 · les autres issues, sans jamais pousser à passer deux fois.
+    expect(motif).toMatch(/UNE seule issue/);
+    expect(motif).toMatch(/DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser/);
+    expect(motif).toMatch(/si le geste est refusé .* délettrez le groupe/);
+    expect(motifClotureEcartsNonConstates({ ecarts: [] })).toBeNull();
   });
 });
 
@@ -61,7 +81,7 @@ describe('la clôture refuse un écart réalisé non passé', () => {
       },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
       ecriture: { count: jest.fn().mockResolvedValue(0) },
-      ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
+      ligneEcriture: { findMany: jest.fn().mockResolvedValueOnce(lignes).mockResolvedValue([]) },
       $transaction: jest.fn(),
     };
     return { s: new ExerciceService(prisma as never, {} as never), prisma };

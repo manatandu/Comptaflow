@@ -195,15 +195,17 @@ async function lireLaReevaluation(
 }
 
 /**
- * LE REFUS D5 · un cours de la date de la réévaluation corrigé depuis. Il
- * nomme les cours, avant et maintenant, et l'issue.
+ * LE REFUS D5 · le cours applicable à la date de la réévaluation a changé
+ * depuis · POSÉ (un cours de sa date ajouté après elle, qui remplace le
+ * dernier connu) ou CORRIGÉ. Il nomme les cours, retenu et d'aujourd'hui, et
+ * l'issue.
  */
 function motifCoursCorrige(lu: Pick<LectureDeLaReevaluation, 'date' | 'coursCorriges'>, compteNumero: string): string {
   const cours = lu.coursCorriges
     .map((c) => `${c.retenu} retenu, ${c.aujourdhui === null ? 'aucun' : c.aujourdhui} coté aujourd’hui`)
     .join(' ; ');
   return (
-    `Le cours du ${jour(lu.date)} a été corrigé depuis la réévaluation des devises qui l'a retenu (${cours}) · elle est une erreur ` +
+    `Le cours applicable au ${jour(lu.date)} a été posé ou corrigé depuis la réévaluation des devises du ${jour(lu.date)} (${cours}) · elle est une erreur ` +
     `de l'exercice en cours, et le ${compteNumero} en porte l'écart. Issue · annulez cette réévaluation (Devises, « Annuler la ` +
     'réévaluation », AUDCIF art. 20, al. 2), réévaluez au cours exact (art. 54), puis passez l’écart réalisé.'
   );

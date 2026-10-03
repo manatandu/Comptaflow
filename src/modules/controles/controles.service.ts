@@ -4088,7 +4088,7 @@ export class ControlesService {
     // Reconnaissable dans un lettrage partiel seulement (`reglementsSansEcart`).
     if (ex.statut !== StatutExercice.CLOTURE) {
       const sansEcart = await reglementsSansEcart(this.prisma, { tenantId, exerciceId, referentiel: tenant.referentiel });
-      if (sansEcart.elements.length > 0 || sansEcart.tronque) {
+      if (sansEcart.elements.length > 0 || sansEcart.tronque || sansEcart.nonReconnaissables > 0) {
         anomalies.push({
           code: 'REGLEMENT_DEVISE_SANS_ECART',
           gravite: 'INFORMATION',
@@ -4103,6 +4103,18 @@ export class ControlesService {
             // Lecture bornée · la liste le DIT, sans prétendre à un total qu'elle n'a pas lu.
             ...(sansEcart.tronque
               ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LIGNES_EXAMINEES} lignes de lettrages partiels lues · d'autres règlements peuvent exister.` }]
+              : []),
+            // Écartés et DITS · un groupe où le règlement ne se distingue pas
+            // de la facture (acompte antérieur, avoir) ne se conclut pas.
+            ...(sansEcart.nonReconnaissables > 0
+              ? [
+                  {
+                    reference: 'Lettrages non examinés',
+                    detail:
+                      `${sansEcart.nonReconnaissables} lettrage(s) partiel(s) en devise où le règlement ne se reconnaît pas (acompte antérieur ` +
+                      'à la facture, avoir, pièce sans trésorerie) · écartés, rien n’en est conclu.',
+                  },
+                ]
               : []),
             ...sansEcart.elements.map((e) => ({
             reference: `${e.compteNumero} · ${e.piece}`,

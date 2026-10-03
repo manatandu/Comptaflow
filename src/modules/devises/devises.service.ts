@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { motifLignesTenues } from '../comptabilite/lignes-tenues';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
@@ -592,6 +593,21 @@ export interface RapportReevaluation {
  * Les écarts latents sont contre-passés à l'ouverture de l'exercice suivant :
  * ils décrivent une situation à une date, pas une opération.
  */
+/**
+ * LES ÉCRITURES D'UNE RÉÉVALUATION ANNULÉE ET LEURS NÉGATIFS (relecture
+ * adverse D6, M1) · validées, elles restent au journal avec leur inscription
+ * en négatif, et se neutralisent. Ni l'une ni l'autre n'est une ligne « hors
+ * réévaluation » · comptées comme telles, elles allumaient l'alerte de la
+ * provision passée à la main.
+ */
+const ANNULEE = { is: { annuleeLe: { not: null } } };
+const ECRITURES_D_UNE_REEVALUATION_ANNULEE: Prisma.EcritureWhereInput[] = [
+  { reevaluationEcarts: ANNULEE },
+  { reevaluationProvision: ANNULEE },
+  { reevaluationExtourne: ANNULEE },
+  { corrigeEcriture: { is: { OR: [{ reevaluationEcarts: ANNULEE }, { reevaluationProvision: ANNULEE }, { reevaluationExtourne: ANNULEE }] } } },
+];
+
 @Injectable()
 export class DevisesService {
   private readonly journal = new Logger(DevisesService.name);
@@ -1434,7 +1450,15 @@ export class DevisesService {
   }
 
   private async annulerSousVerrou(tenantId: string, userId: string, reevaluationId: string, motif: string) {
-    const ecriture = { select: { id: true, statut: true, numeroPiece: true, exercice: { select: { statut: true } } } };
+    const ecriture = {
+      select: {
+        id: true,
+        statut: true,
+        numeroPiece: true,
+        exercice: { select: { statut: true } },
+        lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } },
+      },
+    };
     const reeval = await this.prisma.reevaluation.findFirst({
       where: { id: reevaluationId, tenantId },
       include: {
@@ -1487,6 +1511,23 @@ export class DevisesService {
       ['PROVISION', reeval.ecritureProvision],
       ['CONTRE_PASSATION', reeval.ecritureExtourne],
     ] as const;
+    // UNE LIGNE LETTRÉE OU POINTÉE ARRÊTE L'ANNULATION (relecture adverse,
+    // B1) · l'écart de N lettré avec sa contre-passation de N+1 · le négatif
+    // naîtrait non lettré, la contre-passation au brouillard serait supprimée,
+    // et le groupe resterait « soldé » d'une seule ligne, un crédit fantôme à
+    // la balance âgée et aux relances. Même refus que la correction
+    // (`motifLignesTenues`), écriture par écriture, avant toute écriture.
+    const NOMS = { ECARTS: "d'écarts", PROVISION: 'de provision', CONTRE_PASSATION: 'de contre-passation' } as const;
+    for (const [role, e] of ecritures) {
+      if (!e) continue;
+      const motif = motifLignesTenues(
+        e.lignes,
+        `l'écriture ${NOMS[role]} n° ${e.numeroPiece ?? '·'}`,
+        'annuler',
+        ', puis annulez la réévaluation',
+      );
+      if (motif) throw new BadRequestException(motif);
+    }
     return transactionJournalisee(this.prisma, async (tx) => {
       const fait: Array<{ role: string; ecritureId: string; numeroPiece: number | null; traitement: 'SUPPRIMEE' | 'INSCRITE_EN_NEGATIF'; negatifId?: string; negatifNumeroPiece?: number | null }> = [];
       for (const [role, e] of ecritures) {
@@ -1500,11 +1541,22 @@ export class DevisesService {
       }
       // Marquée AVANT la suppression des brouillards · sur une ligne encore
       // non annulée, sans quoi deux gestes simultanés passeraient tous deux.
-      const { count } = await tx.reevaluation.updateMany({
-        where: { id: reeval.id, tenantId, annuleeLe: null },
-        data: { annuleeLe: new Date(), annuleePar: userId, motifAnnulation: motif, annulation: fait as unknown as Prisma.InputJsonValue },
-      });
-      if (count === 0) throw new ConflictException('Cette réévaluation est déjà annulée.');
+      // Un `update` UNITAIRE (relecture adverse, M2) · le journal d'audit
+      // garde la ligne avant et après, motif, auteur et JSON `annulation`
+      // compris ; un `updateMany` n'y laisse que filtre et compte. La garde
+      // de concurrence est le filtre `annuleeLe: null` · P2025 si une autre
+      // annulation est passée entre-temps.
+      try {
+        await tx.reevaluation.update({
+          where: { id: reeval.id, tenantId, annuleeLe: null },
+          data: { annuleeLe: new Date(), annuleePar: userId, motifAnnulation: motif, annulation: fait as unknown as Prisma.InputJsonValue },
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          throw new ConflictException('Cette réévaluation est déjà annulée.');
+        }
+        throw e;
+      }
       for (const f of fait) {
         if (f.traitement !== 'SUPPRIMEE') continue;
         await tx.ligneEcriture.deleteMany({ where: { ecritureId: f.ecritureId } });
@@ -1616,6 +1668,7 @@ export class DevisesService {
             estGenereeParCloture: false,
             estANouveauProvisoire: false,
             ...(idsDuModule.length > 0 ? { id: { notIn: idsDuModule } } : {}),
+            NOT: ECRITURES_D_UNE_REEVALUATION_ANNULEE,
           },
         },
         _count: { _all: true },
@@ -1647,6 +1700,7 @@ export class DevisesService {
               estGenereeParCloture: false,
               estANouveauProvisoire: false,
               ...(idsDuModule.length > 0 ? { id: { notIn: idsDuModule } } : {}),
+              NOT: ECRITURES_D_UNE_REEVALUATION_ANNULEE,
             },
           },
           _count: { _all: true },

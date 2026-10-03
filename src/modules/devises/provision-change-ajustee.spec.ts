@@ -551,6 +551,19 @@ describe('A5 · ce que le module ne voit pas se dit', () => {
       id: { notIn: ['e-2'] },
     });
     expect(dernier.where.compte).toMatchObject({ tenantId: 't' });
+    // D6, M1 · les écritures d'une réévaluation ANNULÉE et leurs négatifs ne
+    // sont pas « hors réévaluation » · sinon l'alerte d'une provision passée à
+    // la main s'allumait après chaque annulation.
+    const NOT = (dernier.where.ecriture as { NOT: Array<Record<string, unknown>> }).NOT;
+    const annulee = { is: { annuleeLe: { not: null } } };
+    expect(NOT).toEqual(
+      expect.arrayContaining([
+        { reevaluationEcarts: annulee },
+        { reevaluationProvision: annulee },
+        { reevaluationExtourne: annulee },
+        { corrigeEcriture: { is: { OR: [{ reevaluationEcarts: annulee }, { reevaluationProvision: annulee }, { reevaluationExtourne: annulee }] } } },
+      ]),
+    );
   });
 });
 

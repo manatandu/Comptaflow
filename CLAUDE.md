@@ -455,7 +455,10 @@ brouillard ses écritures sont supprimées, validées elles sont inscrites en N�
 (`lignesEnNegatif`, validées, art. 22, 4° pour une période close), l'enregistrement est
 MARQUÉ annulé, jamais supprimé, et l'index unique ne compte que les non annulées (NULLS
 NOT DISTINCT) ; refus · exercice clos, contre-passation dans un exercice clos,
-postérieure non annulée, version d'ouverture postérieure ; toutes les lectures de « la
+postérieure non annulée, version d'ouverture postérieure, ligne LETTRÉE ou POINTÉE (même
+refus que la correction, `motifLignesTenues`, avant la transaction) ; marquée par un
+`update` unitaire (journal d'audit) ; ses écritures et leurs négatifs ne sont pas
+« hors réévaluation » ; toutes les lectures de « la
 réévaluation de l'exercice » l'écartent. Titre VIII
 ch. 22 § 2.3 (« ajustée pour tenir compte des opérations dénouées ») et fiche
 du compte 19 des deux plans · seul l'ÉCART avec la provision en place se
@@ -584,7 +587,8 @@ ou pièce retirée (409). AVEC A5 · une position ou un groupe partiel SOLDÉ DA
 DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel que soit le
 reste du compte, lu sur ses lignes de l'EXERCICE ; D3 · c'est la CLÔTURE qui refuse
 tant qu'un lettrage dénoué dans l'exercice porte un réalisé non passé (art. 55,
-`ecartsRealisesNonConstates`, groupes, comptes, montants et issue nommés) ; et l'écart
+`ecartsRealisesNonConstates`, lu par tranches sans borne, groupes, comptes, montants
+et les trois issues nommés, jamais un second passage) ; et l'écart
 est refusé (409) si la
 réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
 le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL QU'IL ÉTAIT,
@@ -606,7 +610,8 @@ l'exercice qui PRÉCÈDE IMMÉDIATEMENT n'a pas été contre-passée, et qu'elle
 porté cette devise sur le compte. Le refus nomme l'issue · annuler la réévaluation (D6), passer l'écart, réévaluer. D4 · un
 ancien règlement partiel qui a soldé le tiers AU PAYÉ, sans ligne d'écart, est signalé
 en INFORMATION (`REGLEMENT_DEVISE_SANS_ECART`, exercice ouvert, reconnaissable dans un
-lettrage partiel seulement), jamais retraité · art. 20, al. 2 et 3. Des
+lettrage partiel seulement, le règlement reconnu à SA PIÈCE · 5x ou journal de
+trésorerie ; acompte antérieur ou avoir · groupe écarté et compté), jamais retraité · art. 20, al. 2 et 3. Des
 francs sans montant en devise sont refusés ; un lot de virements ne rappelle pas une
 facture en devise. Anomalie signalée · l'art. 53 dit « charges
 financières » là où § 2.3 et la fiche 656 disent exploitation.

@@ -33,11 +33,14 @@ const centimes = (x: number) => Math.round(x * 100) / 100;
  * cabinet, jamais du logiciel.
  *
  * RECONNAISSABLE SEULEMENT DANS UN LETTRAGE PARTIEL · c'est le groupe qui dit
- * quelle facture la ligne règle. Le côté de la ligne la plus ANCIENNE est
- * celui des factures ; une ligne de l'autre côté dont les francs ne sont pas
- * la contrevaleur au coût historique des factures du groupe (leur cours
- * moyen) est un règlement au payé, sauf si sa pièce porte une ligne de change
- * (`racinesAdmises`, nature non lue). Un règlement NON LETTRÉ n'est pas
+ * quelle facture la ligne règle. Le RÈGLEMENT se reconnaît à SA PIÈCE (une
+ * ligne de trésorerie 5x dans la même écriture, ou un journal de trésorerie),
+ * les autres lignes sont les factures ; un règlement dont les francs ne sont
+ * pas la contrevaleur au coût historique des factures du groupe (leur cours
+ * moyen) a soldé au payé, sauf si sa pièce porte une ligne de change
+ * (`racinesAdmises`, nature non lue). Un groupe où ce n'est pas reconnaissable
+ * (factures de deux sens, comme un avoir ; règlement antérieur à la première
+ * facture, comme un acompte) est ÉCARTÉ et COMPTÉ (`nonReconnaissables`). Un règlement NON LETTRÉ n'est pas
  * reconnaissable · rien ne dit quelle facture il éteint, ni à quel coût
  * historique ; un groupe SOLDE a vu son écart passé (A6) ; un partiel dénoué
  * dans sa devise relève de la proposition d'écart et du refus de la clôture
@@ -46,7 +49,7 @@ const centimes = (x: number) => Math.round(x * 100) / 100;
 export async function reglementsSansEcart(
   prisma: Lecteur,
   p: { tenantId: string; exerciceId: string; referentiel: Referentiel },
-): Promise<{ elements: ReglementSansEcart[]; tronque: boolean }> {
+): Promise<{ elements: ReglementSansEcart[]; tronque: boolean; nonReconnaissables: number }> {
   const lignes = await prisma.ligneEcriture.findMany({
     where: {
       lettrageId: { not: null },
@@ -64,7 +67,16 @@ export async function reglementsSansEcart(
       credit: true,
       montantDevise: true,
       compte: { select: { numero: true } },
-      ecriture: { select: { date: true, numeroPiece: true, journal: { select: { code: true } } } },
+      ecriture: {
+        select: {
+          date: true,
+          numeroPiece: true,
+          journal: { select: { code: true, type: true } },
+          // La pièce dit ce qu'est la ligne · une ligne de trésorerie (5x) dans
+          // la même écriture fait d'elle un règlement (relecture adverse M5).
+          lignes: { where: { compte: { numero: { startsWith: '5' } } }, select: { id: true }, take: 1 },
+        },
+      },
     },
     orderBy: { id: 'asc' },
     take: PLAFOND_LIGNES_EXAMINEES + 1,
@@ -76,17 +88,41 @@ export async function reglementsSansEcart(
   }
 
   const candidats: Array<ReglementSansEcart & { ecritureId: string }> = [];
+  let nonReconnaissables = 0;
   for (const groupe of parGroupe.values()) {
     const signe = (l: (typeof groupe)[number]) => (Number(l.debit) - Number(l.credit) >= 0 ? 1 : -1);
     const soldeDevise = groupe.reduce((t, l) => t + signe(l) * Number(l.montantDevise ?? 0), 0);
     if (Math.abs(soldeDevise) < 0.005) continue;
-    const ordonnees = [...groupe].sort((a, b) => a.ecriture.date.getTime() - b.ecriture.date.getTime() || a.id.localeCompare(b.id));
-    const cote = signe(ordonnees[0]!);
-    const factures = ordonnees.filter((l) => signe(l) === cote);
+    // LE RÈGLEMENT SE RECONNAÎT À SA PIÈCE, jamais à son rang dans le groupe
+    // (relecture adverse M5, § 10 bis) · une ligne de trésorerie (5x) dans
+    // la même écriture, ou un journal de trésorerie. Lire « la plus ancienne
+    // est la facture » prenait un acompte ou un avoir antérieurs pour la
+    // facture, et fabriquait une anomalie.
+    const estReglement = (l: (typeof groupe)[number]) => l.ecriture.journal.type === 'TRESORERIE' || l.ecriture.lignes.length > 0;
+    const reglements = groupe.filter(estReglement);
+    const factures = groupe.filter((l) => !estReglement(l));
+    // RECONNAISSABLE, OU ÉCARTÉ ET DIT · des factures toutes d'un sens, des
+    // règlements tous de l'autre, et aucun règlement antérieur à la première
+    // facture (un acompte · son cours ne se compare pas au coût historique
+    // d'une facture qui n'existait pas encore). Sinon rien ne se conclut.
+    const premiereFacture = Math.min(...factures.map((l) => l.ecriture.date.getTime()));
+    const cote = factures.length > 0 ? signe(factures[0]!) : 0;
+    if (
+      factures.length === 0 ||
+      reglements.length === 0 ||
+      factures.some((l) => signe(l) !== cote) ||
+      reglements.some((l) => signe(l) === cote || l.ecriture.date.getTime() < premiereFacture)
+    ) {
+      nonReconnaissables += 1;
+      continue;
+    }
     const devisesFactures = factures.reduce((t, l) => t + Number(l.montantDevise ?? 0), 0);
-    if (!(devisesFactures > 0)) continue;
+    if (!(devisesFactures > 0)) {
+      nonReconnaissables += 1;
+      continue;
+    }
     const coursHistorique = factures.reduce((t, l) => t + Math.abs(Number(l.debit) - Number(l.credit)), 0) / devisesFactures;
-    for (const r of ordonnees.filter((l) => signe(l) !== cote)) {
+    for (const r of reglements) {
       const devise = Number(r.montantDevise ?? 0);
       const portes = centimes(Math.abs(Number(r.debit) - Number(r.credit)));
       const historiques = centimes(devise * coursHistorique);
@@ -106,7 +142,7 @@ export async function reglementsSansEcart(
       });
     }
   }
-  if (candidats.length === 0) return { elements: [], tronque };
+  if (candidats.length === 0) return { elements: [], tronque, nonReconnaissables };
 
   // Une pièce qui porte une ligne de change a constaté son écart · elle sort.
   const racines = [...racinesAdmises(p.referentiel, null, 'PERTE'), ...racinesAdmises(p.referentiel, null, 'GAIN')];
@@ -119,5 +155,5 @@ export async function reglementsSansEcart(
     .filter((c) => !avecChange.has(c.ecritureId))
     .map(({ ecritureId: _e, ...reste }) => reste)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
-  return { elements, tronque };
+  return { elements, tronque, nonReconnaissables };
 }

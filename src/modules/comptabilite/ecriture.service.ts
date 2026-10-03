@@ -1,3 +1,4 @@
+import { motifLignesTenues } from './lignes-tenues';
 import { ecartClasse9, motifRefusClasse9 } from './classe-9-equilibree';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LOT_ECRITURES, LOT_LECTURE, PremiersSelon, lireParLots, pageApres } from '../../common/lecture-par-lots';
@@ -2027,6 +2028,10 @@ export class EcritureService {
     if (origine.correction) {
       throw new BadRequestException(`L'écriture n° ${origine.numeroPiece ?? '·'} est déjà corrigée par inscription en négatif.`);
     }
+    // Lettrée ou pointée · le module appelant l'a refusée avant la
+    // transaction ; le refus est rejoué ici, à la source, pour tout appelant.
+    const tenues = motifLignesTenues(origine.lignes, `l'écriture n° ${origine.numeroPiece ?? '·'}`, 'annuler');
+    if (tenues) throw new BadRequestException(tenues);
     let date = origine.date;
     let dateValeur: Date | null = null;
     const premier = await this.exerciceService.premierJourOuvert(tenantId, origine.journalId, date);
@@ -2142,21 +2147,8 @@ export class EcritureService {
           'sur la fiche d’immobilisation sans contrepartie comptable : passez par le module Immobilisations.',
       );
     }
-    const lettrees = e.lignes.filter(estTenueParUnLettrage);
-    if (lettrees.length > 0) {
-      throw new BadRequestException(
-        `${lettrees.length} ligne(s) de cette écriture sont lettrées (${[...new Set(lettrees.map(designationLettrage))].join(', ')}). ` +
-          'Le lettrage affirme que ces lignes sont soldées entre elles ; corriger sans délettrer laisserait cette ' +
-          'affirmation en place, devenue fausse. Délettrez-les d’abord.',
-      );
-    }
-    const pointees = e.lignes.filter((l) => l.rapprochementId);
-    if (pointees.length > 0) {
-      throw new BadRequestException(
-        `${pointees.length} ligne(s) de cette écriture sont pointées dans un rapprochement bancaire. Le pointage ` +
-          'affirme la concordance avec un relevé ; dépointez-les d’abord (possible tant que le rapprochement est en cours).',
-      );
-    }
+    const tenues = motifLignesTenues(e.lignes, 'cette écriture', 'corriger');
+    if (tenues) throw new BadRequestException(tenues);
   }
 
   /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */

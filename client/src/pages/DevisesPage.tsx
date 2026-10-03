@@ -11,6 +11,8 @@ import { sousFonctionServie } from '../lib/profil-dossier';
 import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
 import { libelleExercice } from '../lib/libelle-exercice';
 import { ProvisionChangeOuverture } from '../components/ProvisionChangeOuverture';
+import { PortailModale } from '../components/PortailModale';
+import { MOTIF_ANNULATION_MAX, motifRefusMotifAnnulation } from '../lib/motif-annulation';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -198,16 +200,21 @@ export function DevisesPage() {
    * art. 20, al. 2) ; la réévaluation exacte suit. Motif obligatoire, réservé
    * à qui valide (`peutValider`) · le serveur refuse le reste.
    */
-  const annulerReevaluation = async (r: Reevaluation) => {
-    const motif = window.prompt(`Annuler la réévaluation du ${jour(r.dateReevaluation)} · motif (obligatoire)`, '');
-    if (motif === null) return;
-    if (!motif.trim()) {
-      setErreur("Le motif de l'annulation est obligatoire.");
+  // La réévaluation en cours d'annulation et son motif · une MODALE de
+  // l'interface (`PortailModale`), jamais `window.prompt`.
+  const [aAnnuler, setAAnnuler] = useState<{ reevaluation: Reevaluation; motif: string } | null>(null);
+  const annulerReevaluation = async () => {
+    if (!aAnnuler) return;
+    // La règle du DTO (3 à 500 caractères), vérifiée avant l'envoi.
+    const refus = motifRefusMotifAnnulation(aAnnuler.motif);
+    if (refus) {
+      setErreur(refus);
       return;
     }
     setErreur(null);
     try {
-      await api.post(`/devises/reevaluations/${r.id}/annuler`, { motif: motif.trim() });
+      await api.post(`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`, { motif: aAnnuler.motif.trim() });
+      setAAnnuler(null);
       setInfo('Réévaluation annulée · ses écritures validées sont inscrites en négatif. Réévaluez l’exercice.');
       await charger();
     } catch (e) {
@@ -708,7 +715,7 @@ export function DevisesPage() {
                       {peutValider && !r.annuleeLe && (
                         <button
                           type="button"
-                          onClick={() => void annulerReevaluation(r)}
+                          onClick={() => setAAnnuler({ reevaluation: r, motif: '' })}
                           className="ml-2 text-danger hover:underline"
                           title="Inscription en négatif des écritures validées, suppression de celles au brouillard (AUDCIF art. 20, al. 2)"
                         >
@@ -754,6 +761,57 @@ export function DevisesPage() {
           </section>
         )}
       </div>
+      {aAnnuler && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void annulerReevaluation();
+              }}
+              className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  Annuler la réévaluation du {jour(aAnnuler.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Annulation"
+                    texte="Les écritures validées de la réévaluation sont inscrites en négatif, celles restées au brouillard sont supprimées ; la réévaluation reste, marquée annulée avec son motif, et l'exercice se réévalue ensuite au cours exact. Refusée si une ligne est lettrée ou pointée, si l'exercice est clôturé ou si une réévaluation postérieure n'est pas annulée."
+                    source="AUDCIF art. 20, al. 2 ; art. 22, 2° et 4°"
+                  />
+                </span>
+                <button type="button" onClick={() => setAAnnuler(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={aAnnuler.motif}
+                    onChange={(e) => setAAnnuler({ ...aAnnuler, motif: e.target.value })}
+                    maxLength={MOTIF_ANNULATION_MAX}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[70px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={motifRefusMotifAnnulation(aAnnuler.motif) !== null}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    Annuler la réévaluation
+                  </button>
+                  <button type="button" onClick={() => setAAnnuler(null)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
     </div>
   );
 }

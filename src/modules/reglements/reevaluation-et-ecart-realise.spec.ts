@@ -177,7 +177,7 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
       monter({ lignes: [...groupeL(), factureB()], passe: -75_000, cours: { usd: 1900 }, coursUtilises: { usd: 1850 } }),
       params,
     );
-    expect(r).toEqual({ refus: expect.stringMatching(/cours du 2026-12-31 a été corrigé .*1850 retenu, 1900 coté aujourd’hui.*annulez cette réévaluation.*réévaluez au cours exact/) });
+    expect(r).toEqual({ refus: expect.stringMatching(/cours applicable au 2026-12-31 a été posé ou corrigé depuis la réévaluation des devises du 2026-12-31 \(1850 retenu, 1900 coté aujourd’hui\).*annulez cette réévaluation.*réévaluez au cours exact/) });
   });
 
   it('D5 · le cours retenu sert la reconstitution · inchangé, la règle ordinaire joue (75 000 · rien ne s’oppose)', async () => {

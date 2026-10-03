@@ -8,7 +8,8 @@ import { reglementsSansEcart } from './reglements-sans-ecart';
  * 1 050 000 au 401, soit 42 000 de perte non constatée.
  */
 let n = 0;
-const ligne = (ecritureId: string, lettrageId: string, debit: number, credit: number, devise: number, date: string, numero = '40110000') => ({
+/** Une ligne · `tresorerie` dit si SA pièce porte une ligne 5x (un règlement), comme la requête la lit. */
+const ligne = (ecritureId: string, lettrageId: string, debit: number, credit: number, devise: number, date: string, numero = '40110000', tresorerie?: boolean) => ({
   id: `l${++n}`,
   ecritureId,
   lettrageId,
@@ -16,7 +17,12 @@ const ligne = (ecritureId: string, lettrageId: string, debit: number, credit: nu
   credit,
   montantDevise: devise,
   compte: { numero },
-  ecriture: { date: new Date(date), numeroPiece: n, journal: { code: 'BQ' } },
+  ecriture: {
+    date: new Date(date),
+    numeroPiece: n,
+    journal: { code: 'OD', type: 'GENERAL' },
+    lignes: (tresorerie ?? ecritureId !== 'f') ? [{ id: 'tr' }] : [],
+  },
 });
 
 function monter(lignes: ReturnType<typeof ligne>[], pieces: Array<{ ecritureId: string; numero: string }> = []) {
@@ -54,6 +60,24 @@ describe('les règlements en devise qui ont soldé le tiers au payé', () => {
   it('côté client, encaisser moins que l’origine est une perte', async () => {
     const { prisma } = monter([ligne('f', 'M', 1_948_800, 0, 1160, '2026-04-10', '41110000'), ligne('r', 'M', 0, 960_000, 600, '2026-05-15', '41110000')]);
     expect((await reglementsSansEcart(prisma, p)).elements[0]).toMatchObject({ ecart: 48_000 });
+  });
+
+  // M5 · l'acompte de 500 USD à 2 700, puis la facture de 1 000 USD à 2 800 ·
+  // lu « la plus ancienne est la facture », l'acompte devenait la facture et
+  // la facture un règlement · une anomalie fabriquée. Reconnu par sa pièce,
+  // le règlement est l'acompte, antérieur à la facture · écarté et compté.
+  it('un acompte antérieur à la facture · écarté et compté, jamais signalé comme anomalie', async () => {
+    const { prisma } = monter([ligne('acompte', 'L', 1_350_000, 0, 500, '2026-03-01', '40110000', true), ligne('f', 'L', 0, 2_800_000, 1000, '2026-04-10')]);
+    expect(await reglementsSansEcart(prisma, p)).toEqual({ elements: [], tronque: false, nonReconnaissables: 1 });
+  });
+
+  it('un avoir dans le groupe (factures des deux sens) · écarté et compté', async () => {
+    const { prisma } = monter([
+      ligne('f', 'L', 0, 1_948_800, 1160, '2026-04-10'),
+      ligne('f', 'L', 168_000, 0, 100, '2026-04-20', '40110000', false),
+      ligne('r', 'L', 1_050_000, 0, 600, '2026-05-15'),
+    ]);
+    expect((await reglementsSansEcart(prisma, p)).nonReconnaissables).toBe(1);
   });
 
   it('un partiel soldé dans sa devise relève du refus de la clôture (D3), pas de ce signalement', async () => {

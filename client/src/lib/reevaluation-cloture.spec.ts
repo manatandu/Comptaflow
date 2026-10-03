@@ -1,6 +1,7 @@
 // Aucun import de « vitest » · convention du dépôt, le spec tourne aussi sous jest.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { MOTIF_ANNULATION_MAX, MOTIF_ANNULATION_MIN, motifRefusMotifAnnulation } from './motif-annulation';
 
 /**
  * DÉCISION D1 · la réévaluation des devises se fait à la date de CLÔTURE
@@ -37,11 +38,29 @@ describe('écran Devises · annuler une réévaluation', () => {
     expect(source).toContain('Annuler la réévaluation');
     const debut = source.indexOf('const annulerReevaluation = async');
     const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
-    expect(corps).toContain("api.post(`/devises/reevaluations/${r.id}/annuler`, { motif: motif.trim() })");
-    expect(corps).toContain("Le motif de l'annulation est obligatoire.");
+    expect(corps).toContain("api.post(`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`, { motif: aAnnuler.motif.trim() })");
+    // M7 · la règle du DTO (3 à 500), vérifiée avant l'envoi, et une modale de l'interface.
+    expect(corps).toContain('motifRefusMotifAnnulation(aAnnuler.motif)');
+    expect(corps).not.toContain('window.prompt');
+    expect(source).toContain("onClick={() => setAAnnuler({ reevaluation: r, motif: '' })}");
+    expect(source).toMatch(/\{aAnnuler && \(\s*<PortailModale>/);
   });
 
   it('une annulée ne propose plus la contre-passation', () => {
     expect(source).toContain('{r.annuleeLe || !r.ecritureEcarts ? null : r.ecritureExtourne ? (');
+  });
+});
+
+describe('le motif d’annulation · la règle du DTO', () => {
+  it('3 à 500 caractères, espaces retirés', () => {
+    expect(motifRefusMotifAnnulation('  ab ')).toMatch(/3 caractères au moins/);
+    expect(motifRefusMotifAnnulation('abc')).toBeNull();
+    expect(motifRefusMotifAnnulation('x'.repeat(501))).toMatch(/500 caractères au plus/);
+  });
+
+  it('le DTO du serveur porte la même borne', () => {
+    const dto = readFileSync(join(__dirname, '../../../src/modules/devises/dto/devises.dto.ts'), 'utf8');
+    const bloc = dto.slice(dto.indexOf('export class AnnulerReevaluationDto'));
+    expect(bloc).toContain(`@Length(${MOTIF_ANNULATION_MIN}, ${MOTIF_ANNULATION_MAX})`);
   });
 });
