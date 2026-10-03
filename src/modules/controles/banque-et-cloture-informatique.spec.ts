@@ -805,7 +805,11 @@ describe('la batterie de contrôles · câblage de la ligne A17', () => {
       expect(a?.gravite).toBe('AVERTISSEMENT');
       expect(a?.libelle).toBe('Compte de virements internes non soldé à la clôture');
       expect(a?.consequence).toContain(sourceFicheCompte58(referentiel));
-      expect(a?.consequence).toContain('« il importe de s\'assurer que les comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l\'exercice »');
+      expect(a?.consequence).toContain('« Il importe de s\'assurer que les comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l\'exercice »');
+      // Citation mot pour mot · la virgule est dans l'AUDCIF, pas dans le SYCEBNL.
+      expect(a?.consequence).toContain(
+        referentiel === Referentiel.SYSCOHADA ? 'En tout état de cause, ces comptes doivent' : 'En tout état de cause ces comptes doivent',
+      );
       expect(a?.occurrences).toEqual([
         { reference: '58500000 Compte 58500000', detail: expect.stringContaining('solde débiteur de 1'), montant: 1000 },
       ]);

@@ -1338,8 +1338,11 @@ export class ControlesService {
         gravite: 'AVERTISSEMENT',
         libelle: 'Compte de virements internes non soldé à la clôture',
         consequence:
+          // Citation MOT POUR MOT de la fiche du dossier · l'AUDCIF écrit « En
+          // tout état de cause, ces comptes », le SYCEBNL sans la virgule.
           '« Ce sont des comptes de passage utiles à la comptabilisation d\'opérations internes à l\'entité. [...] En tout ' +
-          'état de cause ces comptes doivent être soldés au terme de leur utilisation » ; « il importe de s\'assurer que les ' +
+          (referentiel === 'SYSCOHADA' ? 'état de cause, ces comptes' : 'état de cause ces comptes') +
+          ' doivent être soldés au terme de leur utilisation » ; « Il importe de s\'assurer que les ' +
           'comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l\'exercice » (' +
           sourceFicheCompte58(referentiel) +
           "). Un solde restant est la moitié d'un virement entre deux comptes de trésorerie dont l'autre moitié manque ou " +
