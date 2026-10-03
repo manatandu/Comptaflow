@@ -283,7 +283,10 @@ describe('3 · le verrouillage par compte', () => {
     await expect(inconnu.login({ email: 'personne@b.cd', motDePasse: 'essai' } as never)).rejects.toThrow(MOTIF_IDENTIFIANTS_INVALIDES);
     expect(compare.mock.calls).toEqual([['essai', EMPREINTE_FACTICE]]);
     compare.mockRestore();
-  });
+    // Un vrai bcrypt au coût de production (12) · sous une suite chargée il a
+    // dépassé les cinq secondes par défaut de Jest (2026-10-03), sans que la
+    // règle gardée ait bougé. La borne est posée ici, jamais en retirant bcrypt.
+  }, 30000);
 
   it('l’empreinte factice est du même coût que les vraies, et son résultat est jeté', async () => {
     // Un coût plus faible rendrait la réponse d'une adresse inconnue plus
