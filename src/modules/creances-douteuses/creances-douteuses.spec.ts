@@ -35,7 +35,7 @@ import {
   resteDeLaCreance,
   revueAFaire,
 } from './creances-douteuses';
-import { CreancesDouteusesService } from './creances-douteuses.service';
+import { CreancesDouteusesService, PLAFOND_COMPTES_416_491 } from './creances-douteuses.service';
 import { CreancesDouteusesController } from './creances-douteuses.controller';
 import { CLE_ACCES_ROLES_CANTONNES } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
@@ -1482,6 +1482,25 @@ describe('créances douteuses · service', () => {
     await expect(m.service.lettrer416('t', 'u', 'cd-1', { exerciceId: 'ex-27', ligneIds: ['l-r'] })).rejects.toThrow(
       /n'est pas une ligne d'à-nouveau ouverte du 41610000 dans cet exercice/,
     );
+  });
+
+  // A7 QUATER, m4 · la liste se lit par date puis identifiant, une de plus que
+  // le plafond · à 200 pile elle n'est pas tronquée, à 201 elle l'est.
+  it('m4 · « Lettrer au 416 » · à-nouveaux par date puis identifiant, `tronque` lu sur le plafond plus un', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
+    installerBase(m, { lignes: lignesB2(null) });
+    await m.service.propositionLettrage416('t', 'cd-1', 'ex-27');
+    const appel = m.prisma.ligneEcriture.findMany.mock.calls.map((c: any[]) => c[0]).find((a: any) => a?.take !== undefined);
+    expect(appel).toMatchObject({ orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }], take: PLAFOND_COMPTES_416_491 + 1 });
+    const an = (i: number) => ({ id: `an-${i}`, debit: 1, credit: 0, libelle: null, ecriture: { date: new Date('2027-01-01'), numeroPiece: i } });
+    const lecture = m.prisma.ligneEcriture.findMany.getMockImplementation();
+    for (const [nombre, tronque] of [[PLAFOND_COMPTES_416_491, false], [PLAFOND_COMPTES_416_491 + 1, true]] as const) {
+      m.prisma.ligneEcriture.findMany.mockImplementation((args: any) =>
+        args?.take !== undefined ? Promise.resolve(Array.from({ length: nombre }, (_, i) => an(i))) : lecture(args),
+      );
+      const p: any = await m.service.propositionLettrage416('t', 'cd-1', 'ex-27');
+      expect({ tronque: p.tronque, servies: p.aNouveaux.length }).toEqual({ tronque, servies: PLAFOND_COMPTES_416_491 });
+    }
   });
 
   it('m2 (troisième passage) · « Lettrer au 416 » exige une ligne de la créance elle-même, jamais deux à-nouveaux seuls', async () => {

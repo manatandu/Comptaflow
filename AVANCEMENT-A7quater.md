@@ -19,13 +19,14 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    retire que ce qui est encore au brouillard (`deleteMany` filtré, une
    ligne et une seule, sinon 409).
 
+3. (m4) « Lettrer au 416 » · à-nouveaux triés par date puis identifiant,
+   lus au plafond plus un (`tronque` faux à 200 pile) ; « À apporter »
+   expliqué par une bulle `Aide` ; (m8) dates du Règlement des tiers mises
+   en forme par `lib/jour-fr.ts` (sorti de `controles-agregat-groupe.ts`).
+
 ## Reste
 
 - (m3) position en devise sur le 416 partagé à la déclaration.
-- (m4) liste des à-nouveaux de « Lettrer au 416 » (tri, `tronque`).
-- (m6) `EcritureService.supprimer` filtré sur le brouillard.
-- (m8) dates ISO brutes au Règlement des tiers.
-- « À apporter » expliqué par la bulle `Aide`.
 - Scénario sur vraie base à travers une clôture ; bloc du § 3.
 
 ## Décisions

@@ -1512,12 +1512,17 @@ export class CreancesDouteusesService {
     await this.exercice(tenantId, exerciceId);
     const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
     if ('motif' in lues) throw new BadRequestException(lues.motif);
-    const aNouveaux = await this.prisma.ligneEcriture.findMany({
+    // A7 QUATER, m4 · triées par DATE puis identifiant (un ordre d'uuid ne dit
+    // rien au lecteur), et lues une de plus que le plafond · à 200 pile, la
+    // liste n'est pas tronquée, et `length === plafond` le disait.
+    const luesAN = await this.prisma.ligneEcriture.findMany({
       where: { compteId: c.compte416Id, lettrageId: null, ecriture: { tenantId, exerciceId, ...A_NOUVEAU } },
       select: { id: true, debit: true, credit: true, libelle: true, ecriture: { select: { date: true, numeroPiece: true } } },
-      orderBy: { id: 'asc' },
-      take: PLAFOND_COMPTES_416_491,
+      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+      take: PLAFOND_COMPTES_416_491 + 1,
     });
+    const tronque = luesAN.length > PLAFOND_COMPTES_416_491;
+    const aNouveaux = luesAN.slice(0, PLAFOND_COMPTES_416_491);
     const reste = centimes(-lues.ouvertes.reduce((t, l) => t + l.net, 0));
     const seules = aNouveaux.filter((l) => Math.abs(centimes(n(l.debit) - n(l.credit)) - reste) < 0.005);
     return {
@@ -1533,7 +1538,7 @@ export class CreancesDouteusesService {
         libelle: l.libelle,
         montant: centimes(n(l.debit) - n(l.credit)),
       })),
-      tronque: aNouveaux.length === PLAFOND_COMPTES_416_491,
+      tronque,
       propose: seules.length === 1 ? [seules[0].id] : [],
     };
   }
