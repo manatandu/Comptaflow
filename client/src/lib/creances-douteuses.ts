@@ -154,7 +154,7 @@ export interface RapprochementCreances {
   resteModule: number;
   solde491: number;
   depreciationModule: number;
-  /** m8 · la part du 491 passée hors du module dans la chaîne, en positif. */
+  /** m8 · la part du 491 passée hors du module dans l'EXERCICE (mineur 5, jamais la chaîne), en positif. */
   horsModule491?: number;
 }
 

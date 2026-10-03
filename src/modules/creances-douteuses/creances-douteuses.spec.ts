@@ -1806,7 +1806,8 @@ describe('créances douteuses · service', () => {
       compteId: { in: ['c4912'] },
       ecriture: {
         tenantId: 't',
-        exerciceId: { in: ['ex-26'] },
+        // Mineur 5 · l'exercice seul, jamais la chaîne.
+        exerciceId: 'ex-26',
         date: { lte: exercices[0].dateFin },
         estGenereeParCloture: false,
         estANouveauProvisoire: false,
@@ -1814,6 +1815,39 @@ describe('créances douteuses · service', () => {
         NOT: { corrigeEcriture: { is: { ajustementCreanceDouteuse: { isNot: null } } } },
       },
     });
+  });
+
+  // A7 TER, MINEUR 5 · LE CAS QUI RENDAIT -400 000 · 2027 sans à-nouveau ;
+  // une dépréciation de 400 000 passée À LA MAIN au 4912 en 2026 ; la créance
+  // déclarée à l'ouverture de 2027 avec cette dépréciation. Le 491 de la
+  // chaîne porte 400 000, le module 400 000 · la ligne de 2026 ne se lit pas
+  // AUSSI « hors module ».
+  it('mineur 5 · une dépréciation manuelle de N-1 couverte par la déclaration ne compte pas deux fois', async () => {
+    const { service, prisma } = monter({ creance: null, aNouveauDans: [] });
+    const declaree = creance([], [], {
+      exerciceId: 'ex-27',
+      compte416Id: 'c4162',
+      compte416: { id: 'c4162', numero: '41620000', intitule: '4162' },
+      declareeOuverture: true,
+      dateReclassement: new Date('2027-01-01'),
+      depreciationOuverture: 400_000,
+      ecritureReclassementId: null,
+    });
+    servirListe(prisma, [declaree]);
+    const lignes = [
+      { compteId: 'c4162', exerciceId: 'ex-26', debit: 1_160_000, credit: 0 },
+      { compteId: 'c4912', exerciceId: 'ex-26', debit: 0, credit: 400_000 },
+    ];
+    // La doublure honore les comptes et les exercices de la requête.
+    prisma.ligneEcriture.aggregate.mockImplementation(({ where }: any) => {
+      const comptes: string[] = where.compte?.id?.in ?? where.compteId?.in ?? [];
+      const ex = where.ecriture.exerciceId;
+      const exercicesLus: string[] = typeof ex === 'string' ? [ex] : ex.in;
+      const r = lignes.filter((l) => comptes.includes(l.compteId) && exercicesLus.includes(l.exerciceId));
+      return Promise.resolve({ _sum: { debit: r.reduce((t, l) => t + l.debit, 0), credit: r.reduce((t, l) => t + l.credit, 0) } });
+    });
+    const l = await service.lister('t', 'ex-27');
+    expect(l.rapprochement).toMatchObject({ provisoire: true, solde491: 400_000, depreciationModule: 400_000, horsModule491: 0 });
   });
 
   it('m9 · SYCEBNL, cotisations à l’ENCAISSEMENT · le reclassement d’un adhérent est refusé, § 5.4.2.1 cité', async () => {

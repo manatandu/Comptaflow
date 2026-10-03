@@ -550,9 +550,9 @@ export function CreancesDouteusesPage() {
               {Math.abs(ecart491) >= 0.01 && (
                 <div>
                   Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)})
-                  {Math.abs(ecarts.horsModule491) >= 0.01 && <> · dont {montant(ecarts.horsModule491)} passés hors de ce module</>}
+                  {Math.abs(ecarts.horsModule491) >= 0.01 && <> · dont {montant(ecarts.horsModule491)} passés hors de ce module dans l'exercice</>}
                   {Math.abs(ecarts.horsModule491) >= 0.01 && Math.abs(ecarts.reste491) >= 0.01 && (
-                    <> · le reste ({montant(ecarts.reste491)}) vient de l'à-nouveau ou d'une écriture du module retouchée</>
+                    <> · le reste ({montant(ecarts.reste491)}) vient de l'ouverture (à-nouveau, ou exercice précédent tant qu'il n'est pas clôturé) ou d'une écriture du module retouchée</>
                   )}
                   .
                 </div>

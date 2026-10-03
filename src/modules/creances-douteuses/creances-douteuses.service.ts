@@ -650,7 +650,7 @@ export class CreancesDouteusesService {
     const [solde416, solde491, horsModule491, reportProvisoire] = await Promise.all([
       comptes416.length > 0 ? this.solde(tenantId, { id: { in: comptes416 } }, ids, ex.dateFin) : Promise.resolve(0),
       comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
-      comptes491.length > 0 ? this.horsModule491(tenantId, comptes491, ids, ex.dateFin) : Promise.resolve(0),
+      comptes491.length > 0 ? this.horsModule491(tenantId, comptes491, ex) : Promise.resolve(0),
       // B1 · l'écran dit pourquoi les soldes sont provisoires · à-nouveau
       // absent, ou report provisoire, que le module ne lit jamais.
       provisoire ? this.aUnReportProvisoire(tenantId, ex.id) : Promise.resolve(false),
@@ -672,19 +672,27 @@ export class CreancesDouteusesService {
   }
 
   /**
-   * m8 · LES DÉPRÉCIATIONS PASSÉES HORS DU MODULE sur ses 491 · les lignes de
-   * la chaîne jusqu'à la clôture qui ne sont ni un à-nouveau (il porte des
+   * m8 · LES DÉPRÉCIATIONS PASSÉES HORS DU MODULE sur ses 491 · les lignes DE
+   * L'EXERCICE jusqu'à sa clôture qui ne sont ni un à-nouveau (il porte des
    * soldes, module et hors module mêlés), ni l'écriture d'une revue du module,
    * ni l'inscription en négatif d'une telle écriture. Rendu crédit moins débit.
+   *
+   * A7 TER, MINEUR 5 · L'EXERCICE SEUL, jamais la chaîne. Sans à-nouveau qui
+   * fait foi, les exercices précédents de la chaîne tiennent lieu d'à-nouveau ·
+   * une dépréciation passée à la main en N-1 est le solde d'ouverture que la
+   * déclaration couvre (`depreciationOuverture`). Lue aussi « hors module »,
+   * elle comptait DEUX fois · 400 000 au 491, 400 000 déclarés, 400 000 hors
+   * module, et un reste de -400 000 à l'écran. Avec un à-nouveau, elle est
+   * dans l'à-nouveau, que ce calcul écarte déjà · même règle des deux côtés.
    */
-  private async horsModule491(tenantId: string, comptes491: string[], ids: string[], au: Date) {
+  private async horsModule491(tenantId: string, comptes491: string[], ex: { id: string; dateFin: Date }) {
     const s = await this.prisma.ligneEcriture.aggregate({
       where: {
         compteId: { in: comptes491 },
         ecriture: {
           tenantId,
-          exerciceId: { in: ids },
-          date: { lte: au },
+          exerciceId: ex.id,
+          date: { lte: ex.dateFin },
           estGenereeParCloture: false,
           ...HORS_REPORT_PROVISOIRE,
           ajustementCreanceDouteuse: { is: null },
