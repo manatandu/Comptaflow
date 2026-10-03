@@ -2330,6 +2330,25 @@ administrateur (`POST /rapprochements/:id/rouvrir`), motif, journal d'audit, SEU
 le dernier clos du compte, ni avec un en cours ni à travers une période figée
 (`motifLigneFigee`) ; il se reclôt, ne s'annule pas.
 
+**Banque à rapprocher et période sans clôture informatique (ligne A13,
+2026-10-03).** `controles/banque-et-cloture-informatique.ts`, deux contrôles
+d'ÉTAT, jamais de retard. (1) Tout compte 52 mouvementé dans l'exercice sans
+rapprochement clos daté au plus tôt de la clôture est « à rapprocher avant
+l'arrêté des comptes » (fiche du compte 52 ; AUDCIF art. 42, non exclu par
+l'art. 3 du SYCEBNL ; délai de l'art. 23). Un compte FERMÉ n'est couvert que par
+TROIS faits ensemble · dernier relevé clos à zéro, daté au plus tôt de la
+dernière ligne du compte, solde comptable nul en centimes ; les lignes d'une
+réévaluation (écarts, contre-passation, leurs négatifs, annulée ou non),
+reconnues par LIAISON, n'avancent jamais cette dernière ligne. Limite écrite ·
+un mouvement bancaire non passé après le relevé nul échappe. (2) Art. 22, 3° ·
+une période de plus de trois mois (fin de mois si le quantième manque, 31/01
+donne 30/04) sans clôture de période ou totale POSÉE DANS OmegaX, journal par
+journal ; les clôtures de N+1 qui figent N comptent (aucune borne haute) ;
+l'à-nouveau provisoire n'est pas un journal écrit ; un journal créé en cours
+d'année part de l'exercice, pas de sa première écriture (« insertion
+intercalaire »). La clôture se fait par l'administrateur, définitive, et fige
+lettrage et ventilation.
+
 **Règlement des tiers (2026-09-25).** `reglements/` · UNE pièce par tiers,
 lettrage MANUEL aussitôt. (1) TIERS ET TRÉSORERIE SEULS (guide SYSCOHADA Partie 1
 ch. 4 § 1, fiches des comptes 40 et 41). (2) 408, 409, 418, 419 ne se règlent pas.
