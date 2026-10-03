@@ -83,7 +83,11 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 
 ## Reste
 
-- Bloc du § 3 complet des deux côtés, suite entière une fois.
+- Rien dans la ligne. Bloc du § 3 passé le 2026-10-03 sur 9b553b7 ·
+  serveur `tsc`, `jest --maxWorkers=2` (709 suites, 9 962 tests),
+  `npm run build` ; client `tsc`, `npm test` (206 fichiers, 1 687 tests),
+  `npm run build`. Restent la relecture, l'intégration sur `main` et les
+  tests navigateur.
 
 ## Relevés (hors périmètre, non traités)
 
