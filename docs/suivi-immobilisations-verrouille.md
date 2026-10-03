@@ -106,6 +106,49 @@ garde la description de chaque ligne ; c'est cet ordre-ci qui se suit.
 | A21 | Facture d'achat datée à sa RÉCEPTION · l'écriture prend la date de réception de la pièce d'origine externe (AUDCIF art. 16 al. 2), la date de facture restant portée ; effets sur la TVA lus au texte | décision de Manasse du 2026-10-02 |
 | A22 | Trois relevés anciens des immobilisations · dépréciation d'un bien en cours (2919 à 2949) et son sort à la mise en service ; prix global avec fonds de commerce (l'écran visait toujours le 21500000) ; 787 du Guide contre 72 de l'AUDCIF pour les intérêts immobilisés | décision de Manasse du 2026-10-02 ; intégré après le lot 15 (mêmes fichiers) |
 
+## Après la liste · connexion des trois logiciels, puis audit complet
+
+**Ordre décidé par Manasse le 2026-10-03 (soir).** (1) Finir la liste
+ci-dessus, les trois corrections en cours d'abord (A5 bis, A6 bis, A7 ter) ;
+(2) connecter « les trois logiciels » au dépôt (lesquels et comment, à
+demander à Manasse à ce moment) ; (3) AUDIT COMPLET de tout ce qui est en
+ligne, en dernier. Depuis la même date, aucune ligne n'est intégrée sans un
+scénario sur VRAIE base qui traverse au moins une clôture d'exercice (règle
+à écrire au CLAUDE.md à la prochaine intégration).
+
+**Méthode de l'audit.** Celle qui a trouvé les défauts d'A5 à A7 · un
+vérificateur par domaine monte une base jetable, joue des scénarios sur N,
+N+1 et N+2 (clôtures annuelles et de période, annulations, devises), lit
+chaque solde contre le montant calculé à la main d'après le texte ; tout
+défaut confirmé est corrigé et gelé par un test navigateur sur base réelle.
+Vague 1 · lignes les plus récentes (A8, A9, A10, A11, A13, lots 1 à 15 des
+immobilisations, relecture a posteriori d'A8 et d'A11 comprise). Vague 2 ·
+ce qui passe des écritures (paie au journal, clôture et report à nouveau,
+TVA, retenues, stocks, subventions, réévaluation, consolidation). Vague 3 ·
+ce qui lit sans écrire (états financiers, notes, exports, contrôles).
+
+**À traiter EN TÊTE de l'audit, défauts de production déjà reproduits sur
+base réelle (gardés pour l'audit par décision de Manasse du 2026-10-03).**
+
+- AU1 · DOSSIER ENFERMÉ · une ligne de l'à-nouveau PROVISOIRE de N+1
+  lettrée à la main, puis une clôture de période de N+1 qui couvre le
+  1er janvier · la clôture de N est refusée (« délettrez-les ») et le
+  délettrage aussi (ligne figée) · N ne se clôture plus jamais. Reproduit
+  sur un 411 seul (relecture adverse d'A7 ter, second tour, script
+  `generique.mjs`). A6 bis n'écarte l'à-nouveau provisoire que du Règlement
+  des tiers. Issues à trancher · refuser le lettrage d'une ligne
+  `estANouveauProvisoire`, ou exempter l'à-nouveau provisoire du gel (il
+  n'est jamais au livre-journal), ou reporter le lettrage sur l'à-nouveau
+  définitif à la clôture. JAMAIS refuser la clôture de période de N+1 (AUDCIF
+  art. 22, 3° l'impose au moins tous les trois mois).
+- AU2 · MONTANT FAUSSÉ · clôturer N après l'import d'un bilan d'ouverture
+  dans N+1 AJOUTE le report d'OmegaX à l'import · deux à-nouveaux dans N+1
+  (411 à 4 500 000 dans le scénario de la vérification d'A5 bis, troisième
+  tour). Vague 2, clôture et report à nouveau.
+- AU3 · une balance importée perd la devise · l'ancienne créance n'est
+  jamais réévaluée (3 200 000 au lieu de 1 500 USD au cours de 2 400, soit
+  3 600 000).
+
 ## Décisions en attente de Manasse
 
 | # | Question | Proposition |
