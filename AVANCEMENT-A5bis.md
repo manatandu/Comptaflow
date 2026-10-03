@@ -116,17 +116,42 @@ Migration `20270124000000` complétée (six colonnes, non encore sur main) ;
 éprouvées sur base jetable (filtre JSON DbNull, update à filtre étendu,
 groupBy à référence de champ).
 
-Rattachée à main ab53edc (A9, suivi). Bloc du § 3 passé · serveur 9992
+Rattachée à main f4ab9bb. Bloc du § 3 passé après le second tour · serveur 10005
 tests (`npx jest --maxWorkers=2`), client 1698, typages et constructions.
+
+## Second tour de relecture (2026-10-03) · corrigé
+
+- B-I · l'inversion de la banque par une contre-passation se lit dans TOUT
+  exercice traversé depuis la cible (`parcourus`), pas dans le seul
+  exercice qui suit · contre-passation de N posée en N+2, ou N+1 clôturé
+  sans réévaluation · banque de N+2 à 1 600 000 et non 1 500 000 (deux
+  variantes chiffrées). Contrôle 34 · plus de « le résultat net en sort
+  juste » · le résultat cumulé, une fois la réévaluation passée.
+- B-II · `cibleDeContrePassation` · l'exercice qui suit immédiatement s'il
+  est ouvert, sinon le premier ouvert après des clôturés (la
+  contre-passation du 478, du 479 et des tiers ne touche que le bilan) ;
+  `extourner`, la liste, `lib/contre-passation.ts` et Devises s'y alignent.
+  Le portillon lit la DERNIÈRE réévaluation non annulée antérieure, à
+  travers les exercices sans réévaluation, nomme la cible, et tient une
+  contre-passation pour à sa place au plus tard dans l'exercice réévalué
+  sans exercice ouvert entre la réévaluation et elle · 411 à 2 600 000 (et
+  non 3 100 000), 479 à −600 000 (et non −1 100 000). B2 se lit sur
+  l'exercice qui reçoit la contre-passation.
+- m1 · la ventilation ne porte que les devises lues sur le compte, toutes
+  déclarées ; chaque montant borné par ce que le calcul permet (valeur du
+  signe du montant en devise, cours positif ; devise soldée · l'opposé de
+  ses francs), rien au-delà (cours d'alors non gardé, aucun texte), dit ;
+  l'écran montre le cours implicite.
+- m2 · l'issue du contrôle 34 se règle sur l'exercice qui PORTE la
+  contre-passation (ouvert · « Annuler la contre-passation » puis la
+  repasser ; clôturé · la phrase d'avant).
+- m3 · le contrôle 32 écarte la contre-passation annulée et son négatif,
+  nommés par `annulationsContrePassation`.
 
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
   à l'intégration.
-- Limite connue · une contre-passation ANCIENNE qui inversait une banque,
-  annulée par le nouveau geste, n'est plus reconnue par liaison au contrôle
-  32 d'A13 (compte 52 fermé) · cas d'école (contre-passation mal placée ET
-  banque inversée ET compte fermé).
 - A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
   pas la part reportée en francs par l'à-nouveau · une caisse en devise
   réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la
