@@ -688,7 +688,13 @@ export class DecompteFinalDto {
   @Min(0)
   joursPreavisNonObserves?: number;
 
-  /** A9 · art. 66, al. 2 et art. 7, point 8 · avantages en nature du temps restant, logement et transport exclus. */
+  /**
+   * A9 · art. 66, al. 2 et art. 7, point 8 · valeur des avantages en nature
+   * du temps restant, NON FOURNIS en nature jusqu'au terme (sinon payés deux
+   * fois). Exclus par l'art. 7, point 8 · soins de santé, logement ou son
+   * indemnité, allocations familiales légales, transport, frais de voyage et
+   * avantages accordés exclusivement pour l'accomplissement des fonctions.
+   */
   @IsOptional()
   @IsNumber()
   @Min(0)

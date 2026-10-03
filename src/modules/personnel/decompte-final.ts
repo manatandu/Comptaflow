@@ -620,6 +620,16 @@ export function motifRefusDecompte(p: {
       ? "Article 66 · « Le travailleur qui reçoit le préavis peut cesser le travail à l'expiration de la moitié du délai » · il vise le préavis donné par l'employeur, pas celui que le travailleur donne."
       : "Article 67 · « Le travailleur qui a reçu le préavis et justifie avoir trouvé un nouvel emploi » · il vise le préavis donné par l'employeur, pas celui que le travailleur donne.";
   }
+  // A9 (M3) · et seulement pour le préavis d'un LICENCIEMENT d'un contrat qui
+  // en comporte un · ni faute lourde (art. 72), ni force majeure (art. 60 c),
+  // ni commun accord (art. 61 bis), ni terme ou rupture d'un CDD (art. 69 et
+  // 70) n'ouvrent de délai que le travailleur « reçoit ».
+  if (
+    (p.executionPreavis === 'DEPART_A_MI_PREAVIS' || p.executionPreavis === 'DEPART_POUR_NOUVEL_EMPLOI') &&
+    (p.motif !== 'LICENCIEMENT' || p.typeContrat === 'DUREE_DETERMINEE')
+  ) {
+    return "Les départs des articles 66 et 67 supposent un préavis de licenciement reçu de l'employeur · la faute lourde (art. 72), la force majeure (art. 60 c), le commun accord (art. 61 bis), le terme du contrat à durée déterminée et sa rupture (art. 69 et 70) n'en comportent pas.";
+  }
   if (p.motif === 'DEMISSION' && p.initiative !== 'TRAVAILLEUR') {
     return "Une démission est l'initiative du travailleur · l'article 64, alinéa 2 fixe son préavis à la moitié de celui de l'employeur.";
   }
@@ -643,17 +653,51 @@ export const RESERVE_DEPART_AVANT_LA_MOITIE =
   "LECTURE D'OMEGAX · le Code ne dit pas expressément ce que doit le travailleur qui part AVANT la moitié du préavis reçu. " +
   "L'article 66, alinéa 1 fixant à cette moitié le délai qu'il est tenu d'observer, seuls les jours non observés avant elle lui sont imputés (art. 63, al. 3), " +
   "et la rémunération du temps restant (art. 66, al. 2) n'est pas due, faute de départ à la moitié. " +
-  "S'il justifie d'un nouvel emploi et d'un délai convenu d'au plus sept jours, c'est un départ de l'article 67 · rien ne lui est alors imputé.";
+  "S'il justifie d'un nouvel emploi et d'un délai convenu d'au plus sept jours, c'est un départ de l'article 67 · rien ne lui est alors imputé. " +
+  "Et si l'employeur n'a pas respecté ses obligations pendant le préavis (jour de liberté hebdomadaire compris), rien n'est dû par le travailleur · article 65, alinéa 3, « La partie à l'égard de laquelle ces obligations ne seraient pas respectées ne pourra se voir imposer aucun délai de préavis, sans préjudice des dommages-intérêts qu'elle jugerait bon de demander au tribunal compétent. »";
+
+/**
+ * A9 (M5) · LA MOITIÉ SE LIT SUR LE PRÉAVIS DÛ. Sans durée retenue par le
+ * dossier, `preavisLegal` rend le PLANCHER de l'art. 64, al. 1, et la moitié
+ * en est tirée · un préavis conventionnel plus long la déplace. Le refus qui
+ * la compare le dit.
+ */
+function mentionDureeRetenue(params: ParametresDecompte): string {
+  return typeof params.preavisRetenuJours === 'number' && params.preavisRetenuJours > 0
+    ? ''
+    : " La moitié est prise sur le plancher légal de l'article 64 · déclarez la durée retenue si le préavis dû le dépasse (convention collective ou contrat, art. 64, al. 1 et 3).";
+}
+
+/** A9 (M3) · le sort des allocations familiales du temps restant, selon l'article qui le régit. */
+const AF_DUES_ARTICLE_66 =
+  "DÉPART À MI-PRÉAVIS · les allocations familiales du temps restant à courir sont DUES (art. 66, al. 2, « l'employeur doit la rémunération et les allocations familiales pendant le temps restant à courir ») · les jours saisis les comptent.";
+const AF_PERDUES_ARTICLE_67 =
+  "DÉPART POUR UN NOUVEL EMPLOI · les allocations familiales de la période de préavis restant à courir sont PERDUES (art. 67) · les jours saisis ne la comptent pas.";
+const AF_NON_DUES_AVANT_LA_MOITIE =
+  "DÉPART AVANT LA MOITIÉ DU PRÉAVIS · les allocations familiales du temps restant ne sont pas dues, l'article 66, alinéa 2 ne jouant pas faute de départ à la moitié (lecture d'OmegaX) · les jours saisis ne le comptent pas.";
 
 const LIBELLE_REMUNERATION_RESTANTE = 'Rémunération du préavis restant à courir';
+
+/**
+ * A9 (M4) · LA SOMME DE L'ART. 66 A SA CLÉ · « l'employeur doit la
+ * rémunération », c'est une rémunération au sens de l'art. 7, point 8, pas
+ * une indemnité de rupture que le corpus ne range nulle part · son émission
+ * porte sa propre réserve (`decompte-final-emis.ts`).
+ */
+export const CLE_REMUNERATION_PREAVIS_RESTANT = 'remuneration-preavis-restant';
 
 /**
  * A9 · ARTICLE 66 · LE DÉPART À MI-PRÉAVIS. L'employeur doit « la rémunération
  * [...] pendant le temps restant à courir », et l'alinéa 3 fait entrer dans
  * cette rémunération la moyenne des douze mois. La rémunération est celle de
  * l'art. 7, point 8 · elle comprend « la valeur des avantages en nature »,
- * elle ne comprend ni le logement ou son indemnité ni le transport · l'art. 66
- * ne dit pas « avantages de toute nature » comme l'art. 63, al. 3.
+ * elle ne comprend ni les soins de santé, ni le logement ou son indemnité, ni
+ * les allocations familiales légales, ni le transport, ni « les frais de
+ * voyage ainsi que les avantages accordés exclusivement en vue de faciliter
+ * au travailleur l'accomplissement de ses fonctions » · l'art. 66 ne dit pas
+ * « avantages de toute nature » comme l'art. 63, al. 3. Et seuls les
+ * avantages NON FOURNIS en nature jusqu'au terme se paient en valeur · un
+ * avantage que l'employeur continue de fournir serait payé deux fois.
  *
  * LA SOMME VA À L'INDEMNITÉ DE FIN DE CONTRAT (6614) · la fiche du compte 66
  * des deux textes y range les « indemnités de préavis » ; c'est la part du
@@ -683,7 +727,8 @@ function rubriqueDepartAMiPreavis(
   } else if (restants > moitie) {
     reserve =
       `${restants} jours restant à courir sur un préavis de ${jours} · le travailleur est parti AVANT la moitié (${moitie} jours). ` +
-      "L'article 66 ne l'autorise à cesser le travail qu'« à l'expiration de la moitié du délai de préavis » · ce départ est un préavis non observé par le travailleur (art. 63, al. 3), ou un départ pour un nouvel emploi (art. 67) s'il en justifie.";
+      "L'article 66 ne l'autorise à cesser le travail qu'« à l'expiration de la moitié du délai de préavis » · ce départ est un préavis non observé par le travailleur (art. 63, al. 3), ou un départ pour un nouvel emploi (art. 67) s'il en justifie." +
+      mentionDureeRetenue(params);
   } else if (jour === null) {
     reserve = "Le taux journalier du contrat n'est pas renseigné.";
   } else if (moyenne66 === null) {
@@ -691,16 +736,17 @@ function rubriqueDepartAMiPreavis(
       "La moyenne des douze mois de l'article 66, alinéa 3 n'est pas renseignée · elle entre dans la rémunération du temps restant à courir (zéro est une réponse).";
   } else if (avantages === null) {
     reserve =
-      "La valeur des avantages en nature pendant le temps restant à courir n'est pas renseignée · l'article 7, point 8 la compte dans la rémunération, logement et transport exclus (zéro est une réponse).";
+      "La valeur des avantages en nature non fournis pendant le temps restant à courir n'est pas renseignée · l'article 7, point 8 la compte dans la rémunération, soins de santé, logement, allocations familiales, transport, frais de voyage et avantages de fonction exclus (zéro est une réponse).";
   }
   return {
-    cle: 'preavis',
+    // La clé en toutes lettres · `decompte-final-emis.spec.ts` lit les clés dans la SOURCE.
+    cle: 'remuneration-preavis-restant',
     libelle: LIBELLE_REMUNERATION_RESTANTE,
     montantFc: reserve === null ? (restants as number) * ((jour as number) + (moyenne66 as number)) + (avantages as number) : null,
     fondement:
       `${fondementDuree} Article 66 · « Le travailleur qui reçoit le préavis peut cesser le travail à l'expiration de la moitié du délai de préavis que l'employeur est tenu de lui donner. L'employeur doit la rémunération et les allocations familiales pendant le temps restant à courir. » ` +
       `${restants ?? '?'} jours × (taux journalier + moyenne de l'art. 66, al. 3) + avantages en nature ; ${conversionMoyenne}. ` +
-      "Rémunération au sens de l'article 7, point 8 · ni le logement ou son indemnité ni le transport n'y entrent. Les jours prestés se paient en salaire, aux arriérés ; les allocations familiales du temps restant restent dues (rubrique à part).",
+      "Rémunération au sens de l'article 7, point 8 · ni les soins de santé, ni le logement ou son indemnité, ni les allocations familiales, ni le transport, ni les frais de voyage et avantages de fonction n'y entrent ; seuls les avantages en nature non fournis jusqu'au terme s'y ajoutent en valeur. Les jours prestés se paient en salaire, aux arriérés ; les allocations familiales du temps restant restent dues (rubrique à part).",
     reserve,
   };
 }
@@ -719,13 +765,41 @@ function rubriqueDepartAMiPreavis(
  * ouvrables » · l'art. 64 écrit ce dernier mot quand il le veut, l'art. 67 ne
  * l'écrit pas (jours de calendrier, lecture d'OmegaX). Sans elles, le départ
  * n'est pas celui de l'art. 67, et le zéro ne s'écrit pas.
+ *
+ * A9 (B1) · LE « DÉLAI MOINDRE » SE LIT CONTRE LA MOITIÉ DE L'ART. 66. Le
+ * texte ne dit pas à quoi le délai est « moindre » · lu contre le préavis
+ * entier, un travailleur qui part pour un nouvel emploi APRÈS la moitié
+ * perdrait ce que l'art. 66 lui garde (28 jours de préavis, 8 restants,
+ * 10 000 FC par jour · 80 000 FC sous l'art. 66, zéro sous l'art. 67). LECTURE
+ * PROTECTRICE RETENUE (une règle de protection ne se tranche pas contre celui
+ * qu'elle protège) · l'art. 67 ne vaut que pour un départ AVANT la moitié ; à
+ * la moitié ou après, la rubrique est indéterminée et renvoie au départ à
+ * mi-préavis. Le comparateur n'est pas dit par le texte · c'est une lecture
+ * d'OmegaX, et elle exige les jours restant à courir, jamais présumés.
  */
-function rubriqueDepartPourNouvelEmploi(params: ParametresDecompte, fondementDuree: string): RubriqueDecompte {
+function rubriqueDepartPourNouvelEmploi(
+  params: ParametresDecompte,
+  jours: number,
+  fondementDuree: string,
+): RubriqueDecompte {
   const TEXTE_67 =
     "Article 67 · « Le travailleur qui a reçu le préavis et justifie avoir trouvé un nouvel emploi peut quitter son employeur dans un délai moindre, fixé de commun accord, sans qu'il puisse être supérieur à sept jours à dater du jour où il trouve un nouvel engagement. Dans ce cas, il perd le droit à la rémunération et aux allocations familiales de la période de préavis restant à courir. »";
   const delai = typeof params.delaiDepartNouvelEmploiJours === 'number' ? params.delaiDepartNouvelEmploiJours : null;
+  const restants = typeof params.joursPreavisNonObserves === 'number' ? params.joursPreavisNonObserves : null;
+  const moitie = jours / 2;
   let reserve: string | null = null;
-  if (params.nouvelEmploiJustifie === false) {
+  if (restants === null) {
+    reserve =
+      "Les jours ouvrables du préavis restant à courir au départ ne sont pas renseignés · le délai moindre de l'article 67 se lit contre la moitié du préavis de l'article 66.";
+  } else if (restants < 0 || restants > jours) {
+    reserve = `Les jours restant à courir (${restants}) doivent être compris entre zéro et la durée du préavis (${jours}).`;
+  } else if (restants <= moitie) {
+    reserve =
+      `${restants} jours restant à courir sur un préavis de ${jours} · le travailleur est parti à la moitié (${moitie} jours) ou après. ` +
+      "L'article 66 lui garde alors « la rémunération et les allocations familiales pendant le temps restant à courir » ; l'article 67, qui les lui retire, ne se lit que pour un départ avant la moitié (lecture protectrice d'OmegaX, le texte ne disant pas à quoi le délai est « moindre »). " +
+      'Déclarez le départ à mi-préavis.' +
+      mentionDureeRetenue(params);
+  } else if (params.nouvelEmploiJustifie === false) {
     reserve =
       "Le nouvel emploi n'est pas justifié · l'article 67 exige que le travailleur « justifie avoir trouvé un nouvel emploi ». Sans justification, le départ anticipé est un préavis non observé par le travailleur (art. 63, al. 3).";
   } else if (params.nouvelEmploiJustifie !== true) {
@@ -797,6 +871,11 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         : null,
   });
 
+  // A9 (M3) · le sort des allocations familiales du temps restant n'est dit
+  // que si une rubrique des art. 66 ou 67 s'applique EFFECTIVEMENT, ou si le
+  // travailleur est parti avant la moitié d'un préavis reçu.
+  let sortDuTempsRestant: string | null = null;
+
   // 2 · Indemnité de préavis (art. 63, al. 3), ou ce qui en tient lieu.
   const LIBELLE_PREAVIS = 'Indemnité compensatrice de préavis';
   if (params.motif === 'COMMUN_ACCORD') {
@@ -843,9 +922,13 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         reserve: "Lecture du séminaire CPCC (« si le travailleur demande lui-même la dispense, il perd le droit à l'indemnité de préavis ») · le Code ne la nomme pas.",
       });
     } else if (execution === 'DEPART_A_MI_PREAVIS') {
-      rubriques.push(rubriqueDepartAMiPreavis(params, jours, fondementDuree, jour, moyenne66, conversionMoyenne));
+      const r = rubriqueDepartAMiPreavis(params, jours, fondementDuree, jour, moyenne66, conversionMoyenne);
+      rubriques.push(r);
+      if (r.montantFc !== null) sortDuTempsRestant = AF_DUES_ARTICLE_66;
     } else if (execution === 'DEPART_POUR_NOUVEL_EMPLOI') {
-      rubriques.push(rubriqueDepartPourNouvelEmploi(params, fondementDuree));
+      const r = rubriqueDepartPourNouvelEmploi(params, jours, fondementDuree);
+      rubriques.push(r);
+      if (r.montantFc === 0) sortDuTempsRestant = AF_PERDUES_ARTICLE_67;
     } else {
       // DISPENSE_PAR_EMPLOYEUR · l'employeur empêche l'exécution, il en répond.
       const nonObserves =
@@ -882,7 +965,8 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         reserve =
           `${nonObserves} jours non observés sur ${jours} · le travailleur est parti à la moitié du préavis ou après. ` +
           "Article 66 · « Le travailleur qui reçoit le préavis peut cesser le travail à l'expiration de la moitié du délai de préavis que l'employeur est tenu de lui donner. L'employeur doit la rémunération et les allocations familiales pendant le temps restant à courir. » " +
-          'Déclarez le départ à mi-préavis · rien n\'est dû par le travailleur, la rémunération du temps restant l\'est par l\'employeur.';
+          'Déclarez le départ à mi-préavis · rien n\'est dû par le travailleur, la rémunération du temps restant l\'est par l\'employeur.' +
+          mentionDureeRetenue(params);
       } else if (jour === null) {
         reserve = "Le taux journalier du contrat n'est pas renseigné.";
       } else if (moyenne66 === null) {
@@ -918,6 +1002,9 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         // AUDIT D2-A1, C4 · le démissionnaire qui n'observe pas son préavis
         // DOIT l'indemnité à l'employeur · la créditer au travailleur
         // inversait le signe.
+        if (preavisRecuParLeTravailleur && nonObserves !== null && nonObserves > moitie && nonObserves <= jours) {
+          sortDuTempsRestant = AF_NON_DUES_AVANT_LA_MOITIE;
+        }
         duParLeTravailleur.push({
           ...ligne,
           libelle: 'Indemnité de préavis due par le travailleur',
@@ -1026,14 +1113,9 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
     montantAf = enfants * joursAf * tauxAf;
   }
   // A9 · les allocations du temps restant suivent l'article qui le régit ·
-  // dues sous l'art. 66, al. 2, perdues sous l'art. 67. Les jours restent
-  // saisis · OmegaX dit ce qu'ils doivent compter, il ne les recompte pas.
-  const sortDuTempsRestant =
-    params.executionPreavis === 'DEPART_A_MI_PREAVIS'
-      ? "DÉPART À MI-PRÉAVIS · les allocations familiales du temps restant à courir sont DUES (art. 66, al. 2, « l'employeur doit la rémunération et les allocations familiales pendant le temps restant à courir ») · les jours saisis les comptent."
-      : params.executionPreavis === 'DEPART_POUR_NOUVEL_EMPLOI'
-        ? "DÉPART POUR UN NOUVEL EMPLOI · les allocations familiales de la période de préavis restant à courir sont PERDUES (art. 67) · les jours saisis ne la comptent pas."
-        : null;
+  // dues sous l'art. 66, al. 2, perdues sous l'art. 67, non dues avant la
+  // moitié. Les jours restent saisis · OmegaX dit ce qu'ils doivent compter,
+  // il ne les recompte pas.
   if (reserveAf === null && montantAf !== null && montantAf > 0) reserveAf = sortDuTempsRestant;
   horsBrut.push({
     cle: 'allocations-familiales',
