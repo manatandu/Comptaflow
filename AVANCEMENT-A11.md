@@ -134,6 +134,15 @@ Branche de sauvegarde · `travail/a11`. Relevé CPCC C7, décision de Manasse du
 - Client · `npx tsc --noEmit`, `npm test` (203 fichiers, 1657 tests),
   `npm run build` verts. Serveur · `tsc` et `nest build` verts.
 
+Second passage, après les corrections du premier tour · serveur
+`npx jest --maxWorkers=2` · 702 suites, 701 vertes, 9718 tests verts, aucun
+processus tué ; la suite tombée était le nouveau spec client, qui importait
+`vitest` alors que la racine le lit aussi sous Jest · import retiré (globales,
+comme les autres specs de `client/`), relancé seul sous Jest et sous Vitest,
+5 tests verts. Client · `tsc`, `npm test` (204 fichiers, 1662 tests),
+`npm run build` verts ; serveur · `tsc` et `nest build` verts. Aucun
+changement de schéma, pas de `migrate diff` à refaire.
+
 ## Reste
 
 - Relectures (adverse, échecs silencieux, TypeScript, écran) à l'intégration.
