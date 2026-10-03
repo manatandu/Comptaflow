@@ -158,33 +158,91 @@ Fait, dans l'ordre demandé (B2 et les mineurs, qui ne touchent pas
 - m3 · inscrit à la ligne A7 bis du suivi, sans code · au Détail, le lien
   facture → encaissement de l'exigibilité passe par la ligne d'à-nouveau.
 
+## Troisième tour (après l'intégration d'A5 bis et d'A7 quater sur `main`)
+
+- Fusion de `main` a95f723 (4c4627e) · conflits de `lettrage.service.ts`
+  (calcul des propositions dans la transaction d'A7 quater, mise de côté des
+  reclassements, partition par exercice au Détail et à-nouveau provisoire
+  écarté d'A6 bis, gardés ensemble) et de `controles.service.ts` (traces des
+  contre-passations annulées d'A5 bis, relevé des lignes lettrées d'A6 bis).
+  Schéma identique à `main`.
+- (887e46b) `avertissementExtourneManquante` compte une contre-passation
+  DÉCLARÉE (A5 bis, `contrePassationDeclareeId`) comme faite, comme le
+  portillon d'A5 bis (`motifContrePassationManquante`). Testé (doublure qui
+  honore le filtre).
+- B1 avec B-3 (83d7252) · `DevisesService.calculer` · un groupe de lettrage
+  n'éteint une ligne que s'il tient TOUT ENTIER dans l'exercice, à la date de
+  la réévaluation (`lectureDesGroupes`, `perimetre-reevaluation.ts`) ; sinon
+  ses lignes de l'exercice se lisent ouvertes, celles en francs (écart
+  réalisé passé sur le groupe) rangées dans la position de la devise du
+  groupe. En N+1, le règlement compense l'à-nouveau · rien à doter. Un
+  groupe à cheval DÉNOUÉ avant la date (aucune ligne postérieure) dont le
+  réalisé n'est pas passé · ce reste sort de la valeur comptable et se nomme
+  (« lettrage a · position dénouée », AUDCIF art. 55), jamais réévalué avec
+  les autres factures de la devise. En N (B-3), une facture lettrée par un
+  règlement de N+1 se réévalue (art. 54). Une disponibilité lettrée reste
+  hors de la position, comme avant (A5 bis la relit ainsi). Groupe à cheval
+  à plusieurs devises · ses lignes en francs ne se rangent pas, avertissement.
+  Tests · `groupes-a-cheval-reevaluation.spec.ts` (Détail au coût historique,
+  au payé avec écart passé, écart non passé, SOLDE partiel N et solde N+1,
+  B2 50 000 et non 150 000 / charge 150 000 et non 250 000, réalisé non
+  passé hors de la seconde facture, B-3 entier et partiel, groupe de N
+  éteint, règle pure) ; huit tombent sur l'ancien `calculer`.
+
+### Vraie base (a6bis_1, serveur compilé, port 8093, à travers la clôture de N)
+
+SYSCOHADA, USD · cours 2 800 (10/11/N), 2 750 (01/12/N et 31/12/N), 2 700
+(15/03/N+1 et 31/12/N+1). Trois factures de 1 000 USD à 2 800 en N ·
+41110000 (A), 41120000 (B), 41150000 (C), comptes au SOLDE pour lettrer
+entre exercices (règle 2), B repassé au DÉTAIL avant la clôture. B · 500 USD
+encaissés en N par le règlement des tiers à 2 750 (52 1 375 000, 656
+25 000, groupe partiel). N+1 · A encaissée au coût historique (52
+2 700 000, 656 100 000, C 411 2 800 000), lettrée à la main avec la facture
+de N ; B · solde de 500 USD (52 1 350 000, 656 50 000), groupe complété ;
+C · encaissée au payé (2 700 000), lettrée en partiel, écart de 100 000
+passé sur le groupe (656). H · 500 USD à 2 800 sur 41140000, ouverte.
+Réévaluation de N passée APRÈS ces lettrages, clôture de N, contre-passation,
+réévaluation de N+1.
+
+| Compte | N attendu | N lu | N+1 attendu | N+1 lu |
+|---|---|---|---|---|
+| 41110000 | 2 750 000 | 2 750 000 | 0 | 0 |
+| 41120000 | 1 375 000 | 1 375 000 | 0 | 0 |
+| 41150000 | 2 750 000 | 2 750 000 | 0 | 0 |
+| 41140000 | · | · | 1 350 000 | 1 350 000 |
+| 52110000 | 1 375 000 | 1 375 000 | 8 125 000 | 8 125 000 |
+| 47810000 | 125 000 | 125 000 | 50 000 | 50 000 |
+| 49910000 | −125 000 | −125 000 | −50 000 | −50 000 |
+| 65600000 | 25 000 | 25 000 | 250 000 | 250 000 |
+| 65910000 | 125 000 | 125 000 | 0 | 0 |
+| 75910000 | · | · | 75 000 | 75 000 |
+
+Calcul de N · A −50 000, B (500 USD) −25 000, C −50 000 (B-3). Calcul de N+1
+· H seule, −50 000 ; requise 50 000, en place 125 000, reprise 75 000.
+MÊME SCÉNARIO SUR L'ANCIEN `calculer` (887e46b compilé) · la réévaluation
+de N ne voit AUCUNE position (« Aucune position en devise à réévaluer ») ;
+celle de N+1 réévalue les trois à-nouveaux (−100 000, −100 000, −50 000) et
+H · provision 300 000 au lieu de 50 000, réalisé provisionné une seconde
+fois.
+
 ## Reste
 
-- B1 avec B-3 (après A5 bis sur `main`) · `DevisesService.calculer` lit
-  chaque exercice pour lui-même · une ligne d'un groupe qui touche un autre
-  exercice se lit non lettrée, les lignes en francs de ces groupes (écart
-  réalisé) entrent dans la valeur comptable de la position, la paire se
-  compense et la position dénouée sort ; B-3 · une ligne lettrée par un
-  groupe dont une ligne est postérieure à la date de réévaluation se lit
-  ouverte. Tests chiffrés au Détail et au Solde (facture 1 000 USD à 2 800,
-  encaissement 2 700 en N+1, réalisé 100 000 passé, réévaluation N+1 au
-  cours 2 700 · rien à doter), B2 (provision 50 000 et non 150 000, charge
-  150 000 et non 250 000) et B-3.
-- Bloc complet du § 3 après B1, puis vérification ciblée des deux
-  BLOQUANTS. À l'intégration, relire le numéro du contrôle (35).
-- Premier tour · bloc du § 3 passé le 2026-10-03 sur 4b60b84 (712 suites,
-  10 008 tests serveur ; 208 fichiers, 1 696 tests client).
-
-## Renvoyé après l'intégration d'A5 bis (B-3, ne pas toucher `calculer` avant)
-
-- La réévaluation de N écarte une facture de N lettrée (SOLDE) par un
-  règlement de N+1 · son latent n'est pas calculé à la clôture de N.
-  Atteignable au SOLDE, où le lettrage entre exercices reste libre (règle 2),
-  et par les groupes à cheval déjà en base. Correctif à porter dans
-  `DevisesService.calculer` · lire comme OUVERTE, à la date de réévaluation,
-  une ligne lettrée par un groupe dont une ligne est postérieure à cette
-  date ; et un contrôle qui nomme les réévaluations déjà passées touchées
-  (groupe, compte, montant en devise, issue · annuler et réévaluer, D6).
+- Bloc du § 3 passé le 2026-10-03 sur 83d7252 · serveur tsc, construction ;
+  jest 723 suites, 10 286 tests, deux en dépassement de 5 s sous charge
+  (`restitution.spec.ts`, 25 sur 25 rejoué seul, hors de la ligne) ; client
+  tsc, 211 fichiers, 1 725 tests, construction. Schéma inchangé (aucune
+  dérive à contrôler). À l'intégration · relire le numéro du contrôle (35,
+  le 34 étant celui d'A5 bis), relecture du deuxième tour.
+- Non fait, renvoyé · le contrôle qui nommerait les réévaluations DÉJÀ
+  passées que B-3 aurait changées (groupe, compte, montant en devise, issue
+  · annuler et réévaluer, D6).
+- Relevé · `lireLaReevaluation` (reglements) reconstitue « le compte tel
+  qu'il était » sans la règle de B1 (lignes lettrées par un groupe à cheval,
+  lignes en francs) · pour un groupe à cheval, la concordance avec une
+  réévaluation passée sous la nouvelle règle peut manquer et l'écart passe
+  avec un AVERTISSEMENT au lieu de rien (jamais un refus faux constaté).
+  Un groupe à cheval dont la seule ligne de l'exercice est en francs n'est
+  pas relu (aucune ligne en devise pour le trouver).
 
 ## Relevés (hors périmètre, non traités)
 
