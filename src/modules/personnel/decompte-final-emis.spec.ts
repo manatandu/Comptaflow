@@ -2,7 +2,14 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { decompteFinal, type ParametresDecompte } from './decompte-final';
 import {
+  AVERTISSEMENT_SANS_COMPTE,
   CLE_ARRIERES,
+  RESERVE_ASSIETTE_SOCIALE_INDEMNITE,
+  auCentime,
+  avertissementsPassation,
+  motifsDoubleCompte,
+  motifsElementsNegatifs,
+  MOTIF_GRATIFICATION,
   NATURE_DES_RUBRIQUES,
   RESERVE_VERSEMENT_UNIQUE,
   arrieresDesElements,
@@ -10,7 +17,7 @@ import {
   motifRefusMoisDeCessation,
   motifRefusTypeContrat,
 } from './decompte-final-emis';
-import { passationPaie, IMPUTATION_PAR_NATURE, NOMENCLATURE_PAIE } from './passation-paie';
+import { passationPaie, IMPUTATION_PAR_NATURE, NATURES_SANS_IMPUTATION, NOMENCLATURE_PAIE } from './passation-paie';
 import { HORS_REMUNERATION_ARTICLE_7, IMMUNITES_ARTICLE_69 } from './assiettes-paie';
 
 /** Un licenciement d'un CDI, préavis non presté par dispense de l'employeur, tout chiffré. */
@@ -51,7 +58,7 @@ describe('A8 · le verdict du décompte traduit en éléments de paie', () => {
     expect(v.totalBrutFc).toBeNull();
     const { refus } = elementsDuDecompte(v);
     expect(refus.some((m) => m.startsWith('Indemnité compensatrice de préavis non chiffrée'))).toBe(true);
-    expect(refus.some((m) => m.startsWith('Gratification non chiffrée'))).toBe(true);
+    expect(refus).toContain(MOTIF_GRATIFICATION);
   });
 
   it("ne range JAMAIS une rubrique inconnue par défaut", () => {
@@ -139,5 +146,80 @@ describe('A8 · le décompte suit le registre', () => {
     expect(motifRefusTypeContrat('DUREE_INDETERMINEE', 'DUREE_INDETERMINEE')).toBeNull();
     expect(motifRefusTypeContrat('DUREE_INDETERMINEE', 'DUREE_DETERMINEE')).toContain('contredit');
     expect(motifRefusTypeContrat('APPRENTISSAGE', 'DUREE_DETERMINEE')).toContain('autre type');
+  });
+});
+
+describe('A8 · premier tour de relecture · la règle pure', () => {
+  it('(k) arrondit chaque rubrique au centime avant d’en faire un élément', () => {
+    const v = decompteFinal({ ...LICENCIEMENT, remunerationJournaliereFc: 10_000.0003 });
+    const { elements, refus } = elementsDuDecompte(v);
+    expect(refus).toEqual([]);
+    for (const e of elements) expect(auCentime(e.montantFc)).toBe(e.montantFc);
+  });
+
+  it("ASSIETTE · des avantages compris dans le préavis et NON ventilés refusent · logement et transport sont exclus nommément (art. 7, point 8)", () => {
+    const v = decompteFinal({ ...LICENCIEMENT, avantagesPendantPreavisFc: 35_000 });
+    const { refus } = elementsDuDecompte(v);
+    expect(refus.join(' ')).toContain('ventilez-les');
+  });
+
+  it('ASSIETTE · ventilés, ils sortent sous leur nature, le reste garde la réserve « corpus muet »', () => {
+    const v = decompteFinal({ ...LICENCIEMENT, avantagesPendantPreavisFc: 35_000 });
+    const { elements, refus } = elementsDuDecompte(v, [
+      { rubrique: 'preavis', nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 20_000 },
+      { rubrique: 'preavis', nature: 'REMUNERATION', libelle: 'Véhicule de fonction', montantFc: 15_000 },
+    ]);
+    expect(refus).toEqual([]);
+    const preavis = elements.filter((e) => e.cleRubrique === 'preavis');
+    expect(preavis.map((e) => [e.nature, e.montantFc])).toEqual([
+      ['INDEMNITE_DE_FIN_DE_CONTRAT', 350_000],
+      ['LOGEMENT_OU_SON_INDEMNITE', 20_000],
+      ['INDEMNITE_DE_FIN_DE_CONTRAT', 15_000],
+    ]);
+    expect(preavis[0].reserve).toBe(RESERVE_ASSIETTE_SOCIALE_INDEMNITE);
+    expect(preavis[1].reserve).toBeNull();
+    // La phrase retirée ne revient pas · la réserve dit que le corpus se tait.
+    expect(RESERVE_ASSIETTE_SOCIALE_INDEMNITE).toContain('le corpus se tait');
+    expect(RESERVE_ASSIETTE_SOCIALE_INDEMNITE).toContain('mention 20');
+  });
+
+  it('ASSIETTE · une ventilation qui ne fait pas le compte, ou qui vise une rubrique sans avantages, refuse', () => {
+    const v = decompteFinal({ ...LICENCIEMENT, avantagesPendantPreavisFc: 35_000 });
+    expect(
+      elementsDuDecompte(v, [{ rubrique: 'preavis', nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 30_000 }]).refus.join(' '),
+    ).toContain('30000.00 FC ventilés');
+    const sans = decompteFinal(LICENCIEMENT);
+    expect(
+      elementsDuDecompte(sans, [{ rubrique: 'preavis', nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 1 }]).refus.join(' '),
+    ).toContain('aucun avantage à ventiler');
+  });
+
+  it('(m) refuse une nature payée à la fois par le mois et par une rubrique du décompte', () => {
+    const { elements } = elementsDuDecompte(decompteFinal(LICENCIEMENT));
+    expect(motifsDoubleCompte([{ nature: 'SALAIRE_OU_TRAITEMENT', montantFc: 1 }], elements)).toEqual([]);
+    const m = motifsDoubleCompte([{ nature: 'ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE', montantFc: 10 }], elements);
+    expect(m).toHaveLength(1);
+    expect(m[0]).toContain('versée deux fois');
+  });
+
+  it('(j) un élément négatif ou illisible est nommé, jamais ramené à zéro', () => {
+    expect(motifsElementsNegatifs([{ libelle: 'Salaire', montantFc: 10 }])).toEqual([]);
+    expect(motifsElementsNegatifs([{ libelle: 'Salaire', montantFc: -1 }])[0]).toContain('« Salaire »');
+    expect(motifsElementsNegatifs([{ libelle: 'Prime', montantFc: Number.NaN }])).toHaveLength(1);
+    // Et les arriérés ne posent plus de plancher · la somme dit ce qu'on lui donne.
+    expect(arrieresDesElements([{ nature: 'SALAIRE_OU_TRAITEMENT', montantFc: -5 }])).toBe(-5);
+  });
+
+  it("(n) les allocations familiales avertissent qu'elles ne passeront pas au journal, rien n'est imputé à leur place", () => {
+    // Le montant de la colonne 19 dépend de la grille du mois · le câblage le
+    // rejoue sur le registre (`decompte-final-emis-service.spec.ts`) ; ici, la règle.
+    const elements = [
+      { nature: 'INDEMNITE_DE_FIN_DE_CONTRAT' },
+      { nature: 'ALLOCATIONS_FAMILIALES_LEGALES' },
+      { nature: 'ALLOCATIONS_FAMILIALES_LEGALES' },
+    ];
+    const a = avertissementsPassation(elements, NATURES_SANS_IMPUTATION);
+    expect(a).toEqual([`ALLOCATIONS_FAMILIALES_LEGALES · ${AVERTISSEMENT_SANS_COMPTE}`]);
+    expect(avertissementsPassation(elementsDuDecompte(decompteFinal(LICENCIEMENT)).elements, NATURES_SANS_IMPUTATION)).toEqual([]);
   });
 });

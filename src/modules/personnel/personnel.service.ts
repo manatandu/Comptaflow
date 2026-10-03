@@ -13,7 +13,7 @@ import {
 import { assiettes, NATURES_FOURNIES_EN_NATURE, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { RESERVE_REGIME_NON_DECLARE, baremeApplicableAuMois, regimeApplicable, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp, type RegimeCnss } from './cotisations-paie';
-import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
+import { NATURES_SANS_IMPUTATION, estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
 import {
   LITTERA_ARTICLE_112,
   RESERVE_QUOTITE_AVANCES,
@@ -52,6 +52,7 @@ import {
   enonciationsDuBulletin,
   TEXTE_INALTERABILITE,
   TEXTE_NUMEROTATION,
+  chiffresFigeables,
   contratCouvrantLeMois,
   moisValide,
   motifRefusRemise,
@@ -85,13 +86,18 @@ import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere, type Annexe 
 import { BAREMES_SERVIS, annexesSmigDuDossier, versionsDuDossier, type LigneVersion } from './baremes-dossier';
 import { effectifDuRegistre } from './effectif-registre';
 import {
+  RESERVE_ASSIETTE_SOCIALE_INDEMNITE,
   RESERVE_DU_PAR_LE_TRAVAILLEUR,
   RESERVE_EN_FRANCS,
   RESERVE_VERSEMENT_UNIQUE,
   arrieresDesElements,
+  auCentime,
+  avertissementsPassation,
   elementsDuDecompte,
   motifRefusMoisDeCessation,
   motifRefusTypeContrat,
+  motifsDoubleCompte,
+  motifsElementsNegatifs,
 } from './decompte-final-emis';
 import {
   decompteFinal,
@@ -205,6 +211,15 @@ const cleEnfants = (enfants: readonly EnfantEcrit[]) =>
  *  · l'archive de restitution du dossier les emporte, et le test qui compte
  *    les modèles restituables tombe tant que quelqu'un ne les y a pas classés.
  */
+/**
+ * A8 (g) · UN REFUS PORTE SES MOTIFS DANS SON MESSAGE · l'écran lit le
+ * message, et des motifs gardés dans un champ à part n'y arrivaient pas. Le
+ * tableau `motifs` reste servi pour qui veut les lister un par un.
+ */
+function refusNomme(message: string, motifs: readonly string[]): BadRequestException {
+  return new BadRequestException({ message: `${message} · ${motifs.join(' · ')}`, motifs: [...motifs] });
+}
+
 @Injectable()
 export class PersonnelService {
   constructor(private readonly prisma: PrismaService) {}
@@ -1589,8 +1604,26 @@ export class PersonnelService {
     },
   ) {
     const { salarieId, salarie, contrat, simulation } = p;
+    // A8 (i) · LE DOUBLE NE SE FIGE PAS SUR UN ZÉRO QUE PERSONNE N'A CALCULÉ.
+    // Les deux appelants refusent avant (`motifsRefusEmission`) ; la règle est
+    // rejouée ICI, au seul endroit qui écrit, plutôt que d'y lire `?? 0` · un
+    // troisième appelant qui l'oublierait figerait un net à zéro.
+    const chiffres = chiffresFigeables(simulation);
+    if ('motifs' in chiffres) {
+      throw new BadRequestException({
+        message: `Rien n'est émis · ${chiffres.motifs.join(' · ')}`,
+        motifs: chiffres.motifs,
+      });
+    }
     const creer = () =>
       transactionJournalisee(this.prisma, async (tx) => {
+        // A8 (h) · DEUX ÉMISSIONS DU MÊME SALARIÉ ET DU MÊME MOIS, en même
+        // temps, liraient chacune « aucun actif » et figeraient deux doubles
+        // actifs (le décompte ET le bulletin qu'il remplace). Le verrou du
+        // dossier, pris EN TÊTE de la transaction et rendu à sa fin, range la
+        // seconde derrière la première, qui la verra. Il ne retient la
+        // connexion que le temps d'une émission (aucun calcul long dedans).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bulletins-paie:${tenantId}`}))`;
         const actif = await tx.bulletinPaie.findFirst({
           where: { tenantId, salarieId, moisDePaie: p.moisDePaie, statut: StatutBulletinPaie.EMIS },
           select: { numero: true, nature: true },
@@ -1620,11 +1653,11 @@ export class PersonnelService {
             categorieProfessionnelle: contrat.categorieProfessionnelle,
             numeroAffiliationCnss: salarie.numeroAffiliationCnss,
             totalVerseFc: simulation.net.totalVerseFc,
-            assietteSocialeFc: simulation.assiettes.assietteSocialeFc ?? 0,
+            assietteSocialeFc: chiffres.assietteSocialeFc,
             cotisationsTravailleurFc: simulation.cotisations.totalTravailleurFc,
             cotisationsEmployeurFc: simulation.cotisations.totalEmployeurFc,
-            irppFc: simulation.retenue?.retenueFc ?? 0,
-            netAPayerFc: simulation.net.netAPayerFc ?? 0,
+            irppFc: chiffres.irppFc,
+            netAPayerFc: chiffres.netAPayerFc,
             entree: JSON.parse(JSON.stringify(p.entree)) as Prisma.InputJsonValue,
             // Le salaire du contrat (mention 5 du modèle de 2008) est FIGÉ avec
             // le calcul · un bulletin remis ne change pas avec le contrat.
@@ -1752,6 +1785,10 @@ export class PersonnelService {
     // du décompte (art. 100) · deux sources pour la même somme se
     // contrediraient tôt ou tard.
     const { dto: saisie } = await this.resoudreSaisie(tenantId, salarieId, dto.paie);
+    // A8 (j) · un élément négatif ou illisible est REFUSÉ, jamais ramené à
+    // zéro · un plancher silencieux ferait un arriéré plus grand que la paie.
+    const negatifs = motifsElementsNegatifs(saisie.elements);
+    if (negatifs.length > 0) throw refusNomme('Décompte final non émis', negatifs);
     const elementsDuMois = saisie.elements.map((e) => ({
       nature: e.nature as NatureElementPaie,
       montantFc: e.montantFc,
@@ -1771,38 +1808,33 @@ export class PersonnelService {
 
     const faits: DecompteFinalDto = { ...dto.decompte, moisDeCessation: mois, arrieresFc };
     const verdict = await this.decompteFinal(tenantId, faits);
-    const { elements: indemnites, refus } = elementsDuDecompte(verdict);
+    const { elements: indemnites, refus } = elementsDuDecompte(verdict, dto.ventilationAvantages ?? []);
     if (refus.length > 0) {
-      throw new BadRequestException({
-        message: `Décompte final non émis · un solde partiel se lit comme un solde. ${TEXTE_ARTICLE_103}`,
-        motifs: refus,
-      });
+      throw refusNomme(`Décompte final non émis · un solde partiel se lit comme un solde. ${TEXTE_ARTICLE_103}`, refus);
     }
+
+    // A8 (m) · UNE MÊME NATURE NE SE PAIE PAS DEUX FOIS · congé, gratification
+    // et allocations familiales ont leur rubrique au décompte.
+    const doubles = motifsDoubleCompte(elementsDuMois, indemnites);
+    if (doubles.length > 0) throw refusNomme('Décompte final non émis', doubles);
 
     // ARTICLE 69, 1 · LES ALLOCATIONS FAMILIALES DU DÉCOMPTE sont la colonne
     // 19 elle-même (enfants × jours × taux), donc exactement le « taux légal »
-    // qui les immunise. Elles s'ajoutent au plafond du mois, sans quoi leur
-    // montant serait imposé comme un excédent qu'il n'est pas. Des
-    // allocations du mois sans plafond lisible refusent · deviner le plafond
-    // serait deviner l'impôt.
-    const allocationsDecompte = indemnites
-      .filter((e) => e.nature === 'ALLOCATIONS_FAMILIALES_LEGALES')
-      .reduce((n, e) => n + e.montantFc, 0);
+    // qui les immunise. Le mois n'en porte pas (refus du double compte
+    // ci-dessus) · le plafond est donc leur seul montant. Un taux légal
+    // DÉCLARÉ à côté serait ÉCRASÉ sans le dire (A8, j) · il est refusé, le
+    // décompte le calcule.
+    const allocationsDecompte = auCentime(
+      indemnites.filter((e) => e.nature === 'ALLOCATIONS_FAMILIALES_LEGALES').reduce((n, e) => n + e.montantFc, 0),
+    );
     let tauxLegalAllocationsFamilialesFc = saisie.tauxLegalAllocationsFamilialesFc;
     if (allocationsDecompte > 0) {
-      const allocationsDuMois = elementsDuMois.some((e) => e.nature === 'ALLOCATIONS_FAMILIALES_LEGALES');
-      let plafondDuMois = 0;
-      if (allocationsDuMois) {
-        const annexes = annexesSmigDuDossier(await this.versionsBaremesDuMois(tenantId, mois));
-        const plafond = this.tauxLegalAllocationsFamiliales(saisie, annexes);
-        if (plafond === null) {
-          throw new BadRequestException(
-            "Les allocations familiales du mois n'ont pas de plafond lisible (article 69, 1) · déclarez les enfants bénéficiaires du mois, ou le taux légal.",
-          );
-        }
-        plafondDuMois = plafond;
+      if (typeof saisie.tauxLegalAllocationsFamilialesFc === 'number') {
+        throw refusNomme('Décompte final non émis', [
+          "Un taux légal des allocations familiales est déclaré alors que le décompte calcule ces allocations (colonne 19 du décret n° 25/22) · retirez le taux déclaré, le décompte le pose lui-même (article 69, 1).",
+        ]);
       }
-      tauxLegalAllocationsFamilialesFc = plafondDuMois + allocationsDecompte;
+      tauxLegalAllocationsFamilialesFc = allocationsDecompte;
     }
 
     const paieComplete: SimulationPaieDto = {
@@ -1810,25 +1842,38 @@ export class PersonnelService {
       tauxLegalAllocationsFamilialesFc,
       elements: [
         ...saisie.elements,
-        ...indemnites.map((e) => ({ nature: e.nature, libelle: e.libelle, montantFc: e.montantFc })),
+        ...indemnites.map((e) => ({
+          nature: e.nature,
+          libelle: e.libelle,
+          montantFc: e.montantFc,
+          ...(typeof e.conditionArticle69Attestee === 'boolean' ? { conditionArticle69Attestee: e.conditionArticle69Attestee } : {}),
+        })),
       ],
     };
     const simulation = await this.simulerPaie(tenantId, salarieId, paieComplete, maintenant);
     const motifs = motifsRefusEmission(simulation);
     if (motifs.length > 0) {
-      throw new BadRequestException({
-        message: `Décompte final non émis · ${motifs.length} montant(s) non calculé(s). ${TEXTE_ARTICLE_103}`,
-        motifs,
-      });
+      throw refusNomme(`Décompte final non émis · ${motifs.length} montant(s) non calculé(s). ${TEXTE_ARTICLE_103}`, motifs);
     }
-    // LES DEUX MOTEURS PARLENT DU MÊME DÉCOMPTE · le total versé de la paie
-    // est celui que le décompte dit dû au travailleur. Un écart est un défaut,
-    // jamais un arrondi à rattraper.
+    // LES DEUX MOTEURS PARLENT DU MÊME DÉCOMPTE (A8, k) · chaque rubrique est
+    // arrondie au centime AVANT d'être un élément, et le total versé de la
+    // paie se compare à la somme de ces montants arrondis. Le total du
+    // verdict, non arrondi, ne s'en écarte que des demi-centimes des rubriques.
+    const duArrondi = auCentime(arrieresFc + indemnites.reduce((n, e) => n + e.montantFc, 0));
     const duAuTravailleur = verdict.totalDuAuTravailleurFc as number;
-    if (Math.abs(simulation.net.totalVerseFc - duAuTravailleur) >= 0.01) {
+    const toleranceArrondi = 0.005 * (indemnites.length + 1) + 1e-9;
+    if (Math.abs(duArrondi - duAuTravailleur) > toleranceArrondi || Math.abs(simulation.net.totalVerseFc - duArrondi) >= 0.005) {
       throw new BadRequestException(
-        `Le décompte doit ${duAuTravailleur.toFixed(2)} FC au travailleur et la paie en verserait ${simulation.net.totalVerseFc.toFixed(2)} FC · rien n'est émis.`,
+        `Le décompte doit ${duArrondi.toFixed(2)} FC au travailleur et la paie en verserait ${simulation.net.totalVerseFc.toFixed(2)} FC · rien n'est émis.`,
       );
+    }
+
+    // A8 (n) · UNE NATURE SANS COMPTE se remet au travailleur, mais ne passera
+    // pas au journal · l'émission le DIT, dans la réponse et sur le document.
+    const avertissements = avertissementsPassation(indemnites, NATURES_SANS_IMPUTATION);
+    const reservesDecompteEmis = [RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR, DECOMPTE_A_LA_RUPTURE];
+    if (indemnites.some((e) => e.reserve === RESERVE_ASSIETTE_SOCIALE_INDEMNITE)) {
+      reservesDecompteEmis.push(RESERVE_ASSIETTE_SOCIALE_INDEMNITE);
     }
 
     const cree = await this.figerBulletin(tenantId, userId, {
@@ -1838,13 +1883,14 @@ export class PersonnelService {
       moisDePaie: mois,
       nature: NatureBulletinPaie.DECOMPTE_FINAL,
       simulation,
-      entree: { ...paieComplete, decompte: faits },
+      entree: { ...paieComplete, decompte: faits, ventilationAvantages: dto.ventilationAvantages ?? [] },
       calculEnPlus: {
         decompte: verdict,
-        reservesDecompteEmis: [RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR, DECOMPTE_A_LA_RUPTURE],
+        reservesDecompteEmis,
+        avertissementsDecompteEmis: avertissements,
       },
     });
-    return this.lireBulletin(tenantId, cree.id);
+    return { ...(await this.lireBulletin(tenantId, cree.id)), avertissements };
   }
 
   /**

@@ -468,6 +468,14 @@ export type RubriqueDecompte = {
   readonly montantFc: number | null;
   readonly fondement: string;
   readonly reserve: string | null;
+  /**
+   * A8 · la part « avantages de toute nature » comprise dans le montant
+   * (art. 63, al. 3 ; art. 70, al. 2). L'émission la ventile par nature ·
+   * l'art. 7, point 8 sort NOMMÉMENT de la rémunération le logement ou son
+   * indemnité et le transport, qui ne peuvent entrer dans l'assiette sociale
+   * sous couvert d'une indemnité de rupture.
+   */
+  readonly avantagesInclusFc?: number;
 };
 
 export type VerdictDecompteFinal = {
@@ -679,6 +687,7 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         cle: 'preavis',
         libelle: LIBELLE_PREAVIS,
         montantFc: montant,
+        ...(montant !== null && avantages !== null && avantages > 0 ? { avantagesInclusFc: avantages } : {}),
         fondement:
           `${fondementDuree} Article 63, alinéa 3 · « une indemnité dont le montant correspond à la rémunération et aux avantages de toute nature dont aurait bénéficié le travailleur durant le délai de préavis qui n'a pas été effectivement respecté ». ` +
           `${nonObserves ?? '?'} jours × (taux journalier + moyenne de l'art. 66) + avantages ; ${conversionMoyenne}.`,
@@ -725,6 +734,7 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         cle: 'dommages-interets-art-70',
         libelle: "Dommages-intérêts de rupture d'un contrat à durée déterminée",
         montantFc: reserve === null ? (restants as number) * (jour as number) + (avantages as number) : null,
+        ...(reserve === null && (avantages as number) > 0 ? { avantagesInclusFc: avantages as number } : {}),
         fondement: `${TEXTE_70} La qualification de l'irrégularité appartient au dossier.`,
         reserve,
       });

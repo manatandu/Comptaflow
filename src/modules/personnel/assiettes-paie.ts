@@ -78,8 +78,12 @@ export type NatureElementPaie =
   // (préavis non observé, art. 63 al. 3 ; dommages-intérêts de l'art. 70 ;
   // somme convenue de l'art. 61 bis). Elle n'est ni dans la liste
   // d'inclusion (« notamment ») ni dans la liste d'exclusion, FERMÉE, de
-  // l'article 7, point 8 · elle reste donc dans la rémunération, la somme
-  // étant fixée par la loi ou par un accord et due en vertu du contrat.
+  // l'article 7, point 8, et aucun texte lu ne la range d'un côté ou de
+  // l'autre (la mention 20 du modèle de livre de paie de 2008 ne la nomme
+  // pas). Le corpus est MUET · OmegaX la garde dans l'assiette sociale, et
+  // c'est une LECTURE D'OMEGAX, dite sur la ligne du décompte
+  // (`RESERVE_ASSIETTE_SOCIALE_INDEMNITE`). Ses avantages en logement ou en
+  // transport, que l'art. 7 exclut nommément, sont ventilés sous leur nature.
   // Fiscalement imposable · loi n° 23/053, art. 68, 6° (« les sommes payées
   // par l'employeur [...] par suite de cessation de travail ou de rupture de
   // contrat d'emploi »), aucune immunité de l'art. 69 ne la vise. Elle n'est

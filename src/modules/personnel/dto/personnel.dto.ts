@@ -747,6 +747,54 @@ export class DecompteFinalDto {
 }
 
 /**
+ * A8 (B2) · À L'ÉMISSION, L'ANCIENNETÉ ET LES MOIS NON COUVERTS SE DÉCLARENT.
+ * Le calcul seul (P4) garde ses règles ; un document remis au travailleur
+ * (art. 103) ne se fige pas sur un zéro que personne n'a dit · le préavis
+ * (art. 64) et le congé (art. 141) en dépendent. Refus nommé, jamais un zéro
+ * par défaut.
+ */
+export const MOTIF_ANCIENNETE_EXIGEE =
+  "Déclarez l'ancienneté du travailleur en années entières, zéro compris · le préavis en dépend (article 64).";
+export const MOTIF_MOIS_NON_COUVERTS_EXIGES =
+  "Déclarez les mois de service non couverts par un congé, zéro compris · l'indemnité compensatoire en dépend (article 144).";
+
+export class DecompteFinalEmisDto extends DecompteFinalDto {
+  @IsDefined({ message: MOTIF_ANCIENNETE_EXIGEE })
+  anneesAnciennete!: number;
+
+  @IsDefined({ message: MOTIF_MOIS_NON_COUVERTS_EXIGES })
+  moisNonCouvertsParUnConge!: number;
+}
+
+/**
+ * A8 · LA PART « AVANTAGES » D'UNE RUBRIQUE DU DÉCOMPTE, ventilée par nature
+ * (`decompte-final-emis.ts`, `VentilationAvantage`). `REMUNERATION` garde
+ * l'avantage dans l'indemnité ; logement, transport et soins sortent de
+ * l'assiette sociale (Code du travail, art. 7, point 8).
+ */
+export class VentilationAvantageDto {
+  @IsIn(['preavis', 'dommages-interets-art-70'])
+  rubrique!: string;
+
+  @IsIn(['LOGEMENT_OU_SON_INDEMNITE', 'INDEMNITE_DE_TRANSPORT', 'SOINS_DE_SANTE', 'REMUNERATION'])
+  nature!: 'LOGEMENT_OU_SON_INDEMNITE' | 'INDEMNITE_DE_TRANSPORT' | 'SOINS_DE_SANTE' | 'REMUNERATION';
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  libelle!: string;
+
+  @IsNumber()
+  @Min(0)
+  montantFc!: number;
+
+  /** Articles 69, 8, b) et c) · absent, abstention (jamais immunité). */
+  @IsOptional()
+  @IsBoolean()
+  conditionArticle69Attestee?: boolean;
+}
+
+/**
  * A8 · ÉMETTRE LE DÉCOMPTE FINAL. Deux moitiés, et aucun montant calculé · les
  * faits de la rupture (`decompte`, le corps du calcul P4) et la paie du mois
  * de cessation (`paie`, le corps d'une simulation), dont le mois DOIT être le
@@ -755,12 +803,19 @@ export class DecompteFinalDto {
  */
 export class EmissionDecompteFinalDto {
   @ValidateNested()
-  @Type(() => DecompteFinalDto)
-  decompte!: DecompteFinalDto;
+  @Type(() => DecompteFinalEmisDto)
+  decompte!: DecompteFinalEmisDto;
 
   @ValidateNested()
   @Type(() => SimulationPaieDto)
   paie!: SimulationPaieDto;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => VentilationAvantageDto)
+  ventilationAvantages?: VentilationAvantageDto[];
 }
 
 /**

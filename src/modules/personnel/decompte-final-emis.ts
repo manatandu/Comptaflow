@@ -90,13 +90,62 @@ export const RESERVE_EN_FRANCS =
   "Le décompte se chiffre en francs congolais · ses rubriques (taux journalier, moyennes des douze mois) le sont, " +
   "et une stipulation en dollars ne s'y mêle pas.";
 
+/**
+ * L'ASSIETTE SOCIALE DE L'INDEMNITÉ DE FIN DE CONTRAT · LECTURE D'OMEGAX, LE
+ * CORPUS SE TAIT. Le Code du travail, art. 7, point 8, définit la rémunération
+ * comme les gains « dus en vertu d'un contrat de travail », et ferme la liste
+ * de ce qu'il en sort (soins de santé, logement ou son indemnité, allocations
+ * familiales légales, transport, frais de voyage) · l'indemnité de préavis,
+ * la somme convenue de l'art. 61 bis et les dommages-intérêts de l'art. 70 n'y
+ * sont pas. Mais aucun texte lu ne les y range non plus, et la mention 20 du
+ * modèle de livre de paie de 2008 (le brut, total des mentions 7, 10, 11, 12,
+ * 13, 16 et 19) ne les nomme pas. OmegaX les garde dans l'assiette sociale,
+ * le sens qui ne retire rien aux droits du travailleur, et le DIT sur la ligne.
+ */
+export const RESERVE_ASSIETTE_SOCIALE_INDEMNITE =
+  "ASSIETTE SOCIALE · lecture d'OmegaX, le corpus se tait. L'indemnité de fin de contrat n'est ni nommée ni exclue " +
+  "par l'art. 7, point 8 du Code du travail (liste d'exclusion fermée), et la mention 20 du modèle de livre de paie " +
+  "de 2008 ne la range pas dans le brut. Elle reste dans l'assiette sociale ; ses avantages en logement ou en " +
+  "transport, eux, sont ventilés sous leur nature, que l'art. 7 exclut.";
+
+export const AVERTISSEMENT_SANS_COMPTE =
+  "CE DOCUMENT NE PASSERA PAS AU JOURNAL tant que le compte de cette nature n'est pas tranché · aucune fiche du compte " +
+  "66 des deux textes ne le nomme, et OmegaX n'en devine aucun (pas même le 6616). La paie du mois qui le porte sera " +
+  "refusée à la passation.";
+
+/** Les natures qu'une ventilation d'avantages admet (Code du travail, art. 63, al. 3 ; art. 70, al. 2 ; art. 7, point 8). */
+export type NatureVentilation = 'LOGEMENT_OU_SON_INDEMNITE' | 'INDEMNITE_DE_TRANSPORT' | 'SOINS_DE_SANTE' | 'REMUNERATION';
+
+/**
+ * LA PART D'AVANTAGES D'UNE RUBRIQUE, ventilée par le cabinet. `REMUNERATION`
+ * désigne un avantage que l'art. 7, point 8 garde dans la rémunération (« la
+ * valeur des avantages en nature ») · il reste sous l'indemnité de fin de
+ * contrat. Logement, transport et soins sortent de l'assiette sociale sous
+ * leur nature, avec leurs conditions fiscales (art. 69, 8° de la loi
+ * n° 23/053, attestation comprise).
+ */
+export type VentilationAvantage = {
+  readonly rubrique: string;
+  readonly nature: NatureVentilation;
+  readonly libelle: string;
+  readonly montantFc: number;
+  readonly conditionArticle69Attestee?: boolean;
+};
+
 /** Un élément de paie tel que la simulation le reçoit. */
 export type ElementDecompte = {
   readonly nature: NatureElementPaie;
   readonly libelle: string;
   readonly montantFc: number;
   readonly cleRubrique: string;
+  readonly conditionArticle69Attestee?: boolean;
+  readonly reserve: string | null;
 };
+
+/** Au centime, comme la base garde les montants (Decimal 18,2). */
+export const auCentime = (fc: number): number => Math.round(fc * 100) / 100;
+
+export const MOTIF_GRATIFICATION = 'Déclarez la gratification, zéro compris.';
 
 /**
  * LE VERDICT DU DÉCOMPTE TRADUIT EN ÉLÉMENTS, ou les raisons de ne pas émettre.
@@ -105,20 +154,31 @@ export type ElementDecompte = {
  * opposable (art. 103), et un total `null` est un solde que personne n'a fini
  * de chiffrer. Chaque rubrique indéterminée est nommée avec sa réserve.
  *
+ * CHAQUE RUBRIQUE EST ARRONDIE AU CENTIME AVANT D'ÊTRE UN ÉLÉMENT · c'est le
+ * montant que le document figé porte, et les totaux se comparent après.
+ *
  * UNE RUBRIQUE À ZÉRO NE FAIT PAS D'ÉLÉMENT · le zéro est une réponse (faute
  * lourde, préavis presté), il reste dans le verdict figé ; il n'a rien à
  * passer au journal.
+ *
+ * LA PART « AVANTAGES » SE VENTILE, ou l'émission est refusée · logement et
+ * transport sont exclus NOMMÉMENT de la rémunération (art. 7, point 8), et les
+ * laisser dans l'indemnité les ferait cotiser.
  */
-export function elementsDuDecompte(verdict: VerdictDecompteFinal): {
+export function elementsDuDecompte(
+  verdict: VerdictDecompteFinal,
+  ventilation: readonly VentilationAvantage[] = [],
+): {
   elements: ElementDecompte[];
   refus: string[];
 } {
   const refus: string[] = [];
   const elements: ElementDecompte[] = [];
   const toutes: readonly RubriqueDecompte[] = [...verdict.rubriques, ...verdict.horsBrut];
+  const ventilees = new Set<string>();
   for (const r of toutes) {
     if (r.montantFc === null) {
-      refus.push(`${r.libelle} non chiffrée · ${r.reserve ?? r.fondement}`);
+      refus.push(r.cle === 'gratification' ? MOTIF_GRATIFICATION : `${r.libelle} non chiffrée · ${r.reserve ?? r.fondement}`);
       continue;
     }
     if (r.cle === CLE_ARRIERES) continue;
@@ -131,13 +191,92 @@ export function elementsDuDecompte(verdict: VerdictDecompteFinal): {
       refus.push(`${r.libelle} négative (${r.montantFc.toFixed(2)} FC) · un décompte ne porte pas de montant négatif.`);
       continue;
     }
-    if (r.montantFc === 0) continue;
-    elements.push({ nature, libelle: r.libelle, montantFc: r.montantFc, cleRubrique: r.cle });
+    const montant = auCentime(r.montantFc);
+    if (montant === 0) continue;
+    const reserve = nature === 'INDEMNITE_DE_FIN_DE_CONTRAT' ? RESERVE_ASSIETTE_SOCIALE_INDEMNITE : null;
+    const avantages = auCentime(r.avantagesInclusFc ?? 0);
+    if (avantages <= 0) {
+      elements.push({ nature, libelle: r.libelle, montantFc: montant, cleRubrique: r.cle, reserve });
+      continue;
+    }
+    const lignes = ventilation.filter((v) => v.rubrique === r.cle);
+    ventilees.add(r.cle);
+    const ventile = auCentime(lignes.reduce((n, v) => n + auCentime(v.montantFc), 0));
+    if (lignes.length === 0 || ventile !== avantages || lignes.some((v) => !(v.montantFc > 0))) {
+      refus.push(
+        `${r.libelle} · ${avantages.toFixed(2)} FC d'avantages de toute nature sont compris dans ce montant · ventilez-les ` +
+          'par nature (logement, transport, soins, ou avantage gardé dans la rémunération), au centime' +
+          (lignes.length ? ` (${ventile.toFixed(2)} FC ventilés).` : '.'),
+      );
+      continue;
+    }
+    elements.push({ nature, libelle: r.libelle, montantFc: auCentime(montant - avantages), cleRubrique: r.cle, reserve });
+    for (const v of lignes) {
+      const natureV: NatureElementPaie = v.nature === 'REMUNERATION' ? 'INDEMNITE_DE_FIN_DE_CONTRAT' : v.nature;
+      elements.push({
+        nature: natureV,
+        libelle: v.libelle,
+        montantFc: auCentime(v.montantFc),
+        cleRubrique: r.cle,
+        ...(typeof v.conditionArticle69Attestee === 'boolean' ? { conditionArticle69Attestee: v.conditionArticle69Attestee } : {}),
+        reserve: natureV === 'INDEMNITE_DE_FIN_DE_CONTRAT' ? RESERVE_ASSIETTE_SOCIALE_INDEMNITE : null,
+      });
+    }
+  }
+  for (const v of ventilation) {
+    if (!ventilees.has(v.rubrique)) {
+      refus.push(`« ${v.libelle} » · la rubrique ${v.rubrique} ne comprend aucun avantage à ventiler.`);
+    }
   }
   if (refus.length === 0 && (verdict.totalBrutFc === null || verdict.totalDuAuTravailleurFc === null)) {
     refus.push('Le total du décompte est indéterminé.');
   }
-  return { elements, refus };
+  return { elements: elements.filter((e) => e.montantFc > 0), refus };
+}
+
+/**
+ * LE DOUBLE COMPTE · une même nature payée deux fois, par le mois et par le
+ * décompte. Le congé, la gratification et les allocations familiales ont
+ * chacun leur rubrique au décompte (art. 144, art. 7 point 8, art. 66 et 142) ·
+ * les saisir aussi parmi les éléments du mois les verserait deux fois.
+ */
+export const NATURES_PROPRES_AU_DECOMPTE: readonly NatureElementPaie[] = [
+  'ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE',
+  'GRATIFICATION_OU_MOIS_COMPLEMENTAIRE',
+  'ALLOCATIONS_FAMILIALES_LEGALES',
+];
+
+export function motifsDoubleCompte(
+  elementsDuMois: readonly { nature: NatureElementPaie; montantFc: number }[],
+  indemnites: readonly ElementDecompte[],
+): string[] {
+  return NATURES_PROPRES_AU_DECOMPTE.filter(
+    (n) => elementsDuMois.some((e) => e.nature === n && e.montantFc > 0) && indemnites.some((e) => e.nature === n),
+  ).map(
+    (n) =>
+      `${n} figure à la fois parmi les éléments du mois et dans une rubrique du décompte · elle serait versée deux fois. ` +
+      'Retirez-la des éléments du mois, le décompte la porte.',
+  );
+}
+
+/** Un élément négatif n'est pas un élément de paie · une retenue a sa propre voie (art. 112). */
+export function motifsElementsNegatifs(elements: readonly { libelle: string; montantFc: number }[]): string[] {
+  return elements
+    .filter((e) => !(typeof e.montantFc === 'number' && Number.isFinite(e.montantFc) && e.montantFc >= 0))
+    .map((e) => `« ${e.libelle} » · montant négatif ou illisible · un élément de paie ne se saisit pas en négatif.`);
+}
+
+/**
+ * LES NATURES QUE LA PASSATION N'IMPUTE PAS, présentes sur le document ·
+ * l'émission AVERTIT (le document se remet au travailleur), la passation
+ * refusera (P3). Rien n'est imputé à leur place.
+ */
+export function avertissementsPassation(
+  elements: readonly { nature: string }[],
+  sansImputation: Readonly<Partial<Record<string, string>>>,
+): string[] {
+  const natures = [...new Set(elements.map((e) => e.nature).filter((n) => sansImputation[n]))];
+  return natures.map((n) => `${n} · ${AVERTISSEMENT_SANS_COMPTE}`);
 }
 
 /**
@@ -152,7 +291,9 @@ export function arrieresDesElements(
 ): number {
   const centimes = elements
     .filter((e) => estVerseEnEspeces(e.nature, e.enNature))
-    .reduce((n, e) => n + Math.round(Math.max(0, e.montantFc) * 100), 0);
+    // Aucun plancher à zéro · un négatif est REFUSÉ avant
+    // (`motifsElementsNegatifs`), il ne se lit pas comme rien.
+    .reduce((n, e) => n + Math.round(e.montantFc * 100), 0);
   return centimes / 100;
 }
 
