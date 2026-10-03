@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import type {
+  Journal,
   Compte,
   EtatLettrage,
   EtatPreLettrage,
@@ -12,6 +13,27 @@ import { Aide } from '../components/chrome/Aide';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
 import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { comptesProposablesEcart } from '../lib/ecart-change';
+
+/**
+ * L'écart de change PROPOSÉ d'un groupe soldé dans sa devise et non en francs
+ * (ligne A6) · lu au serveur (`GET /comptes/:compteId/lettrage/:id/ecart-change`), jamais
+ * calculé ici, et passé seulement sur confirmation (`POST
+ * /reglements/ecart-change`, qui rejoue le calcul).
+ */
+interface PropositionEcartChange {
+  lettrageId: string;
+  code: string;
+  compteNumero: string;
+  ecart: number | null;
+  sens?: 'PERTE' | 'GAIN';
+  devise?: string | null;
+  date?: string;
+  exerciceId?: string;
+  comptePrescrit?: { id: string; numero: string; intitule: string } | null;
+  numeroPrescrit?: string | null;
+  motif: string | null;
+}
 
 /**
  * Interrogation et lettrage · modèle du chapitre 6 des Notes de cours
@@ -100,6 +122,13 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // Le filtre que la route servait et qu'aucun écran ne posait · il resserre
   // une liste tronquée aux seules lignes encore ouvertes (audit final F185).
   const [nonLettreesSeulement, setNonLettreesSeulement] = useState(false);
+  // ÉCART DE CHANGE PROPOSÉ (ligne A6) · chargé sur demande, jamais posé
+  // sans le clic qui le confirme.
+  const [ecart, setEcart] = useState<PropositionEcartChange | null>(null);
+  const [journauxOd, setJournauxOd] = useState<Journal[] | null>(null);
+  const [journalEcart, setJournalEcart] = useState('');
+  const [dateEcart, setDateEcart] = useState('');
+  const [compteEcart, setCompteEcart] = useState('');
 
   const charger = async () => {
     // Sans compte choisi (fenêtre ouverte depuis le menu Traitement), la
@@ -210,6 +239,40 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     executer(async () => {
       await api.post(`/comptes/${compteId}/lettrage/${g.id}/verrou`, { verrouille: !g.verrouille });
       return g.verrouille ? `Lettrage ${g.code} déverrouillé.` : `Lettrage ${g.code} verrouillé.`;
+    });
+
+  const ouvrirEcart = async (g: GroupeLettrage) => {
+    setErreur(null);
+    setInfo(null);
+    try {
+      const [p, js] = await Promise.all([
+        api.get<PropositionEcartChange>(`/comptes/${compteId}/lettrage/${g.id}/ecart-change`),
+        journauxOd ? Promise.resolve(journauxOd) : api.get<Journal[]>('/journaux'),
+      ]);
+      // L'écart ne mouvemente aucune trésorerie · ni journal de banque ni de caisse.
+      const ods = js.filter((j) => j.estActif && j.type !== 'TRESORERIE');
+      setJournauxOd(ods);
+      setJournalEcart((id) => id || (ods.length === 1 ? ods[0].id : ods.find((j) => j.type === 'GENERAL')?.id ?? ''));
+      setDateEcart(p.date ? p.date.slice(0, 10) : '');
+      setCompteEcart('');
+      setEcart(p);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : "L'écart de change n'a pas pu être lu");
+    }
+  };
+
+  const passerEcart = () =>
+    executer(async () => {
+      if (!ecart || ecart.ecart === null || !ecart.exerciceId) return '';
+      const r = await api.post<{ ecart: number; compte: string; lettre: string; statut: string }>('/reglements/ecart-change', {
+        lettrageId: ecart.lettrageId,
+        exerciceId: ecart.exerciceId,
+        journalId: journalEcart,
+        date: dateEcart,
+        ...(compteEcart ? { compteEcartChangeId: compteEcart } : {}),
+      });
+      setEcart(null);
+      return `${r.ecart > 0 ? 'Perte' : 'Gain'} de change de ${montant(Math.abs(r.ecart))} passé au ${r.compte} · lettrage ${r.lettre} ${r.statut === 'SOLDE' ? 'soldé' : 'complété'}.`;
     });
 
   const lancerPreLettrage = async () => {
@@ -664,6 +727,16 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               <span className="flex items-center gap-2 justify-end">
                 {peutEcrire && (
                   <>
+                    {g.statut === 'PARTIEL' && (
+                      <button
+                        onClick={() => void ouvrirEcart(g)}
+                        disabled={envoi || g.verrouille}
+                        title="Propose l'écriture d'écart de change d'un lettrage soldé dans sa devise et non en francs · rien n'est passé avant confirmation"
+                        className="text-[11px] hover:underline disabled:opacity-40 disabled:no-underline"
+                      >
+                        Écart de change
+                      </button>
+                    )}
                     <button onClick={() => basculerVerrou(g)} disabled={envoi} className="text-[11px] hover:underline">
                       {g.verrouille ? 'Déverrouiller' : 'Verrouiller'}
                     </button>
@@ -680,6 +753,92 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {ecart && (
+        <div className="mt-3 max-w-[1040px] border border-border bg-surface px-3.5 py-2 text-[11.5px] space-y-2" aria-label="Écart de change proposé">
+          <div className="flex items-center gap-2 font-bold">
+            Écart de change · lettrage {ecart.code}
+            <Aide
+              titre="Écart de change réalisé"
+              texte="Quand les lignes d'un lettrage sont soldées dans leur devise mais pas en francs, la différence est la perte ou le gain de change réalisé au règlement, mesuré contre la valeur d'origine. OmegaX propose l'écriture (le tiers soldé, l'écart sur sa propre ligne) et ne la passe qu'à votre confirmation. Au SYSCOHADA, 656 ou 756 pour une créance ou une dette commerciale, 676 ou 776 pour une opération financière ; le SYCEBNL n'ouvre aucun compte pour l'écart commercial, vous choisissez le vôtre sous le 65 ou le 75."
+              source="AUDCIF art. 55 ; Titre VIII ch. 22 § 2.3 ; SYCEBNL, fiches des comptes 67, 75 et 77"
+            />
+          </div>
+          {ecart.ecart === null ? (
+            <div className="text-text-dim">{ecart.motif}</div>
+          ) : (
+            <>
+              <div>
+                {ecart.sens === 'PERTE' ? 'Perte' : 'Gain'} de change réalisé de <span className="font-semibold">{montant(Math.abs(ecart.ecart))}</span>
+                {ecart.devise ? ` sur une position en ${ecart.devise}` : ''} · {ecart.sens === 'PERTE' ? 'débit' : 'crédit'} du compte d'écart, {ecart.sens === 'PERTE' ? 'crédit' : 'débit'} du {ecart.compteNumero}.
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Compte d'écart</span>
+                  {ecart.comptePrescrit ? (
+                    <span className="py-[3px]">
+                      {ecart.comptePrescrit.numero} · {ecart.comptePrescrit.intitule}
+                    </span>
+                  ) : (
+                    <select
+                      aria-label="Compte d'écart de change"
+                      value={compteEcart}
+                      onChange={(e) => setCompteEcart(e.target.value)}
+                      className="border border-border px-2 py-[3px] bg-surface"
+                    >
+                      <option value="">Choisir…</option>
+                      {comptesProposablesEcart(comptes, ecart.sens ?? null).map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.numero} · {c.intitule}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Journal</span>
+                  <select
+                    aria-label="Journal de l'écart de change"
+                    value={journalEcart}
+                    onChange={(e) => setJournalEcart(e.target.value)}
+                    className="border border-border px-2 py-[3px] bg-surface"
+                  >
+                    <option value="">Choisir…</option>
+                    {(journauxOd ?? []).map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.code} · {j.intitule}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Date</span>
+                  <input type="date" value={dateEcart} onChange={(e) => setDateEcart(e.target.value)} className="border border-border px-2 py-[2px]" />
+                </label>
+                <button
+                  onClick={passerEcart}
+                  disabled={envoi || !journalEcart || !dateEcart || (!ecart.comptePrescrit && !compteEcart)}
+                  className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-40"
+                >
+                  Passer l'écart
+                </button>
+                <button onClick={() => setEcart(null)} className="text-[11px] hover:underline">
+                  Fermer
+                </button>
+              </div>
+              {ecart.motif && <div className="text-warning">{ecart.motif}</div>}
+              {!ecart.comptePrescrit && comptesProposablesEcart(comptes, ecart.sens ?? null).length === 0 && (
+                <div className="text-warning">
+                  {motifAucunCompteRetenu([], ecart.sens === 'PERTE' ? "d'autres charges (65)" : "d'autres produits (75)")}
+                </div>
+              )}
+              {journauxOd && journauxOd.length === 0 && (
+                <div className="text-warning">Aucun journal d'opérations diverses actif · créez-en un dans Codes journaux.</div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

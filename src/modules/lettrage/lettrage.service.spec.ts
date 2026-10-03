@@ -340,8 +340,9 @@ describe('Écart de change réalisé au dénouement', () => {
     // Facture de 100 USD comptabilisée à 250 000 CDF (cours 2 500), réglée
     // quand le dollar vaut 2 600 : 260 000 CDF encaissés. Les deux lignes en
     // devise ne s'équilibrent PAS en monnaie de tenue, et c'est l'écriture de
-    // gain de change (compte 776, ici 10 000 au débit du compte de tiers) qui
-    // ramène le groupe à zéro. C'est exactement le cas que vise le CPCC.
+    // gain de change (ici 10 000 au débit du compte de tiers, contre le 756
+    // au SYSCOHADA pour une créance commerciale · ligne A6) qui ramène le
+    // groupe à zéro. C'est exactement le cas que vise le CPCC.
     const { service: s, groupes } = service([
       ligne('f', 250000, 0, { deviseId: 'usd', montantDevise: 100 }),
       ligne('r', 0, 260000, { deviseId: 'usd', montantDevise: 100 }),
@@ -389,6 +390,92 @@ describe('Écart de change réalisé au dénouement', () => {
     ]);
     await s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1');
     expect(groupes[0].ecartChange).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Écart de change PROPOSÉ (ligne A6) · le cas MBIKAYI du séminaire CPCC,
+// TVA corrigée (1 160 USD à 1 680 = 1 948 800 ; 600 USD réglés au coût
+// historique de 1 008 000 ; le solde de 560 USD payé au cours de 1 900).
+// ---------------------------------------------------------------------------
+
+describe('Écart de change proposé au lettrage', () => {
+  const mbikayi = () => [
+    ligne('f', 0, 1948800, { deviseId: 'usd', montantDevise: 1160 }),
+    ligne('r1', 1008000, 0, { deviseId: 'usd', montantDevise: 600 }),
+    ligne('r2', 1064000, 0, { deviseId: 'usd', montantDevise: 560, date: '2027-02-02' }),
+  ];
+
+  function avecProposition(referentiel: 'SYSCOHADA' | 'SYCEBNL', lignes = mbikayi(), numero = '40110000') {
+    const monte = service(lignes);
+    const p = monte.prisma as any;
+    p.tenant = { findFirst: jest.fn().mockResolvedValue({ referentiel }) };
+    const trouverGroupe = p.lettrage.findFirst.getMockImplementation();
+    p.lettrage.findFirst = jest.fn().mockImplementation(async (args: any) => {
+      const g = await trouverGroupe(args);
+      return g ? { ...g, compte: { id: g.compteId, numero, intitule: 'NZUZI' } } : null;
+    });
+    const compteDuTiers = p.compte.findFirst.getMockImplementation();
+    p.compte.findFirst = jest.fn().mockImplementation(async (args: any) => {
+      if (!args?.where?.numero) return compteDuTiers(args);
+      return args.where.numero === '65600000' && referentiel === 'SYSCOHADA'
+        ? { id: 'c656', numero: '65600000', intitule: 'Pertes de change' }
+        : null;
+    });
+    return monte;
+  }
+
+  it('soldé en devise et non en francs · le lettrage plein est refusé en NOMMANT l’écart réalisé', async () => {
+    const { service: s } = avecProposition('SYSCOHADA');
+    await expect(s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1')).rejects.toThrow(
+      /soldées dans leur devise mais pas en francs · l'écart de 123200.00 est une perte de change réalisé/,
+    );
+  });
+
+  it('SYSCOHADA · proposé au 656, perte de 123 200, à la date du dernier règlement, sans rien écrire', async () => {
+    const { service: s, groupes, lignes } = avecProposition('SYSCOHADA');
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1', { autoriserPartiel: true });
+    const p = await s.propositionEcartChange('t1', groupes[0].id);
+    expect(p).toMatchObject({ ecart: 123200, sens: 'PERTE', numeroPrescrit: '65600000', comptePrescrit: { id: 'c656' }, motif: null });
+    expect((p as { date: Date }).date).toEqual(new Date('2027-02-02'));
+    // Une proposition n'écrit rien · le groupe reste partiel.
+    expect(groupes[0].statut).toBe('PARTIEL');
+    expect(lignes).toHaveLength(3);
+  });
+
+  it('NZUZI · le même dénouement côté client est un gain, proposé au 756', async () => {
+    const nzuzi = mbikayi().map((l) => ({ ...l, debit: l.credit, credit: l.debit }));
+    const { service: s, groupes } = avecProposition('SYSCOHADA', nzuzi, '41110000');
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1', { autoriserPartiel: true });
+    const p = await s.propositionEcartChange('t1', groupes[0].id);
+    expect(p).toMatchObject({ ecart: -123200, sens: 'GAIN', numeroPrescrit: '75600000' });
+  });
+
+  it('SYCEBNL · aucun compte proposé, et le motif dit que le texte n’en donne aucun', async () => {
+    const { service: s, groupes } = avecProposition('SYCEBNL');
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1', { autoriserPartiel: true });
+    const p = await s.propositionEcartChange('t1', groupes[0].id);
+    expect(p).toMatchObject({ ecart: 123200, comptePrescrit: null, numeroPrescrit: null });
+    expect(p.motif).toMatch(/ne donne aucun compte/);
+  });
+
+  it('pas encore soldé en devise · aucune proposition, et ce n’est pas zéro', async () => {
+    const { service: s, groupes } = avecProposition('SYSCOHADA', mbikayi().slice(0, 2));
+    await s.lettrerManuel('t1', 'c1', ['f', 'r1'], 'u1', { autoriserPartiel: true });
+    const p = await s.propositionEcartChange('t1', groupes[0].id);
+    expect(p.ecart).toBeNull();
+    expect(p.motif).toMatch(/pas soldé dans sa devise/);
+  });
+
+  it('l’écart passé par la pièce du règlement est gardé par le groupe soldé', async () => {
+    // Règlement entier de 1 160 USD à 1 750 · le tiers soldé au coût
+    // historique, la perte de 81 200 sur sa propre ligne, hors du compte.
+    const { service: s, groupes } = service([
+      ligne('f', 0, 1948800, { deviseId: 'usd', montantDevise: 1160 }),
+      ligne('r', 1948800, 0, { deviseId: 'usd', montantDevise: 1160 }),
+    ]);
+    await s.lettrerManuel('t1', 'c1', ['f', 'r'], 'u1', { ecartChangeRealise: 81200 });
+    expect(groupes[0].ecartChange).toBe(81200);
   });
 });
 

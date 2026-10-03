@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -77,6 +77,21 @@ export class LettrageController {
     @Body() dto: CompleterLettrageDto,
   ) {
     return this.lettrageService.completer(user.tenantId, lettrageId, dto.ligneIds);
+  }
+
+  /**
+   * L'ÉCART DE CHANGE PROPOSÉ d'un groupe soldé dans sa devise et non en
+   * francs (ligne A6) · une LECTURE, rien n'est écrit, et aucune liste de
+   * comptes · le compte que le texte donne, ou aucun. Le comptable le passe
+   * par `POST /reglements/ecart-change`, qui rejoue le calcul.
+   */
+  @Get(':lettrageId/ecart-change')
+  async propositionEcartChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('compteId') compteId: string,
+    @Param('lettrageId', ParseUUIDPipe) lettrageId: string,
+  ) {
+    return this.lettrageService.propositionEcartChange(user.tenantId, lettrageId, compteId);
   }
 
   /** « Verrouillage définitif ou non du lettrage » (CPCC, ch. 6). */

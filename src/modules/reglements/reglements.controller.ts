@@ -6,7 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ReglementsService } from './reglements.service';
-import { EnregistrerReglementsDto } from './reglements.dto';
+import { EnregistrerReglementsDto, PasserEcartChangeDto } from './reglements.dto';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
@@ -35,5 +35,16 @@ export class ReglementsController {
   @Post()
   async enregistrer(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerReglementsDto) {
     return this.reglements.enregistrer(user.tenantId, user.userId, dto, user.email);
+  }
+
+  /**
+   * Passe l'écart de change PROPOSÉ d'un lettrage soldé dans sa devise et non
+   * en francs (ligne A6) · la proposition est rejouée au serveur, le groupe
+   * passe SOLDE avec la ligne du tiers.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('ecart-change')
+  async passerEcartChange(@CurrentUser() user: AuthenticatedUser, @Body() dto: PasserEcartChangeDto) {
+    return this.reglements.passerEcartChange(user.tenantId, user.userId, dto);
   }
 }

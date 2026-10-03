@@ -4,7 +4,17 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
 import { refuserSiLignesFigees } from '../exercice/gel-cloture';
-import { EnregistrerReglementsDto } from './reglements.dto';
+import { EnregistrerReglementsDto, PasserEcartChangeDto, type ReglementTiersDto } from './reglements.dto';
+import { contrevaleur } from '../comptabilite/ligne-en-devise';
+import {
+  coutHistoriqueRegle,
+  ecartSigne,
+  lignesDuReglementEnDevise,
+  lignesEcartDuGroupe,
+  natureDuCompte,
+  type Referentiel,
+} from './ecart-change-realise';
+import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
@@ -54,6 +64,7 @@ export class ReglementsService {
       include: {
         ecriture: { select: { date: true, libelle: true, reference: true, numeroPiece: true, journal: { select: { code: true } } } },
         compte: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true, code: true } } } } } },
+        devise: { select: { code: true } },
       },
       orderBy: [{ compteId: 'asc' }, { ecriture: { date: 'asc' } }],
     });
@@ -70,6 +81,12 @@ export class ReglementsService {
         reference: l.ecriture.reference,
         libelle: l.libelle ?? l.ecriture.libelle,
         montant: montantDu({ debit: Number(l.debit), credit: Number(l.credit) }, sens),
+        // La facture en devise se règle dans sa devise (ligne A6) · l'écran
+        // demande alors le montant en devise et le cours du jour.
+        deviseId: l.deviseId ?? null,
+        deviseCode: l.devise?.code ?? null,
+        montantDevise: l.montantDevise === null || l.montantDevise === undefined ? null : Number(l.montantDevise),
+        coursApplique: l.coursApplique === null || l.coursApplique === undefined ? null : Number(l.coursApplique),
       }))
       .filter((l) => !limite || l.echeance.getTime() <= limite.getTime());
 
@@ -122,7 +139,7 @@ export class ReglementsService {
         compte: {
           select: { numero: true, intitule: true, lettrable: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } },
         },
-        ecriture: { select: { exerciceId: true } },
+        ecriture: { select: { exerciceId: true, date: true } },
       },
     });
     if (lignes.length !== toutesLignes.length) {
@@ -158,11 +175,32 @@ export class ReglementsService {
       if (!(du > 0)) {
         throw new BadRequestException(`Rien n'est dû sur les factures choisies du compte ${siennes[0].compte.numero}.`);
       }
-      const montant = r.montant ?? du;
-      const refus = motifRefusMontant(montant, du);
-      if (refus) throw new BadRequestException(`${siennes[0].compte.numero} · ${refus}`);
-      return { r, compte: siennes[0].compte, du, montant };
+      return { r, compte: siennes[0].compte, siennes, du };
     });
+
+    // LES RÈGLEMENTS EN DEVISE (ligne A6) se préparent ICI, avec le reste ·
+    // cours, dû en devise et compte d'écart sont vérifiés avant la première
+    // pièce, comme tout le lot.
+    let referentiel: Referentiel | null = null;
+    const prepares: Array<{ r: ReglementTiersDto; compte: (typeof plan)[number]['compte']; du: number; montant: number; enDevise: ReglementEnDevise | null }> = [];
+    for (const p of plan) {
+      const numero = p.compte.numero;
+      if (!p.siennes.some((l) => (l.deviseId ?? null) !== null)) {
+        if (p.r.montantDevise !== undefined || p.r.coursReglement !== undefined || p.r.compteEcartChangeId !== undefined) {
+          throw new BadRequestException(
+            `${numero} · les factures choisies sont en francs · ni montant en devise, ni cours, ni compte d'écart de change.`,
+          );
+        }
+        const montant = p.r.montant ?? p.du;
+        const refus = motifRefusMontant(montant, p.du);
+        if (refus) throw new BadRequestException(`${numero} · ${refus}`);
+        prepares.push({ r: p.r, compte: p.compte, du: p.du, montant, enDevise: null });
+        continue;
+      }
+      if (referentiel === null) referentiel = await referentielDuDossier(this.prisma, tenantId);
+      const enDevise = await this.preparerEnDevise(tenantId, referentiel, dto.sens, p.r, numero, p.siennes);
+      prepares.push({ r: p.r, compte: p.compte, du: p.du, montant: enDevise.francsPayes, enDevise });
+    }
 
     // Le lettrage vient APRÈS la pièce · une facture figée par une clôture
     // (exercice/gel-cloture.ts) le ferait refuser une fois la pièce passée.
@@ -183,7 +221,7 @@ export class ReglementsService {
 
     const resultats = [];
     const aOrdonner: LigneAOrdonner[] = [];
-    for (const { r, compte, du, montant } of plan) {
+    for (const { r, compte, du, montant, enDevise } of prepares) {
       const libelle = `Règlement ${compte.tiersCompte?.tiers.nom ?? compte.intitule}`.slice(0, 190);
       const ecriture = await this.ecritures.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
@@ -191,10 +229,26 @@ export class ReglementsService {
         date: dto.date,
         libelle,
         reference: r.reference || undefined,
-        lignes: lignesDuReglement({ sens: dto.sens, compteTiersId: r.compteId, compteTresorerieId, montant, libelle }),
+        lignes: enDevise
+          ? lignesDuReglementEnDevise({
+              sens: dto.sens,
+              compteTiersId: r.compteId,
+              compteTresorerieId,
+              compteEcartId: enDevise.compteEcartId,
+              historique: enDevise.historique,
+              francsPayes: enDevise.francsPayes,
+              deviseId: enDevise.deviseId,
+              montantDevise: enDevise.montantDevise,
+              coursReglement: enDevise.coursReglement,
+              tresorerieEnDevise: dto.tresorerieEnDevise === true,
+              libelle,
+            })
+          : lignesDuReglement({ sens: dto.sens, compteTiersId: r.compteId, compteTresorerieId, montant, libelle }),
       });
       const ligneTiers = ecriture.lignes.find((l) => l.compteId === r.compteId)!;
-      const partiel = Math.round(montant * 100) < Math.round(du * 100);
+      // En devise, le partiel se lit DANS LA DEVISE · la contrevaleur payée au
+      // cours du jour peut dépasser le dû en francs sans solder la facture.
+      const partiel = enDevise ? enDevise.partiel : Math.round(montant * 100) < Math.round(du * 100);
       // Un lettrage refusé malgré tout (une facture lettrée entre-temps par un
       // autre clic) retire la pièce qu'il devait accompagner · jamais un
       // règlement sans le lettrage qui dit ce qu'il a payé (audit final F56).
@@ -202,12 +256,22 @@ export class ReglementsService {
       try {
         lettre = await this.lettrage.lettrerManuel(tenantId, r.compteId, [...r.ligneIds, ligneTiers.id], userId, {
           autoriserPartiel: partiel,
+          // Le tiers est soldé au coût historique · l'écart réalisé est sur
+          // sa propre ligne, hors du compte du tiers, et le groupe le garde.
+          ...(enDevise && !partiel ? { ecartChangeRealise: enDevise.ecart } : {}),
         });
       } catch (e) {
         await this.ecritures.retirerCompensation(tenantId, ecriture.id);
         throw e;
       }
-      resultats.push({ compte: compte.numero, ecritureId: ecriture.id, montant, partiel, lettre: lettre.lettre });
+      resultats.push({
+        compte: compte.numero,
+        ecritureId: ecriture.id,
+        montant,
+        partiel,
+        lettre: lettre.lettre,
+        ...(enDevise ? { montantDevise: enDevise.montantDevise, ecartChange: enDevise.ecart } : {}),
+      });
       aOrdonner.push({
         compteId: r.compteId,
         montant,
@@ -221,4 +285,146 @@ export class ReglementsService {
       : null;
     return { reglements: resultats, ordre };
   }
+
+  /**
+   * UN RÈGLEMENT EN DEVISE, vérifié et chiffré avant toute pièce (ligne A6,
+   * règles dans ecart-change-realise.ts). Une seule devise, des factures
+   * toutes en devise et toutes dans le sens de l'échéance, le cours du jour
+   * du règlement fourni, jamais plus que le dû DANS LA DEVISE.
+   */
+  private async preparerEnDevise(
+    tenantId: string,
+    referentiel: Referentiel,
+    sens: SensReglement,
+    r: ReglementTiersDto,
+    numero: string,
+    siennes: Array<{ id: string; debit: unknown; credit: unknown; deviseId?: string | null; montantDevise?: unknown; ecriture: { date?: Date } }>,
+  ): Promise<ReglementEnDevise> {
+    if (siennes.some((l) => (l.deviseId ?? null) === null)) {
+      throw new BadRequestException(
+        `${numero} · des factures en francs et des factures en devise ne se règlent pas dans la même pièce · réglez-les séparément.`,
+      );
+    }
+    const devises = new Set(siennes.map((l) => l.deviseId));
+    if (devises.size !== 1) {
+      throw new BadRequestException(`${numero} · les factures choisies sont en plusieurs devises · une pièce par devise.`);
+    }
+    const factures = siennes.map((l) => ({
+      id: l.id,
+      francs: montantDu({ debit: Number(l.debit), credit: Number(l.credit) }, sens),
+      montantDevise: Number(l.montantDevise),
+      date: l.ecriture.date ?? new Date(0),
+    }));
+    if (factures.some((f) => !(f.francs > 0) || !(f.montantDevise > 0))) {
+      throw new BadRequestException(
+        `${numero} · un avoir en devise ne se règle pas ici · lettrez-le avec sa facture depuis Interrogation et lettrage.`,
+      );
+    }
+    if (r.coursReglement === undefined) {
+      throw new BadRequestException(
+        `${numero} · les factures sont en devise · le cours du jour du règlement est exigé, l'écart de change réalisé ` +
+          'se mesurant contre lui (AUDCIF art. 55).',
+      );
+    }
+    const duDevise = Math.round(factures.reduce((s, f) => s + f.montantDevise, 0) * 100) / 100;
+    const montantDevise = r.montantDevise ?? duDevise;
+    if (Math.round(montantDevise * 100) > Math.round(duDevise * 100)) {
+      throw new BadRequestException(
+        `${numero} · le montant réglé (${montantDevise.toFixed(2)}) dépasse le dû en devise des factures choisies ` +
+          `(${duDevise.toFixed(2)}) · l'excédent est une avance ou un trop-perçu, à comptabiliser à part.`,
+      );
+    }
+    const francsPayes = contrevaleur(montantDevise, r.coursReglement);
+    if (r.montant !== undefined && Math.abs(r.montant - francsPayes) > 0.01) {
+      throw new BadRequestException(
+        `${numero} · ${montantDevise.toFixed(2)} au cours de ${r.coursReglement} font ${francsPayes.toFixed(2)} en francs, ` +
+          `et le montant saisi est ${r.montant.toFixed(2)}.`,
+      );
+    }
+    const historique = coutHistoriqueRegle(factures, montantDevise);
+    const ecart = ecartSigne(sens, historique, francsPayes);
+    const compteEcart =
+      ecart === 0
+        ? null
+        : await compteDeLEcart(this.prisma, {
+            tenantId,
+            referentiel,
+            nature: natureDuCompte(numero),
+            ecart: ecart > 0 ? 'PERTE' : 'GAIN',
+            choisiId: r.compteEcartChangeId,
+          });
+    return {
+      deviseId: [...devises][0]!,
+      montantDevise,
+      coursReglement: r.coursReglement,
+      francsPayes,
+      historique,
+      ecart,
+      compteEcartId: compteEcart?.id ?? null,
+      partiel: Math.round(montantDevise * 100) < Math.round(duDevise * 100),
+    };
+  }
+
+  /**
+   * PASSER L'ÉCART DE CHANGE d'un lettrage soldé dans sa devise et non en
+   * francs (ligne A6) · la proposition est REJOUÉE ici depuis le groupe,
+   * jamais reçue du client, puis la ligne du tiers complète le lettrage, qui
+   * passe SOLDE. Rien n'est posté sans ce geste · le lettrage PROPOSE
+   * (`LettrageService.propositionEcartChange`), le comptable confirme.
+   */
+  async passerEcartChange(tenantId: string, userId: string, dto: PasserEcartChangeDto) {
+    const proposition = await this.lettrage.propositionEcartChange(tenantId, dto.lettrageId);
+    if (proposition.ecart === null || proposition.ecart === 0) {
+      throw new BadRequestException(proposition.motif ?? "Ce lettrage n'a aucun écart de change à passer.");
+    }
+    const journal = await this.prisma.journal.findFirst({ where: { id: dto.journalId, tenantId } });
+    if (!journal) throw new NotFoundException('Journal introuvable pour ce dossier.');
+    if (journal.type === TypeJournal.TRESORERIE) {
+      throw new BadRequestException(
+        `Le journal ${journal.code} est un journal de trésorerie · l'écart de change réalisé ne mouvemente aucune trésorerie, ` +
+          "il se passe au journal des opérations diverses.",
+      );
+    }
+    const compteEcart = await compteDeLEcart(this.prisma, {
+      tenantId,
+      referentiel: await referentielDuDossier(this.prisma, tenantId),
+      nature: natureDuCompte(proposition.compteNumero),
+      ecart: proposition.ecart > 0 ? 'PERTE' : 'GAIN',
+      choisiId: dto.compteEcartChangeId,
+    });
+    const libelle = `${proposition.ecart > 0 ? 'Perte' : 'Gain'} de change réalisé · ${proposition.compteNumero} ${proposition.code}`;
+    const ecriture = await this.ecritures.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.date,
+      libelle,
+      lignes: lignesEcartDuGroupe({
+        compteTiersId: proposition.compteId,
+        compteEcartId: compteEcart.id,
+        ecart: proposition.ecart,
+        libelle,
+      }),
+    });
+    const ligneTiers = ecriture.lignes.find((l) => l.compteId === proposition.compteId)!;
+    try {
+      const lettre = await this.lettrage.completer(tenantId, dto.lettrageId, [ligneTiers.id]);
+      return { ecritureId: ecriture.id, ecart: proposition.ecart, compte: compteEcart.numero, lettre: lettre.lettre, statut: lettre.statut };
+    } catch (e) {
+      await this.ecritures.retirerCompensation(tenantId, ecriture.id);
+      throw e;
+    }
+  }
+}
+
+/** Ce que le règlement en devise a vérifié et chiffré avant la pièce. */
+interface ReglementEnDevise {
+  deviseId: string;
+  montantDevise: number;
+  coursReglement: number;
+  francsPayes: number;
+  historique: number;
+  /** Signé · positif pour une perte, négatif pour un gain. */
+  ecart: number;
+  compteEcartId: string | null;
+  partiel: boolean;
 }

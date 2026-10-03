@@ -3,11 +3,14 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { sousFonctionServie } from '../lib/profil-dossier';
 import { useExercice } from '../lib/exercice';
-import type { Journal } from '../lib/types';
+import type { Compte, Journal } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { OrdresVirement } from '../components/OrdresVirement';
 import { lignesDepuisSelection, rappelerLot, type LotVirement } from '../lib/lots-virement';
 import { montant as fmt } from '../lib/montants';
+import { coursPropose, devisesEtrangeres, type DeviseDuDossier } from '../lib/ligne-en-devise';
+import { comptesProposablesEcart, corpsReglementEnDevise, nombreSaisi } from '../lib/ecart-change';
+import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 
 type Sens = 'FOURNISSEUR' | 'CLIENT';
 
@@ -20,6 +23,10 @@ interface LigneEcheance {
   reference: string | null;
   libelle: string;
   montant: number;
+  /** Facture en devise (ligne A6) · elle se règle dans sa devise, au cours du jour. */
+  deviseId?: string | null;
+  deviseCode?: string | null;
+  montantDevise?: number | null;
 }
 
 interface GroupeTiers {
@@ -53,6 +60,16 @@ export function ReglementsPage() {
   const [cochees, setCochees] = useState<Set<string>>(new Set());
   const [montants, setMontants] = useState<Record<string, string>>({});
   const [references, setReferences] = useState<Record<string, string>>({});
+  // RÈGLEMENT EN DEVISE (ligne A6) · montant en devise, cours du jour et, au
+  // SYCEBNL, compte d'écart de change, par tiers. Vides, le dû entier en
+  // devise et le cours coté proposé.
+  const [montantsDevise, setMontantsDevise] = useState<Record<string, string>>({});
+  const [coursSaisis, setCoursSaisis] = useState<Record<string, string>>({});
+  const [comptesEcart, setComptesEcart] = useState<Record<string, string>>({});
+  const [tresorerieEnDevise, setTresorerieEnDevise] = useState(false);
+  const [devises, setDevises] = useState<DeviseDuDossier[]>([]);
+  const [comptesEcartLus, setComptesEcartLus] = useState<Compte[] | null>(null);
+  const auSycebnl = utilisateur?.tenant?.referentiel === 'SYCEBNL';
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -80,6 +97,23 @@ export function ReglementsPage() {
       .catch(() => setJournaux([]));
   }, []);
 
+  useEffect(() => {
+    api
+      .get<DeviseDuDossier[]>('/devises')
+      .then((ds) => setDevises(devisesEtrangeres(ds)))
+      .catch(() => setDevises([]));
+  }, []);
+
+  // Au SYCEBNL, le texte ne donne aucun compte pour l'écart d'une créance ou
+  // d'une dette commerciale · le cabinet choisit le sien, sous le 65 ou le 75.
+  useEffect(() => {
+    if (!auSycebnl) return;
+    api
+      .get<Compte[]>(`/comptes?actifsSeuls=true&typeCompte=DETAIL&${RETENUS}`)
+      .then((cs) => setComptesEcartLus(comptesProposablesEcart(cs, null)))
+      .catch(() => setComptesEcartLus(null));
+  }, [auSycebnl]);
+
   const charger = async () => {
     if (!exerciceCourant) return;
     setErreur(null);
@@ -92,6 +126,9 @@ export function ReglementsPage() {
       setCochees(new Set());
       setMontants({});
       setReferences({});
+      setMontantsDevise({});
+      setCoursSaisis({});
+      setComptesEcart({});
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de lire les échéances');
     }
@@ -119,7 +156,23 @@ export function ReglementsPage() {
     });
 
   const aRegler = (groupes ?? []).filter((g) => (duParCompte.get(g.compteId) ?? 0) > 0);
+  /** La devise des factures cochées d'un tiers, ou `null` s'il se règle en francs. */
+  const deviseDuGroupe = (g: GroupeTiers) => {
+    const l = g.lignes.find((x) => cochees.has(x.id) && x.deviseId);
+    return l ? { id: l.deviseId!, code: l.deviseCode ?? '' } : null;
+  };
+  const duDevise = (g: GroupeTiers) =>
+    Math.round(g.lignes.filter((l) => cochees.has(l.id)).reduce((s, l) => s + (l.montantDevise ?? 0), 0) * 100) / 100;
+  /** Le cours retenu · celui saisi, sinon le dernier coté au plus tard à la date du règlement. */
+  const coursDuGroupe = (g: GroupeTiers, deviseId: string) =>
+    coursSaisis[g.compteId] ?? (coursPropose(devises.find((d) => d.id === deviseId), dateReglement)?.cours.toString() ?? '');
   const total = aRegler.reduce((s, g) => {
+    const devise = deviseDuGroupe(g);
+    if (devise) {
+      const cours = nombreSaisi(coursDuGroupe(g, devise.id)) ?? 0;
+      const enDevise = nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g);
+      return s + Math.round(enDevise * cours * 100) / 100;
+    }
     const saisi = montants[g.compteId];
     return s + (saisi ? Number(saisi.replace(',', '.')) || 0 : duParCompte.get(g.compteId) ?? 0);
   }, 0);
@@ -128,11 +181,41 @@ export function ReglementsPage() {
     if (!exerciceCourant || !journalId || aRegler.length === 0) return;
     setErreur(null);
     setInfo(null);
+    // Les tiers en devise se vérifient AVANT l'envoi · un cours manquant
+    // est dit sur le tiers, plutôt qu'au retour du serveur.
+    const corps: Record<string, unknown>[] = [];
+    for (const g of aRegler) {
+      const ligneIds = g.lignes.filter((l) => cochees.has(l.id)).map((l) => l.id);
+      const devise = deviseDuGroupe(g);
+      if (!devise) {
+        const saisi = montants[g.compteId];
+        corps.push({
+          compteId: g.compteId,
+          ligneIds,
+          ...(saisi ? { montant: Number(saisi.replace(',', '.')) } : {}),
+          ...(references[g.compteId] ? { reference: references[g.compteId] } : {}),
+        });
+        continue;
+      }
+      const r = corpsReglementEnDevise({
+        compteId: g.compteId,
+        ligneIds,
+        montantDevise: montantsDevise[g.compteId],
+        cours: coursDuGroupe(g, devise.id),
+        compteEcartChangeId: comptesEcart[g.compteId],
+        reference: references[g.compteId],
+      });
+      if (!r.corps) {
+        setErreur(`${g.numero} · ${r.motif}`);
+        return;
+      }
+      corps.push(r.corps);
+    }
     setEnvoi(true);
     try {
       const ordreVirement = avecOrdre && ordresServis && sens === 'FOURNISSEUR';
       const r = await api.post<{
-        reglements: { compte: string; montant: number; partiel: boolean; lettre: string }[];
+        reglements: { compte: string; montant: number; partiel: boolean; lettre: string; ecartChange?: number }[];
         ordre: { id: string; numero: number } | null;
       }>(
         '/reglements',
@@ -142,21 +225,18 @@ export function ReglementsPage() {
           exerciceId: exerciceCourant.id,
           journalId,
           date: dateReglement,
-          reglements: aRegler.map((g) => {
-            const saisi = montants[g.compteId];
-            return {
-              compteId: g.compteId,
-              ligneIds: g.lignes.filter((l) => cochees.has(l.id)).map((l) => l.id),
-              ...(saisi ? { montant: Number(saisi.replace(',', '.')) } : {}),
-              ...(references[g.compteId] ? { reference: references[g.compteId] } : {}),
-            };
-          }),
+          ...(tresorerieEnDevise && aRegler.some((g) => deviseDuGroupe(g)) ? { tresorerieEnDevise: true } : {}),
+          reglements: corps,
         },
       );
       const partiels = r.reglements.filter((x) => x.partiel).length;
+      const ecarts = r.reglements
+        .filter((x) => x.ecartChange !== undefined && x.ecartChange !== 0)
+        .map((x) => `${x.compte} · ${x.ecartChange! > 0 ? 'perte' : 'gain'} de change de ${fmt(Math.abs(x.ecartChange!))}`);
       setInfo(
         `${r.reglements.length} règlement(s) passé(s) au brouillard et lettré(s)` +
           (partiels ? `, dont ${partiels} partiel(s) en lettrage partiel.` : '.') +
+          (ecarts.length ? ` Écart de change réalisé · ${ecarts.join(' ; ')}.` : '') +
           (r.ordre ? ` Ordre de virement n° ${r.ordre.numero} préparé, en attente d'impression.` : ''),
       );
       await charger();
@@ -273,6 +353,12 @@ export function ReglementsPage() {
               <span className="text-text-dim">Date du règlement</span>
               <input type="date" value={dateReglement} onChange={(e) => setDateReglement(e.target.value)} className="border border-border px-2 py-[2px]" />
             </label>
+            {aRegler.some((g) => deviseDuGroupe(g)) && (
+              <label className="flex items-center gap-1.5 pb-[3px]" title="Banque ou caisse en devises · la ligne de trésorerie porte alors le montant en devise et le cours du jour">
+                <input type="checkbox" checked={tresorerieEnDevise} onChange={(e) => setTresorerieEnDevise(e.target.checked)} />
+                Moyen de paiement en devise
+              </label>
+            )}
             {sens === 'FOURNISSEUR' && ordresServis && (
               <label className="flex items-center gap-1.5 pb-[3px]">
                 <input type="checkbox" checked={avecOrdre} onChange={(e) => setAvecOrdre(e.target.checked)} />
@@ -318,8 +404,8 @@ export function ReglementsPage() {
         )}
         <Aide
           titre="Règlement des tiers"
-          texte="Cochez les factures à régler. OmegaX passe une pièce par tiers au journal de trésorerie choisi (40 contre 52 pour un fournisseur, 52 contre 41 pour un client) et lettre aussitôt chaque facture avec son règlement. Un montant inférieur au dû donne un règlement partiel et un lettrage partiel ; un montant supérieur est refusé, l'excédent étant une avance ou un trop-perçu. Les factures non parvenues, produits à recevoir et avances (408, 409, 418, 419) ne se règlent pas ici."
-          source="Guide d'application SYSCOHADA, Partie 1 ch. 4 · SYCEBNL, fiches des comptes 40 et 41 · Sage 100 i7, règlement des tiers"
+          texte="Cochez les factures à régler. OmegaX passe une pièce par tiers au journal de trésorerie choisi (40 contre 52 pour un fournisseur, 52 contre 41 pour un client) et lettre aussitôt chaque facture avec son règlement. Un montant inférieur au dû donne un règlement partiel et un lettrage partiel ; un montant supérieur est refusé, l'excédent étant une avance ou un trop-perçu. Les factures non parvenues, produits à recevoir et avances (408, 409, 418, 419) ne se règlent pas ici. Une facture en devise se règle dans sa devise, au cours du jour du règlement · le tiers est soldé à sa valeur d'origine, et la différence avec ce qui est payé est la perte ou le gain de change réalisé, sur sa propre ligne (656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'en ouvre aucun pour une créance ou une dette commerciale, le compte que vous choisissez sous le 65 ou le 75)."
+          source="Guide d'application SYSCOHADA, Partie 1 ch. 4 · SYCEBNL, fiches des comptes 40 et 41 · AUDCIF art. 55 et Titre VIII ch. 22 § 2.3 · Sage 100 i7, règlement des tiers"
         />
       </div>
 
@@ -356,6 +442,9 @@ export function ReglementsPage() {
             </thead>
             {groupes.map((g) => {
               const du = duParCompte.get(g.compteId) ?? 0;
+              const devise = du > 0 ? deviseDuGroupe(g) : null;
+              const coursCote = devise ? coursPropose(devises.find((d) => d.id === devise.id), dateReglement) : null;
+              const motifSansCompte = auSycebnl ? motifAucunCompteRetenu(comptesEcartLus, "d'autres charges (65) ou d'autres produits (75)") : null;
               return (
                 <tbody key={g.compteId}>
                   <tr className="bg-[var(--a-50)]">
@@ -365,14 +454,56 @@ export function ReglementsPage() {
                     <td className="px-2 py-1">
                       {peutEcrire && du > 0 && (
                         <span className="inline-flex flex-wrap items-center gap-2">
-                          <span className="text-text-dim">Réglé</span>
-                          <input
-                            inputMode="decimal"
-                            placeholder={fmt(du)}
-                            value={montants[g.compteId] ?? ''}
-                            onChange={(e) => setMontants((m) => ({ ...m, [g.compteId]: e.target.value }))}
-                            className="w-[110px] border border-border px-1.5 py-[1px] text-right"
-                          />
+                          {devise ? (
+                            <>
+                              <span className="text-text-dim">Réglé en {devise.code}</span>
+                              <input
+                                aria-label={`Montant réglé en ${devise.code}`}
+                                inputMode="decimal"
+                                placeholder={fmt(duDevise(g))}
+                                value={montantsDevise[g.compteId] ?? ''}
+                                onChange={(e) => setMontantsDevise((m) => ({ ...m, [g.compteId]: e.target.value }))}
+                                className="w-[100px] border border-border px-1.5 py-[1px] text-right"
+                              />
+                              <span className="text-text-dim">Cours du jour</span>
+                              <input
+                                aria-label="Cours du jour du règlement"
+                                inputMode="decimal"
+                                value={coursDuGroupe(g, devise.id)}
+                                onChange={(e) => setCoursSaisis((c) => ({ ...c, [g.compteId]: e.target.value }))}
+                                title={coursCote ? `Dernier cours coté le ${new Date(coursCote.date).toLocaleDateString('fr-FR')}` : 'Aucun cours coté à cette date · saisissez-le'}
+                                className="w-[90px] border border-border px-1.5 py-[1px] text-right"
+                              />
+                              {auSycebnl && (
+                                <select
+                                  aria-label="Compte d'écart de change"
+                                  value={comptesEcart[g.compteId] ?? ''}
+                                  onChange={(e) => setComptesEcart((c) => ({ ...c, [g.compteId]: e.target.value }))}
+                                  title="Le SYCEBNL ne donne aucun compte pour l'écart de change d'une créance ou d'une dette commerciale · choisissez le vôtre, sous le 65 pour une perte, sous le 75 pour un gain"
+                                  className="border border-border px-1 py-[1px] bg-surface max-w-[200px]"
+                                >
+                                  <option value="">Compte d'écart de change…</option>
+                                  {(comptesEcartLus ?? []).map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.numero} · {c.intitule}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                              {motifSansCompte && <span className="text-warning">{motifSansCompte}</span>}
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-text-dim">Réglé</span>
+                              <input
+                                inputMode="decimal"
+                                placeholder={fmt(du)}
+                                value={montants[g.compteId] ?? ''}
+                                onChange={(e) => setMontants((m) => ({ ...m, [g.compteId]: e.target.value }))}
+                                className="w-[110px] border border-border px-1.5 py-[1px] text-right"
+                              />
+                            </>
+                          )}
                           <span className="text-text-dim">N° chèque ou virement</span>
                           <input
                             value={references[g.compteId] ?? ''}
@@ -382,7 +513,14 @@ export function ReglementsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-1 text-right font-semibold">{du > 0 ? fmt(du) : ''}</td>
+                    <td className="px-2 py-1 text-right font-semibold">
+                      {du > 0 ? fmt(du) : ''}
+                      {devise ? (
+                        <div className="text-text-dim font-normal">
+                          {fmt(duDevise(g))} {devise.code}
+                        </div>
+                      ) : null}
+                    </td>
                   </tr>
                   {g.lignes.map((l) => (
                     <tr key={l.id}>
@@ -403,7 +541,14 @@ export function ReglementsPage() {
                         {l.libelle}
                         {l.reference ? <span className="text-text-dim"> · {l.reference}</span> : null}
                       </td>
-                      <td className="px-2 py-1 text-right">{fmt(l.montant)}</td>
+                      <td className="px-2 py-1 text-right">
+                        {fmt(l.montant)}
+                        {l.deviseId && l.montantDevise !== null && l.montantDevise !== undefined ? (
+                          <div className="text-text-dim">
+                            {fmt(l.montantDevise)} {l.deviseCode}
+                          </div>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -3,6 +3,8 @@ import { PrismaService } from '../../common/prisma.service';
 import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
+import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
+import { referentielDuDossier } from '../reglements/compte-ecart-change';
 
 const EPSILON = 0.005;
 
@@ -301,8 +303,13 @@ export class LettrageService {
    * Le calcul porte sur les seules lignes PORTANT UNE DEVISE, et non sur tout
    * le groupe. C'est essentiel : dans un dénouement en devise, la facture et
    * son règlement ne s'équilibrent justement PAS en monnaie de tenue, et
-   * c'est une troisième ligne, l'écriture d'écart de change (676 ou 776), qui
-   * ramène le groupe à zéro. Exiger que toutes les lignes portent une devise
+   * c'est une troisième ligne, l'écriture d'écart de change, qui ramène le
+   * groupe à zéro. Son compte dépend de la NATURE de l'opération et du
+   * référentiel (AUDCIF Titre VIII ch. 22 § 2.3 · 656 ou 756 pour une créance
+   * ou une dette commerciale, 676 ou 776 pour une opération financière ; le
+   * SYCEBNL n'ouvre ni 656 ni 756) · voir reglements/ecart-change-realise.ts.
+   * Écrire « 676 ou 776 » pour tout, comme jusqu'au 2026-10-02, mettait la
+   * perte sur un fournisseur en résultat financier. Exiger que toutes les lignes portent une devise
    * écarterait précisément le cas que le CPCC vise.
    *
    * Conditions : au moins une ligne en devise, une seule devise dans le
@@ -343,7 +350,20 @@ export class LettrageService {
    */
   private async creerGroupe(
     tx: Prisma.TransactionClient,
-    params: { tenantId: string; compteId: string; ligneIds: string[]; origine: OrigineLettrage; userId: string },
+    params: {
+      tenantId: string;
+      compteId: string;
+      ligneIds: string[];
+      origine: OrigineLettrage;
+      userId: string;
+      /**
+       * L'écart déjà passé sur sa propre ligne par la pièce qui solde le
+       * groupe (règlement en devise, ligne A6) · le tiers y est soldé au coût
+       * historique, si bien que ses lignes ne le portent pas, et le calcul
+       * rendrait zéro, un « dénouement sans écart » qui n'a pas eu lieu.
+       */
+      ecartChangeRealise?: number;
+    },
     prochaineLettre?: () => string,
   ) {
     // RELUES LIBRES, DANS LA TRANSACTION (audit final F57) · les passes
@@ -370,7 +390,7 @@ export class LettrageService {
         origine: params.origine,
         createdBy: params.userId,
         soldeAt: soldeNul ? new Date() : null,
-        ecartChange: soldeNul ? this.ecartChangeRealise(lignes) : null,
+        ecartChange: soldeNul ? (params.ecartChangeRealise ?? this.ecartChangeRealise(lignes)) : null,
       },
     });
     const { count } = await tx.ligneEcriture.updateMany({
@@ -423,7 +443,7 @@ export class LettrageService {
     compteId: string,
     ligneIds: string[],
     userId: string,
-    options: { autoriserPartiel?: boolean } = {},
+    options: { autoriserPartiel?: boolean; ecartChangeRealise?: number } = {},
   ) {
     await this.trouverCompteLettrable(tenantId, compteId);
 
@@ -443,6 +463,24 @@ export class LettrageService {
 
         const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
         if (Math.abs(solde) > EPSILON && !options.autoriserPartiel) {
+          // SOLDÉ EN DEVISE, PAS EN FRANCS (ligne A6) · ce n'est pas une
+          // erreur de sélection, c'est l'écart de change réalisé. Le refus le
+          // nomme et dit comment l'écriture d'écart est proposée.
+          const change = ecartDuGroupe(
+            lignes.map((l) => ({
+              debit: Number(l.debit),
+              credit: Number(l.credit),
+              deviseId: l.deviseId,
+              montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+            })),
+          );
+          if (change !== null) {
+            throw new BadRequestException(
+              `Les lignes sélectionnées sont soldées dans leur devise mais pas en francs · l'écart de ${Math.abs(change.ecart).toFixed(2)} ` +
+                `est un${change.ecart > 0 ? 'e perte' : ' gain'} de change réalisé (AUDCIF art. 55). Lettrez en partiel, puis passez ` +
+                "l'écart proposé sur le groupe (« Écart de change »).",
+            );
+          }
           throw new BadRequestException(
             `Le solde des lignes sélectionnées n'est pas nul (${solde.toFixed(2)}). ` +
               "Cochez « lettrage partiel » si l'opération est effectivement réglée en partie seulement.",
@@ -455,6 +493,7 @@ export class LettrageService {
           ligneIds,
           origine: OrigineLettrage.MANUEL,
           userId,
+          ecartChangeRealise: options.ecartChangeRealise,
         });
         return {
           lettre: groupe.statut === StatutLettrage.SOLDE ? groupe.code : groupe.code.toLowerCase(),
@@ -530,6 +569,91 @@ export class LettrageService {
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
     );
+  }
+
+  /**
+   * L'ÉCART DE CHANGE PROPOSÉ d'un groupe PARTIEL soldé dans sa devise et non
+   * en francs (ligne A6) · AUDCIF art. 55, « à la date de règlement [...] les
+   * pertes et gains de change [...] sont constatés par rapport à leur coût
+   * historique ». C'est une PROPOSITION · rien n'est écrit ici, et le groupe
+   * reste partiel tant que le comptable n'a pas passé l'écriture
+   * (`ReglementsService.passerEcartChange`, qui rejoue ce calcul).
+   *
+   * `ecart` est signé (positif = perte, négatif = gain) ; `null` avec son
+   * motif quand le groupe n'est pas soldé dans sa devise. Le compte que le
+   * texte donne est rendu s'il est ouvert ; au SYCEBNL, pour une créance ou
+   * une dette commerciale, aucun · le motif le dit et le cabinet choisit.
+   */
+  async propositionEcartChange(tenantId: string, lettrageId: string, compteId?: string) {
+    const groupe = await this.prisma.lettrage.findFirst({
+      where: { id: lettrageId, tenantId, ...(compteId ? { compteId } : {}) },
+      include: { compte: { select: { id: true, numero: true, intitule: true } } },
+    });
+    if (!groupe) throw new NotFoundException('Lettrage introuvable pour ce dossier');
+    const base = { lettrageId, code: groupe.code, compteId: groupe.compteId, compteNumero: groupe.compte.numero };
+    if (groupe.statut === StatutLettrage.SOLDE) {
+      return { ...base, ecart: null, motif: `Le lettrage ${groupe.code} est déjà soldé · il n'y a plus d'écart à passer.` };
+    }
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { lettrageId, ecriture: { tenantId } },
+      select: {
+        debit: true,
+        credit: true,
+        deviseId: true,
+        montantDevise: true,
+        devise: { select: { code: true } },
+        ecriture: { select: { date: true, exerciceId: true } },
+      },
+    });
+    const change = ecartDuGroupe(
+      lignes.map((l) => ({
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+        deviseId: l.deviseId,
+        montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+      })),
+    );
+    if (change === null) {
+      return {
+        ...base,
+        ecart: null,
+        motif:
+          "Ce lettrage n'est pas soldé dans sa devise · il reste à régler, et l'écart de change ne se mesure qu'au " +
+          'dénouement (AUDCIF art. 55).',
+      };
+    }
+    // La date proposée est celle de la dernière pièce du groupe · le
+    // règlement qui dénoue la position (ch. 22 § 2.3, « à la date
+    // d'encaissement ou de règlement »).
+    const derniere = lignes.reduce((d, l) => (l.ecriture.date > d.ecriture.date ? l : d), lignes[0]!);
+    const referentiel = await referentielDuDossier(this.prisma, tenantId);
+    const nature = natureDuCompte(groupe.compte.numero);
+    const prescrits = comptesPrescrits(referentiel, nature);
+    const numeroPrescrit =
+      prescrits.perte === null || change.ecart === 0 ? null : change.ecart > 0 ? prescrits.perte : prescrits.gain;
+    const comptePrescrit = numeroPrescrit
+      ? await this.prisma.compte.findFirst({
+          where: { tenantId, numero: numeroPrescrit },
+          select: { id: true, numero: true, intitule: true },
+        })
+      : null;
+    return {
+      ...base,
+      ecart: change.ecart,
+      sens: change.ecart > 0 ? ('PERTE' as const) : ('GAIN' as const),
+      devise: lignes.find((l) => l.deviseId === change.deviseId)?.devise?.code ?? null,
+      date: derniere.ecriture.date,
+      exerciceId: derniere.ecriture.exerciceId,
+      nature,
+      comptePrescrit,
+      numeroPrescrit,
+      motif:
+        prescrits.perte === null
+          ? prescrits.motif
+          : comptePrescrit === null && numeroPrescrit !== null
+            ? `Le compte ${numeroPrescrit} que le texte donne n'est pas ouvert dans le plan du dossier.`
+            : null,
+    };
   }
 
   /** « Verrouillage définitif ou non du lettrage » (CPCC, ch. 6). */

@@ -446,6 +446,21 @@ coté à la date de la pièce. **La devise suit le report (F54, F55)** : DÉTAIL
 ligne, SOLDE une ligne par devise au cours moyen. Une seule réévaluation par
 exercice (index unique), écarts passés sans devise.
 
+**Écart de change RÉALISÉ (ligne A6, 2026-10-02).** AUDCIF art. 55, Titre VIII ch. 22
+§ 2.3 (`reglements/ecart-change-realise.ts`). Une facture en devise se RÈGLE DANS SA
+DEVISE au cours du jour, exigé, jamais deviné ; plus que le dû EN DEVISE refusé (le
+dû en francs ne borne plus · un cours qui monte était refusé). Le tiers est soldé au
+COÛT HISTORIQUE avec le montant en devise, la trésorerie au payé, l'écart sur SA
+ligne · commercial (40, 41) au 656 ou 756, financier (16, 27) au 676 ou 776. UN
+NUMÉRO, DEUX PLANS · le SYCEBNL n'ouvre ni 656 ni 756 et réserve 676 et 776 au change
+financier (fiches 67, 75, 77) · AUCUN compte donné pour le commercial, le cabinet
+CHOISIT sous le 65 (hors 659) ou le 75 (hors 759), refus nommé sinon. Partiel au
+prorata de la devise, factures les plus anciennes d'abord. Un groupe de lettrage
+soldé en devise et non en francs · l'écart est PROPOSÉ (`GET
+/comptes/:compteId/lettrage/:id/ecart-change`), passé au seul clic (`POST /reglements/ecart-change`,
+qui rejoue le calcul), jamais au journal de trésorerie. Anomalie signalée · l'art. 53
+dit « charges financières » là où § 2.3 et la fiche 656 disent exploitation.
+
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
 caisse DE SECOURS » · un PV par caisse. QUATRE REFUS : un 57 seul (un 52 se

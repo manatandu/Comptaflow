@@ -9,9 +9,11 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsPositive,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { FacultatifNonNul } from '../../common/facultatif-non-nul';
 
 export class ReglementTiersDto {
   /** Compte de tiers (40 ou 41) que le règlement solde. */
@@ -34,6 +36,33 @@ export class ReglementTiersDto {
   @IsString()
   @MaxLength(60)
   reference?: string;
+
+  /**
+   * RÈGLEMENT EN DEVISE (ligne A6) · montant réglé dans la devise des
+   * factures, s'il est inférieur au dû en devise · absent, le dû entier.
+   * Plus que le dû EN DEVISE est refusé (reglement-tiers.ts).
+   */
+  @FacultatifNonNul('Omettez le montant en devise pour régler le dû entier.')
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  montantDevise?: number;
+
+  /**
+   * Cours du JOUR DU RÈGLEMENT · exigé dès que les factures sont en devise,
+   * l'écart réalisé se mesurant contre lui (AUDCIF art. 55). Jamais deviné.
+   */
+  @FacultatifNonNul('Le cours du règlement est un nombre positif · omettez-le pour des factures en francs.')
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsPositive()
+  coursReglement?: number;
+
+  /**
+   * Compte de l'écart de change réalisé, quand le texte n'en donne aucun
+   * (créance ou dette commerciale au SYCEBNL) · voir ecart-change-realise.ts.
+   */
+  @FacultatifNonNul("Omettez le compte d'écart de change quand le texte le donne.")
+  @IsUUID('4')
+  compteEcartChangeId?: string;
 }
 
 export class EnregistrerReglementsDto {
@@ -63,4 +92,37 @@ export class EnregistrerReglementsDto {
   @IsOptional()
   @IsBoolean()
   ordreVirement?: boolean;
+
+  /**
+   * Le moyen de paiement est EN DEVISE (banque ou caisse en devises) · la
+   * ligne de trésorerie porte alors le montant en devise et le cours du jour,
+   * sans quoi la conversion des disponibilités à la clôture (AUDCIF art. 57)
+   * ne la trouverait pas. Faux · le règlement se fait en francs.
+   */
+  @FacultatifNonNul('Omettez « trésorerie en devise » ou passez false.')
+  @IsBoolean()
+  tresorerieEnDevise?: boolean;
+}
+
+/**
+ * PASSER L'ÉCART DE CHANGE PROPOSÉ d'un lettrage soldé en devise et non en
+ * francs (ligne A6) · la proposition est relue au serveur, jamais reçue.
+ */
+export class PasserEcartChangeDto {
+  @IsUUID('4')
+  lettrageId!: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  /** Journal d'opérations diverses où passe l'écart. */
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @FacultatifNonNul("Omettez le compte d'écart de change quand le texte le donne.")
+  @IsUUID('4')
+  compteEcartChangeId?: string;
 }
