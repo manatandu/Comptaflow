@@ -71,6 +71,19 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 ## À faire, dans l'ordre
 
+**Ordre de traitement décidé par Manasse le 2026-10-03 · du plus léger au
+plus lourd, les lignes dépendantes mises de côté.** Le tableau ci-dessous
+garde la description de chaque ligne ; c'est cet ordre-ci qui se suit.
+
+- **Indépendantes, de la plus légère à la plus lourde** · A13 (léger) ;
+  A11 (léger) ; A14 (léger à moyen) ; A12 (moyen) ; A16 (moyen) ; A22
+  (moyen) ; A21 (lourd, touche la TVA) ; A15 (lourd) ; A20 (lourd, nouveau
+  module) ; A7 bis (le plus lourd, en dernier).
+- **Dépendantes, de côté jusqu'à l'intégration de leur ligne mère** · A17
+  après A13 ; A9 après A8, puis A18 après A9 ; A19 après A10. Chacune
+  démarre dès que sa mère est corrigée et intégrée, sans attendre le reste.
+- Deux lignes à la fois, de familles différentes (règle 1).
+
 | # | Objet | Préalable |
 |---|---|---|
 | A8 | Décompte final au journal (D 6614 / C 422) et émis figé avec retenues et net (AUDCIF Titre VIII ch. 21 § 5.2 ; Code du travail art. 103) · relevé CPCC C4 | décision de Manasse du 2026-10-02 ; IMPÔT TRANCHÉ le 2026-10-02 · barème du mois (art. 118 et 119, annualisation du mois comme le bulletin) avec réserve écrite sur le versement unique ; COEXISTENCE TRANCHÉE le 2026-10-02 · le décompte REMPLACE le bulletin du dernier mois (il porte le salaire du mois de cessation avec les indemnités ; un bulletin actif du même mois refuse l'émission du décompte, et inversement) |
