@@ -118,3 +118,63 @@ export function corpsEmissionDecompte<F extends object, P extends object>(
     ...(ventilation.length > 0 ? { ventilationAvantages: [...ventilation] } : {}),
   };
 }
+
+/**
+ * A9 (M2) · LE PRÉAVIS NE PORTE D'AVANTAGES À VENTILER QUE PAYÉ PAR
+ * L'EMPLOYEUR · art. 63, al. 3, préavis non observé à la charge de l'employeur
+ * ou dispensé par lui. Sous un départ à mi-préavis (art. 66, la rémunération
+ * seule) ou un préavis non observé par le travailleur (ce qu'il DOIT, hors du
+ * total), aucune ventilation ne part · l'écran l'exigeait et le serveur la
+ * refusait. La partie responsable vide se lit comme le moteur la lit · celle
+ * de l'initiative.
+ */
+export function preavisPorteDesAvantages(
+  executionPreavis: string,
+  partieResponsable: string,
+  initiative: 'EMPLOYEUR' | 'TRAVAILLEUR',
+): boolean {
+  if (executionPreavis === 'DISPENSE_PAR_EMPLOYEUR') return true;
+  if (executionPreavis !== 'NON_OBSERVE') return false;
+  return (partieResponsable || initiative) === 'EMPLOYEUR';
+}
+
+/**
+ * A9 (M1) · L'AVANTAGE SAISI POUR UN PRÉAVIS NON OBSERVÉ est, pour le
+ * travailleur parti avant la moitié d'un préavis REÇU, celui des seuls jours
+ * non observés avant la moitié · le moteur ne lui impute que ceux-là
+ * (art. 66, al. 1 ; art. 63, al. 3).
+ */
+export function avantagesDesSeulsJoursAvantLaMoitie(
+  executionPreavis: string,
+  partieResponsable: string,
+  initiative: 'EMPLOYEUR' | 'TRAVAILLEUR',
+): boolean {
+  return (
+    executionPreavis === 'NON_OBSERVE' &&
+    initiative === 'EMPLOYEUR' &&
+    (partieResponsable || initiative) === 'TRAVAILLEUR'
+  );
+}
+
+/**
+ * A9 (M3) · CE QUE L'AIDE DES ALLOCATIONS FAMILIALES DIT DU TEMPS RESTANT,
+ * selon l'exécution déclarée · dues (art. 66, al. 2), perdues (art. 67), non
+ * dues avant la moitié (lecture d'OmegaX). Le serveur, lui, ne le dit sur la
+ * ligne que si la rubrique s'applique effectivement.
+ */
+export function allocationsDuTempsRestant(
+  executionPreavis: string,
+  partieResponsable: string,
+  initiative: 'EMPLOYEUR' | 'TRAVAILLEUR',
+): string {
+  if (executionPreavis === 'DEPART_A_MI_PREAVIS') {
+    return 'Départ à mi-préavis · elles restent dues pendant le temps restant à courir, que les jours saisis comptent.';
+  }
+  if (executionPreavis === 'DEPART_POUR_NOUVEL_EMPLOI') {
+    return 'Départ pour un nouvel emploi · celles du préavis restant à courir sont perdues, les jours saisis ne les comptent pas.';
+  }
+  if (avantagesDesSeulsJoursAvantLaMoitie(executionPreavis, partieResponsable, initiative)) {
+    return 'Travailleur parti avant la moitié du préavis · celles du temps restant ne sont pas dues, les jours saisis ne les comptent pas.';
+  }
+  return 'Le préavis restant à courir n’en porte qu’après un départ à mi-préavis.';
+}
