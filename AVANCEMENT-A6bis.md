@@ -113,9 +113,11 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 
 ## Reste
 
-- Premier tour fait. Bloc du § 3 à repasser des deux côtés (voir
-  Vérification) ; puis relecture, intégration sur `main` (relire alors le
-  numéro du contrôle · 35 si A5 bis a pris le 34) et tests navigateur.
+- Premier tour fait. Bloc du § 3 passé le 2026-10-03 sur 4b60b84 · serveur
+  `tsc`, `jest --maxWorkers=2` (712 suites, 10 008 tests), `npm run build` ;
+  client `tsc`, `npm test` (208 fichiers, 1 696 tests), `npm run build`.
+  Restent la relecture, l'intégration sur `main` (relire alors le numéro du
+  contrôle · 35 si A5 bis a pris le 34) et les tests navigateur.
 
 ## Renvoyé après l'intégration d'A5 bis (B-3, ne pas toucher `calculer` avant)
 
