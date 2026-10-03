@@ -1,9 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { NatureProvision, Referentiel, StatutProvision } from '@prisma/client';
+import { NatureProvision, Prisma, Referentiel, StatutProvision } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { notePassifsEventuelsDuDossier } from '../notes-annexes/passifs-eventuels-en-note';
 import { CreerProvisionDto, ModifierProvisionDto, StatuerProvisionDto } from './dto/provision.dto';
+import {
+  CONDITIONS_PROPRES,
+  clesInconnues,
+  comptesCourtTerme,
+  conditionsPropresManquantes,
+  motifRefusCompteCourtTerme,
+  motifRefusCompteLongTerme,
+  motifRefusHorizon,
+} from './court-terme-et-conditions';
 
 /**
  * REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES.
@@ -226,11 +235,29 @@ export class ProvisionsService {
    * celle de `naturesDuReferentiel`, la même que l'écran lit · une nature
    * interdite n'en a aucune, elle ne se comptabilise pas.
    */
-  private async verifierCompte(tenantId: string, nature: NatureProvision, compteId: string | null | undefined) {
+  private async verifierCompte(
+    tenantId: string,
+    nature: NatureProvision,
+    compteId: string | null | undefined,
+    courtTerme = false,
+  ) {
     if (!compteId) return;
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId }, select: { numero: true } });
     if (!compte) throw new NotFoundException('Compte introuvable dans ce dossier.');
-    const servie = ProvisionsService.naturesDuReferentiel(await this.referentielDu(tenantId)).find((n) => n.nature === nature);
+    // LIGNE A16 · l'horizon décide de la classe du compte avant la nature ·
+    // à moins d'un an le 499 ou le 599, à plus d'un an le 19 de la nature.
+    const referentiel = await this.referentielDu(tenantId);
+    if (courtTerme) {
+      if (ProvisionsService.INTERDICTIONS[nature]) {
+        throw new BadRequestException(`La nature ${nature} n'a aucun compte · elle ne se comptabilise pas.`);
+      }
+      const refus = motifRefusCompteCourtTerme(referentiel, compte.numero);
+      if (refus) throw new BadRequestException(refus);
+      return;
+    }
+    const refusLong = motifRefusCompteLongTerme(compte.numero);
+    if (refusLong) throw new BadRequestException(refusLong);
+    const servie = ProvisionsService.naturesDuReferentiel(referentiel).find((n) => n.nature === nature);
     if (!servie) {
       throw new BadRequestException(`La nature ${nature} n'a aucun compte dans le plan de ce dossier · elle ne se comptabilise pas.`);
     }
@@ -275,12 +302,14 @@ export class ProvisionsService {
       remboursementAttendu?: number | null;
       remboursementCertain?: boolean;
       motifNonComptabilisation?: string | null;
+      conditionsPropres?: Record<string, boolean> | null;
     },
     etat: {
       obligationExiste: boolean;
       resulteEvenementPasse: boolean;
       sortieProbable: boolean;
       estimationFiable: boolean;
+      conditionsPropres?: Prisma.JsonValue | null;
     },
   ): Promise<void> {
     const statut = dto.statut ?? StatutProvision.EN_EXAMEN;
@@ -315,6 +344,19 @@ export class ProvisionsService {
       sortieProbable: dto.sortieProbable ?? etat.sortieProbable,
       estimationFiable: dto.estimationFiable ?? etat.estimationFiable,
     });
+    // LIGNE A16 · les conditions PROPRES du cas particulier (§ 4.1, § 4.3,
+    // § 4.10) s'ajoutent aux quatre · même refus, même issue. Une clé qui
+    // n'appartient pas à la nature est refusée, jamais ignorée.
+    const conditions =
+      dto.conditionsPropres !== undefined ? dto.conditionsPropres : (etat.conditionsPropres as Record<string, boolean> | null | undefined);
+    const inconnues = clesInconnues(dto.nature, conditions);
+    if (inconnues.length > 0) {
+      throw new BadRequestException(
+        `Condition(s) ${inconnues.join(', ')} inconnue(s) pour la nature ${dto.nature} · ` +
+          `admises : ${(CONDITIONS_PROPRES[dto.nature] ?? []).map((c) => c.cle).join(', ') || 'aucune'}.`,
+      );
+    }
+    manques.push(...conditionsPropresManquantes(dto.nature, conditions));
     if (statut === StatutProvision.COMPTABILISEE && manques.length > 0) {
       // LA NOTE QUI REÇOIT LE PASSIF ÉVENTUEL, NOMMÉE POUR CE DOSSIER (passe
       // R2, B2) · le message promettait « les Notes annexes » sans lien avec
@@ -375,7 +417,8 @@ export class ProvisionsService {
       sortieProbable: false,
       estimationFiable: false,
     });
-    await this.verifierCompte(tenantId, dto.nature, dto.compteId);
+    await this.verifierCompte(tenantId, dto.nature, dto.compteId, dto.courtTerme ?? false);
+    await this.verifierHorizon(tenantId, exerciceId, dto.courtTerme ?? false, dto.echeanceAttendue ? new Date(dto.echeanceAttendue) : null);
 
     return this.prisma.provisionRisqueCharge.create({
       data: {
@@ -401,9 +444,20 @@ export class ProvisionsService {
         remboursementCertain: dto.remboursementCertain ?? false,
         remboursementTiers: dto.remboursementTiers ?? null,
         motifNonComptabilisation: dto.motifNonComptabilisation ?? null,
+        courtTerme: dto.courtTerme ?? false,
+        conditionsPropres: dto.conditionsPropres ?? Prisma.DbNull,
         createdBy: utilisateur,
       },
     });
+  }
+
+  /** Ligne A16 · l'horizon déclaré contre l'échéance attendue, lu à la clôture de l'exercice de la ligne. */
+  private async verifierHorizon(tenantId: string, exerciceId: string, courtTerme: boolean, echeance: Date | null) {
+    if (!echeance) return;
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
+    if (!exercice) throw new NotFoundException('Exercice introuvable.');
+    const refus = motifRefusHorizon(courtTerme, echeance, exercice.dateFin);
+    if (refus) throw new BadRequestException(refus);
   }
 
   async modifier(tenantId: string, id: string, dto: ModifierProvisionDto) {
@@ -416,11 +470,15 @@ export class ProvisionsService {
       existante,
     );
     // La nature ou le compte peut changer seul · le couple est revérifié.
+    const courtTerme = dto.courtTerme ?? existante.courtTerme;
     await this.verifierCompte(
       tenantId,
       dto.nature ?? existante.nature,
       dto.compteId !== undefined ? dto.compteId : existante.compteId,
+      courtTerme,
     );
+    const echeance = dto.echeanceAttendue !== undefined ? (dto.echeanceAttendue ? new Date(dto.echeanceAttendue) : null) : existante.echeanceAttendue;
+    await this.verifierHorizon(tenantId, existante.exerciceId, courtTerme, echeance);
 
     return this.prisma.provisionRisqueCharge.update({
       where: { id },
@@ -451,6 +509,8 @@ export class ProvisionsService {
         ...(dto.motifNonComptabilisation !== undefined
           ? { motifNonComptabilisation: dto.motifNonComptabilisation }
           : {}),
+        ...(dto.courtTerme !== undefined ? { courtTerme: dto.courtTerme } : {}),
+        ...(dto.conditionsPropres !== undefined ? { conditionsPropres: dto.conditionsPropres ?? Prisma.DbNull } : {}),
       },
     });
   }
@@ -519,7 +579,11 @@ export class ProvisionsService {
       montantCloture: ProvisionsService.montantCloture(l),
       remboursementAttendu: l.remboursementAttendu === null ? null : Number(l.remboursementAttendu),
       echeanceAttendue: l.echeanceAttendue,
-      conditionsManquantes: ProvisionsService.conditionsManquantes(l),
+      conditionsManquantes: [
+        ...ProvisionsService.conditionsManquantes(l),
+        ...conditionsPropresManquantes(l.nature, l.conditionsPropres as Record<string, boolean> | null),
+      ],
+      courtTerme: l.courtTerme,
     }));
 
     // Seules les lignes COMPTABILISÉES se rapprochent d'un solde. Un passif
@@ -561,6 +625,10 @@ export class ProvisionsService {
       rapprochement,
       passifsEventuels: detail.filter((l) => l.statut === StatutProvision.PASSIF_EVENTUEL),
       natures: ProvisionsService.naturesDuReferentiel(await this.referentielDu(tenantId)),
+      // Ligne A16 · comptes du court terme, avec dotation et reprise, et
+      // conditions propres par nature · servis, jamais recopiés à l'écran.
+      comptesCourtTerme: comptesCourtTerme(await this.referentielDu(tenantId)),
+      conditionsPropres: CONDITIONS_PROPRES,
     };
   }
 
@@ -634,6 +702,8 @@ export class ProvisionsService {
           remboursementCertain: false,
           remboursementTiers: l.remboursementTiers,
           motifNonComptabilisation: l.motifNonComptabilisation,
+          courtTerme: l.courtTerme,
+          conditionsPropres: l.conditionsPropres ?? Prisma.DbNull,
           createdBy: utilisateur,
         },
       });

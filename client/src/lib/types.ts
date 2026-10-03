@@ -4252,6 +4252,10 @@ export type ProvisionRisqueCharge = {
   remboursementCertain: boolean;
   remboursementTiers: string | null;
   motifNonComptabilisation: string | null;
+  /** Ligne A16 · risque à moins d'un an (499, 599). */
+  courtTerme?: boolean;
+  /** Ligne A16 · conditions propres cochées (§ 4.1, § 4.3, § 4.10). */
+  conditionsPropres?: Record<string, boolean> | null;
 };
 
 export type LigneVariationProvision = {
@@ -4287,6 +4291,10 @@ export type TableauVariationProvisions = {
   passifsEventuels: LigneVariationProvision[];
   /** La typologie du référentiel du dossier · elle n'est pas la même des deux côtés. */
   natures: { nature: string; compte: string; intitule: string }[];
+  /** Ligne A16 · comptes du court terme du référentiel, avec dotation et reprise. */
+  comptesCourtTerme?: { compte: string; intitule: string; dotation: string; reprise: string }[];
+  /** Ligne A16 · conditions propres par nature, citées. */
+  conditionsPropres?: Record<string, { cle: string; libelle: string; source: string }[]>;
 };
 
 /**

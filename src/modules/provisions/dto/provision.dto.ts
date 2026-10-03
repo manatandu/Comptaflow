@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsNumber, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { NatureProvision, StatutProvision } from '@prisma/client';
 
 export class CreerProvisionDto {
@@ -91,6 +91,16 @@ export class CreerProvisionDto {
   @IsString()
   @MaxLength(20000)
   motifNonComptabilisation?: string;
+
+  /** Ligne A16 · risque à moins d'un an, porté au 499 ou au 599. */
+  @IsOptional()
+  @IsBoolean()
+  courtTerme?: boolean;
+
+  /** Ligne A16 · conditions propres cochées, { clé: vrai } (court-terme-et-conditions.ts). */
+  @IsOptional()
+  @IsObject()
+  conditionsPropres?: Record<string, boolean>;
 }
 
 export class ModifierProvisionDto {
@@ -114,6 +124,8 @@ export class ModifierProvisionDto {
   @IsOptional() @IsBoolean() remboursementCertain?: boolean;
   @IsOptional() @IsString() @MaxLength(300) remboursementTiers?: string;
   @IsOptional() @IsString() @MaxLength(20000) motifNonComptabilisation?: string;
+  @IsOptional() @IsBoolean() courtTerme?: boolean;
+  @IsOptional() @IsObject() conditionsPropres?: Record<string, boolean>;
 }
 
 export class StatuerProvisionDto {

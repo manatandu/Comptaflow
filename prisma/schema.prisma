@@ -5711,6 +5711,16 @@ model ProvisionRisqueCharge {
   /// réunies, il faut expliquer en annexe la nature des passifs éventuels. »
   motifNonComptabilisation String?
 
+  /// Ligne A16 · risque à MOINS D'UN AN, porté au 499 ou au 599 et non au 19
+  /// (AUDCIF, fiche du compte 49 ; SYCEBNL, fiche du compte 19, exclusions).
+  /// Voir provisions/court-terme-et-conditions.ts.
+  courtTerme Boolean @default(false)
+
+  /// Ligne A16 · les conditions PROPRES de la restructuration (§ 4.1), du
+  /// contrat déficitaire (§ 4.3) et du déménagement (§ 4.10), cochées une à
+  /// une, { clé: vrai }. Nul pour une nature qui n'en a pas.
+  conditionsPropres Json?
+
   createdAt DateTime @default(now())
   createdBy String
   updatedAt DateTime @updatedAt
