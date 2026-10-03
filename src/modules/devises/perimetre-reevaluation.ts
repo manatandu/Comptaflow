@@ -134,3 +134,19 @@ export function positionDesLignes(lignes: Array<{ debit: number; credit: number;
   }
   return { montantDevise, valeurComptable };
 }
+
+/**
+ * LA DATE D'UNE RÉÉVALUATION · la clôture de l'exercice, et elle seule
+ * (décision D1 · AUDCIF art. 54 ; Titre VIII ch. 22 § 2.2). Comparée au JOUR,
+ * jamais à l'heure. `null` si admise.
+ */
+export function motifDateReevaluation(date: string, dateFin: Date): string | null {
+  const jour = date.slice(0, 10);
+  const fin = dateFin.toISOString().slice(0, 10);
+  if (jour === fin) return null;
+  return (
+    `La réévaluation des devises se fait à la date de CLÔTURE, le ${fin} · le ${jour} n'en est pas une. ` +
+    "AUDCIF art. 54 · les créances et dettes « qui subsistent au bilan à la date de clôture » sont corrigées « sur la base du " +
+    "dernier cours de change à cette date » (Titre VIII ch. 22 § 2.2)."
+  );
+}

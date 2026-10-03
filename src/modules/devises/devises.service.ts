@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { groupesDenoues, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
+import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -963,6 +963,19 @@ export class DevisesService {
 
   /** Passe les écritures de réévaluation, et la provision qui l'accompagne. */
   async reevaluer(tenantId: string, createdBy: string, dto: ReevaluerDto) {
+    // À LA CLÔTURE, ET SEULEMENT À ELLE (décision D1 du 2026-10-03, Manasse,
+    // « réfère-toi à la loi ») · AUDCIF art. 54, les créances et dettes « qui
+    // subsistent au bilan à la date de clôture » sont corrigées « sur la base
+    // du dernier cours de change à cette date » ; Titre VIII ch. 22 § 2.2,
+    // « dernier cours de change à la date de clôture ». Une réévaluation datée
+    // du 30 septembre portait au 478 une position dénouée en novembre, et le
+    // réalisé passait à côté.
+    if (dto.dateReevaluation !== undefined) {
+      const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { dateFin: true } });
+      if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+      const motif = motifDateReevaluation(dto.dateReevaluation, exercice.dateFin);
+      if (motif) throw new BadRequestException(motif);
+    }
     if (dto.simulation) return { rapport: await this.calculer(tenantId, dto), ecritures: [] as string[] };
     return this.sousVerrouDuDossier(tenantId, 'REEVALUATION', () => this.reevaluerSousVerrou(tenantId, createdBy, dto));
   }
@@ -1377,7 +1390,8 @@ export class DevisesService {
   }
 
   async listerReevaluations(tenantId: string, exerciceId: string) {
-    return this.prisma.reevaluation.findMany({
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
+    const reevaluations = await this.prisma.reevaluation.findMany({
       where: { tenantId, exerciceId },
       orderBy: { dateReevaluation: 'desc' },
       include: {
@@ -1386,6 +1400,12 @@ export class DevisesService {
         ecritureExtourne: { select: { id: true, numeroPiece: true, date: true } },
       },
     });
+    // Une réévaluation passée AVANT la décision D1 à une autre date que la
+    // clôture n'est pas retouchée · elle est SIGNALÉE, avec son motif.
+    return reevaluations.map((r) => ({
+      ...r,
+      horsCloture: exercice ? motifDateReevaluation(r.dateReevaluation.toISOString().slice(0, 10), exercice.dateFin) : null,
+    }));
   }
 
   /**

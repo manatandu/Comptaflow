@@ -2115,6 +2115,8 @@ export interface Reevaluation {
   ecritureEcarts: { id: string; numeroPiece: number | null; date: string } | null;
   ecritureProvision: { id: string; numeroPiece: number | null } | null;
   ecritureExtourne: { id: string; numeroPiece: number | null; date: string } | null;
+  /** Motif quand la réévaluation n'est pas datée de la clôture (décision D1), sinon `null`. */
+  horsCloture?: string | null;
 }
 
 // ---------------------------------------------------------------------------

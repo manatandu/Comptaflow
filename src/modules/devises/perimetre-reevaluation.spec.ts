@@ -2,7 +2,7 @@ import { Referentiel } from '@prisma/client';
 import { DevisesService } from './devises.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { motifHorsReevaluation, seReevalueALaCloture } from './perimetre-reevaluation';
+import { motifDateReevaluation, motifHorsReevaluation, seReevalueALaCloture } from './perimetre-reevaluation';
 
 /**
  * AUDCIF Titre VIII ch. 22 · une immobilisation reste au cours du jour de
@@ -290,5 +290,45 @@ describe('réévaluation · un groupe à cheval sur deux exercices', () => {
     expect(findMany.mock.calls.some(([a]) => a.where.lettrageId && a.where.ecriture.exerciceId === 'N1')).toBe(true);
     expect(r.positions).toHaveLength(0);
     expect(r.positionsNonReevaluees).toEqual([expect.objectContaining({ numero: '40110000', montantDevise: 0, motif: expect.stringMatching(/^position dénouée/) })]);
+  });
+});
+
+/**
+ * DÉCISION D1 (2026-10-03, « réfère-toi à la loi ») · la réévaluation se fait
+ * à la date de CLÔTURE · AUDCIF art. 54 (« subsistent au bilan à la date de
+ * clôture », « dernier cours de change à cette date ») ; Titre VIII ch. 22
+ * § 2.2. Une réévaluation du 30 septembre portait au 478 une position que le
+ * règlement de novembre dénouait, et le réalisé passait à côté.
+ */
+describe('réévaluation · à la date de clôture seulement', () => {
+  function monterD1(reevaluations: Array<{ id: string; dateReevaluation: Date }> = []) {
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31'), statut: 'OUVERT' }) },
+      reevaluation: { findMany: jest.fn().mockResolvedValue(reevaluations) },
+    };
+    return new DevisesService(prisma as unknown as PrismaService, {} as EcritureService);
+  }
+
+  it('une date autre que la fin de l’exercice · 400 nommé, simulation comprise, avant tout calcul', async () => {
+    await expect(monterD1().reevaluer('t1', 'u1', { exerciceId: 'ex1', dateReevaluation: '2026-09-30' })).rejects.toThrow(
+      /se fait à la date de CLÔTURE, le 2026-12-31 · le 2026-09-30 n'en est pas une.*art\. 54/,
+    );
+    await expect(monterD1().reevaluer('t1', 'u1', { exerciceId: 'ex1', dateReevaluation: '2026-09-30', simulation: true })).rejects.toThrow(
+      /date de CLÔTURE/,
+    );
+  });
+
+  it('la règle pure · la fin de l’exercice passe, au jour près', () => {
+    expect(motifDateReevaluation('2026-12-31', new Date('2026-12-31'))).toBeNull();
+    expect(motifDateReevaluation('2026-12-30', new Date('2026-12-31'))).toMatch(/CLÔTURE/);
+  });
+
+  it('une réévaluation déjà passée à une autre date n’est pas retouchée · elle est SIGNALÉE', async () => {
+    const r = await monterD1([
+      { id: 'a', dateReevaluation: new Date('2026-09-30') },
+      { id: 'b', dateReevaluation: new Date('2026-12-31') },
+    ]).listerReevaluations('t1', 'ex1');
+    expect(r.find((x) => x.id === 'a')?.horsCloture).toMatch(/CLÔTURE/);
+    expect(r.find((x) => x.id === 'b')?.horsCloture).toBeNull();
   });
 });

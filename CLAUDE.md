@@ -446,7 +446,10 @@ coté à la date de la pièce. **La devise suit le report (F54, F55)** : DÉTAIL
 ligne, SOLDE une ligne par devise au cours moyen. Une seule réévaluation par
 exercice (index unique), écarts passés sans devise.
 
-**La provision pour pertes de change S'AJUSTE (A5, 2026-10-02).** Titre VIII
+**La provision pour pertes de change S'AJUSTE (A5, 2026-10-02).** D1 (2026-10-03) · la réévaluation se
+fait à la date de CLÔTURE et à elle seule (art. 54, ch. 22 § 2.2) · `reevaluer` refuse
+toute autre date (400), l'écran ne la laisse pas changer, une réévaluation passée
+ailleurs est signalée (`horsCloture`), jamais retouchée. Titre VIII
 ch. 22 § 2.3 (« ajustée pour tenir compte des opérations dénouées ») et fiche
 du compte 19 des deux plans · seul l'ÉCART avec la provision en place se
 passe, dotation de la hausse ou reprise de la baisse au compte de SA famille

@@ -108,12 +108,15 @@ export function DevisesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id]);
 
+  // LA RÉÉVALUATION SE FAIT À LA CLÔTURE (décision D1 · AUDCIF art. 54,
+  // Titre VIII ch. 22 § 2.2) · la date est celle de fin de l'exercice, suivie
+  // à chaque changement d'exercice, jamais saisie.
   useEffect(() => {
-    if (exerciceCourant && !dateReeval) {
+    if (exerciceCourant) {
       setDateReeval(exerciceCourant.dateFin.slice(0, 10));
-      setDateCours(exerciceCourant.dateFin.slice(0, 10));
+      setDateCours((d) => d || exerciceCourant.dateFin.slice(0, 10));
     }
-  }, [exerciceCourant, dateReeval]);
+  }, [exerciceCourant]);
 
   const creerDevise = async (e: FormEvent) => {
     e.preventDefault();
@@ -438,11 +441,10 @@ export function DevisesPage() {
                 <input
                   type="date"
                   value={dateReeval}
-                  onChange={(e) => {
-                    setDateReeval(e.target.value);
-                    setRapport(null);
-                  }}
-                  className="border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono"
+                  readOnly
+                  aria-label="Date de clôture de la réévaluation"
+                  title="La réévaluation se fait à la date de clôture de l'exercice (AUDCIF art. 54)"
+                  className="border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono bg-surface-2"
                 />
                 <label
                   className="flex items-center gap-1.5 text-[11.5px]"
@@ -669,7 +671,10 @@ export function DevisesPage() {
                     key={r.id}
                     className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
                   >
-                    <span className="font-mono">{jour(r.dateReevaluation)}</span>
+                    <span className="font-mono" title={r.horsCloture ?? undefined}>
+                      {jour(r.dateReevaluation)}
+                      {r.horsCloture && <span className="text-warning"> · hors clôture</span>}
+                    </span>
                     <span className="text-text-dim">
                       {r.ecritureEcarts ? `Écarts pièce ${r.ecritureEcarts.numeroPiece ?? '·'}` : 'Aucun écart'}
                       {r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
