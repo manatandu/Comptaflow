@@ -17,7 +17,14 @@ import { echeanceDepassee, jourUtc } from '../../common/echeance';
  * doivent être recherchées et faire l'objet d'écritures de redressement
  * lorsqu'elles n'ont pas pour origine un chevauchement de dates. » Éléments
  * de contrôle · « des relevés bancaires ; des états de rapprochement
- * bancaire ». Un « doit » · AVERTISSEMENT.
+ * bancaire ». Un « doit » · AVERTISSEMENT. La DATE vient de l'AUDCIF art. 42,
+ * non exclu par l'art. 3 de l'Acte uniforme SYCEBNL · « À la clôture de
+ * chaque exercice, l'entité doit procéder au recensement et à l'évaluation de
+ * ses biens, créances et dettes à leur valeur effective du moment ». Le
+ * DÉLAI vient de l'art. 23 · « Les états financiers annuels sont arrêtés au
+ * plus tard dans les quatre mois qui suivent la date de clôture » · le
+ * rapprochement est donc un état À RÉGLER AVANT L'ARRÊTÉ, jamais un retard,
+ * et aucun texte ne fixe d'échéance plus courte.
  *
  * CLÔTURE INFORMATIQUE · AUDCIF art. 22, 3° · « la chronologie des
  * opérations écarte toute insertion intercalaire ou addition ultérieure ; une
@@ -39,7 +46,7 @@ import { echeanceDepassee, jourUtc } from '../../common/echeance';
  * par son art. 3). Un exercice ouvert avant ces dates n'est pas examiné ·
  * le texte qui le régissait n'est pas au corpus.
  *
- * BANQUE · le texte ne fixe AUCUNE date au rapprochement · « périodiquement ».
+ * BANQUE · le texte ne fixe AUCUNE date au relevé · « périodiquement ».
  * OmegaX ne réclame donc pas un relevé daté du jour de clôture, seulement que
  * la chaîne des rapprochements CLOS du compte atteigne ce jour (un relevé
  * daté au plus tôt de la clôture). La chaîne est continue (chaque
@@ -48,25 +55,53 @@ import { echeanceDepassee, jourUtc } from '../../common/echeance';
  * est toujours possible · un rapprochement s'ouvre sur un relevé de toute
  * date, et le pointage n'est pas figé par la clôture de l'exercice. Le
  * contrôle ne parle qu'au LENDEMAIN de la clôture (avant, aucun relevé ne
- * peut la couvrir). Le 526 « Banques, intérêts courus » est ÉCARTÉ · ses deux
- * comptes (charges à payer, produits à recevoir, mêmes numéros aux deux
- * semis) portent des intérêts COURUS, que la banque n'a pas encore inscrits ·
- * aucun relevé n'a de solde à leur opposer.
+ * peut la couvrir).
+ *
+ * LE COMPTE FERMÉ EN COURS D'EXERCICE EST COUVERT (première relecture, B1).
+ * Il n'aura jamais de relevé au jour de la clôture · le réclamer pousserait à
+ * saisir un relevé fictif. Il est couvert quand TROIS faits sont réunis · le
+ * dernier rapprochement clos porte un solde de relevé NUL, son relevé est
+ * daté au plus tôt de la DERNIÈRE ligne du compte dans l'exercice, et le
+ * solde comptable est nul à la clôture. Un solde comptable nul seul ne suffit
+ * pas · un compte actif peut être nul aux livres et porter un solde en banque.
+ *
+ * LE 526 EST ÉCARTÉ. Il porte des intérêts COURUS, que la banque n'a pas
+ * encore inscrits · aucun relevé n'a de solde à leur opposer. ÉCART DU TEXTE,
+ * signalé sans rien changer puisque toute la racine est écartée · la fiche du
+ * compte 52 (AUDCIF Titre VII) subdivise le 526 en « 5261 en monnaie locale ·
+ * 5265 en devises », quand les deux semis ouvrent 52610000 « intérêts courus,
+ * charges à payer » et 52670000 « intérêts courus, produits à recevoir ».
+ *
+ * LIMITE · un compte 52 sans AUCUNE ligne dans l'exercice (exercice précédent
+ * non clôturé, aucun à-nouveau passé) n'est pas vu · son solde n'existe pas
+ * encore dans l'exercice examiné, et le contrôle de l'exercice précédent le
+ * porte. Pour la même raison, le solde comptable d'un compte se lit sur les
+ * seules lignes de l'exercice, à-nouveau compris.
  *
  * CLÔTURE INFORMATIQUE · OmegaX ne connaît pas les périodes que l'entité
- * s'est données · il lit les clôtures qu'elle a POSÉES. Seules la clôture de
- * PÉRIODE (tous journaux) et la clôture TOTALE (un journal jusqu'à une date)
- * figent la chronologie, définitivement ; la PARTIELLE est réversible
- * (`annulable`), elle n'écarte aucune insertion, comme `gel-cloture.ts` le
- * tient déjà. Pour chaque journal écrit dans l'exercice, la période ouverte
- * commence au lendemain de son dernier jour figé (ou au début de
- * l'exercice) ; elle peut durer au plus trois mois (« au moins
- * trimestrielle »), bornée à la fin de l'exercice, et sa clôture est due au
- * plus tard au dernier jour des trois mois qui suivent. C'est la lecture la
- * PLUS LARGE que le texte permette · une entité aux périodes plus courtes
- * aurait une échéance plus proche, jamais une plus lointaine. Le retard ne
- * se dit qu'au lendemain de l'échéance (`echeanceDepassee`). Un exercice
- * clôturé fige tout · il n'est pas examiné.
+ * s'est données · il lit les clôtures qu'elle a POSÉES DANS OMEGAX. Une
+ * clôture faite dans un autre logiciel (dossier repris) ne lui est pas
+ * connue, et le message le dit. Seules la clôture de PÉRIODE (tous journaux)
+ * et la clôture TOTALE (un journal jusqu'à une date) figent la chronologie,
+ * définitivement ; la PARTIELLE est réversible (`annulable`), elle n'écarte
+ * aucune insertion, comme `gel-cloture.ts` le tient déjà. Pour chaque journal
+ * écrit dans l'exercice, la période ouverte commence au lendemain de son
+ * dernier jour figé (ou au début de l'exercice) ; elle peut durer au plus
+ * trois mois (« au moins trimestrielle »), bornée à la fin de l'exercice, et
+ * sa clôture est due au plus tard au dernier jour des trois mois qui suivent.
+ * C'est la lecture la PLUS LARGE que le texte permette · une entité aux
+ * périodes plus courtes aurait une échéance plus proche, jamais une plus
+ * lointaine. Le retard ne se dit qu'au lendemain de l'échéance
+ * (`echeanceDepassee`). Un exercice clôturé fige tout · il n'est pas examiné.
+ *
+ * UN JOURNAL CRÉÉ EN COURS D'ANNÉE NE PART PAS DE SA PREMIÈRE ÉCRITURE
+ * (première relecture, d). La période et la chronologie que l'art. 22, 3°
+ * protège sont celles de l'ORGANISATION comptable, pas d'un journal · une
+ * écriture datée de mars dans un journal ouvert en septembre est précisément
+ * une « insertion intercalaire », et seule une clôture qui couvre mars
+ * l'écarte. Le texte ne permet donc pas de faire partir la période de la
+ * première écriture du journal ; une clôture de période, qui vaut pour tous
+ * les journaux, couvre aussi celui-là.
  */
 
 /** AUDCIF art. 113 · comptes personnels, 1er janvier 2018. */
@@ -86,9 +121,11 @@ export function estCompteBancaireARapprocher(numero: string): boolean {
   return numero.startsWith('52') && !numero.startsWith('526');
 }
 
-/** La fiche du compte 52 que le dossier lit. */
+/** La fiche du compte 52 que le dossier lit, avec l'article qui en fixe la date. */
 export function sourceFicheCompte52(referentiel: Referentiel): string {
-  return referentiel === Referentiel.SYCEBNL ? 'SYCEBNL, Partie 2 ch. 3, compte 52' : 'AUDCIF, Titre VII, compte 52';
+  return referentiel === Referentiel.SYCEBNL
+    ? "SYCEBNL, Partie 2 ch. 3, compte 52 ; AUDCIF art. 42, que l'art. 3 de l'Acte uniforme SYCEBNL n'exclut pas"
+    : 'AUDCIF, Titre VII, compte 52 ; AUDCIF art. 42';
 }
 
 /** Le chemin par lequel l'art. 22, 3° atteint le dossier. */
@@ -102,6 +139,9 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const veille = (d: Date) => new Date(jourUtc(d).getTime() - 86_400_000);
 const lendemain = (d: Date) => new Date(jourUtc(d).getTime() + 86_400_000);
 
+/** Un montant arrondi au centime est-il nul ? */
+const estNul = (montant: number) => Math.abs(montant) < 0.005;
+
 // ---------------------------------------------------------------------------
 // Banque sans rapprochement clos qui couvre la clôture
 // ---------------------------------------------------------------------------
@@ -110,11 +150,17 @@ export interface CompteBancaireMouvemente {
   compteId: string;
   numero: string;
   intitule: string;
+  /** Solde débit moins crédit des lignes de l'exercice, à-nouveau compris. */
+  soldeCloture: number;
+  /** Date de la dernière ligne du compte dans l'exercice. */
+  derniereLigne: Date;
 }
 
 export interface EtatRapprochementCompte {
   /** Le relevé du dernier rapprochement CLOS du compte, s'il y en a un. */
   dernierClos: Date | null;
+  /** Le solde de relevé de ce dernier clos ; null quand il n'a pas été lu. */
+  soldeDernierClos: number | null;
   /** Le relevé du rapprochement EN COURS, s'il y en a un. */
   enCours: Date | null;
 }
@@ -126,9 +172,29 @@ export interface CompteSansRapprochement {
 }
 
 /**
+ * Le compte, fermé en cours d'exercice, est-il couvert ? Les TROIS faits du
+ * B1 · relevé clos à solde nul, daté au plus tôt de la dernière ligne, et
+ * solde comptable nul.
+ */
+export function compteFermeCouvert(c: CompteBancaireMouvemente, etat: EtatRapprochementCompte): boolean {
+  return (
+    etat.dernierClos !== null &&
+    etat.soldeDernierClos !== null &&
+    estNul(etat.soldeDernierClos) &&
+    jourUtc(etat.dernierClos).getTime() >= jourUtc(c.derniereLigne).getTime() &&
+    estNul(c.soldeCloture)
+  );
+}
+
+/** Le dernier relevé clos atteint-il la clôture ? */
+export function releveCouvreLaCloture(etat: EtatRapprochementCompte, dateFin: Date): boolean {
+  return etat.dernierClos !== null && jourUtc(etat.dernierClos).getTime() >= jourUtc(dateFin).getTime();
+}
+
+/**
  * Les comptes de banque mouvementés dont aucun rapprochement CLOS n'atteint
- * le jour de clôture. Le contrôle ne parle qu'au lendemain de la clôture ·
- * avant, rend une liste vide.
+ * le jour de clôture, compte fermé couvert mis à part. Le contrôle ne parle
+ * qu'au lendemain de la clôture · avant, rend une liste vide.
  */
 export function comptesBancairesSansRapprochement(
   comptes: CompteBancaireMouvemente[],
@@ -137,12 +203,11 @@ export function comptesBancairesSansRapprochement(
   aujourdhui: Date,
 ): CompteSansRapprochement[] {
   if (!echeanceDepassee(dateFin, aujourdhui)) return [];
-  const cloture = jourUtc(dateFin).getTime();
   const sans: CompteSansRapprochement[] = [];
   for (const c of comptes) {
     if (!estCompteBancaireARapprocher(c.numero)) continue;
-    const etat = etats.get(c.compteId) ?? { dernierClos: null, enCours: null };
-    if (etat.dernierClos !== null && jourUtc(etat.dernierClos).getTime() >= cloture) continue;
+    const etat = etats.get(c.compteId) ?? { dernierClos: null, soldeDernierClos: null, enCours: null };
+    if (releveCouvreLaCloture(etat, dateFin) || compteFermeCouvert(c, etat)) continue;
     const morceaux: string[] = [
       etat.dernierClos !== null
         ? `dernier rapprochement clos au relevé du ${iso(etat.dernierClos)}`
@@ -183,6 +248,18 @@ export interface PeriodeOuverte {
 }
 
 /**
+ * Dernier jour de trois mois qui commencent à `debut` · la veille du même
+ * quantième trois mois plus tard (1er janvier → 31 mars), et la FIN DU MOIS
+ * quand ce quantième n'existe pas (31 janvier → 30 avril, non 29 avril ;
+ * première relecture, c). `ajouterMois` borne alors au dernier jour du mois,
+ * qui est la fin cherchée.
+ */
+export function finDeTroisMois(debut: Date): Date {
+  const cible = ajouterMois(jourUtc(debut), 3);
+  return cible.getUTCDate() !== jourUtc(debut).getUTCDate() ? cible : veille(cible);
+}
+
+/**
  * La période ouverte qui suit le dernier jour figé, et son échéance. Null si
  * tout l'exercice est figé.
  */
@@ -194,12 +271,11 @@ export function periodeOuverte(dernierJourFige: Date | null, dateDebut: Date, da
       ? lendemain(dernierJourFige)
       : debutExercice;
   if (debut.getTime() > finExercice.getTime()) return null;
-  // « au moins trimestrielle » · trois mois au plus, la veille du même
-  // quantième trois mois plus tard (1er janvier → 31 mars).
-  const finTroisMois = veille(ajouterMois(debut, 3));
+  // « au moins trimestrielle » · trois mois au plus.
+  const finTroisMois = finDeTroisMois(debut);
   const finAuPlusTard = finTroisMois.getTime() < finExercice.getTime() ? finTroisMois : finExercice;
   // « au plus tard à la fin du trimestre qui suit la fin de chaque période ».
-  const echeance = veille(ajouterMois(lendemain(finAuPlusTard), 3));
+  const echeance = finDeTroisMois(lendemain(finAuPlusTard));
   return { debut, finAuPlusTard, echeance };
 }
 
@@ -249,8 +325,8 @@ export function journauxEnRetardDeClotureInformatique(
       reference: `Journal ${j.code}`,
       detail:
         (fige !== null && jourUtc(fige).getTime() >= jourUtc(dateDebut).getTime()
-          ? `figé jusqu'au ${iso(fige)}`
-          : "aucune clôture de période ni totale dans l'exercice") +
+          ? `figé dans OmegaX jusqu'au ${iso(fige)}`
+          : "aucune clôture de période ni totale posée dans OmegaX pour l'exercice") +
         ` · période ouverte depuis le ${iso(p.debut)}, à clôturer au plus tard le ${iso(p.echeance)}`,
       date: iso(p.echeance),
     });

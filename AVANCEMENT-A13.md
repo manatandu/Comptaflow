@@ -25,6 +25,10 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
    verts sur 9 225 comptés, les 11 rouges sont dans les suites relancées. Client
    `tsc`, `vitest` (203 fichiers, 1 656 tests) et `vite build` propres.
 
+5. Corrections du premier tour de relecture (2026-10-03), voir la section
+   « Corrections du premier tour » ci-dessous. Pied de commit · la seule ligne
+   `Claude-Session:` (décision de Manasse du 2026-10-03).
+
 ## Reste
 
 - Relecture adverse et intégration (hors de cette copie).
@@ -80,6 +84,51 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
   personnels des entités, au 1er janvier 2018 » ; Acte uniforme SYCEBNL
   art. 28 · « applicable à compter du 1er janvier 2024 ». Exercice ouvert avant
   · non examiné (lu sur `dateDebut`).
+
+## Corrections du premier tour (2026-10-03)
+
+- **B1 · compte fermé en cours d'exercice.** Couvert quand TROIS faits sont
+  réunis (`compteFermeCouvert`) · dernier rapprochement clos à `soldeReleve`
+  nul, relevé daté au plus tôt de la DERNIÈRE ligne du compte dans l'exercice
+  (relevée dans le parcours par tranches), solde comptable nul à la clôture
+  (tenu en centimes). Un solde comptable nul seul ne couvre pas. Tests · cas et
+  trois contre-cas, purs et câblés.
+- **(a)** AUDCIF art. 42 cité (code, `sourceFicheCompte52`, message), non exclu
+  par l'art. 3 de l'Acte uniforme SYCEBNL (liste « 5, 8, 10 à 13, 17 al. 7 et 8,
+  18, 19 quatrième tiret, 21, 25 à 34, 49, 69, 70, 71, 73 à 113 »).
+- **(b)** Un état à régler avant l'arrêté · libellé « Compte de banque à
+  rapprocher avant l'arrêté des comptes », action « À rapprocher avant l'arrêté
+  des comptes », AUDCIF art. 23 (« arrêtés au plus tard dans les quatre mois
+  qui suivent la date de clôture »), jamais « retard » (gelé par un test).
+- **(c)** `finDeTroisMois` · la veille du même quantième trois mois plus tard,
+  la fin du mois quand ce quantième n'existe pas (31/01 → 30/04). Tests.
+- **(d)** Le détail dit « posée dans OmegaX » ; l'action dit qu'une clôture
+  faite dans un autre logiciel avant la reprise n'est pas connue. DÉCISION · un
+  journal créé en cours d'année ne part PAS de sa première écriture · la
+  chronologie que l'art. 22, 3° protège est celle de l'organisation comptable,
+  et une écriture de mars dans un journal ouvert en septembre est précisément
+  une « insertion intercalaire » ; le texte ne le permet donc pas (écrit en
+  tête de `banque-et-cloture-informatique.ts`).
+- **(e)** L'action nomme l'administrateur (routes de clôture totale et de
+  période `@Roles(ADMIN_CABINET)`) et l'effet · définitive, fige aussi le
+  lettrage et la ventilation analytique jusqu'à sa date (`gel-cloture.ts`).
+- **(f)** Vérifié dans `devises.service.ts` · les disponibilités
+  (`RACINES_DISPONIBILITES`, 52 compris) sont réévaluées au cours de clôture.
+  L'action le dit pour un compte en devises.
+- **(g)** Date du dernier relevé clos par `groupBy` (`_max.dateReleve`), puis
+  `soldeReleve` lu pour les seuls comptes nuls aux livres et non couverts, une
+  ligne par (compte, date), le plus récemment clos retenu. Test sur le `where`.
+- **(h)** Limite écrite · un 52 sans aucune ligne dans l'exercice n'est pas vu.
+- **(i)** L'à-nouveau provisoire n'entre pas dans les journaux écrits. Deux
+  tests.
+- **(j)** Écart du texte sur le 526 écrit en commentaire (fiche du 52 · « 5261
+  en monnaie locale · 5265 en devises » ; semis · 5261 et 5267 intérêts
+  courus), rien changé.
+- **(k)** `rapprochement.dto.ts` · `@IsDateString` et le fuseau · hors ligne,
+  NON corrigé (consigne du coordinateur).
+- Doublures · `rapprochementBancaire.groupBy` ajouté dans sept specs qui
+  passent par `analyser` avec un 52, sans quoi elles tomberaient après le
+  31 décembre 2026.
 
 ## Ce que le corpus ne tranche pas (consigné, rien codé)
 

@@ -4,24 +4,27 @@ import { PrismaService } from '../../common/prisma.service';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import {
+  compteFermeCouvert,
   comptesBancairesSansRapprochement,
   dernierJourFige,
   estCompteBancaireARapprocher,
+  finDeTroisMois,
   journauxEnRetardDeClotureInformatique,
   periodeOuverte,
   premiereEcheanceDepassee,
   sourceClotureInformatique,
   sourceFicheCompte52,
   texteEnVigueurPourLExercice,
+  type CompteBancaireMouvemente,
   type EtatRapprochementCompte,
 } from './banque-et-cloture-informatique';
 
 /**
- * LIGNE A13 · banque sans rapprochement clos à la clôture (fiche du compte 52
- * des deux plans) et période restée ouverte au-delà de la clôture
- * informatique (AUDCIF art. 22, 3°). Deux contrôles AVERTISSEMENT, bornés au
- * texte (§ 10 bis) · ce que ces tests gèlent, c'est d'abord ce qui NE doit
- * PAS s'allumer.
+ * LIGNE A13 · banque à rapprocher avant l'arrêté des comptes (fiche du compte
+ * 52 des deux plans, AUDCIF art. 42 et 23) et période restée ouverte au-delà
+ * de la clôture informatique (AUDCIF art. 22, 3°). Deux contrôles
+ * AVERTISSEMENT, bornés au texte (§ 10 bis) · ce que ces tests gèlent, c'est
+ * d'abord ce qui NE doit PAS s'allumer.
  */
 
 const D = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -34,7 +37,10 @@ describe('les comptes de banque à rapprocher · racine 52, hors 526', () => {
       const retenus = detail52.filter((c) => estCompteBancaireARapprocher(c.numero)).map((c) => c.numero);
       const ecartes = detail52.filter((c) => !estCompteBancaireARapprocher(c.numero));
       expect(retenus).toEqual(['52110000', '52150000', '52200000', '52300000', '52400000', '52500000']);
-      // Le 526 porte des intérêts COURUS · aucun relevé n'a de solde à leur opposer.
+      // Le 526 porte des intérêts COURUS · aucun relevé n'a de solde à leur
+      // opposer. Écart du texte (première relecture, j) · la fiche du compte
+      // 52 de l'AUDCIF écrit « 5261 en monnaie locale · 5265 en devises »,
+      // les semis ouvrent 5261 et 5267 en intérêts courus. Rien n'est changé.
       expect(ecartes.map((c) => c.numero)).toEqual(['52610000', '52670000']);
       for (const c of ecartes) expect(c.intitule.toLowerCase()).toContain('intérêts courus');
     }
@@ -59,18 +65,26 @@ describe('entrée en vigueur des textes (§ 10 bis)', () => {
     expect(texteEnVigueurPourLExercice(Referentiel.SYCEBNL, D('2024-01-01'))).toBe(true);
   });
 
-  it('chaque référentiel cite SON chemin, jamais celui de l’autre', () => {
-    expect(sourceFicheCompte52(Referentiel.SYCEBNL)).toBe('SYCEBNL, Partie 2 ch. 3, compte 52');
-    expect(sourceFicheCompte52(Referentiel.SYSCOHADA)).toBe('AUDCIF, Titre VII, compte 52');
+  it('chaque référentiel cite SON chemin, art. 42 compris (première relecture, a)', () => {
+    expect(sourceFicheCompte52(Referentiel.SYCEBNL)).toBe(
+      "SYCEBNL, Partie 2 ch. 3, compte 52 ; AUDCIF art. 42, que l'art. 3 de l'Acte uniforme SYCEBNL n'exclut pas",
+    );
+    expect(sourceFicheCompte52(Referentiel.SYSCOHADA)).toBe('AUDCIF, Titre VII, compte 52 ; AUDCIF art. 42');
     expect(sourceClotureInformatique(Referentiel.SYCEBNL)).toContain("l'art. 3 de l'Acte uniforme SYCEBNL n'exclut pas");
     expect(sourceClotureInformatique(Referentiel.SYSCOHADA)).toBe('AUDCIF art. 22, 3°');
   });
 });
 
 describe('banque · rapprochement clos qui couvre la clôture', () => {
-  const banque = { compteId: 'c1', numero: '52110000', intitule: 'Banque' };
+  const banque: CompteBancaireMouvemente = {
+    compteId: 'c1',
+    numero: '52110000',
+    intitule: 'Banque',
+    soldeCloture: 1000,
+    derniereLigne: D('2026-12-20'),
+  };
   const etats = (e: Partial<EtatRapprochementCompte>) =>
-    new Map<string, EtatRapprochementCompte>([['c1', { dernierClos: null, enCours: null, ...e }]]);
+    new Map<string, EtatRapprochementCompte>([['c1', { dernierClos: null, soldeDernierClos: null, enCours: null, ...e }]]);
 
   it('se tait le jour même de la clôture · aucun relevé ne peut encore la couvrir', () => {
     expect(comptesBancairesSansRapprochement([banque], new Map(), D('2026-12-31'), D('2026-12-31'))).toEqual([]);
@@ -105,12 +119,61 @@ describe('banque · rapprochement clos qui couvre la clôture', () => {
   });
 
   it('n’examine jamais le 526', () => {
-    const interets = { compteId: 'c2', numero: '52670000', intitule: 'Intérêts courus' };
+    const interets = { ...banque, compteId: 'c2', numero: '52670000', intitule: 'Intérêts courus' };
     expect(comptesBancairesSansRapprochement([interets], new Map(), D('2026-12-31'), D('2027-03-01'))).toEqual([]);
+  });
+
+  describe('le compte fermé en cours d’exercice (première relecture, B1)', () => {
+    const ferme: CompteBancaireMouvemente = { ...banque, soldeCloture: 0, derniereLigne: D('2026-06-15') };
+    const clos = (dernierClos: string, soldeDernierClos: number | null) =>
+      ({ dernierClos: D(dernierClos), soldeDernierClos, enCours: null }) as EtatRapprochementCompte;
+
+    it('est couvert par son dernier relevé à solde nul, daté au plus tôt de sa dernière ligne, solde comptable nul', () => {
+      expect(compteFermeCouvert(ferme, clos('2026-06-30', 0))).toBe(true);
+      // Daté du jour même de la dernière ligne · couvre aussi.
+      expect(compteFermeCouvert(ferme, clos('2026-06-15', 0))).toBe(true);
+      expect(comptesBancairesSansRapprochement([ferme], etats(clos('2026-06-30', 0)), D('2026-12-31'), D('2027-01-15'))).toEqual([]);
+    });
+
+    it('ne l’est pas quand le relevé précède la dernière ligne', () => {
+      expect(compteFermeCouvert(ferme, clos('2026-06-14', 0))).toBe(false);
+      expect(comptesBancairesSansRapprochement([ferme], etats(clos('2026-06-14', 0)), D('2026-12-31'), D('2027-01-15'))).toHaveLength(1);
+    });
+
+    it('ne l’est pas quand le relevé porte un solde, même si les livres sont nuls', () => {
+      // Un compte actif peut être nul aux livres et garder un solde en banque.
+      expect(compteFermeCouvert(ferme, clos('2026-06-30', 250))).toBe(false);
+      expect(compteFermeCouvert(ferme, clos('2026-06-30', null))).toBe(false);
+    });
+
+    it('ne l’est pas quand le solde comptable n’est pas nul, même relevé nul', () => {
+      expect(compteFermeCouvert({ ...ferme, soldeCloture: 0.5 }, clos('2026-06-30', 0))).toBe(false);
+      expect(compteFermeCouvert({ ...ferme, soldeCloture: 0.004 }, clos('2026-06-30', 0))).toBe(true);
+    });
+
+    it('ne l’est pas sans aucun rapprochement clos', () => {
+      expect(compteFermeCouvert(ferme, { dernierClos: null, soldeDernierClos: null, enCours: null })).toBe(false);
+    });
   });
 });
 
 describe('clôture informatique · période ouverte et échéance (AUDCIF art. 22, 3°)', () => {
+  it('trois mois finissent la veille du même quantième, ou à la fin du mois qui n’en a pas (première relecture, c)', () => {
+    expect(iso(finDeTroisMois(D('2026-01-01')))).toBe('2026-03-31');
+    expect(iso(finDeTroisMois(D('2026-01-31')))).toBe('2026-04-30');
+    expect(iso(finDeTroisMois(D('2026-11-30')))).toBe('2027-02-28');
+    expect(iso(finDeTroisMois(D('2026-11-29')))).toBe('2027-02-28');
+    expect(iso(finDeTroisMois(D('2027-11-29')))).toBe('2028-02-28');
+    expect(iso(finDeTroisMois(D('2027-11-30')))).toBe('2028-02-29');
+    expect(iso(finDeTroisMois(D('2026-08-30')))).toBe('2026-11-29');
+    expect(iso(finDeTroisMois(D('2026-02-15')))).toBe('2026-05-14');
+  });
+
+  it('une période ouverte au 31 janvier court jusqu’au 30 avril, non au 29', () => {
+    const p = periodeOuverte(D('2026-01-30'), D('2026-01-01'), D('2026-12-31'))!;
+    expect([iso(p.debut), iso(p.finAuPlusTard), iso(p.echeance)]).toEqual(['2026-01-31', '2026-04-30', '2026-07-31']);
+  });
+
   it('sans clôture, la première période court trois mois et se clôture à la fin des trois suivants', () => {
     const p = periodeOuverte(null, D('2026-01-01'), D('2026-12-31'))!;
     expect([iso(p.debut), iso(p.finAuPlusTard), iso(p.echeance)]).toEqual(['2026-01-01', '2026-03-31', '2026-06-30']);
@@ -166,16 +229,19 @@ describe('clôture informatique · période ouverte et échéance (AUDCIF art. 2
     expect(journauxEnRetardDeClotureInformatique(journaux, [periode, totaleA], D('2026-01-01'), D('2026-12-31'), D('2026-10-01'))).toEqual([
       {
         reference: 'Journal AC',
-        detail: "figé jusqu'au 2026-03-31 · période ouverte depuis le 2026-04-01, à clôturer au plus tard le 2026-09-30",
+        detail: "figé dans OmegaX jusqu'au 2026-03-31 · période ouverte depuis le 2026-04-01, à clôturer au plus tard le 2026-09-30",
         date: '2026-09-30',
       },
     ]);
   });
 
-  it('sans clôture, le détail le dit', () => {
+  it('sans clôture, le détail dit qu’aucune n’est posée DANS OMEGAX (première relecture, d)', () => {
     expect(
       journauxEnRetardDeClotureInformatique([journaux[0]], [], D('2026-01-01'), D('2026-12-31'), D('2026-07-01'))[0].detail,
-    ).toBe("aucune clôture de période ni totale dans l'exercice · période ouverte depuis le 2026-01-01, à clôturer au plus tard le 2026-06-30");
+    ).toBe(
+      "aucune clôture de période ni totale posée dans OmegaX pour l'exercice · période ouverte depuis le 2026-01-01, " +
+        'à clôturer au plus tard le 2026-06-30',
+    );
   });
 
   it('la première échéance borne la lecture · rien à lire avant elle', () => {
@@ -192,6 +258,8 @@ interface Rap {
   compteId: string;
   statut: 'EN_COURS' | 'CLOTURE';
   dateReleve: Date;
+  soldeReleve?: number;
+  clotureAt?: Date | null;
 }
 interface Clo {
   granularite: GranulariteCloture;
@@ -204,10 +272,16 @@ function ligne(id: string, numero: string, debit: number, credit = 0) {
   return { id: `l-${id}`, debit, credit, lettre: null, compte: { id: `c-${numero}`, numero, intitule: `Compte ${numero}` } };
 }
 
-function ecriture(id: string, journalId: string, code: string, lignes: ReturnType<typeof ligne>[]) {
+function ecriture(
+  id: string,
+  journalId: string,
+  code: string,
+  lignes: ReturnType<typeof ligne>[],
+  autres: { date?: string; estANouveauProvisoire?: boolean } = {},
+) {
   return {
     id,
-    date: D('2026-05-10'),
+    date: D(autres.date ?? '2026-05-10'),
     libelle: 'Opération',
     reference: 'PJ',
     numeroPiece: 1,
@@ -217,11 +291,19 @@ function ecriture(id: string, journalId: string, code: string, lignes: ReturnTyp
     valideeBy: 'u2',
     secondRegardNom: null,
     estGenereeParCloture: false,
-    estANouveauProvisoire: false,
+    estANouveauProvisoire: autres.estANouveauProvisoire ?? false,
     journalId,
     journal: { code },
     lignes,
   };
+}
+
+interface WhereRap {
+  tenantId?: string;
+  statut?: string;
+  compteId?: { in: string[] };
+  lignes?: unknown;
+  OR?: { compteId: string; dateReleve: Date }[];
 }
 
 function monter(options: {
@@ -231,21 +313,37 @@ function monter(options: {
   dateFin?: string;
   rapprochements?: Rap[];
   clotures?: Clo[];
+  ecritures?: ReturnType<typeof ecriture>[];
 }) {
-  const ecritures = [
+  const ecritures = options.ecritures ?? [
     ecriture('e1', 'jBQ', 'BQ', [ligne('1', '52110000', 1000), ligne('2', '52670000', 0, 1000)]),
     ecriture('e2', 'jAC', 'AC', [ligne('3', '60100000', 500), ligne('4', '40110000', 0, 500)]),
   ];
+  const raps = options.rapprochements ?? [];
+  const retenus = (where: WhereRap) =>
+    raps.filter(
+      (r) =>
+        (!where.statut || r.statut === where.statut) &&
+        (!where.compteId || where.compteId.in.includes(r.compteId)) &&
+        (!where.OR || where.OR.some((o) => o.compteId === r.compteId && o.dateReleve.getTime() === r.dateReleve.getTime())),
+    );
   const rapprochementBancaire = {
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau (filtre
     // sur `lignes`) · aucun ici. Les lectures de la ligne A13 sont honorées.
-    findMany: jest.fn(async ({ where }: { where: { statut?: string; compteId?: { in: string[] }; lignes?: unknown } }) =>
-      where.lignes
-        ? []
-        : (options.rapprochements ?? []).filter(
-            (r) => (!where.statut || r.statut === where.statut) && (!where.compteId || where.compteId.in.includes(r.compteId)),
-          ),
-    ),
+    findMany: jest.fn(async ({ where, orderBy }: { where: WhereRap; orderBy?: { clotureAt: 'desc' } }) => {
+      if (where.lignes) return [];
+      const lus = retenus(where).map((r) => ({ ...r, soldeReleve: r.soldeReleve ?? 0, clotureAt: r.clotureAt ?? null }));
+      if (orderBy?.clotureAt === 'desc') lus.sort((a, b) => (b.clotureAt?.getTime() ?? 0) - (a.clotureAt?.getTime() ?? 0));
+      return lus;
+    }),
+    groupBy: jest.fn(async ({ where }: { by: ['compteId']; where: WhereRap }) => {
+      const max = new Map<string, Date>();
+      for (const r of retenus(where)) {
+        const m = max.get(r.compteId);
+        if (!m || r.dateReleve.getTime() > m.getTime()) max.set(r.compteId, r.dateReleve);
+      }
+      return [...max].map(([compteId, dateReleve]) => ({ compteId, _max: { dateReleve } }));
+    }),
   };
   const cloture = {
     findMany: jest.fn(
@@ -299,36 +397,103 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
   const anomalie = async (m: ReturnType<typeof monter>, code: string) =>
     (await m.svc.analyser('t', 'ex')).anomalies.find((a) => a.code === code);
 
-  it('signale le compte de banque mouvementé sans rapprochement clos, jamais le 526', async () => {
+  it('signale le compte de banque à rapprocher avant l’arrêté, jamais le 526', async () => {
     le('2027-01-15');
     const m = monter({ rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-11-30') }] });
     const a = await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE');
     expect(a?.gravite).toBe('AVERTISSEMENT');
-    expect(a?.consequence).toContain('AUDCIF, Titre VII, compte 52');
     expect(a?.occurrences).toEqual([
       { reference: '52110000 Compte 52110000', detail: 'dernier rapprochement clos au relevé du 2026-11-30', date: '2026-11-30' },
     ]);
-    // La lecture ne porte que sur les comptes à rapprocher, dans le dossier.
-    const lecture = m.rapprochementBancaire.findMany.mock.calls.find(
-      ([args]) => (args as { where: { statut?: string } }).where.statut === 'CLOTURE',
-    )![0] as { where: { tenantId: string; compteId: { in: string[] } } };
-    expect(lecture.where.tenantId).toBe('t');
-    expect(lecture.where.compteId.in).toEqual(['c-52110000']);
+    // La date du dernier relevé clos est demandée à la base, une ligne par
+    // compte (première relecture, g), dans le dossier, sur les seuls comptes à
+    // rapprocher.
+    expect(m.rapprochementBancaire.groupBy).toHaveBeenCalledWith({
+      by: ['compteId'],
+      where: { tenantId: 't', compteId: { in: ['c-52110000'] }, statut: 'CLOTURE' },
+      _max: { dateReleve: true },
+    });
   });
 
-  it('se tait quand un rapprochement clos atteint la clôture', async () => {
+  it('dit un état à régler avant l’arrêté, jamais un retard (première relecture, a, b, f)', async () => {
+    le('2027-01-15');
+    const a = await anomalie(monter({}), 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE');
+    expect(a?.libelle).toBe("Compte de banque à rapprocher avant l'arrêté des comptes");
+    expect(a?.consequence).toContain('AUDCIF, Titre VII, compte 52 ; AUDCIF art. 42');
+    expect(a?.consequence).toContain('« doit procéder au recensement et à l\'évaluation de ses biens, créances et dettes » (art. 42)');
+    expect(a?.consequence).toContain('dans les quatre mois qui suivent la clôture (AUDCIF art. 23)');
+    expect(a?.action).toMatch(/^À rapprocher avant l’arrêté des comptes/);
+    expect(a?.action).toContain('Pour un compte en devises, le solde du relevé se compare en francs au cours de clôture');
+    expect(a?.action).toContain('Devises et réévaluation');
+    expect(`${a?.libelle} ${a?.consequence} ${a?.action}`).not.toMatch(/retard/i);
+  });
+
+  it('se tait quand un rapprochement clos atteint la clôture, sans lire aucun solde de relevé', async () => {
     le('2027-01-15');
     const m = monter({ rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-12-31') }] });
     expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+    expect(m.rapprochementBancaire.findMany.mock.calls.some(([args]) => 'OR' in (args as { where: object }).where)).toBe(false);
+  });
+
+  describe('le compte fermé en cours d’exercice (première relecture, B1)', () => {
+    // Ouvert en mai, vidé et fermé en juin · solde comptable nul à la clôture.
+    const ferme = () => [
+      ecriture('e1', 'jBQ', 'BQ', [ligne('1', '52110000', 1000), ligne('2', '70110000', 0, 1000)], { date: '2026-05-10' }),
+      ecriture('e2', 'jBQ', 'BQ', [ligne('3', '58500000', 1000), ligne('4', '52110000', 0, 1000)], { date: '2026-06-15' }),
+    ];
+
+    it('est couvert par son dernier relevé clos à solde nul, daté au plus tôt de sa dernière opération', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: ferme(),
+        rapprochements: [
+          { compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-05-31'), soldeReleve: 1000, clotureAt: D('2026-06-02') },
+          { compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0, clotureAt: D('2026-07-02') },
+        ],
+      });
+      expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+      // Une seule ligne par compte · celle du dernier relevé clos.
+      const lecture = m.rapprochementBancaire.findMany.mock.calls.find(([args]) => 'OR' in (args as { where: object }).where)![0] as {
+        where: WhereRap;
+      };
+      expect(lecture.where).toEqual({
+        tenantId: 't',
+        statut: 'CLOTURE',
+        OR: [{ compteId: 'c-52110000', dateReleve: D('2026-06-30') }],
+      });
+    });
+
+    it('reste signalé quand le relevé à solde nul précède la dernière opération', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: ferme(),
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-10'), soldeReleve: 0 }],
+      });
+      expect((await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE'))?.occurrences).toHaveLength(1);
+    });
+
+    it('reste signalé quand le relevé porte un solde, les livres fussent-ils nuls', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: ferme(),
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 300 }],
+      });
+      expect((await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE'))?.occurrences).toHaveLength(1);
+    });
+
+    it('un solde comptable non nul ne fait lire aucun solde de relevé · le compte n’est pas fermé', async () => {
+      le('2027-01-15');
+      const m = monter({ rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }] });
+      expect((await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE'))?.occurrences).toHaveLength(1);
+      expect(m.rapprochementBancaire.findMany.mock.calls.some(([args]) => 'OR' in (args as { where: object }).where)).toBe(false);
+    });
   });
 
   it('ne lit pas les rapprochements avant le lendemain de la clôture', async () => {
     le('2026-12-31');
     const m = monter({});
     expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
-    expect(
-      m.rapprochementBancaire.findMany.mock.calls.some(([args]) => (args as { where: { statut?: string } }).where.statut !== undefined),
-    ).toBe(false);
+    expect(m.rapprochementBancaire.groupBy).not.toHaveBeenCalled();
   });
 
   it('un exercice SYCEBNL d’avant 2024 n’est pas examiné', async () => {
@@ -340,13 +505,15 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
     expect(m.cloture.findMany).not.toHaveBeenCalled();
   });
 
-  it('au SYCEBNL, la fiche du 52 et l’art. 22 sont cités par le chemin du SYCEBNL', async () => {
+  it('au SYCEBNL, la fiche du 52, l’art. 42 et l’art. 22 sont cités par le chemin du SYCEBNL', async () => {
     le('2027-01-15');
     const m = monter({ referentiel: Referentiel.SYCEBNL });
     const rapport = await m.svc.analyser('t', 'ex');
     const banque = rapport.anomalies.find((a) => a.code === 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE');
     const cloture = rapport.anomalies.find((a) => a.code === 'CLOTURE_INFORMATIQUE_EN_RETARD');
-    expect(banque?.consequence).toContain('SYCEBNL, Partie 2 ch. 3, compte 52');
+    expect(banque?.consequence).toContain(
+      "SYCEBNL, Partie 2 ch. 3, compte 52 ; AUDCIF art. 42, que l'art. 3 de l'Acte uniforme SYCEBNL n'exclut pas",
+    );
     expect(cloture?.consequence).toContain("que l'art. 3 de l'Acte uniforme SYCEBNL n'exclut pas");
   });
 
@@ -369,6 +536,42 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
       granularite: { in: [GranulariteCloture.PERIODE, GranulariteCloture.TOTALE] },
       dateLimite: { gte: D('2026-01-01'), lte: D('2026-12-31') },
     });
+  });
+
+  it('l’action nomme le rôle, l’effet et la clôture faite ailleurs (première relecture, d, e)', async () => {
+    le('2027-01-15');
+    const a = await anomalie(monter({}), 'CLOTURE_INFORMATIQUE_EN_RETARD');
+    expect(a?.action).toMatch(/^L'administrateur du dossier pose une clôture de période/);
+    expect(a?.action).toContain('fige aussi, jusqu\'à sa date, le lettrage et la ventilation analytique');
+    expect(a?.action).toContain("faite dans un autre logiciel avant la reprise du dossier n'est pas connue d'OmegaX");
+  });
+
+  it('l’à-nouveau provisoire ne fait pas d’un journal un journal écrit (première relecture, i)', async () => {
+    le('2026-07-01');
+    const m = monter({
+      ecritures: [
+        ecriture('an', 'jAN', 'AN', [ligne('1', '52110000', 1000), ligne('2', '10100000', 0, 1000)], {
+          date: '2026-01-01',
+          estANouveauProvisoire: true,
+        }),
+        ecriture('e2', 'jAC', 'AC', [ligne('3', '60100000', 500), ligne('4', '40110000', 0, 500)]),
+      ],
+    });
+    expect((await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD'))?.occurrences.map((o) => o.reference)).toEqual(['Journal AC']);
+  });
+
+  it('un dossier dont seul l’à-nouveau provisoire est écrit ne lit aucune clôture', async () => {
+    le('2026-07-01');
+    const m = monter({
+      ecritures: [
+        ecriture('an', 'jAN', 'AN', [ligne('1', '52110000', 1000), ligne('2', '10100000', 0, 1000)], {
+          date: '2026-01-01',
+          estANouveauProvisoire: true,
+        }),
+      ],
+    });
+    expect(await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD')).toBeUndefined();
+    expect(m.cloture.findMany).not.toHaveBeenCalled();
   });
 
   it('une clôture annulée ne compte pas', async () => {

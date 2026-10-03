@@ -48,6 +48,7 @@ import {
   estCompteBancaireARapprocher,
   journauxEnRetardDeClotureInformatique,
   premiereEcheanceDepassee,
+  releveCouvreLaCloture,
   sourceClotureInformatique,
   sourceFicheCompte52,
   texteEnVigueurPourLExercice,
@@ -1081,18 +1082,18 @@ export class ControlesService {
     if (!texteEnVigueurPourLExercice(referentiel, ex.dateDebut)) return anomalies;
     const aujourdhui = jourDeKinshasa(new Date(maintenant));
 
-    // --- 32. Banque sans rapprochement clos qui couvre la clôture ------------
+    // --- 32. Banque à rapprocher avant l'arrêté des comptes -----------------
     const comptes = [...parcours.comptesBancaires.values()];
     if (comptes.length > 0 && comptesBancairesSansRapprochement(comptes, new Map(), ex.dateFin, aujourdhui).length > 0) {
       const ids = comptes.map((c) => c.compteId);
-      // Le DERNIER clos de chaque compte (un par compte, `distinct` sur le
-      // tri descendant) et l'en cours (un au plus par compte, règle du module).
-      const [clos, enCours] = await Promise.all([
-        this.prisma.rapprochementBancaire.findMany({
+      // La date du DERNIER relevé clos de chaque compte, demandée à la base
+      // (une ligne par compte, première relecture, g), et l'en cours (un au
+      // plus par compte, règle du module).
+      const [dernieres, enCours] = await Promise.all([
+        this.prisma.rapprochementBancaire.groupBy({
+          by: ['compteId'],
           where: { tenantId, compteId: { in: ids }, statut: 'CLOTURE' },
-          orderBy: { dateReleve: 'desc' },
-          distinct: ['compteId'],
-          select: { compteId: true, dateReleve: true },
+          _max: { dateReleve: true },
         }),
         this.prisma.rapprochementBancaire.findMany({
           where: { tenantId, compteId: { in: ids }, statut: 'EN_COURS' },
@@ -1101,29 +1102,57 @@ export class ControlesService {
       ]);
       const etats = new Map<string, EtatRapprochementCompte>();
       const etat = (id: string) => {
-        const e = etats.get(id) ?? { dernierClos: null, enCours: null };
+        const e = etats.get(id) ?? { dernierClos: null, soldeDernierClos: null, enCours: null };
         etats.set(id, e);
         return e;
       };
-      for (const r of clos) {
-        const e = etat(r.compteId);
-        if (e.dernierClos === null || r.dateReleve.getTime() > e.dernierClos.getTime()) e.dernierClos = r.dateReleve;
+      for (const g of dernieres) {
+        if (g._max.dateReleve) etat(g.compteId).dernierClos = g._max.dateReleve;
       }
       for (const r of enCours) etat(r.compteId).enCours = r.dateReleve;
+      // Le solde du dernier relevé clos ne sert qu'au compte FERMÉ (B1) · il
+      // n'est lu que pour les comptes encore signalés et nuls aux livres, une
+      // ligne par compte et par date (le plus récemment clos, si deux relevés
+      // portent la même date).
+      const aVerifier: { compteId: string; dateReleve: Date }[] = [];
+      for (const c of comptes) {
+        const e = etats.get(c.compteId);
+        if (Math.abs(c.soldeCloture) < 0.005 && e && e.dernierClos !== null && !releveCouvreLaCloture(e, ex.dateFin)) {
+          aVerifier.push({ compteId: c.compteId, dateReleve: e.dernierClos });
+        }
+      }
+      if (aVerifier.length > 0) {
+        const soldes = await this.prisma.rapprochementBancaire.findMany({
+          where: { tenantId, statut: 'CLOTURE', OR: aVerifier },
+          orderBy: { clotureAt: 'desc' },
+          select: { compteId: true, soldeReleve: true },
+        });
+        for (const r of soldes) {
+          const e = etat(r.compteId);
+          if (e.soldeDernierClos === null) e.soldeDernierClos = Number(r.soldeReleve);
+        }
+      }
       const sans = comptesBancairesSansRapprochement(comptes, etats, ex.dateFin, aujourdhui);
       if (sans.length > 0) {
+        const cloture = ex.dateFin.toISOString().slice(0, 10);
         anomalies.push({
           code: 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE',
           gravite: 'AVERTISSEMENT',
-          libelle: 'Compte de banque sans rapprochement clos qui couvre la clôture',
+          libelle: "Compte de banque à rapprocher avant l'arrêté des comptes",
           consequence:
             '« Le solde qui ressort des livres comptables doit être rapproché du solde du compte tenu par la banque » (' +
             sourceFicheCompte52(referentiel) +
-            `). Sans rapprochement clos qui atteigne le ${ex.dateFin.toISOString().slice(0, 10)}, le solde porté au bilan ` +
-            "n'est pas confronté au relevé, et une différence qui ne tient pas à un chevauchement de dates reste sans écriture de redressement.",
+            `), au ${cloture}, jour de la clôture où l'entité « doit procéder au recensement et à l'évaluation de ses biens, ` +
+            'créances et dettes » (art. 42). Les états financiers sont arrêtés au plus tard dans les quatre mois qui suivent la ' +
+            "clôture (AUDCIF art. 23) · tant qu'aucun rapprochement clos n'atteint ce jour, le solde porté au bilan n'est pas confronté " +
+            'au relevé, et une différence qui ne tient pas à un chevauchement de dates reste sans écriture de redressement.',
           action:
-            'Ouvrez puis clôturez, dans Traitement > Tiers et trésorerie > Rapprochement bancaire, le rapprochement d’un relevé ' +
-            "daté au plus tôt de la clôture, puis passez les écritures de redressement des différences qui ne tiennent pas aux dates.",
+            'À rapprocher avant l’arrêté des comptes · ouvrez puis clôturez, dans Traitement > Tiers et trésorerie > Rapprochement ' +
+            'bancaire, le rapprochement d’un relevé daté au plus tôt de la clôture, et passez les écritures de redressement des ' +
+            'différences qui ne tiennent pas aux dates. Un compte fermé en cours d’exercice est couvert par son dernier relevé à ' +
+            'solde nul, daté au plus tôt de sa dernière opération, quand son solde comptable est nul. Pour un compte en devises, ' +
+            'le solde du relevé se compare en francs au cours de clôture, une fois passée la réévaluation de l’exercice ' +
+            '(Traitement > Clôture > Devises et réévaluation).',
           occurrences: sans,
         });
       }
@@ -1163,8 +1192,10 @@ export class ControlesService {
             sourceClotureInformatique(referentiel) +
             "). Tant qu'elle n'est pas posée, une écriture peut encore s'insérer dans une période qui aurait dû être figée.",
           action:
-            "Posez une clôture de période, tous journaux, dans Traitement > Clôture > Fin d'exercice…, jusqu'au dernier jour " +
-            'que vous tenez pour arrêté. Une clôture partielle, réversible, ne fige pas la chronologie.',
+            "L'administrateur du dossier pose une clôture de période, tous journaux, dans Traitement > Clôture > Fin " +
+            "d'exercice…, jusqu'au dernier jour qu'il tient pour arrêté. Elle est définitive et fige aussi, jusqu'à sa date, le " +
+            'lettrage et la ventilation analytique. Une clôture partielle, réversible, ne fige pas la chronologie. Une clôture ' +
+            "faite dans un autre logiciel avant la reprise du dossier n'est pas connue d'OmegaX · posez-la ici à la même date.",
           occurrences: enRetard,
         });
       }
@@ -1228,13 +1259,38 @@ export class ControlesService {
       (e) => {
         let debit = 0;
         let credit = 0;
-        if (!journauxEcrits.has(e.journalId)) journauxEcrits.set(e.journalId, { journalId: e.journalId, code: e.journal.code });
+        // L'à-nouveau PROVISOIRE n'entre jamais au livre-journal (`valider`
+        // le refuse, point 11) et se remplace à chaque relance · il n'est pas
+        // une écriture que la clôture informatique aurait à figer, et le
+        // compter ferait réclamer une clôture au journal d'à-nouveau d'un
+        // dossier qui n'y a rien saisi (première relecture, i).
+        if (!e.estANouveauProvisoire && !journauxEcrits.has(e.journalId)) {
+          journauxEcrits.set(e.journalId, { journalId: e.journalId, code: e.journal.code });
+        }
         for (const l of e.lignes) {
           debit += Number(l.debit);
           credit += Number(l.credit);
           const n = l.compte.numero;
-          if (estCompteBancaireARapprocher(n) && !comptesBancaires.has(l.compte.id)) {
-            comptesBancaires.set(l.compte.id, { compteId: l.compte.id, numero: n, intitule: l.compte.intitule });
+          if (estCompteBancaireARapprocher(n)) {
+            // Solde comptable à la clôture (lignes de l'exercice, à-nouveau
+            // compris, tous statuts) et date de la dernière ligne · les deux
+            // faits du compte fermé en cours d'exercice (première relecture,
+            // B1). Le solde se tient en CENTIMES, sans quoi mille lignes
+            // laissent un reste flottant qu'aucun relevé nul ne couvre.
+            const centimes = Math.round(Number(l.debit) * 100) - Math.round(Number(l.credit) * 100);
+            const vu = comptesBancaires.get(l.compte.id);
+            if (vu === undefined) {
+              comptesBancaires.set(l.compte.id, {
+                compteId: l.compte.id,
+                numero: n,
+                intitule: l.compte.intitule,
+                soldeCloture: centimes,
+                derniereLigne: e.date,
+              });
+            } else {
+              vu.soldeCloture += centimes;
+              if (e.date.getTime() > vu.derniereLigne.getTime()) vu.derniereLigne = e.date;
+            }
           }
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
@@ -1340,7 +1396,10 @@ export class ControlesService {
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
-      comptesBancaires,
+      // Le solde a été tenu en centimes · il repart ici en francs.
+      comptesBancaires: new Map(
+        [...comptesBancaires].map(([id, c]) => [id, { ...c, soldeCloture: c.soldeCloture / 100 }]),
+      ),
     };
   }
 
