@@ -148,10 +148,59 @@ tests (`npx jest --maxWorkers=2`), client 1698, typages et constructions.
 - m3 · le contrôle 32 écarte la contre-passation annulée et son négatif,
   nommés par `annulationsContrePassation`.
 
+## Troisième tour (2026-10-03) · corrigé
+
+Relu · compétence `syscohada`, Partie 2 ch. 22 · « Écarts de conversion à
+la clôture (478 actif / 479 passif), contrepassés à la réouverture » ;
+Application 84 (« Contrepassation de l'écart au 01/01/N+1 : 411 · 4781 »,
+« 4791 · 411 »), Application 85 (« 4793 · 4812 »), Application 86 (aucune
+contre-passation des disponibilités). Cité tel quel dans le module.
+
+- BLOQUANT · le portillon juge TOUTES les réévaluations non annulées
+  antérieures (cinquante au plus, tri stable, dépassement dit avec la
+  réévaluation passée) par la même règle · écart de conversion non
+  contre-passé, ou contre-passation hors de sa place. Le refus nomme
+  l'exercice, la date et les montants à contre-passer, et les deux issues.
+  Scénario s11 chiffré · N+2 refusé en nommant N ; N contre-passée dans
+  N+2 · 411 à 2 600 000, 479 à −600 000.
+- PORTE · une contre-passation faite à la main se DÉCLARE (`POST`, `DELETE`
+  `/devises/reevaluations/:id/contre-passation-manuelle`, réservées au
+  comptable ; candidates proposées par `GET .../candidates`, bornées). Le
+  serveur vérifie · inversion exacte au centime de chaque compte de l'écart
+  de conversion (autres comptes admis) ; place (exercice après la
+  réévaluation, aucun ouvert entre les deux) ; ni liée à une réévaluation,
+  ni déjà déclarée, ni neutralisée, ni engendrée par la clôture ; même
+  dossier. Au journal d'audit (motif, date, auteur), écriture RETENUE
+  (`detenteurs-ecriture.ts`, RESTRICT). Couverte, la réévaluation est
+  contre-passée pour le portillon, le contrôle 34 (banque inversée par
+  l'OD déclarée, compte par compte) et `calculer` (banque revenue au coût
+  historique, compte par compte). Retrait tant qu'aucune réévaluation d'un
+  exercice commençant au plus tôt avec celui de l'écriture ne s'y appuie.
+  `extourner` et l'annulation D6 refusent une réévaluation déclarée, issue
+  nommée. Écran · « Déclarer une contre-passation manuelle » et « Retirer la
+  déclaration » sous `peutValider`. Migration `20270124000000` complétée.
+- Mineur 1 · une réévaluation sans écart de conversion n'est plus jugée sur
+  sa place ; contrôle 34 · « rien à repasser » au lieu de « repassez-la ».
+- Mineur 2 · un champ vide de la ventilation est refusé avant l'envoi
+  (`lib/ventilation-disponibilites.ts`), « tapez 0 ».
+- Mineur 3 · traces des contre-passations annulées lues dans un ordre
+  stable ; le contrôle 32 dit la lecture bornée.
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
   à l'intégration.
+- `reglements/reevaluation-et-ecart-realise.ts` (avertissement
+  d'extourne manquante, A6) ne lit que `ecritureExtourneId` · une
+  contre-passation déclarée n'y compte pas encore pour faite. Laissé à
+  A6 bis, qui touche ce fichier et `calculer`.
+- Contrôle 32 · une OD manuelle déclarée qui inverse aussi la banque compte
+  comme une opération de banque (dernière ligne d'un compte fermé) · non
+  traité (l'OD peut grouper de vraies opérations de banque).
+- Un bilan d'ouverture SAISI qui aurait déjà retiré l'écart de N n'a pas
+  d'écriture à déclarer · le portillon demanderait une contre-passation
+  qui n'a pas lieu d'être. Cas non rencontré, à trancher si un dossier repris
+  le présente (même risque qu'avant ce tour pour la dernière réévaluation).
 - A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
   pas la part reportée en francs par l'à-nouveau · une caisse en devise
   réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la

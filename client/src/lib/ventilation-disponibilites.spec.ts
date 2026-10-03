@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+// Aucun import de « vitest » · convention du dépôt, le spec tourne aussi sous jest.
 import { lireVentilationSaisie } from './ventilation-disponibilites';
 import type { VentilationAExiger } from './types';
 
