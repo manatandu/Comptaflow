@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../../common/prisma.service';
 import {
   comptesPrescrits,
+  racineDuPrescrit,
   motifRefusCompteEcart,
   type NatureCreanceDette,
   type Referentiel,
@@ -63,7 +64,7 @@ export async function compteDeLEcart(
   });
   const inutilisable = c ? motifInutilisable(c) : `Le compte ${numero} que le texte donne pour cet écart de change n'est pas ouvert dans le plan du dossier.`;
   if (c && !inutilisable) return { id: c.id, numero: c.numero };
-  const racine = numero.slice(0, 3);
+  const racine = racineDuPrescrit(numero);
   const sousComptes = await prisma.compte.findMany({
     where: { tenantId: p.tenantId, numero: { startsWith: racine }, typeCompte: 'DETAIL', estActif: true },
     select: { numero: true },

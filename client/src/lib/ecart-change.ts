@@ -37,8 +37,9 @@ export interface RacineAdmise {
 export function racinesAdmises(referentiel: Referentiel, nature: NatureCreanceDette | null, sens: SensEcart): RacineAdmise[] {
   const perte = sens === 'PERTE';
   const financier: RacineAdmise = { racine: perte ? '676' : '776' };
+  // SYCEBNL commercial · le résidu des fiches 65 et 75, 658 et 7588 (décision D2).
   const commercial: RacineAdmise =
-    referentiel === 'SYSCOHADA' ? { racine: perte ? '656' : '756' } : perte ? { racine: '65', sauf: '659' } : { racine: '75', sauf: '759' };
+    referentiel === 'SYSCOHADA' ? { racine: perte ? '656' : '756' } : { racine: perte ? '658' : '7588' };
   if (nature === 'FINANCIERE') return [financier];
   if (nature === 'COMMERCIALE') return [commercial];
   return [commercial, financier];

@@ -418,8 +418,11 @@ describe('Écart de change proposé au lettrage', () => {
     const compteDuTiers = p.compte.findFirst.getMockImplementation();
     p.compte.findFirst = jest.fn().mockImplementation(async (args: any) => {
       if (!args?.where?.numero) return compteDuTiers(args);
-      return args.where.numero === '65600000' && referentiel === 'SYSCOHADA'
-        ? { id: 'c656', numero: '65600000', intitule: 'Pertes de change', typeCompte: 'DETAIL', estActif: true }
+      if (args.where.numero === '65600000' && referentiel === 'SYSCOHADA') {
+        return { id: 'c656', numero: '65600000', intitule: 'Pertes de change', typeCompte: 'DETAIL', estActif: true };
+      }
+      return args.where.numero === '65800000' && referentiel === 'SYCEBNL'
+        ? { id: 'c658', numero: '65800000', intitule: 'Charges diverses', typeCompte: 'DETAIL', estActif: true }
         : null;
     });
     return monte;
@@ -467,12 +470,12 @@ describe('Écart de change proposé au lettrage', () => {
     expect(p).toMatchObject({ ecart: -123200, sens: 'GAIN', numeroPrescrit: '75600000' });
   });
 
-  it('SYCEBNL · aucun compte proposé, et le motif dit que le texte n’en donne aucun', async () => {
+  // Décision D2 · au SYCEBNL, la perte commerciale au 658 Charges diverses.
+  it('SYCEBNL · le 658 est proposé', async () => {
     const { service: s, groupes } = avecProposition('SYCEBNL');
     await s.lettrerManuel('t1', 'c1', ['f', 'r1', 'r2'], 'u1', { autoriserPartiel: true });
     const p = await s.propositionEcartChange('t1', groupes[0].id);
-    expect(p).toMatchObject({ ecart: 123200, comptePrescrit: null, numeroPrescrit: null });
-    expect(p.motif).toMatch(/ne donne aucun compte/);
+    expect(p).toMatchObject({ ecart: 123200, comptePrescrit: { id: 'c658' }, numeroPrescrit: '65800000', motif: null });
   });
 
   it('pas encore soldé en devise · aucune proposition, et ce n’est pas zéro', async () => {

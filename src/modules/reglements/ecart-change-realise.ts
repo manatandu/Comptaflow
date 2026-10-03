@@ -29,14 +29,17 @@
  * (emprunt bancaire en devise, liquidités en devises etc.) », et la fiche du
  * 75 l'écrit en exclusion (« les profits de change sur opérations ayant un
  * caractère financier [...] → 776 »). Pour une créance ou une dette
- * COMMERCIALE, le texte du SYCEBNL ne donne AUCUN compte · seule la maquette de
- * la NOTE 19 des projets de développement imprime une rubrique « Perte de
- * change sur créances » parmi les AUTRES CHARGES (65), sans compte
- * (`correspondance-notes-projets.ts`, anomalie n° 4). OmegaX n'en invente
- * aucun · le cabinet CHOISIT le sous-compte de son dossier, sous le 65 pour
- * une perte, sous le 75 pour un gain (la rubrique de la note 19 et l'exclusion
- * de la fiche du 75, qui n'écarte du 75 que le change FINANCIER), jamais le
- * 676 ni le 776, qui relèvent du poste TK et y seraient comptés à tort.
+ * COMMERCIALE, aucune subdivision NOMMÉE ne reçoit l'écart · TRANCHÉ PAR
+ * MANASSE le 2026-10-03 (« réfère-toi à la loi », décision D2) · il tombe au
+ * RÉSIDU de chaque fiche. Fiche 65 · 651 Pertes sur créances
+ * (irrécouvrables), 652 Subventions accordées, 654 Dons en nature, 657
+ * Pénalités, 658 CHARGES DIVERSES, la dépréciation exclue vers le 659 · la
+ * perte au 658 (semé 65800000). Fiche 75 · 751 Profits sur créances, 752
+ * Contribution du fondateur, 754 Dons en nature, 758 Produits divers (7582,
+ * 7583, 7588 AUTRES PRODUITS DIVERS), « le compte 758 - Produits divers
+ * enregistre les autres produits non imputables aux autres subdivisions du
+ * compte 75 » · le gain au 7588 (semé 75880000). Jamais le 676 ni le 776,
+ * réservés au change financier et comptés au poste TK.
  *
  * LE TIERS SE SOLDE AU COÛT HISTORIQUE, DANS SA DEVISE. La ligne du tiers
  * porte la contrevaleur historique de ce qu'elle éteint (art. 55), avec le
@@ -105,17 +108,14 @@ export function comptesPrescrits(
   }
   if (nature === 'FINANCIERE') return { perte: '67600000', gain: '77600000' };
   if (referentiel === 'SYSCOHADA') return { perte: '65600000', gain: '75600000' };
-  return {
-    perte: null,
-    gain: null,
-    motif: MOTIF_SYCEBNL_SANS_COMPTE,
-  };
+  // SYCEBNL commercial · le résidu des fiches 65 et 75 (décision D2).
+  return { perte: '65800000', gain: '75880000' };
 }
 
-export const MOTIF_SYCEBNL_SANS_COMPTE =
-  "Le SYCEBNL ne donne aucun compte pour l'écart de change réalisé sur une créance ou une dette commerciale · " +
-  "son plan n'ouvre ni 656 ni 756, et ses fiches des comptes 67 et 77 réservent le 676 et le 776 aux opérations " +
-  "à caractère financier. Choisissez le sous-compte de votre dossier, sous le 65 pour une perte, sous le 75 pour un gain.";
+/** La racine d'un compte prescrit · ses zéros de complément retirés (65800000 → 658, 75880000 → 7588). */
+export function racineDuPrescrit(numero: string): string {
+  return numero.replace(/0+$/, '');
+}
 
 /** Une racine admise, et ce qu'elle exclut. */
 export interface RacineAdmise {
@@ -129,14 +129,12 @@ export interface RacineAdmise {
  * cas `CAS_ADMIS` de ce spec-ci et les rejoue :
  *
  *  · nature FINANCIÈRE · 676 ou 776, aux deux plans ;
- *  · nature COMMERCIALE · 656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'en
- *    donne aucun, le 65 hors 659 ou le 75 hors 759 (question ouverte à
- *    Manasse, lecture de l'exclusion de la fiche du 75 et de la note 19 des
- *    projets) ;
- *  · nature NON LUE · les seuls comptes de change que le plan connaît · 656
- *    ou 676, 756 ou 776 au SYSCOHADA ; le 65 (hors 659) ou le 676, le 75
- *    (hors 759) ou le 776 au SYCEBNL. Jamais une classe entière · un 601
- *    passait pour un compte de change.
+ *  · nature COMMERCIALE · 656 ou 756 au SYSCOHADA ; au SYCEBNL, le 658 ou le
+ *    7588 (décision D2), sous-comptes de détail compris · 651, 652, 654, 657,
+ *    659, 751, 752, 754, 7582, 7583 et 759 refusés ;
+ *  · nature NON LUE · les seuls comptes de change ou de résidu · 656 ou 676,
+ *    756 ou 776 au SYSCOHADA ; 658 ou 676, 7588 ou 776 au SYCEBNL. Jamais une
+ *    classe entière · un 601 passait pour un compte de change.
  */
 export function racinesAdmises(
   referentiel: Referentiel,
@@ -146,11 +144,7 @@ export function racinesAdmises(
   const perte = ecart === 'PERTE';
   const financier: RacineAdmise = { racine: perte ? '676' : '776' };
   const commercial: RacineAdmise =
-    referentiel === 'SYSCOHADA'
-      ? { racine: perte ? '656' : '756' }
-      : perte
-        ? { racine: '65', sauf: '659' }
-        : { racine: '75', sauf: '759' };
+    referentiel === 'SYSCOHADA' ? { racine: perte ? '656' : '756' } : { racine: perte ? '658' : '7588' };
   if (nature === 'FINANCIERE') return [financier];
   if (nature === 'COMMERCIALE') return [commercial];
   return [commercial, financier];
@@ -180,7 +174,7 @@ export function motifRefusCompteEcart(params: {
   if (referentiel === 'SYCEBNL' && nature === 'COMMERCIALE' && (numero.startsWith('676') || numero.startsWith('776'))) {
     return (
       `Le ${numero.slice(0, 3)} est réservé par le SYCEBNL aux opérations à caractère financier (fiches des comptes 67 et 77) · ` +
-      "l'écart d'une créance ou d'une dette commerciale va au sous-compte du dossier, sous le 65 ou le 75."
+      "l'écart d'une créance ou d'une dette commerciale va au 658 (perte) ou au 7588 (gain)."
     );
   }
   const objet =

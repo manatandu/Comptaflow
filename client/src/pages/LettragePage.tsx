@@ -776,7 +776,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             Écart de change · lettrage {ecart.code}
             <Aide
               titre="Écart de change réalisé"
-              texte="Quand les lignes d'un lettrage sont soldées dans leur devise mais pas en francs, la différence est la perte ou le gain de change réalisé au règlement, mesuré contre la valeur d'origine. OmegaX propose l'écriture (le tiers soldé, l'écart sur sa propre ligne) et ne la passe qu'à votre confirmation. Au SYSCOHADA, 656 ou 756 pour une créance ou une dette commerciale, 676 ou 776 pour une opération financière ; le SYCEBNL n'ouvre aucun compte pour l'écart commercial, vous choisissez le vôtre sous le 65 ou le 75."
+              texte="Quand les lignes d'un lettrage sont soldées dans leur devise mais pas en francs, la différence est la perte ou le gain de change réalisé au règlement, mesuré contre la valeur d'origine. OmegaX propose l'écriture (le tiers soldé, l'écart sur sa propre ligne) et ne la passe qu'à votre confirmation. Au SYSCOHADA, 656 ou 756 pour une créance ou une dette commerciale, 676 ou 776 pour une opération financière ; au SYCEBNL, qui n'ouvre ni 656 ni 756, le résidu de ses fiches 65 et 75 · 658 Charges diverses pour une perte, 7588 Autres produits divers pour un gain."
               source="AUDCIF art. 55 ; Titre VIII ch. 22 § 2.3 ; SYCEBNL, fiches des comptes 67, 75 et 77"
             />
           </div>
@@ -846,7 +846,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               {ecart.motif && <div className="text-warning">{ecart.motif}</div>}
               {!ecart.comptePrescrit && comptesProposablesEcart(comptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif), { referentiel, nature: ecart.nature ?? null, sens: ecart.sens ?? null }).length === 0 && (
                 <div className="text-warning">
-                  {motifAucunCompteRetenu([], ecart.sens === 'PERTE' ? "d'autres charges (65)" : "d'autres produits (75)")}
+                  {motifAucunCompteRetenu([], ecart.sens === 'PERTE' ? "de change (656, 658 ou 676)" : "de change (756, 7588 ou 776)")}
                 </div>
               )}
               {journauxOd && journauxOd.length === 0 && (

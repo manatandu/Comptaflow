@@ -556,8 +556,10 @@ soldé au COÛT HISTORIQUE avec le montant en devise, la trésorerie au payé, l
 SA ligne (« Perte de change réalisée », « Gain de change réalisé ») · commercial (40,
 41) au 656 ou 756, financier (emprunts, location acquisition, 27, 481) au 676 ou 776.
 UN NUMÉRO, DEUX PLANS · emprunts au 16 et 17 du SYSCOHADA, au 18 (dont 187) du SYCEBNL,
-dont le 16 et le 17 sont des FONDS ; le SYCEBNL n'ouvre ni 656 ni 756 · le cabinet
-CHOISIT sous le 65 (hors 659) ou le 75 (hors 759), bornes en question chez Manasse.
+dont le 16 et le 17 sont des FONDS ; le SYCEBNL n'ouvre ni 656 ni 756 · D2 (Manasse,
+« réfère-toi à la loi ») · le RÉSIDU de ses fiches 65 et 75, 658 Charges diverses et
+7588 Autres produits divers, sous-comptes compris ; 651, 652, 654, 657, 659, 751, 752,
+754, 7582, 7583, 759 refusés.
 Comptes admis par `racinesAdmises`, recopiée à l'écran (`lib/ecart-change.ts`) et
 tenue en MIROIR · le spec client rejoue les cas `CAS_ADMIS` du spec serveur ; nature non
 lue, les seuls comptes de change, jamais une classe ; compte prescrit de détail et

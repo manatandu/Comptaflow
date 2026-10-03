@@ -9,7 +9,6 @@ import {
   lignesEcartDuGroupe,
   motifRefusCompteEcart,
   natureDuCompte,
-  MOTIF_SYCEBNL_SANS_COMPTE,
   motifRefusTresorerieEnDevise,
   racinesAdmises,
   compteAdmisPourEcart,
@@ -60,11 +59,14 @@ describe('les comptes que le texte donne', () => {
     expect(comptesPrescrits('SYSCOHADA', 'FINANCIERE')).toEqual({ perte: '67600000', gain: '77600000' });
   });
 
-  it('SYCEBNL · 676 et 776 pour le financier, AUCUN compte pour le commercial', () => {
+  // Décision D2 (2026-10-03, « réfère-toi à la loi ») · le résidu des fiches
+  // 65 et 75 du SYCEBNL, 658 Charges diverses et 7588 Autres produits divers.
+  it('SYCEBNL · 676 et 776 pour le financier, 658 et 7588 pour le commercial, semés', () => {
     expect(comptesPrescrits('SYCEBNL', 'FINANCIERE')).toEqual({ perte: '67600000', gain: '77600000' });
-    const commercial = comptesPrescrits('SYCEBNL', 'COMMERCIALE');
-    expect(commercial.perte).toBeNull();
-    expect('motif' in commercial && commercial.motif).toBe(MOTIF_SYCEBNL_SANS_COMPTE);
+    expect(comptesPrescrits('SYCEBNL', 'COMMERCIALE')).toEqual({ perte: '65800000', gain: '75880000' });
+    const sycebnl = new Map(PLAN_COMPTES_SYCEBNL.map((c) => [c.numero, c.intitule]));
+    expect(sycebnl.get('65800000')).toBe('Charges diverses');
+    expect(sycebnl.get('75880000')).toMatch(/Produits divers · autres/);
   });
 
   it('la nature se lit sur le compte · 40 et 41 commerciaux, emprunts et prêts financiers, le reste au cabinet', () => {
@@ -102,15 +104,19 @@ describe('les comptes que le texte donne', () => {
     expect([...sycebnl].some((n) => n.startsWith('656') || n.startsWith('756'))).toBe(false);
   });
 
-  it('le compte choisi au SYCEBNL · sous le 65 ou le 75, jamais 676, 776, 659 ou 759', () => {
+  it('le compte choisi au SYCEBNL · le 658 ou le 7588 et leurs sous-comptes, jamais les autres subdivisions des fiches 65 et 75', () => {
     const p = { referentiel: 'SYCEBNL' as const, nature: 'COMMERCIALE' as const };
     expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: '65800000' })).toBeNull();
+    expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: '65810000' })).toBeNull();
     expect(motifRefusCompteEcart({ ...p, ecart: 'GAIN', numero: '75880000' })).toBeNull();
     expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: '67600000' })).toMatch(/réservé par le SYCEBNL aux opérations à caractère financier/);
     expect(motifRefusCompteEcart({ ...p, ecart: 'GAIN', numero: '77600000' })).toMatch(/réservé par le SYCEBNL/);
-    expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: '65910000' })).toMatch(/hors 659/);
-    expect(motifRefusCompteEcart({ ...p, ecart: 'GAIN', numero: '75910000' })).toMatch(/hors 759/);
-    expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: '75880000' })).toMatch(/sous le 65/);
+    for (const n of ['65110000', '65200000', '65410000', '65700000', '65910000']) {
+      expect(motifRefusCompteEcart({ ...p, ecart: 'PERTE', numero: n })).toMatch(/se passe sous le 658/);
+    }
+    for (const n of ['75100000', '75200000', '75420000', '75820000', '75830000', '75910000']) {
+      expect(motifRefusCompteEcart({ ...p, ecart: 'GAIN', numero: n })).toMatch(/se passe sous le 7588/);
+    }
   });
 
   it('le compte choisi au SYSCOHADA · dans la racine que le texte donne, sous-comptes admis', () => {
@@ -137,9 +143,13 @@ export const CAS_ADMIS: Array<[ 'SYSCOHADA' | 'SYCEBNL', 'COMMERCIALE' | 'FINANC
   ['SYSCOHADA', null, 'PERTE', '65800000', false],
   ['SYSCOHADA', null, 'GAIN', '77600000', true],
   ['SYCEBNL', 'COMMERCIALE', 'PERTE', '65800000', true],
+  ['SYCEBNL', 'COMMERCIALE', 'PERTE', '65110000', false],
+  ['SYCEBNL', 'COMMERCIALE', 'PERTE', '65700000', false],
   ['SYCEBNL', 'COMMERCIALE', 'PERTE', '65910000', false],
   ['SYCEBNL', 'COMMERCIALE', 'PERTE', '67600000', false],
   ['SYCEBNL', 'COMMERCIALE', 'GAIN', '75880000', true],
+  ['SYCEBNL', 'COMMERCIALE', 'GAIN', '75820000', false],
+  ['SYCEBNL', 'COMMERCIALE', 'GAIN', '75200000', false],
   ['SYCEBNL', 'COMMERCIALE', 'GAIN', '75910000', false],
   ['SYCEBNL', 'FINANCIERE', 'PERTE', '67600000', true],
   ['SYCEBNL', 'FINANCIERE', 'PERTE', '65800000', false],
@@ -147,6 +157,8 @@ export const CAS_ADMIS: Array<[ 'SYSCOHADA' | 'SYCEBNL', 'COMMERCIALE' | 'FINANC
   ['SYCEBNL', null, 'PERTE', '67600000', true],
   ['SYCEBNL', null, 'PERTE', '60110000', false],
   ['SYCEBNL', null, 'GAIN', '77600000', true],
+  ['SYCEBNL', null, 'GAIN', '75880000', true],
+  ['SYCEBNL', null, 'GAIN', '75100000', false],
   ['SYCEBNL', null, 'GAIN', '75910000', false],
 ];
 
@@ -490,22 +502,17 @@ describe('enregistrer un règlement en devise', () => {
     expect(resume(creer.mock.calls[0][2].lignes)[2]).toEqual(['c571', 0, 1050000.01]);
   });
 
-  it('SYCEBNL · sans compte choisi, refus qui dit que le texte n’en donne aucun, avant toute pièce', async () => {
+  it('SYCEBNL · sans compte choisi, la perte va au 658 prescrit (décision D2)', async () => {
     const { service, creer } = monter('SYCEBNL');
-    await expect(
-      service.enregistrer('t', 'u', {
-        ...base,
-        sens: 'FOURNISSEUR',
-        reglements: [
-          { compteId: 'c402', ligneIds: ['ff'] },
-          { compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 },
-        ],
-      }),
-    ).rejects.toThrow(/ne donne aucun compte/);
-    expect(creer).not.toHaveBeenCalled();
+    await service.enregistrer('t', 'u', {
+      ...base,
+      sens: 'FOURNISSEUR',
+      reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 }],
+    });
+    expect(resume(creer.mock.calls[0][2].lignes)[1]).toEqual(['c658', 42000, 0]);
   });
 
-  it('SYCEBNL · le 676 choisi est refusé, un compte du 65 passe', async () => {
+  it('SYCEBNL · le 676 choisi est refusé, le 658 passe', async () => {
     const { service, creer } = monter('SYCEBNL');
     const regl = { compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 };
     await expect(

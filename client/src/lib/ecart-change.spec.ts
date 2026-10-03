@@ -53,20 +53,17 @@ describe('les comptes admis pour l’écart, la table du serveur rejouée à l�
 const plan = ['65800000', '65910000', '67600000', '75880000', '75910000', '77600000', '65110000', '60110000'].map((numero) => ({ numero }));
 
 describe('comptes proposables pour un écart de change', () => {
-  it('SYCEBNL commercial, une perte · sous le 65 hors 659, jamais le 676', () => {
-    expect(comptesProposablesEcart(plan, { referentiel: 'SYCEBNL', nature: 'COMMERCIALE', sens: 'PERTE' }).map((c) => c.numero)).toEqual([
-      '65800000',
-      '65110000',
-    ]);
+  it('SYCEBNL commercial, une perte · le 658 seul, jamais 651, 659 ni 676 (décision D2)', () => {
+    expect(comptesProposablesEcart(plan, { referentiel: 'SYCEBNL', nature: 'COMMERCIALE', sens: 'PERTE' }).map((c) => c.numero)).toEqual(['65800000']);
   });
 
-  it('SYCEBNL commercial, un gain · sous le 75 hors 759, jamais le 776', () => {
+  it('SYCEBNL commercial, un gain · le 7588 seul, jamais 759 ni 776', () => {
     expect(comptesProposablesEcart(plan, { referentiel: 'SYCEBNL', nature: 'COMMERCIALE', sens: 'GAIN' }).map((c) => c.numero)).toEqual(['75880000']);
   });
 
   it('nature non lue · les comptes de change, jamais un 601', () => {
     const r = comptesProposablesEcart(plan, { referentiel: 'SYCEBNL', nature: null, sens: 'PERTE' }).map((c) => c.numero);
-    expect(r).toEqual(['65800000', '67600000', '65110000']);
+    expect(r).toEqual(['65800000', '67600000']);
     expect(r).not.toContain('60110000');
   });
 

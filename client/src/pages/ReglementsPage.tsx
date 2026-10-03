@@ -473,7 +473,7 @@ export function ReglementsPage() {
         )}
         <Aide
           titre="Règlement des tiers"
-          texte="Cochez les factures à régler. OmegaX passe une pièce par tiers au journal de trésorerie choisi (40 contre 52 pour un fournisseur, 52 contre 41 pour un client) et lettre aussitôt chaque facture avec son règlement. Un montant inférieur au dû donne un règlement partiel et un lettrage partiel ; un montant supérieur est refusé, l'excédent étant une avance ou un trop-perçu. Les factures non parvenues, produits à recevoir et avances (408, 409, 418, 419) ne se règlent pas ici. Une facture en devise se règle dans sa devise, au cours du jour du règlement · le tiers est soldé à sa valeur d'origine, et la différence avec ce qui est payé est la perte ou le gain de change réalisé, sur sa propre ligne (656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'en ouvre aucun pour une créance ou une dette commerciale, le compte que vous choisissez sous le 65 ou le 75)."
+          texte="Cochez les factures à régler. OmegaX passe une pièce par tiers au journal de trésorerie choisi (40 contre 52 pour un fournisseur, 52 contre 41 pour un client) et lettre aussitôt chaque facture avec son règlement. Un montant inférieur au dû donne un règlement partiel et un lettrage partiel ; un montant supérieur est refusé, l'excédent étant une avance ou un trop-perçu. Les factures non parvenues, produits à recevoir et avances (408, 409, 418, 419) ne se règlent pas ici. Une facture en devise se règle dans sa devise, au cours du jour du règlement · le tiers est soldé à sa valeur d'origine, et la différence avec ce qui est payé est la perte ou le gain de change réalisé, sur sa propre ligne (656 ou 756 au SYSCOHADA ; au SYCEBNL, qui n'ouvre ni 656 ni 756, 658 Charges diverses ou 7588 Autres produits divers, résidu de ses fiches 65 et 75)."
           source="Guide d'application SYSCOHADA, Partie 1 ch. 4 · SYCEBNL, fiches des comptes 40 et 41 · AUDCIF art. 55 et Titre VIII ch. 22 § 2.3 · Sage 100 i7, règlement des tiers"
         />
       </div>
@@ -534,11 +534,18 @@ export function ReglementsPage() {
                   ? null
                   : comptesProposablesEcart(comptesEcartLus, { referentiel, nature, sens: sensEcart });
               // Le texte donne-t-il le compte ? Sinon le choix est EXIGÉ.
-              const sansComptePrescrit = nature === null || (referentiel === 'SYCEBNL' && nature === 'COMMERCIALE');
-              const prescrit = nature === 'FINANCIERE' ? (sensEcart === 'GAIN' ? '776' : '676') : sensEcart === 'GAIN' ? '756' : '656';
+              const sansComptePrescrit = nature === null;
+              // Le compte que le texte donne · 656 / 756 au SYSCOHADA, 658 / 7588
+              // au SYCEBNL (décision D2), 676 / 776 pour le financier.
+              const prescrit =
+                nature === 'FINANCIERE'
+                  ? sensEcart === 'GAIN' ? '776' : '676'
+                  : referentiel === 'SYCEBNL'
+                    ? sensEcart === 'GAIN' ? '7588' : '658'
+                    : sensEcart === 'GAIN' ? '756' : '656';
               const motifSansCompte =
                 sansComptePrescrit && sensEcart !== null
-                  ? motifAucunCompteRetenu(proposables, sensEcart === 'PERTE' ? "d'autres charges (65)" : "d'autres produits (75)")
+                  ? motifAucunCompteRetenu(proposables, sensEcart === 'PERTE' ? "de change (656, 658 ou 676)" : "de change (756, 7588 ou 776)")
                   : null;
               return (
                 <tbody key={g.compteId}>
