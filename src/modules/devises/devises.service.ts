@@ -2364,6 +2364,15 @@ export class DevisesService {
       /** Les autres écarts passés hors du module, tenus pour en place. */
       autresEcarts: [] as Array<{ numeroPiece: number | null; date: Date }>,
       jugement: null as JugementDeLEtat | null,
+      /**
+       * L1 · les réévaluations du MODULE déjà passées dans la cible, alors que
+       * cet écart y était encore en place, sur ses comptes · et le jugement
+       * rejoué sans elles. Quand lui seul rend la contre-passation juste,
+       * l'issue se dit dans l'ordre · annuler la postérieure (D6),
+       * contre-passer, réévaluer de nouveau.
+       */
+      posterieures: [] as Array<{ id: string; dateReevaluation: Date }>,
+      jugementSansPosterieures: null as JugementDeLEtat | null,
       tronque: false,
     };
     if (!cible) return etat;
@@ -2525,7 +2534,7 @@ export class DevisesService {
       promus.splice(0, promus.length, { id: 'hors-module', ecart: ensemble });
     }
     const ouvertureOmetLEcart = etat.ouverture !== null && idsEcart.every((c) => (etat.ouverture!.ecart.get(c) ?? 0) === -(ecartX.get(c) ?? 0));
-    etat.jugement = jugerLEtat({
+    const entree = {
       comptes47: ids47,
       comptesTiers: idsTiers,
       lu47,
@@ -2535,7 +2544,34 @@ export class DevisesService {
       ecartX,
       retablissable: ouvertureOmetLEcart,
       ecritures: tronqueListe ? null : etat.ecritures,
-    });
+    };
+    etat.jugement = jugerLEtat(entree);
+    // L1 · une réévaluation du module passée dans la cible a lu l'exercice
+    // avec cet écart en place (avant A5 bis, ou par un portillon contourné).
+    // Son écart est dans le solde du 478 / 479, hors de l'attendu · le
+    // jugement le lit comme une écriture qui déplace l'écart. Rejoué sans
+    // elle, il dit si l'ordre canonique (Guide, Partie 2 ch. 22, Applications
+    // 84 et 85 · contre-passation à la réouverture, PUIS réévaluation de
+    // l'exercice) rend la contre-passation juste.
+    if (etat.jugement.verdict !== 'EN_PLACE' && ids47.length > 0) {
+      const posterieures = await this.prisma.reevaluation.findMany({
+        where: { tenantId, annuleeLe: null, exerciceId: cible.id, id: { not: x.id } },
+        orderBy: [{ dateReevaluation: 'asc' }, { id: 'asc' }],
+        take: PLAFOND_REEVALUATIONS_EXAMINEES,
+        select: {
+          id: true,
+          dateReevaluation: true,
+          ecritureEcarts: { select: { lignes: { where: { compteId: { in: ids47 } }, select: { compteId: true, debit: true, credit: true } } } },
+        },
+      });
+      const surLEcart = posterieures.filter((r) => r.id !== x.id && (r.ecritureEcarts?.lignes ?? []).length > 0);
+      if (surLEcart.length > 0) {
+        const sans = new Map(lu47);
+        for (const r of surLEcart) for (const l of r.ecritureEcarts?.lignes ?? []) sans.set(l.compteId, (sans.get(l.compteId) ?? 0) - centimesDe(l));
+        etat.posterieures = surLEcart.map((r) => ({ id: r.id, dateReevaluation: r.dateReevaluation }));
+        etat.jugementSansPosterieures = jugerLEtat({ ...entree, lu47: sans });
+      }
+    }
     return etat;
   }
 
@@ -2643,6 +2679,22 @@ export class DevisesService {
     const issue = j.issue;
     if (issue && issue.gestes.length === 0 && issue.fin === 'CONTRE_PASSER') return null;
     const jour = (d: Date) => d.toISOString().slice(0, 10);
+    // L1 · l'issue DANS L'ORDRE · la réévaluation postérieure a été passée
+    // avec cet écart en place ; sans elle, la contre-passation est juste.
+    // Annuler d'abord (D6, AUDCIF art. 20, al. 2), contre-passer ensuite
+    // (Applications 84 et 85), réévaluer de nouveau enfin.
+    const sansPost = etat.jugementSansPosterieures?.issue;
+    if (etat.posterieures.length > 0 && sansPost && sansPost.gestes.length === 0 && sansPost.fin === 'CONTRE_PASSER') {
+      const dates = etat.posterieures.map((r) => `du ${jour(r.dateReevaluation)}`).join(', ');
+      const exo = `l'exercice du ${jour(etat.cible.dateDebut)} au ${jour(etat.cible.dateFin)}`;
+      return (
+        `L'écart de conversion de la réévaluation du ${jourReevaluation} ne se contre-passe pas en l'état · la réévaluation ${dates} ` +
+        `(${exo}) a été passée alors qu'il y était encore en place, et son écart est dans le solde du 478 ou du 479. Dans l'ordre · ` +
+        `(1) annulez la réévaluation ${dates} (Devises, « Annuler la réévaluation » · inscription en négatif, AUDCIF art. 20, al. 2) ; ` +
+        `(2) contre-passez la réévaluation du ${jourReevaluation} (Devises, « Contre-passer ») ; ` +
+        `(3) réévaluez de nouveau ${exo}.`
+      );
+    }
     const montant = (c: number) => `${(Math.abs(c) / 100).toFixed(2)}${c > 0 ? ' débiteur' : c < 0 ? ' créditeur' : ''}`;
     const pieces = (liste: Array<{ numeroPiece: number | null; date: Date }>) =>
       liste

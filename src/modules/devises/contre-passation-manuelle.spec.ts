@@ -269,10 +269,12 @@ function monter(
           select?: { ecritureEcarts?: { select?: { lignes?: { where?: { compteId?: { in: string[] } } } } } };
         }) => {
           const comptes = a.select?.ecritureEcarts?.select?.lignes?.where?.compteId?.in;
+          const w = a.where as { exercice?: { dateFin?: { lt: Date } }; exerciceId?: unknown; id?: unknown };
           return reevaluations
-            .filter((r) => correspond(r.exercice.dateFin, a.where.exercice?.dateFin))
+            .filter((r) => correspond(r.exercice.dateFin, w.exercice?.dateFin) && correspond(r.exercice.id, w.exerciceId) && correspond(r.id, w.id))
             .map((r) => ({
               id: r.id,
+              dateReevaluation: r.exercice.dateFin,
               ecritureExtourne: r.ecritureExtourne ?? null,
               contrePassationDeclaree: r.contrePassationDeclaree ?? null,
               ecritureEcarts: { lignes: r.ecritureEcarts.lignes.filter((x) => !comptes || comptes.includes(x.compteId)) },
@@ -994,5 +996,40 @@ describe('vérification finale · l’état de l’écart attesté', () => {
     const appuyee = monter({ reeval: { ...ATTESTEE, ecritureExtourne: { numeroPiece: 9, createdAt: new Date('2027-01-21') } } });
     await expect(appuyee.svc.retirerAttestationEtatDeLEcart('t', 'u', 'r1', 'Rapprochement refait')).rejects.toThrow(/pièce n° 9\) a été passée sous cette attestation/);
     expect(appuyee.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * VÉRIFICATION FINALE, L1 · la réévaluation de N+1 passée alors que l'écart
+ * de N était encore en place (avant A5 bis) · son écart (D 4111 / C 4791 de
+ * 400 000, depuis le coût) est dans le solde du 4791, hors de l'attendu.
+ * L'issue se dit DANS L'ORDRE · annuler la réévaluation de N+1 (D6),
+ * contre-passer celle de N, réévaluer N+1 de nouveau.
+ */
+describe('vérification finale, L1 · une réévaluation postérieure passée avec l’écart en place', () => {
+  const ECARTS_N1: EcritureFaite = {
+    id: 'ecarts-n1',
+    exercice: N1,
+    date: N1.dateFin,
+    numeroPiece: 12,
+    reevaluationEcarts: { id: 'r2' },
+    lignes: [l('c-4111', '41110000', 400_000, 0), l('c-4791', '47910000', 0, 400_000)],
+  };
+  const R2: ReevaluationFaite = { id: 'r2', exercice: N1, ecritureEcarts: { lignes: ECARTS_N1.lignes } };
+
+  it('« Contre-passer » refusé · annulez la réévaluation du 2027-12-31, PUIS contre-passez celle du 2026-12-31, PUIS réévaluez', async () => {
+    const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1, ECARTS_N1], autres: [R2] });
+    let message = '';
+    await svc.extourner('t', 'u', 'r1', 'e27').catch((e: Error) => (message = e.message));
+    expect(message).toMatch(
+      /\(1\) annulez la réévaluation du 2027-12-31 \(Devises, « Annuler la réévaluation »[\s\S]*\(2\) contre-passez la réévaluation du 2026-12-31[\s\S]*\(3\) réévaluez de nouveau l'exercice du 2027-01-01 au 2027-12-31/,
+    );
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('la réévaluation de N+1 annulée (hors de la lecture) · la contre-passation passe', async () => {
+    const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1] });
+    await svc.extourner('t', 'u', 'r1', 'e27');
+    expect(creer).toHaveBeenCalled();
   });
 });
