@@ -30,8 +30,8 @@ const ISSUE_LETTRAGE_FIGE =
   'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives. ' +
   'Exercice clôturé · l’erreur relève du report à nouveau (AUDCIF art. 20, al. 3). Exercice encore ouvert · l’inscription en ' +
   'négatif reste due dans l’exercice (art. 20, al. 2), au premier jour non clôturé (art. 22, 4°), mais OmegaX ne l’inscrit pas ' +
-  'sur une ligne lettrée, hors les gestes des créances douteuses, qui l’inscrivent à côté de leur lettrage figé · ce cas est ' +
-  'relevé au suivi.';
+  'sur une ligne lettrée, hors les gestes des créances douteuses, qui l’inscrivent à côté de leur lettrage figé · saisissez ' +
+  'vous-même l’écriture en négatif, au premier jour non clôturé.';
 
 /** Une ligne telle que le refus la lit · son lettrage et son pointage. */
 export interface LigneTenue {

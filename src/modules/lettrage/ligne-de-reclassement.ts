@@ -43,7 +43,7 @@ export const MOTIF_LETTRAGE_RECLASSEMENT =
   "comme un encaissement (décret n° 011/42, art. 57), et la TVA d'une prestation de services deviendrait exigible sans " +
   "qu'aucun prix ne soit perçu (O.-L. n° 10/001, art. 25, 2°) ; figé ensuite par une clôture, le groupe ne se déferait plus " +
   "et le reclassement ne s'annulerait plus. La créance se suit dans « Créances douteuses ou litigieuses » ; le traitement de " +
-  'sa TVA est la ligne A7 bis du suivi.';
+  'sa TVA se déclare par le cabinet lui-même pour l’instant.';
 
 /** Client Prisma minimal · le service ou une transaction ouverte. */
 interface LecteurLignes {

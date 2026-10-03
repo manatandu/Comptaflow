@@ -161,7 +161,7 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     const { service: s2 } = monter([facture(), reclassement()]);
     await expect(
       s2.confirmerPreLettrage('t1', '411', 'u1', [{ ligneIds: ['fac', 'rcl'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
-    ).rejects.toThrow(/ligne A7 bis/);
+    ).rejects.toThrow(/se déclare par le cabinet/);
   });
 
   // B-2 (second tour) · LA RÈGLE D'A7 RÉTABLIE · le mineur 6 laissait lettrer
