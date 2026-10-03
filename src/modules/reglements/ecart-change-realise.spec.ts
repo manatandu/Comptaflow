@@ -475,7 +475,14 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus
       fields: { credit: CHAMP_CREDIT },
       aggregate: jest.fn(async ({ where }: { where: FiltreLigne }) => {
         const retenues = (lignes as LigneDouble[]).filter((l) => ligneRetenue(l, where));
-        return { _sum: { montantDevise: retenues.length > 0 ? retenues.reduce((s, l) => s + Number(l.montantDevise ?? 0), 0) : null } };
+        const somme = (f: (l: LigneDouble) => number) => (retenues.length > 0 ? retenues.reduce((s, l) => s + f(l), 0) : null);
+        return {
+          _sum: {
+            montantDevise: somme((l) => Number(l.montantDevise ?? 0)),
+            debit: somme((l) => l.debit),
+            credit: somme((l) => l.credit),
+          },
+        };
       }),
     },
     cloture: { findMany: jest.fn(async () => []) },
@@ -870,6 +877,10 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
         /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*Les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
       );
+      // L'issue qui reste, nommée (second tour, m5).
+      await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
+        /Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main avec la facture qu'il solde/,
+      );
       await expect(
         service.enregistrer('t', 'u', { ...reglerLaReportee, reglements: [{ compteId: 'c401', ligneIds: ['ranF'], montantDevise: 560.01, coursReglement: 1750 }] }),
       ).rejects.toThrow(/au plus 560\.00/);
@@ -938,19 +949,35 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
   it('la doublure lit la requête · lignes reportées du compte, de la devise et de l’exercice, hors groupe, factures choisies écartées', async () => {
     const { service, prisma } = monter('SYSCOHADA', [factureReportee()]);
     await service.enregistrer('t', 'u', reglerLaReportee);
-    const appels = (prisma.ligneEcriture.aggregate as unknown as jest.Mock).mock.calls.map((c) => c[0].where);
-    expect(appels).toHaveLength(2);
-    for (const w of appels) {
+    const appels = (prisma.ligneEcriture.aggregate as unknown as jest.Mock).mock.calls.map((c) => c[0]);
+    expect(appels).toHaveLength(4);
+    for (const { where: w } of appels) {
       expect(w).toMatchObject({
         compteId: 'c401',
-        deviseId: 'usd',
         id: { notIn: ['ranF'] },
         lettrageId: null,
         ecriture: { tenantId: 't', exerciceId: 'ex', OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }] },
       });
     }
-    expect(appels[0]).toMatchObject({ debit: { gt: 0 } });
-    expect(appels[1]).toMatchObject({ debit: { lt: 0 } });
+    // Dans la devise, puis en francs sans devise (m4), chacun par son signe.
+    expect(appels.map((a) => a.where.deviseId)).toEqual(['usd', 'usd', null, null]);
+    expect(appels[0].where).toMatchObject({ debit: { gt: 0 } });
+    expect(appels[1].where).toMatchObject({ debit: { lt: 0 } });
+    expect(appels[2]).toMatchObject({ where: { debit: { gt: 0 } }, _sum: { debit: true } });
+    expect(appels[3]).toMatchObject({ where: { debit: { lt: 0 } }, _sum: { debit: true } });
+  });
+
+  // Second tour, m4 · un règlement reporté en francs SANS devise (avant A6)
+  // ne se lit pas dans la devise · il n'arrête rien, et il est dit.
+  it('un règlement reporté en francs sans devise · le règlement passe, avec l’avertissement qui le chiffre', async () => {
+    const enFrancs = { ...ligne('ranX', 'c401', 500_000, 0, 0, cloture), deviseId: null, montantDevise: null };
+    const { service, creer } = monter('SYSCOHADA', [factureReportee(), enFrancs]);
+    const r = await service.enregistrer('t', 'u', reglerLaReportee);
+    expect(creer).toHaveBeenCalled();
+    expect(r.avertissements).toEqual([expect.stringMatching(/40110000 · 500000\.00 en francs, sans devise, sont reportés à l'à-nouveau de ce compte hors de tout lettrage/)]);
+    // Sans règlement reporté en francs, aucun avertissement.
+    const net = monter('SYSCOHADA', [factureReportee()]);
+    expect((await net.service.enregistrer('t', 'u', reglerLaReportee)).avertissements).toEqual([]);
   });
 });
 

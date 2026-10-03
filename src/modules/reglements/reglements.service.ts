@@ -252,6 +252,7 @@ export class ReglementsService {
     const avertissements: string[] = [];
     for (const x of prepares) {
       if (!x.enDevise) continue;
+      if (x.enDevise.avertissement) avertissements.push(x.enDevise.avertissement);
       const motif = await motifReglementDejaReevalue(this.prisma, {
         tenantId,
         exerciceId: dto.exerciceId,
@@ -442,10 +443,10 @@ export class ReglementsService {
     const estANouveau = (e: (typeof siennes)[number]['ecriture']) =>
       e.estANouveauProvisoire === true || (e.estGenereeParCloture === true && e.estSoldeDesComptesDeGestion !== true);
     const duReporte = Math.round(siennes.filter((l) => estANouveau(l.ecriture)).reduce((t, l) => t + Number(l.montantDevise), 0) * 100) / 100;
+    let avertissement: string | null = null;
     if (duReporte > 0) {
-      const reportees = {
+      const aNouveauNonLettre = {
         compteId: r.compteId,
-        deviseId,
         id: { notIn: r.ligneIds },
         lettrageId: null,
         ecriture: {
@@ -454,22 +455,42 @@ export class ReglementsService {
           OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
         },
       } satisfies Prisma.LigneEcritureWhereInput;
+      const reportees = { ...aNouveauNonLettre, deviseId } satisfies Prisma.LigneEcritureWhereInput;
+      // Les règlements reportés SANS DEVISE (A6 bis, second tour, m4) · un
+      // règlement d'avant la tenue en devise (avant A6) n'a que des francs, et
+      // la borne, qui compte dans la devise, ne peut pas dire ce qu'il règle.
+      const enFrancs = { ...aNouveauNonLettre, deviseId: null } satisfies Prisma.LigneEcritureWhereInput;
       const colonne = (signe: 'gt' | 'lt') => (sens === 'FOURNISSEUR' ? { debit: { [signe]: 0 } } : { credit: { [signe]: 0 } });
-      const [positives, negatives] = await Promise.all([
+      const colonneFrancs = sens === 'FOURNISSEUR' ? ('debit' as const) : ('credit' as const);
+      const [positives, negatives, francsPositifs, francsNegatifs] = await Promise.all([
         this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('gt') }, _sum: { montantDevise: true } }),
         this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('lt') }, _sum: { montantDevise: true } }),
+        this.prisma.ligneEcriture.aggregate({ where: { ...enFrancs, ...colonne('gt') }, _sum: { [colonneFrancs]: true } }),
+        this.prisma.ligneEcriture.aggregate({ where: { ...enFrancs, ...colonne('lt') }, _sum: { [colonneFrancs]: true } }),
       ]);
       const reglesAuReport = Math.round((Number(positives._sum.montantDevise ?? 0) - Number(negatives._sum.montantDevise ?? 0)) * 100) / 100;
+      const sommeFrancs = (a: { _sum: Record<string, unknown> }) => Number(a._sum[colonneFrancs] ?? 0);
+      const reglesEnFrancs = Math.round((sommeFrancs(francsPositifs) + sommeFrancs(francsNegatifs)) * 100) / 100;
       const resteReporte = Math.max(0, Math.round((duReporte - Math.max(0, reglesAuReport)) * 100) / 100);
       const plafond = Math.round((duDevise - duReporte + resteReporte) * 100) / 100;
       if (Math.round(montantDevise * 100) > Math.round(plafond * 100)) {
+        // L'ISSUE QUI RESTE EST NOMMÉE (second tour, m5) · régler le reste
+        // ici, ou saisir le règlement au journal de trésorerie et le lettrer
+        // à la main avec la facture qu'il solde.
         throw new BadRequestException(
           `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
             "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
             `Les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · réglez au plus ${plafond.toFixed(2)}, puis complétez ` +
             "le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage) ; si elles reviennent à une autre facture, " +
-            "lettrez-les d'abord avec elle.",
+            "lettrez-les d'abord avec elle. Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main " +
+            "avec la facture qu'il solde (Interrogation et lettrage).",
         );
+      }
+      if (reglesEnFrancs > 0) {
+        avertissement =
+          `${numero} · ${reglesEnFrancs.toFixed(2)} en francs, sans devise, sont reportés à l'à-nouveau de ce compte hors de tout lettrage ` +
+          "(un règlement d'avant la tenue en devise) · ils peuvent régler une part des factures en devise choisies, que la borne du reste dû " +
+          "ne lit pas. Vérifiez le reste dû au fournisseur ou au client avant de payer, et lettrez ce règlement avec sa facture.";
       }
     }
     // Le débit RÉEL saisi en francs prime, le cours s'en déduit · même règle
@@ -503,6 +524,7 @@ export class ReglementsService {
       ecart,
       compteEcartId: compteEcart?.id ?? null,
       partiel: Math.round(montantDevise * 100) < Math.round(duDevise * 100),
+      avertissement,
     };
   }
 
@@ -657,4 +679,6 @@ interface ReglementEnDevise {
   ecart: number;
   compteEcartId: string | null;
   partiel: boolean;
+  /** Un avertissement qui n'arrête rien (second tour, m4). */
+  avertissement: string | null;
 }
