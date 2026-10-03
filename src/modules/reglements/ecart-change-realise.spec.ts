@@ -441,7 +441,8 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus
       ]),
     },
     ribBanque: { findFirst: jest.fn(async () => null) },
-    reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null) },
+    // Aucune réévaluation · ni de l'exercice, ni d'antérieure restée en place (M5).
+    reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null), findMany: jest.fn(async (): Promise<unknown[]> => []) },
     exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },
     coursDevise: { findFirst: jest.fn(async () => ({ cours: 1850 })) },
   } as unknown as PrismaService;

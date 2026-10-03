@@ -60,6 +60,13 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   dit, le cabinet choisit parmi les comptes de change) ; le SYCEBNL n'ouvre
   ni l'un ni l'autre (vérifié aux semis). Table `CAS_NATURE` au spec du
   serveur, relue et rejouée par le spec du client ; cas ajoutés à `CAS_ADMIS`.
+- M5 · `avertissementExtourneManquante` lit TOUTES les réévaluations
+  antérieures non annulées et non contre-passées (bornées à cinquante, une
+  par exercice), chacune sur le compte du tiers seul (rien des
+  disponibilités, A5 bis) ; nomme une ou plusieurs dates.
+- M7 · le message dit que la contre-passation ne touche que le 478 et le
+  479, et que la provision s'ajuste à la réévaluation de l'exercice en cours
+  (ch. 22 § 2.3).
 
 ## Reste
 
