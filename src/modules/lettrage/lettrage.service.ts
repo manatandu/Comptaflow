@@ -944,7 +944,7 @@ export class LettrageService {
       // montrer à l'humain ce qu'il confirme · une liste d'identifiants ne se
       // confirme pas, et proposer sans donner à lire reviendrait à demander un
       // acquiescement plutôt qu'un examen.
-      include: { ecriture: { select: { reference: true, date: true, estGenereeParCloture: true, estANouveauProvisoire: true } } },
+      include: { ecriture: { select: { reference: true, date: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
     // Une ligne figée par une clôture (exercice/gel-cloture.ts) n'est pas
@@ -960,21 +960,11 @@ export class LettrageService {
     // règlement d'une AUTRE facture. Apparier AVEC R puis écarter les groupes
     // qui la portent (A7 ter) laissait U prendre le règlement P de T dès que P
     // précédait R (U 10/02, T 01/05, P 20/05, R 15/06 · [U,P] posé, T ouverte,
-    // sa TVA datée à tort). Les passes par montant mettent de côté la paire
-    // certaine, ou s'abstiennent (`lignesMisesDeCote`) ; la passe par pièce
+    // sa TVA datée à tort). Les passes par montant s'abstiennent toutes
+    // (`lignesMisesDeCote`, sans exception, second tour) ; la passe par pièce
     // reste, et un groupe qu'elle formerait avec R reste écarté.
     const reclassees = await lignesReclasseesDuCompte(db, tenantId, compteId);
-    const miseDeCote = lignesMisesDeCote(
-      candidates.map((l) => ({
-        id: l.id,
-        net: Number(l.debit) - Number(l.credit),
-        date: l.ecriture.date,
-        // `=== true` · une doublure qui ne sert pas le drapeau ne fait jamais
-        // passer une ligne pour un report.
-        aNouveau: l.ecriture.estGenereeParCloture === true || l.ecriture.estANouveauProvisoire === true,
-      })),
-      reclassees,
-    );
+    const miseDeCote = lignesMisesDeCote(candidates, reclassees);
     const nonLettrees = candidates.filter((l) => !figees.has(l.id));
     const { parPiece, parMontant, ecarteesDesMontants } = this.apparier(nonLettrees, miseDeCote);
     const sansReclassement = (g: string[]) => !g.some((id) => reclassees.has(id));
@@ -1032,8 +1022,8 @@ export class LettrageService {
     debitsRestants = debitsRestants.filter((d) => parPiece.restantes.has(d.id));
     creditsRestants = creditsRestants.filter((c) => parPiece.restantes.has(c.id));
 
-    // A7 quater, (B) · un reclassement ouvert sur le compte · la paire
-    // certaine est mise de côté, ou les passes par montant s'abstiennent.
+    // A7 quater, (B) · un reclassement ouvert sur le compte · les passes par
+    // montant s'abstiennent toutes.
     const avant = debitsRestants.length + creditsRestants.length;
     if (miseDeCote.passesParMontantSuspendues) {
       return { parPiece: parPiece.groupes, parMontant: [], ecarteesDesMontants: avant };

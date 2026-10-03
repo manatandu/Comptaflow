@@ -392,6 +392,12 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               >
                 Lettrage automatique
               </button>
+              {/* A7 quater, second tour · la règle se dit dans la bulle, pas en paragraphe. */}
+              <Aide
+                titre="Compte qui porte un reclassement"
+                texte="Sur un compte client qui porte le reclassement d'une créance douteuse ou litigieuse au 416, le lettrage automatique et le pré-lettrage ne rapprochent rien par montant, tant que le reclassement est ouvert, dans cet exercice comme dans les suivants · rien ne dit quelles factures il a reclassées, et un rapprochement deviné daterait à tort la TVA d'une autre facture. Seuls les rapprochements par référence de pièce restent ; le reste se lettre à la main, jamais une facture avec le reclassement."
+                source="Convention d'OmegaX"
+              />
             </>
           )}
         </div>

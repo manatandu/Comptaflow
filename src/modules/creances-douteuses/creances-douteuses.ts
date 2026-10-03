@@ -858,7 +858,9 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   if (!e.aNouveau) {
     return "Cet exercice n'a pas encore d'à-nouveau (bilan d'ouverture ou report) · la déclaration se borne par lui, passez-le d'abord.";
   }
-  const enDevise416 = centimes(e.enDevise416 ?? 0);
+  // Seule une position DÉBITRICE se retranche · une position en devise
+  // créditrice au 416 ne prête jamais de francs à la borne (second tour, m3).
+  const enDevise416 = centimes(Math.max(0, e.enDevise416 ?? 0));
   const borne416 = centimes(e.aNouveau416 - enDevise416);
   if (centimes(e.dejaDeclare416 + e.montant) > borne416 + 0.005) {
     return (

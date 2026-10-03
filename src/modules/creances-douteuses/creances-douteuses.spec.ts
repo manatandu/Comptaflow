@@ -1912,6 +1912,17 @@ describe('créances douteuses · service', () => {
       aNouveauDans: ['ex-26'],
     });
     await expect(soldee.service.declarer('t', 'u', { ...dtoDeclaration, montant: 1_000_000 })).resolves.toMatchObject({ montant: 1_000_000 });
+    // Second tour · une position en devise CRÉDITRICE (un trop-perçu de 200 USD,
+    // 300 000 FC) n'élargit jamais la borne · l'à-nouveau en francs vaut
+    // 1 000 000 − 300 000 = 700 000, et 800 000 reste refusé.
+    const crediteur = monter({
+      lignes: [
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true },
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 0, credit: 300_000, aNouveau: true, deviseId: 'usd', montantDevise: 200 },
+      ],
+      aNouveauDans: ['ex-26'],
+    });
+    await expect(crediteur.service.declarer('t', 'u', { ...dtoDeclaration, montant: 800_000 })).rejects.toThrow(/dépasse son à-nouveau \(700000\.00\)/);
   });
 
   it('m5 · les listes des 416 et 491 de détail disent leur total et si elles sont tronquées', async () => {

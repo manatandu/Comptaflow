@@ -115,45 +115,36 @@ export async function refuserLignesDuCompteClientReclasse(
 }
 
 /**
- * LIGNE A7 QUATER, (B) · CE QUE LES PASSES PAR MONTANT NE TOUCHENT PAS QUAND
- * UN RECLASSEMENT EST OUVERT SUR LE COMPTE.
+ * LIGNE A7 QUATER, (B) · UN RECLASSEMENT OUVERT SUR LE COMPTE SUSPEND TOUTES
+ * LES PASSES PAR MONTANT.
  *
  * Écarter la ligne R du reclassement, ou les groupes qui la portent, ne
  * suffisait pas · la facture reclassée U restait candidate, et la passe des
  * paires exactes la donnait au règlement P d'une AUTRE facture T dès que P
  * précédait R (U 10/02, T 01/05, P 20/05, R 15/06 · [U,P] posé, T laissée
  * ouverte, la TVA de T datée à tort, décret n° 011/42, art. 57 ; O.-L.
- * n° 10/001, art. 25, 2°). Rien ne relie R à la ligne de U (le reclassement
- * ne lettre pas le 411, règle d'A7) · deviner laquelle des factures de même
- * montant il a reclassée serait la présomption même que ce module refuse.
+ * n° 10/001, art. 25, 2°). Rien ne relie R aux lignes qu'il reclasse (le
+ * reclassement ne lettre pas le 411, règle d'A7).
  *
- * Règle, SANS DEVINETTE · dès qu'une ligne R ouverte existe sur le compte,
- *  · si chaque R a UNE SEULE candidate de même montant, de sens contraire,
- *    datée au plus tard de R, distincte pour chaque R, la paire est mise de
- *    côté (ni l'une ni l'autre ne s'apparie par montant) et les passes par
- *    montant jouent sur le reste ;
- *  · sinon (aucune candidate, ou plusieurs, ou une candidate convoitée par
- *    deux reclassements) les passes par montant S'ABSTIENNENT, seule la passe
- *    par référence de pièce, saisie par un humain, reste.
- * Les candidates se lisent sur TOUTES les lignes non lettrées du compte,
- * figées comprises · une facture figée par une clôture de période reste une
- * facture que R a pu reclasser, et l'ignorer rendrait unique à tort une autre
- * candidate.
+ * AUCUNE EXCEPTION, PAS MÊME LA « CANDIDATE UNIQUE » (second tour) · mettre
+ * de côté la seule facture de même montant que R était encore une devinette.
+ * Le montant de R peut couvrir PLUSIEURS factures ou une PARTIE d'une seule ·
+ * V 500 000, X 300 000, Y 200 000, R 500 000 qui reclasse X et Y, P 500 000
+ * qui paie V · V était mise de côté avec R, et la passe N pour 1 posait
+ * [P,X,Y], X et Y lues comme encaissées, V ouverte ; U 1 000 000 payée
+ * 600 000 par P1, R 400 000 qui reclasse le reste, W 400 000 payée par Q ·
+ * W partait avec R, et [U,P1,Q] était posé.
  *
- * L'À-NOUVEAU DE R N'A PAS DE LIAISON · le report en détail recopie U et R,
- * non lettrées, dans l'exercice suivant (provisoire ou à la clôture), et la
- * ligne recopiée de R n'est plus reconnue comme un reclassement. U et R de N
- * restant ouvertes, la candidate unique de R tenait encore, et les à-nouveaux
- * de U et de R s'appariaient en N+1 · la paire même que la règle d'A7
- * interdit. Dès qu'une ligne d'à-nouveau postérieure à R porte le montant et
- * le sens de R, elle peut être la sienne · abstention.
+ * Règle · dès qu'une ligne R ouverte existe sur le compte, les passes par
+ * montant s'ABSTIENNENT, toutes ; seule la passe par référence de pièce,
+ * saisie par un humain, reste, et un groupe qu'elle formerait avec R reste
+ * écarté. La ligne R, jamais lettrée, reste ouverte dans son exercice même
+ * clôturé · en N+1, les à-nouveaux de U et de R (celui de R sans liaison)
+ * restent donc hors des passes par montant eux aussi. Le lettrage du compte
+ * se fait à la main ou par référence de pièce (convention d'OmegaX).
  */
 export interface LigneAMettreDeCote {
   id: string;
-  net: number;
-  date: Date;
-  /** La ligne vient d'un report à-nouveau (à la clôture ou provisoire). */
-  aNouveau: boolean;
 }
 
 export function lignesMisesDeCote(
@@ -161,32 +152,7 @@ export function lignesMisesDeCote(
   reclassees: ReadonlySet<string>,
 ): { ecartees: Set<string>; passesParMontantSuspendues: boolean } {
   const rs = lignes.filter((l) => reclassees.has(l.id));
-  if (rs.length === 0) return { ecartees: new Set(), passesParMontantSuspendues: false };
-  // Comparées en centimes entiers · deux flottants égaux au centime peuvent
-  // différer au millionième.
-  const centimes = (v: number) => Math.round(v * 100);
-  const choisies = new Set<string>();
-  let suspendre = false;
-  for (const r of rs) {
-    const reportDeR = lignes.some(
-      (l) => !reclassees.has(l.id) && l.aNouveau && centimes(l.net) === centimes(r.net) && l.date.getTime() > r.date.getTime(),
-    );
-    if (reportDeR) {
-      suspendre = true;
-      break;
-    }
-    const candidates = lignes.filter(
-      (l) => !reclassees.has(l.id) && centimes(l.net) === -centimes(r.net) && l.date.getTime() <= r.date.getTime(),
-    );
-    if (candidates.length !== 1 || choisies.has(candidates[0].id)) {
-      suspendre = true;
-      break;
-    }
-    choisies.add(candidates[0].id);
-  }
-  const ecartees = new Set(rs.map((r) => r.id));
-  if (!suspendre) for (const id of choisies) ecartees.add(id);
-  return { ecartees, passesParMontantSuspendues: suspendre };
+  return { ecartees: new Set(rs.map((r) => r.id)), passesParMontantSuspendues: rs.length > 0 };
 }
 
 /**
@@ -195,17 +161,10 @@ export function lignesMisesDeCote(
  * pour une ligne que le logiciel n'a pas su rapprocher.
  */
 export function messageMiseDeCote(nombre: number, suspendues: boolean): string | null {
-  if (suspendues) {
-    return (
-      `Un reclassement en créance douteuse ou litigieuse est ouvert sur ce compte, et la facture qu'il a reclassée ne se ` +
-      `reconnaît pas avec certitude · aucun rapprochement par montant n'est fait (${nombre} ligne(s) laissée(s) ` +
-      `ouverte(s)), seuls ceux par référence de pièce le sont. Lettrez le reste à la main, sans jamais lettrer une facture ` +
-      `avec le reclassement.`
-    );
-  }
-  if (nombre === 0) return null;
+  if (!suspendues) return null;
   return (
-    `${nombre} ligne(s) mise(s) de côté · le reclassement en créance douteuse ou litigieuse et la seule facture qu'il ` +
-    `a pu reclasser, qui ne se lettrent pas ensemble.`
+    `Un reclassement en créance douteuse ou litigieuse est ouvert sur ce compte, et rien ne dit quelles factures il a ` +
+    `reclassées · aucun rapprochement par montant n'est fait (${nombre} ligne(s) laissée(s) ouverte(s)), seuls ceux par ` +
+    `référence de pièce le sont. Lettrez le reste à la main, sans jamais lettrer une facture avec le reclassement.`
   );
 }

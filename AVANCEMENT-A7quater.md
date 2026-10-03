@@ -49,12 +49,15 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
      suspendu, 2 lignes ; pré-lettrage · 0. Balance N+1 41110101 D 1 160 000
      / C 1 160 000, solde 0.
 
-   Client Mbuyi (41110102), candidate UNIQUE · V 01/02 D 580 000, R2 15/03
-   (litigieuse, 41610000) C 580 000, W 01/07 D 580 000, Q 20/07 C 580 000.
-   - Lettrage automatique N · 1 groupe [W,Q] (A), 2 lignes mises de côté
-     (V, R2), message servi. Balance N 41110102 D 1 160 000 / C 1 160 000.
-   - N+1 · à-nouveaux de V et R2 · 0 groupe, suspendu (l'à-nouveau de R2,
-     sans liaison, peut être le sien).
+   Client Mbuyi (41110102) · V 01/02 D 580 000, R2 15/03 (litigieuse,
+   41610000) C 580 000, W 01/07 D 580 000, Q 20/07 C 580 000. Rejoué au
+   second tour (base `a7quater_2`) après le retrait de la candidate unique ·
+   - Lettrage automatique N · 0 groupe, suspendu, 4 lignes laissées
+     ouvertes (au premier tour, [W,Q] était posé par l'exception retirée).
+     Balance N 41110102 D 1 160 000 / C 1 160 000, solde 0.
+   - N+1 · à-nouveaux de V, R2, W, Q · 0 groupe, suspendu, 4 lignes ; balance
+     N+1 41110102 D 1 160 000 / C 1 160 000, solde 0.
+   Tous les autres chiffres ci-dessous identiques au second passage.
 
    (m3) Au 41620000 en N · 300 000 francs (créance à déclarer) et 600 000
    d'une créance de 400 USD à 1 500. À-nouveau 2027 du 41620000 · 2 060 000.
@@ -85,6 +88,20 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    (209 fichiers, 1 702 tests), `npm run build` ; dérive du schéma ·
    « No difference detected » (seul un commentaire a changé).
 
+7. Second tour (vérification indépendante) · BLOQUANT, exception de la
+   candidate unique retirée (`lignesMisesDeCote` suspend dès qu'un R est
+   ouvert), specs des deux cas du vérificateur (aucun groupe par montant,
+   ni au lettrage automatique ni au pré-lettrage) ; mineur 1, bulle Aide de
+   l'écran Lettrage ; mineur 2, une position en devise CRÉDITRICE au 416
+   n'élargit jamais la borne (`Math.max(0, …)`, spec) ; mineur 4, la bulle
+   « À apporter » ne cite plus que la convention d'OmegaX. Mineurs 3 et 5
+   laissés au suivi. Bloc du § 3 rejoué · serveur tsc, `npx jest
+   --maxWorkers=2` (715 suites, 10 020 tests ; un dépassement de délai de
+   5 s dans `exports/liasse-etafi.spec.ts`, hors des fichiers de la ligne,
+   sous la charge du constructeur parallèle, rejoué seul au vert, 24 sur
+   24), build ; client tsc, `npm test` (209 fichiers, 1 702 tests), build ;
+   e2e tsc.
+
 ## Reste
 
 - Intégration sur `main` (tests navigateur en CI, dont le nouveau
@@ -92,17 +109,21 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
 
 ## Décisions
 
-- (B) Règle sans devinette · dès qu'une ligne de reclassement R ouverte
-  existe sur le compte, les passes par montant s'abstiennent, sauf si chaque
-  R a UNE seule candidate de même montant, de sens contraire, datée au plus
-  tard de R (candidates lues figées comprises) · la paire est alors mise de
-  côté. La passe par référence de pièce joue toujours. Fondement · la ligne
-  du reclassement lettrée avec une facture serait lue comme un encaissement
+- (B) Règle sans devinette (second tour, exception RETIRÉE) · dès qu'une
+  ligne de reclassement R ouverte existe sur le compte, TOUTES les passes
+  par montant s'abstiennent, au lettrage automatique comme au pré-lettrage ;
+  seule la passe par référence de pièce joue, le nombre de lignes laissées
+  ouvertes est dit. La « candidate unique » du premier tour était une
+  devinette · R peut couvrir plusieurs factures (V, X, Y, R = X + Y, P paie
+  V · [P,X,Y] posé) ou une partie d'une seule (U payée 600 000 par P1, R
+  reclasse 400 000, W payée par Q · [U,P1,Q] posé). Fondement · la ligne du
+  reclassement lettrée avec une facture serait lue comme un encaissement
   (décret n° 011/42, art. 57 ; O.-L. n° 10/001, art. 25, 2°), règle d'A7.
-- (B, N+1) L'à-nouveau de R n'a pas de liaison · une ligne d'à-nouveau
-  postérieure à R, du montant et du sens de R, suspend aussi les passes par
-  montant (sinon U et R de N, ouvertes, faisaient tenir la candidate unique
-  et les à-nouveaux de U et R s'appariaient en N+1).
+- (B, N+1) R, jamais lettrée, reste ouverte dans son exercice clôturé · le
+  compte reste donc suspendu en N+1, et les à-nouveaux de U et de R (celui
+  de R sans liaison) ne s'apparient pas. Le lettrage de ce compte se fait à
+  la main ou par référence de pièce (bulle Aide de l'écran Lettrage,
+  convention d'OmegaX).
 - (m5) CLAUDE.md, A7 ter B2 · un groupe d'origine MODULE n'est défait que
   par le module · `delettrer` le refuse avec l'issue (annuler ou retirer le
   mouvement de la créance).

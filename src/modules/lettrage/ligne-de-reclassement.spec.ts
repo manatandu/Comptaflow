@@ -29,8 +29,6 @@ interface Ligne {
     journalId: string;
     journal: { code: string };
     exercice: { statut: 'OUVERT' | 'CLOTURE' };
-    /** Une écriture de report à-nouveau (A7 quater, (B)). */
-    estGenereeParCloture?: boolean;
     creanceDouteuseReclassement: { compteCreanceId: string; annuleeLe: Date | null } | null;
     /** Mineur 6 · les comptes des lignes de l'écriture (une TVA facturée au 443). */
     lignes: Array<{ compte: { numero: string } }>;
@@ -150,13 +148,12 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(r.groupes).toBe(0);
     expect(groupes).toHaveLength(0);
     expect(lignes.every((l) => l.lettrageId === null)).toBe(true);
-    // A7 QUATER, (B) · un règlement du même jour ne change rien · la facture,
-    // seule candidate du reclassement, est mise de côté avec lui, et le
-    // règlement reste ouvert (le logiciel ne devine pas qu'il la solde).
+    // A7 QUATER, (B) · un reclassement ouvert suspend toutes les passes par
+    // montant · rien n'est posé, le règlement reste ouvert.
     const avant = monter([facture(), ligne('reg', '411', 0, 1_160_000), reclassement()]);
     const r2 = await avant.service.lettrageAutomatique('t1', '411', 'u1');
     expect(avant.groupes).toHaveLength(0);
-    expect(r2).toMatchObject({ ecarteesReclassement: 2, passesParMontantSuspendues: false });
+    expect(r2).toMatchObject({ ecarteesReclassement: 3, passesParMontantSuspendues: true });
   });
 
   it('le lettrage MANUEL, le complément et la confirmation d’un pré-lettrage sont refusés par le motif nommé', async () => {
@@ -203,7 +200,6 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001'], '2026-05-20'),
     ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
   ];
-  const aNouveau = (l: Ligne): Ligne => ({ ...l, ecriture: { ...l.ecriture, estGenereeParCloture: true } });
   const lettrees = (lignes: Array<{ id: string; lettrageId: string | null }>) => lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort();
 
   it('(B) · U, T, P, R · aucune paire par montant, ni [U,P] ni [T,P], et le nombre de lignes laissées ouvertes est dit', async () => {
@@ -235,21 +231,55 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(lettrees(lignes)).toEqual(['P', 'T']);
   });
 
-  it('(B) · candidate UNIQUE · U seule antérieure à R, mise de côté avec lui · T (01/07) et son règlement P (20/07) se lettrent', async () => {
-    const { service, groupes, lignes } = monter([
+  // SECOND TOUR · LA « CANDIDATE UNIQUE » ÉTAIT ENCORE UNE DEVINETTE · le
+  // montant de R peut couvrir plusieurs factures, ou une partie d'une seule.
+  // Plus aucune exception · tout reclassement ouvert suspend les passes.
+  it('(B) · aucune exception · U seule antérieure à R, T (01/07) et son règlement P (20/07) restent aussi au lettrage manuel', async () => {
+    const { service, groupes } = monter([
       ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000'], '2026-02-10'),
       ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
       ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000'], '2026-07-01'),
       ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001'], '2026-07-20'),
     ]);
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
-    expect(groupes).toHaveLength(1);
-    expect(lettrees(lignes)).toEqual(['P', 'T']);
-    expect(r).toMatchObject({ passesParMontantSuspendues: false, ecarteesReclassement: 2 });
-    expect(r.miseDeCote).toMatch(/2 ligne\(s\) mise\(s\) de côté/);
+    expect(groupes).toHaveLength(0);
+    expect(r).toMatchObject({ passesParMontantSuspendues: true, ecarteesReclassement: 4, parMontant: 0 });
+    expect(r.miseDeCote).toMatch(/rien ne dit quelles factures il a reclassées/);
   });
 
-  it('(B) · une candidate figée par une clôture compte · U figée et T antérieures à R, abstention', async () => {
+  it('(B) · second tour, cas 1 · R reclasse X + Y, P paie V · ni [P,X,Y] ni rien par montant', async () => {
+    const scene = () => [
+      ligne('V', '411', 500_000, 0, null, [], '2026-02-01'),
+      ligne('X', '411', 300_000, 0, null, [], '2026-03-01'),
+      ligne('Y', '411', 200_000, 0, null, [], '2026-04-01'),
+      ligne('R', '411', 0, 500_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-05-15'),
+      ligne('P', '411', 0, 500_000, null, [], '2026-05-20'),
+    ];
+    const { service, groupes, lignes } = monter(scene());
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(0);
+    expect(lettrees(lignes)).toEqual([]);
+    expect(r).toMatchObject({ parMontant: 0, passesParMontantSuspendues: true, ecarteesReclassement: 5 });
+    expect((await monter(scene()).service.preLettrage('t1', '411')).propositions).toHaveLength(0);
+  });
+
+  it('(B) · second tour, cas 2 · R reclasse le reste de U payée en partie par P1, W payée par Q · ni [U,P1,Q] ni rien par montant', async () => {
+    const scene = () => [
+      ligne('U', '411', 1_000_000, 0, null, [], '2026-02-01'),
+      ligne('P1', '411', 0, 600_000, null, [], '2026-03-01'),
+      ligne('W', '411', 400_000, 0, null, [], '2026-04-01'),
+      ligne('Q', '411', 0, 400_000, null, [], '2026-04-20'),
+      ligne('R', '411', 0, 400_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-05-15'),
+    ];
+    const { service, groupes, lignes } = monter(scene());
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(0);
+    expect(lettrees(lignes)).toEqual([]);
+    expect(r).toMatchObject({ parMontant: 0, passesParMontantSuspendues: true });
+    expect((await monter(scene()).service.preLettrage('t1', '411')).propositions).toHaveLength(0);
+  });
+
+  it('(B) · U figée par une clôture et T antérieures à R, abstention', async () => {
     const { service, groupes } = monter([
       ligne('U', '411', 1_160_000, 0, null, [], '2025-02-10', 'CLOTURE'),
       ligne('T', '411', 1_160_000, 0, null, [], '2026-05-01'),
@@ -264,49 +294,17 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
   it('(B) · N+1 · les à-nouveaux de U et de R, sans liaison, ne s’apparient pas · R de N reste ouverte et les suspend', async () => {
     // N clôturé · U, R de N figées. L'à-nouveau en détail reporte U et R
     // (non lettrées) au 01/01/2027, la ligne de R sans liaison au reclassement.
-    const { service, groupes } = monter([
+    const scene = () => [
       ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10', 'CLOTURE'),
       ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15', 'CLOTURE'),
-      aNouveau(ligne('U-AN', '411', 1_160_000, 0, null, [], '2027-01-01')),
-      aNouveau(ligne('R-AN', '411', 0, 1_160_000, null, [], '2027-01-01')),
-    ]);
+      ligne('U-AN', '411', 1_160_000, 0, null, [], '2027-01-01'),
+      ligne('R-AN', '411', 0, 1_160_000, null, [], '2027-01-01'),
+    ];
+    const { service, groupes } = monter(scene());
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
     expect(groupes).toHaveLength(0);
     expect(r).toMatchObject({ passesParMontantSuspendues: true, ecarteesReclassement: 2 });
-    const { service: pre } = monter([
-      ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10', 'CLOTURE'),
-      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15', 'CLOTURE'),
-      aNouveau(ligne('U-AN', '411', 1_160_000, 0, null, [], '2027-01-01')),
-      aNouveau(ligne('R-AN', '411', 0, 1_160_000, null, [], '2027-01-01')),
-    ]);
-    expect((await pre.preLettrage('t1', '411')).propositions).toHaveLength(0);
-  });
-
-  it('N pour 1 · U seule candidate de R, écartée avec lui, le règlement P de T et V (700 000 + 460 000) leur reste', async () => {
-    const { service, groupes, lignes } = monter([
-      ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
-      ligne('T', '411', 700_000, 0, null, ['41110001', '70610000']),
-      ligne('V', '411', 460_000, 0, null, ['41110001', '70610000']),
-      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
-      ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
-    ]);
-    await service.lettrageAutomatique('t1', '411', 'u1');
-    expect(groupes).toHaveLength(1);
-    expect(lettrees(lignes)).toEqual(['P', 'T', 'V']);
-  });
-
-  it('le pré-lettrage et le lettrage automatique rendent les mêmes groupes, candidate unique comprise', async () => {
-    const scene = () => [
-      ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10'),
-      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
-      ligne('T', '411', 1_160_000, 0, null, [], '2026-07-01'),
-      ligne('P', '411', 0, 1_160_000, null, [], '2026-07-20'),
-    ];
-    const propose = monter(scene());
-    const pose = monter(scene());
-    const p = await propose.service.preLettrage('t1', '411');
-    await pose.service.lettrageAutomatique('t1', '411', 'u1');
-    expect(p.propositions.map((x: { ligneIds: string[] }) => [...x.ligneIds].sort())).toEqual([lettrees(pose.lignes)]);
+    expect((await monter(scene()).service.preLettrage('t1', '411')).propositions).toHaveLength(0);
   });
 
   it('un reclassement ANNULÉ ne retient plus rien · sa ligne se lettre comme une autre', async () => {

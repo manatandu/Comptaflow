@@ -1317,7 +1317,7 @@ export function CreancesDouteusesPage() {
                       <Aide
                         titre="À apporter par l'à-nouveau"
                         texte="Le montant que les lignes d'à-nouveau désignées doivent porter au débit du 416 pour que le groupe solde · c'est l'opposé du solde des lignes ouvertes de la créance dans cet exercice (recouvrements et pertes au crédit). Il vaut d'ordinaire la part de la créance reportée de l'exercice précédent, ou déclarée à l'ouverture. Nul, les lignes de l'exercice soldent seules."
-                        source="Convention d'OmegaX ; CPCC ch. 6 § 2 (lettrage a priori)"
+                        source="Convention d'OmegaX"
                       />
                     </div>
                     {lettrage416.proposition.aNouveaux.length === 0 ? (
