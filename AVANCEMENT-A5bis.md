@@ -24,8 +24,9 @@ disponibilités en devise (52, 53, 55, 57, 58) et de leur contrepartie
   doit pas être confondu avec le compte 478 ».
 - Fiche des comptes 478 / 479 (AUDCIF et SYCEBNL) · « pertes et gains
   latents », « entre créances et dettes en devises ».
-- Guide SYSCOHADA, Partie 2 ch. 22 · Application 85 (contre-passation au
-  01/01/N+1 : 411 · 4781, 4791 · 411), Application 86 (disponibilités · 676
+- Guide SYSCOHADA, Partie 2 ch. 22 · Application 84 (contre-passation au
+  01/01/N+1 : 411 · 4781, 4791 · 411), Application 85 (4793 · 4812),
+  Application 86 (disponibilités · 676
   / 5215, « sans écart de conversion », aucune contre-passation).
 
 Décision · ne se contre-passent que l'écart de conversion (478, 479 et le
@@ -49,7 +50,7 @@ compte de tiers qu'il ajuste) ; rien des disponibilités.
    Ancien régime (contre-passation qui a inversé la banque) · rien reporté,
    total juste (gain N+1 net de la contre-passation).
 3. `reevaluerSousVerrou` refuse tant que la réévaluation de l'exercice
-   précédent porte un 478 / 479 non contre-passé (Application 85),
+   précédent porte un 478 / 479 non contre-passé (Applications 84 et 85),
    issue nommée.
 4. Contrôle 34 (A13 tient le 32 et le 33) `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
    anciennes contre-passations qui ont inversé une banque ou une caisse,

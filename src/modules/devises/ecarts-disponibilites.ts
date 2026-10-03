@@ -23,9 +23,16 @@
  *    compte 478 » ;
  *  · fiches des comptes 478 et 479 (AUDCIF et SYCEBNL) · pertes et gains
  *    LATENTS, écarts « entre créances et dettes en devises » ;
- *  · Guide SYSCOHADA, Partie 2 ch. 22 · Application 85, « Contrepassation de
- *    l'écart au 01/01/N+1 : 411 · 4781 » ; Application 86 (disponibilités),
- *    676 / 5215 « sans écart de conversion », et AUCUNE contre-passation.
+ *  · Guide SYSCOHADA, Partie 2 ch. 22 · Application 84, « Contrepassation de
+ *    l'écart au 01/01/N+1 : 411 · 4781 » ; Application 85, « Contrepassation au
+ *    01/01/N+1 : 4793 · 4812 » ; Application 86 (disponibilités), 676 / 5215
+ *    « sans écart de conversion », et AUCUNE contre-passation.
+ *
+ * ANOMALIE DU TEXTE, non corrigée · la section 4 du ch. 22 écrit « Selon
+ * l'article 58, les disponibilités en devises sont converties… » ; la règle
+ * des disponibilités est à l'art. 57 de l'AUDCIF tel que la compétence le
+ * transcrit (l'art. 58 y porte la position globale de change). On cite
+ * l'art. 57, qui porte la règle.
  *
  * Contre-passer la ligne d'une banque ou d'une caisse remettait la trésorerie
  * au cours historique en N+1 et inscrivait au 676 ou au 776 de N+1 le

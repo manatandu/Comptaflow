@@ -12,7 +12,8 @@ import { partagerLignesDEcarts } from './ecarts-disponibilites';
  * écart est inscrit « directement dans les produits et charges de
  * l'exercice » ; Application 86 du Guide, 676 / 5215 sans contre-passation.
  * Seuls le 478, le 479 et le compte de tiers qu'ils ajustent se
- * contre-passent (Application 85 · « 411 · 4781 » au 01/01/N+1).
+ * contre-passent (Application 84 · « 411 · 4781 » au 01/01/N+1 ; Application 85 ·
+ * « 4793 · 4812 »).
  */
 
 interface LigneFaite {

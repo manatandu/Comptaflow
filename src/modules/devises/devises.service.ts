@@ -1096,8 +1096,9 @@ export class DevisesService {
    * AVANT DE RÉÉVALUER (ligne A5 bis). Une créance ou une dette se réévalue
    * depuis ses lignes en devise, au coût historique (`calculer`) · l'écart de
    * N, passé sans devise au 478 ou 479 et au compte du tiers, n'est soldé que
-   * par la contre-passation de l'ouverture (Application 85 du Guide,
-   * « Contrepassation de l'écart au 01/01/N+1 »). Oubliée, la réévaluation de
+   * par la contre-passation de l'ouverture (Guide, Partie 2 ch. 22,
+   * Application 84, « Contrepassation de l'écart au 01/01/N+1 : 411 · 4781 » ;
+   * Application 85, « 4793 · 4812 »). Oubliée, la réévaluation de
    * N+1 repassait l'écart de N au tiers et laissait le 478 ou le 479 de N en
    * place · deux fois le même écart, écriture équilibrée, balance bouclée.
    * Ne vise que la réévaluation non annulée de l'exercice qui PRÉCÈDE

@@ -380,7 +380,7 @@ describe('A5 bis · la banque en devise sur deux exercices, report en SOLDE et e
 
 /**
  * L'ÉCART DE CONVERSION D'UNE CRÉANCE NE SE SOLDE QUE PAR LA CONTRE-PASSATION
- * (Application 85 du Guide). 41110000, 1 000 USD pour 2 000 000 ; N au cours
+ * (Application 84 du Guide, « 411 · 4781 » au 01/01/N+1). 41110000, 1 000 USD pour 2 000 000 ; N au cours
  * de 2 100 (D 411 / C 479 de 100 000) ; N+1 au cours de 2 150. Réévaluer N+1
  * avant de contre-passer N repassait 150 000 au tiers, le 479 de N en place.
  */
