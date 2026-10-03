@@ -29,9 +29,57 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    (`positionsEnDevise`, `enDevise416`) et nommés dans le dépassement. Le
    refus reste pour une position sur le compte du CLIENT, avec l'issue.
 
+5. Scénario sur VRAIE base (PostgreSQL 16 jetable, base `a7quater_1`,
+   serveur compilé `node dist/main.js` sur le port 8090, dossier SYSCOHADA
+   inscrit par l'API), à travers la clôture de 2026 et l'ouverture de 2027 ;
+   gelé par `e2e/tests/lettrage-reclassement.e2e.ts` (typé, non joué en
+   local faute de navigateur Playwright).
+
+   Client Kasa (41110101, report en détail) · U 10/02 D 1 160 000 (706
+   1 000 000, 443 160 000), T 01/05 idem, P 20/05 C 1 160 000 (D 521), R
+   15/06 reclassement D 41620000 / C 41110101 1 160 000.
+   - Lettrage automatique N · 0 groupe, passes par montant suspendues,
+     4 lignes laissées ouvertes, message servi ; pré-lettrage · 0 proposition.
+   - [T,P] lettré à la main (A, soldé) ; [U,R] refusé par le motif nommé.
+   - Balance N · 41110101 D 2 320 000 / C 2 320 000, solde 0 ; 41620000
+     1 160 000 ; 70610000 C 2 000 000 ; 44310000 C 320 000 (calcul à la main ·
+     2 × 1 160 000 au débit, P + R au crédit ; TVA 2 × 160 000).
+   - Clôture 2026 · à-nouveaux en détail de U (D 1 160 000) et de R
+     (C 1 160 000) au 01/01/2027 ; lettrage automatique N+1 · 0 groupe,
+     suspendu, 2 lignes ; pré-lettrage · 0. Balance N+1 41110101 D 1 160 000
+     / C 1 160 000, solde 0.
+
+   Client Mbuyi (41110102), candidate UNIQUE · V 01/02 D 580 000, R2 15/03
+   (litigieuse, 41610000) C 580 000, W 01/07 D 580 000, Q 20/07 C 580 000.
+   - Lettrage automatique N · 1 groupe [W,Q] (A), 2 lignes mises de côté
+     (V, R2), message servi. Balance N 41110102 D 1 160 000 / C 1 160 000.
+   - N+1 · à-nouveaux de V et R2 · 0 groupe, suspendu (l'à-nouveau de R2,
+     sans liaison, peut être le sien).
+
+   (m3) Au 41620000 en N · 300 000 francs (créance à déclarer) et 600 000
+   d'une créance de 400 USD à 1 500. À-nouveau 2027 du 41620000 · 2 060 000.
+   Déclaration de 400 000 refusée · « (1160000.00 déjà portés) plus cette
+   créance (400000.00) dépasse son à-nouveau (2060000.00, dont 600000.00
+   portés par une créance en devise non réglée, hors du module et
+   retranchés) » ; 300 000 déclarés (borne 2 060 000 − 600 000 = 1 460 000 =
+   1 160 000 + 300 000).
+
+   (m4, m5) Recouvrement de Kasa en N+1, 10/02/2027, 1 160 000 · lettrage
+   au 416 à désigner ; proposition · 1 ligne ouverte, à apporter 1 160 000,
+   trois à-nouveaux triés par date (600 000, 300 000, 1 160 000), tronque
+   faux, une ligne proposée ; posé (A, MODULE) ; délettrage de A refusé par
+   le motif nommé.
+
+   (m6) Brouillard supprimé ; écriture validée refusée (403).
+
+   Balance N+1 finale · 41620000 D 2 060 000 / C 1 160 000, solde 900 000
+   (300 000 déclarés + 600 000 en devise) ; 52110000 2 000 010 (840 000
+   d'à-nouveau = 1 160 000 + 580 000 − 300 000 − 600 000, plus 1 160 000
+   recouvrés, plus 10) ; 41610000 580 000 ; 41110101 et 41110102 à zéro.
+
 ## Reste
 
-- Scénario sur vraie base à travers une clôture ; bloc du § 3.
+- Bloc du § 3 complet avant la dernière fiche.
 
 ## Décisions
 
@@ -61,5 +109,8 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
 ## Vérification
 
 ```bash
-npx jest src/modules/lettrage src/modules/creances-douteuses
+npx jest src/modules/lettrage src/modules/creances-douteuses src/modules/comptabilite
+(cd client && npx vitest run src/lib/jour-fr.spec.ts)
+(cd e2e && npx tsc --noEmit -p .)
+# vraie base · scratchpad scenario.mjs contre node dist/main.js (PORT=8090)
 ```
