@@ -1212,4 +1212,65 @@ export class LettrageService {
       { operations: parPieceGroupes.length + groupes.length },
     );
   }
+
+  /**
+   * LE LETTRAGE QU'UN MODULE POSE SUR SES PROPRES LIGNES (ligne A7 ter, B2) ·
+   * aujourd'hui les lignes 416 d'une créance douteuse éteinte, reconnues par
+   * le module à leur LIAISON. Origine `AUTOMATIQUE_PIECE` · c'est l'appariement
+   * « a priori » du CPCC, ch. 6 (« chaque fois qu'on enregistre un règlement,
+   * le système impose d'enregistrer en même temps le code de la facture objet
+   * du règlement ») · chaque perte et chaque recouvrement est enregistré avec
+   * la créance qu'il solde, jamais rapproché par présomption de montant.
+   *
+   * Le groupe se pose SOLDÉ ou pas du tout · rendu `{ motif }` quand il ne se
+   * pose pas (compte non lettrable, ligne figée par une clôture, ligne déjà
+   * lettrée, solde non nul), jamais une exception pour une raison métier ·
+   * le geste du module a déjà réussi, il dit seulement que rien n'a été lettré.
+   */
+  async lettrerLignesDuModule(
+    tenantId: string,
+    compteId: string,
+    ligneIds: string[],
+    userId: string,
+  ): Promise<{ code: string } | { motif: string }> {
+    const compte = await this.trouverCompte(tenantId, compteId);
+    if (!compte.lettrable) {
+      return { motif: `Le compte ${compte.numero} n'est pas déclaré lettrable · ses lignes ne sont pas lettrées.` };
+    }
+    const figees = await lignesFigees(this.prisma, tenantId, ligneIds);
+    const figee = [...figees.values()][0];
+    if (figee) return { motif: `La ligne du ${figee.date.toISOString().slice(0, 10)} est figée, ${figee.motif} · rien n'est lettré.` };
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const lignes = await tx.ligneEcriture.findMany({ where: { id: { in: ligneIds } }, include: { ecriture: true } });
+        const prise = lignes.find((l) => l.lettrageId !== null);
+        if (prise) return { motif: `Une des lignes est déjà lettrée (${prise.lettre ?? 'groupe partiel'}) · rien n'est lettré.` };
+        this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
+        const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        if (Math.abs(solde) > EPSILON) return { motif: `Les lignes ne soldent pas (écart de ${solde.toFixed(2)}) · rien n'est lettré.` };
+        const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine: OrigineLettrage.AUTOMATIQUE_PIECE, userId });
+        return { code: groupe.code };
+      },
+      'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+    );
+  }
+
+  /**
+   * DÉFAIRE, DANS LA TRANSACTION DE L'APPELANT, le groupe qu'un module avait
+   * posé sur ses lignes (A7 ter, B2 · l'annulation ou le retrait d'un
+   * mouvement d'une créance éteinte). Mêmes refus que le délettrage · groupe
+   * verrouillé, ligne figée par une clôture.
+   */
+  async defaireLettrageDuModule(tx: Prisma.TransactionClient, tenantId: string, lettrageId: string) {
+    const groupe = await tx.lettrage.findFirst({ where: { id: lettrageId, tenantId } });
+    if (!groupe) return;
+    if (groupe.verrouille) {
+      throw new BadRequestException(`Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de défaire le mouvement.`);
+    }
+    const duGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId: groupe.id }, select: { id: true } });
+    await refuserSiLignesFigees(tx, tenantId, duGroupe.map((l) => l.id), 'défaire le lettrage de la créance');
+    await tx.ligneEcriture.updateMany({ where: { lettrageId: groupe.id }, data: { lettre: null, lettrageId: null } });
+    await tx.lettrage.delete({ where: { id: groupe.id } });
+  }
 }

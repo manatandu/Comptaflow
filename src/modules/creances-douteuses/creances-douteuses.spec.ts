@@ -556,8 +556,13 @@ describe('créances douteuses · service', () => {
       },
       $transaction: (f: (tx: unknown) => unknown) => f(prisma),
     };
-    const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any);
-    return { service, prisma, creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation };
+    // B2 · le service de lettrage, que le module appelle à l'extinction et à l'annulation.
+    const lettrage = {
+      lettrerLignesDuModule: jest.fn().mockResolvedValue({ code: 'A' }),
+      defaireLettrageDuModule: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, lettrage as any);
+    return { service, prisma, creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation, lettrage };
   }
 
   const dtoReclassement = {
@@ -832,9 +837,11 @@ describe('créances douteuses · service', () => {
     );
   });
 
-  it('A7 scindée · le service ne dépend que de la base et du journal, jamais du moteur de TVA', () => {
+  it('A7 scindée · le service ne dépend que de la base, du journal et du lettrage, jamais du moteur de TVA', () => {
+    // A7 ter, B2 · le lettrage pose le groupe des lignes 416 d'une créance
+    // éteinte ; il ne calcule aucune taxe.
     const types = Reflect.getMetadata('design:paramtypes', CreancesDouteusesService) as Array<{ name: string }>;
-    expect(types.map((t) => t.name)).toEqual(['PrismaService', 'EcritureService']);
+    expect(types.map((t) => t.name)).toEqual(['PrismaService', 'EcritureService', 'LettrageService']);
   });
 
   it('le reclassement passe D 416 / C client en deux lignes, sans lettrer le compte du client', async () => {
@@ -917,7 +924,7 @@ describe('créances douteuses · service', () => {
   it('un mouvement compté par une revue ne se retire pas avant elle ; une créance revue ne se retire plus', async () => {
     const mv = { id: 'mv-1', type: TypeMouvementCreanceDouteuse.RECOUVREMENT, date: new Date('2026-12-20'), montant: 160_000, ecritureId: 'ecr-m' };
     const { service, prisma } = monter({ creance: creance([revue26], [mv]) });
-    await expect(service.retirerMouvement('t', 'cd-1', 'mv-1')).rejects.toThrow('annulez-la d’abord');
+    await expect(service.retirerMouvement('t', 'u', 'cd-1', 'mv-1')).rejects.toThrow('annulez-la d’abord');
     prisma.ajustementCreanceDouteuse.count.mockResolvedValue(1);
     await expect(service.retirerCreance('t', 'cd-1')).rejects.toThrow('même annulés');
   });
@@ -985,6 +992,96 @@ describe('créances douteuses · service', () => {
     expect(inscrireEnNegatifPourAnnulation).not.toHaveBeenCalled();
     expect(prisma.mouvementCreanceDouteuse.update.mock.calls[0][0].data).toMatchObject({ ecritureId: null, annulation: { traitement: 'SUPPRIMEE' } });
     expect(prisma.ecriture.deleteMany).toHaveBeenCalledWith({ where: { id: 'ecr-f', tenantId: 't', statut: 'BROUILLARD' } });
+  });
+
+  // B2 (b) · LA CRÉANCE ÉTEINTE SE LETTRE AU 416 · 1 160 000 reclassés,
+  // 760 000 recouvrés, puis la perte de 400 000 qui éteint la créance.
+  const recouvre = { id: 'mv-r', type: TypeMouvementCreanceDouteuse.RECOUVREMENT, date: new Date('2026-11-30'), montant: 760_000, ecritureId: 'ecr-mr', annuleeLe: null };
+  const perteFinale = { id: 'mv-1', type: TypeMouvementCreanceDouteuse.PERTE, date: new Date('2026-12-20'), montant: 400_000, ecritureId: 'ecr-1', annuleeLe: null };
+  const lignes416 = (exercicePerte = 'ex-26') => [
+    { id: 'l-r', ecritureId: 'ecr-r', compteId: 'c4161', ecriture: { exerciceId: 'ex-26' } },
+    { id: 'l-mr', ecritureId: 'ecr-mr', compteId: 'c4161', ecriture: { exerciceId: 'ex-26' } },
+    { id: 'l-1', ecritureId: 'ecr-1', compteId: 'c4161', ecriture: { exerciceId: exercicePerte } },
+  ];
+  const dtoPerteFinale = { exerciceId: 'ex-26', journalId: 'od', date: '2026-12-20', montant: 400_000, motif: 'Liquidation clôturée', pieces: [{ nature: 'Jugement de clôture', reference: 'JC-2' }] };
+
+  function eteinte(exercicePerte = 'ex-26') {
+    const m = monter({ creance: creance([], [recouvre]) });
+    // La créance relue APRÈS la perte porte ses deux mouvements.
+    m.prisma.creanceDouteuse.findFirst
+      .mockResolvedValueOnce(creance([], [recouvre]))
+      .mockResolvedValueOnce(creance([], [recouvre, perteFinale]));
+    // La doublure honore la requête · les lignes 416 des écritures de LA créance.
+    m.prisma.ligneEcriture.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.compteId === 'c4161' && where.ecritureId?.in ? lignes416(exercicePerte).filter((l) => where.ecritureId.in.includes(l.ecritureId)) : []),
+    );
+    return m;
+  }
+
+  it('B2 · la perte qui éteint la créance lettre ses lignes 416 par le service de lettrage, et le dit', async () => {
+    const { service, lettrage, prisma } = eteinte();
+    const r: any = await service.perte('t', 'u', 'cd-1', dtoPerteFinale);
+    expect(lettrage.lettrerLignesDuModule).toHaveBeenCalledWith('t', 'c4161', ['l-r', 'l-mr', 'l-1'], 'u');
+    expect(r.lettrage416).toEqual({ pose: true, code: 'A' });
+    // Reconnues par leur liaison · les écritures de la créance, sur SON 416.
+    const lecture = prisma.ligneEcriture.findMany.mock.calls.find((c: any) => c[0].where.ecritureId?.in)[0];
+    expect(lecture.where).toEqual({ ecritureId: { in: ['ecr-r', 'ecr-mr', 'ecr-1'] }, compteId: 'c4161', ecriture: { tenantId: 't' } });
+  });
+
+  it('B2 · à travers deux exercices, rien n’est lettré et le motif le dit · une créance non éteinte ne lettre rien', async () => {
+    const { service, lettrage } = eteinte('ex-27');
+    const r: any = await service.perte('t', 'u', 'cd-1', dtoPerteFinale);
+    expect(lettrage.lettrerLignesDuModule).not.toHaveBeenCalled();
+    expect(r.lettrage416).toMatchObject({ pose: false, motif: expect.stringMatching(/deux exercices.*report à-nouveau/) });
+    const partielle = monter({ creance: creance() });
+    const p: any = await partielle.service.perte('t', 'u', 'cd-1', dtoPerteFinale);
+    expect(p.lettrage416).toBeNull();
+    expect(partielle.lettrage.lettrerLignesDuModule).not.toHaveBeenCalled();
+  });
+
+  it('B2 · un lettrage qui échoue est consigné et DIT · la perte reste passée', async () => {
+    const { service, lettrage, retirerCompensation } = eteinte();
+    lettrage.lettrerLignesDuModule.mockRejectedValue(new Error('base indisponible'));
+    const r: any = await service.perte('t', 'u', 'cd-1', dtoPerteFinale);
+    expect(r.lettrage416).toMatchObject({ pose: false, motif: expect.stringMatching(/n'a pas pu se poser/) });
+    expect(retirerCompensation).not.toHaveBeenCalled();
+  });
+
+  it('B2 · l’annulation d’un mouvement d’une créance éteinte DÉFAIT le lettrage du module, dans sa transaction, avant tout refus', async () => {
+    const enBase = mouvementEnBase({ ...perteFinale, id: 'mv-f', ecritureId: 'ecr-f' } as any, 'VALIDEE', {
+      ecriture: { id: 'ecr-f', statut: 'VALIDEE', numeroPiece: 9, lignes: [{ lettre: 'A', lettrageId: 'g-A', rapprochementId: null }, { lettre: null, lettrageId: null, rapprochementId: null }] },
+    });
+    const { service, prisma, lettrage } = monter({ creance: creance([], [recouvre, { ...perteFinale, id: 'mv-f', ecritureId: 'ecr-f' }]), mouvement: enBase });
+    prisma.ligneEcriture.findMany.mockImplementation(({ where }: any) => {
+      // La ligne 416 de la perte, lettrée par le module avec les deux autres.
+      if (where.ecritureId === 'ecr-f' && where.compteId === 'c4161') return Promise.resolve([{ lettrageId: 'g-A' }]);
+      if (where.lettrageId === 'g-A') {
+        return Promise.resolve([
+          { compteId: 'c4161', ecritureId: 'ecr-r' },
+          { compteId: 'c4161', ecritureId: 'ecr-mr' },
+          { compteId: 'c4161', ecritureId: 'ecr-f' },
+        ]);
+      }
+      // Relue dans la transaction, après le délettrage.
+      return Promise.resolve([{ lettre: null, lettrageId: null, rapprochementId: null }]);
+    });
+    await service.annulerMouvement('t', 'u', 'cd-1', 'mv-f', { motif: 'Perte passée à tort' });
+    expect(lettrage.defaireLettrageDuModule).toHaveBeenCalledWith(prisma, 't', 'g-A');
+    expect(prisma.mouvementCreanceDouteuse.update.mock.calls[0][0].data.annulation).toMatchObject({ lettrageDefait: 'g-A' });
+  });
+
+  it('B2 · un groupe posé à la main avec une ligne étrangère n’est jamais défait par le module · le refus ordinaire joue', async () => {
+    const enBase = mouvementEnBase({ ...perteFinale, id: 'mv-f', ecritureId: 'ecr-f' } as any, 'VALIDEE', {
+      ecriture: { id: 'ecr-f', statut: 'VALIDEE', numeroPiece: 9, lignes: [{ lettre: 'B', lettrageId: 'g-B', rapprochementId: null }] },
+    });
+    const { service, prisma, lettrage } = monter({ creance: creance([], [{ ...perteFinale, id: 'mv-f', ecritureId: 'ecr-f' }]), mouvement: enBase });
+    prisma.ligneEcriture.findMany.mockImplementation(({ where }: any) => {
+      if (where.ecritureId === 'ecr-f' && where.compteId === 'c4161') return Promise.resolve([{ lettrageId: 'g-B' }]);
+      if (where.lettrageId === 'g-B') return Promise.resolve([{ compteId: 'c4161', ecritureId: 'ecr-f' }, { compteId: 'c4161', ecritureId: 'ecr-autre' }]);
+      return Promise.resolve([]);
+    });
+    await expect(service.annulerMouvement('t', 'u', 'cd-1', 'mv-f', { motif: 'Erreur' })).rejects.toThrow(/lettrée/);
+    expect(lettrage.defaireLettrageDuModule).not.toHaveBeenCalled();
   });
 
   it('K4 · refus · revue qui l’a comptée, exercice clos, ligne pointée', async () => {

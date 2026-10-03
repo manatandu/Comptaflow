@@ -96,6 +96,7 @@ function monter(lignes: Ligne[]) {
         return Promise.resolve(g);
       }),
       update: jest.fn().mockImplementation(({ where, data }: any) => Promise.resolve(Object.assign(groupes.find((g) => g.id === where.id)!, data))),
+      delete: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(groupes.splice(groupes.findIndex((g) => g.id === where.id), 1)[0])),
     },
   };
   return { service: new LettrageService(prisma as PrismaService), prisma, groupes, lignes };
@@ -153,5 +154,42 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
       id: { in: ['d416', 'rcl'] },
       ecriture: { tenantId: 't1', creanceDouteuseReclassement: { is: { annuleeLe: null } } },
     });
+  });
+});
+
+describe('A7 ter, B2 (b) · le lettrage qu’un module pose sur ses propres lignes', () => {
+  // Les lignes 416 d'une créance éteinte · reclassement 1 160 000, recouvrement 760 000, perte 400 000.
+  const lignes416 = () => [ligne('r', '416', 1_160_000, 0), ligne('m1', '416', 0, 760_000), ligne('m2', '416', 0, 400_000)];
+
+  it('pose un groupe SOLDÉ, a priori (origine AUTOMATIQUE_PIECE), lettre servie sur chaque ligne', async () => {
+    const { service, groupes, lignes } = monter(lignes416());
+    const r = await service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
+    expect(r).toEqual({ code: 'A' });
+    expect(groupes[0]).toMatchObject({ statut: 'SOLDE', origine: OrigineLettrage.AUTOMATIQUE_PIECE, compteId: '416' });
+    expect(lignes.map((l) => l.lettre)).toEqual(['A', 'A', 'A']);
+  });
+
+  it('rend un MOTIF, jamais une exception, quand rien ne se pose · solde non nul, ligne déjà lettrée, compte non lettrable', async () => {
+    const { service, groupes } = monter(lignes416());
+    expect(await service.lettrerLignesDuModule('t1', '416', ['r', 'm1'], 'u1')).toEqual({ motif: expect.stringMatching(/ne soldent pas/) });
+    const deja = monter(lignes416());
+    deja.lignes[1].lettrageId = 'g-x';
+    expect(await deja.service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1')).toEqual({ motif: expect.stringMatching(/déjà lettrée/) });
+    const ferme = monter(lignes416());
+    ferme.prisma.compte.findFirst.mockResolvedValue({ id: '416', tenantId: 't1', numero: '41610000', lettrable: false });
+    expect(await ferme.service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1')).toEqual({ motif: expect.stringMatching(/pas déclaré lettrable/) });
+    expect(groupes).toHaveLength(0);
+  });
+
+  it('défait le groupe dans la transaction de l’appelant · lignes libérées, groupe supprimé ; un groupe verrouillé refuse', async () => {
+    const { service, groupes, lignes, prisma } = monter(lignes416());
+    await service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
+    await service.defaireLettrageDuModule(prisma, 't1', groupes[0].id);
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettre === null && l.lettrageId === null)).toBe(true);
+    const v = monter(lignes416());
+    await v.service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
+    v.groupes[0].verrouille = true;
+    await expect(v.service.defaireLettrageDuModule(v.prisma, 't1', v.groupes[0].id)).rejects.toThrow(/verrouillé/);
   });
 });

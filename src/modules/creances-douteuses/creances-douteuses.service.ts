@@ -19,6 +19,7 @@ import {
   EcritureService,
 } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
+import { LettrageService } from '../lettrage/lettrage.service';
 import {
   COMPTES_CREANCES_DOUTEUSES,
   RACINES_CREANCE_SOURCE,
@@ -130,6 +131,7 @@ export class CreancesDouteusesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
+    private readonly lettrage: LettrageService,
   ) {}
 
   /**
@@ -1206,8 +1208,9 @@ export class CreancesDouteusesService {
       libelle: `${type === TypeMouvementCreanceDouteuse.PERTE ? 'Perte sur créance irrécouvrable' : 'Recouvrement de créance douteuse'} · ${c.compteCreance.numero} ${c.compteCreance.intitule}`.slice(0, 190),
       lignes,
     });
+    let ligne: Awaited<ReturnType<typeof this.prisma.mouvementCreanceDouteuse.create>>;
     try {
-      const ligne = await transactionJournalisee(this.prisma, (tx) =>
+      ligne = await transactionJournalisee(this.prisma, (tx) =>
         tx.mouvementCreanceDouteuse.create({
           data: {
             tenantId,
@@ -1223,11 +1226,111 @@ export class CreancesDouteusesService {
           },
         }),
       );
-      return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
       await this.compenser(tenantId, ecriture.id);
       throw err;
     }
+    // B2 · la créance éteinte se lettre au 416 · le geste a réussi, l'issue
+    // du lettrage se DIT, jamais ne le défait.
+    const lettrage416 = await this.lettrerSiEteinteSansEchec(tenantId, userId, c.id);
+    return { ...ligne, montant: n(ligne.montant), lettrage416 };
+  }
+
+  /**
+   * LA CRÉANCE ÉTEINTE SE LETTRE AU 416 (ligne A7 ter, B2) · quand ses pertes
+   * et recouvrements non annulés soldent son reclassement (reste nul), ses
+   * lignes 416 · le débit du reclassement, le crédit de chaque mouvement ·
+   * forment un groupe soldé, posé par le service de lettrage, et le 416 ne
+   * garde plus de ligne ouverte (report Détail, balance âgée, contrôle
+   * d'ancienneté). Reconnues par leur LIAISON, une par écriture.
+   *
+   * CES ÉCRITURES N'ONT AUCUNE LIGNE 443 (règles 5 et 6 de
+   * `creances-douteuses.ts`) · le lettrage du 416 n'est lu par aucun calcul de
+   * TVA, à la différence du compte d'origine, dont la ligne de reclassement ne
+   * se lettre jamais avec la facture (`lettrage/ligne-de-reclassement.ts`).
+   *
+   * `null` quand la créance n'est pas éteinte ; sinon l'issue, posée ou non,
+   * avec son motif · rien n'est lettré pour une créance DÉCLARÉE à l'ouverture
+   * (son montant est dans l'à-nouveau, sans ligne à elle), ni à travers deux
+   * exercices (passé la clôture, la ligne du reclassement se lettre sur son
+   * report à-nouveau, mode Détail, que la liaison ne désigne pas).
+   */
+  private async lettrerSiEteinte(
+    tenantId: string,
+    userId: string,
+    creanceId: string,
+  ): Promise<{ pose: true; code: string } | { pose: false; motif: string } | null> {
+    const c = await this.creance(tenantId, creanceId);
+    if (Math.abs(this.resteFinal(c)) >= 0.005) return null;
+    if (!c.ecritureReclassementId) {
+      return {
+        pose: false,
+        motif: "Créance éteinte, déclarée à l'ouverture · son montant est porté par l'à-nouveau du 416, sans ligne à elle · lettrez-la à la main.",
+      };
+    }
+    const ecritureIds = [c.ecritureReclassementId, ...c.mouvements.map((m) => m.ecritureId)];
+    if (ecritureIds.some((e) => !e)) {
+      return { pose: false, motif: "Créance éteinte · un de ses mouvements n'a plus d'écriture, rien n'est lettré." };
+    }
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId: { in: ecritureIds as string[] }, compteId: c.compte416Id, ecriture: { tenantId } },
+      select: { id: true, ecritureId: true, ecriture: { select: { exerciceId: true } } },
+    });
+    if (lignes.length !== ecritureIds.length || new Set(lignes.map((l) => l.ecritureId)).size !== ecritureIds.length) {
+      return { pose: false, motif: `Créance éteinte · ses lignes du ${c.compte416.numero} ne se retrouvent pas une par écriture, rien n'est lettré.` };
+    }
+    if (new Set(lignes.map((l) => l.ecriture.exerciceId)).size > 1) {
+      return {
+        pose: false,
+        motif:
+          'Créance éteinte · son reclassement et ses mouvements tombent dans deux exercices. Passé la clôture, la ligne du ' +
+          `reclassement se lettre sur son report à-nouveau du ${c.compte416.numero} (mode Détail) · lettrez-la à la main.`,
+      };
+    }
+    const r = await this.lettrage.lettrerLignesDuModule(tenantId, c.compte416Id, lignes.map((l) => l.id), userId);
+    return 'code' in r ? { pose: true, code: r.code } : { pose: false, motif: `Créance éteinte · ${r.motif}` };
+  }
+
+  /** Un échec inattendu du lettrage est consigné et DIT, jamais tu, et ne défait pas le geste. */
+  private async lettrerSiEteinteSansEchec(tenantId: string, userId: string, creanceId: string) {
+    try {
+      return await this.lettrerSiEteinte(tenantId, userId, creanceId);
+    } catch (err) {
+      this.journalServeur.error(
+        `Lettrage des lignes 416 de la créance ${creanceId} du dossier ${tenantId} non posé`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      return {
+        pose: false as const,
+        motif: "Créance éteinte · le lettrage de ses lignes du 416 n'a pas pu se poser · lettrez-les dans « Lettrage ».",
+      };
+    }
+  }
+
+  /**
+   * LE GROUPE QUE LE MODULE A POSÉ sur la ligne 416 d'une écriture, s'il en
+   * est un (B2) · toutes ses lignes sont des lignes 416 de LA créance (son
+   * reclassement, ses mouvements non annulés). Un groupe posé à la main sur
+   * d'autres lignes n'est jamais défait par le module · le refus ordinaire des
+   * lignes lettrées joue.
+   */
+  private async groupeDuModule(
+    tenantId: string,
+    c: { compte416Id: string; ecritureReclassementId: string | null; mouvements: { ecritureId: string | null }[] },
+    ecritureId: string,
+  ): Promise<string | null> {
+    const [ligne] = await this.prisma.ligneEcriture.findMany({
+      where: { ecritureId, compteId: c.compte416Id, ecriture: { tenantId } },
+      select: { lettrageId: true },
+      take: 1,
+    });
+    if (!ligne?.lettrageId) return null;
+    const permises = new Set([c.ecritureReclassementId, ...c.mouvements.map((m) => m.ecritureId)].filter((x): x is string => !!x));
+    const duGroupe = await this.prisma.ligneEcriture.findMany({
+      where: { lettrageId: ligne.lettrageId, ecriture: { tenantId } },
+      select: { compteId: true, ecritureId: true },
+    });
+    return duGroupe.length > 0 && duGroupe.every((l) => l.compteId === c.compte416Id && permises.has(l.ecritureId)) ? ligne.lettrageId : null;
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable, au TTC entier. */
@@ -1370,7 +1473,7 @@ export class CreancesDouteusesService {
     });
   }
 
-  retirerMouvement(tenantId: string, id: string, mouvementId: string) {
+  retirerMouvement(tenantId: string, userId: string, id: string, mouvementId: string) {
     return this.sousVerrou(tenantId, 'RETRAIT', async () => {
       const c = await this.creance(tenantId, id);
       const mv = c.mouvements.find((m) => m.id === mouvementId);
@@ -1382,10 +1485,27 @@ export class CreancesDouteusesService {
         );
       }
       if (!mv.ecritureId) throw new BadRequestException('Ce mouvement n’a plus d’écriture · il est annulé.');
-      await this.ecritures.supprimer(tenantId, mv.ecritureId, {
-        detenteur: DETENTEUR_MOUVEMENT_CREANCE,
-        liberer: (tx) => tx.mouvementCreanceDouteuse.delete({ where: { id: mv.id } }),
-      });
+      // B2 · le lettrage que le module a posé à l'extinction se défait d'abord ·
+      // la suppression refuse une ligne lettrée. Si elle échoue ensuite, la
+      // créance, toujours éteinte, est relettrée, et l'échec d'origine remonte.
+      const groupeModule = await this.groupeDuModule(tenantId, c, mv.ecritureId);
+      if (groupeModule) {
+        await transactionJournalisee(this.prisma, (tx) => this.lettrage.defaireLettrageDuModule(tx, tenantId, groupeModule));
+      }
+      try {
+        await this.ecritures.supprimer(tenantId, mv.ecritureId, {
+          detenteur: DETENTEUR_MOUVEMENT_CREANCE,
+          liberer: (tx) => tx.mouvementCreanceDouteuse.delete({ where: { id: mv.id } }),
+        });
+      } catch (err) {
+        if (groupeModule) {
+          const relettre = await this.lettrerSiEteinteSansEchec(tenantId, userId, c.id);
+          if (relettre && !relettre.pose) {
+            this.journalServeur.error(`Créance ${c.id} du dossier ${tenantId} restée sans lettrage après un retrait refusé · ${relettre.motif}`);
+          }
+        }
+        throw err;
+      }
       return { retire: true };
     });
   }
@@ -1419,6 +1539,10 @@ export class CreancesDouteusesService {
       },
     });
     if (!mv) throw new NotFoundException('Mouvement introuvable pour cette créance.');
+    // B2 · le lettrage que le module a posé à l'extinction se DÉFAIT avec le
+    // mouvement (dans la transaction ci-dessous) · il ne refuse pas l'annulation.
+    const creanceDuMouvement = await this.prisma.creanceDouteuse.findFirst({ where: { id, tenantId }, include: INCLURE_CREANCE });
+    const groupeModule = creanceDuMouvement && mv.ecriture ? await this.groupeDuModule(tenantId, creanceDuMouvement, mv.ecriture.id) : null;
     const revue = await this.prisma.ajustementCreanceDouteuse.findFirst({
       where: { tenantId, creanceId: id, annuleeLe: null, exercice: { dateFin: { gte: mv.date } } },
       orderBy: { date: 'asc' },
@@ -1435,13 +1559,15 @@ export class CreancesDouteusesService {
     const nom = mv.type === TypeMouvementCreanceDouteuse.PERTE ? 'de la perte' : 'du recouvrement';
     const objet = `l'écriture ${nom} n° ${mv.ecriture?.numeroPiece ?? '·'}`;
     if (mv.ecriture) {
-      const tenues = motifLignesTenues(mv.ecriture.lignes, objet, 'annuler', ', puis annulez le mouvement');
+      const horsModule = mv.ecriture.lignes.filter((l) => groupeModule === null || l.lettrageId !== groupeModule);
+      const tenues = motifLignesTenues(horsModule, objet, 'annuler', ', puis annulez le mouvement');
       if (tenues) throw new BadRequestException(tenues);
     }
     return transactionJournalisee(this.prisma, async (tx) => {
       const e = mv.ecriture;
       let annulation: Record<string, unknown> = { traitement: 'SANS_ECRITURE' };
       if (e) {
+        if (groupeModule) await this.lettrage.defaireLettrageDuModule(tx, tenantId, groupeModule);
         // Relu dans la transaction · un lettrage ou un pointage posé entre-temps refuse aussi.
         const relues = await tx.ligneEcriture.findMany({
           where: { ecritureId: e.id, ecriture: { tenantId } },
@@ -1461,6 +1587,8 @@ export class CreancesDouteusesService {
             negatifNumeroPiece: negatif.numeroPiece,
           };
         }
+        // B2 · le lettrage défait se garde dans la trace de l'annulation.
+        if (groupeModule) annulation = { ...annulation, lettrageDefait: groupeModule };
       }
       // Marqué AVANT la suppression du brouillard, sur une ligne encore non
       // annulée · le lien vers une écriture supprimée est effacé, l'écriture

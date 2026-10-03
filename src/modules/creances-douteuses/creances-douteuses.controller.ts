@@ -140,6 +140,6 @@ export class CreancesDouteusesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('mouvementId', ParseUUIDPipe) mouvementId: string,
   ) {
-    return this.service.retirerMouvement(user.tenantId, id, mouvementId);
+    return this.service.retirerMouvement(user.tenantId, user.userId, id, mouvementId);
   }
 }
