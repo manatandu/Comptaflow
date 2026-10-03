@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { EcritureImpotResultat } from '../components/EcritureImpotResultat';
 import { mentionCalendrierPaiement } from '../lib/calendrier-paiement-fiscal';
 import type {
   CatalogueRetraitements,
@@ -824,6 +825,16 @@ export function FiscalitePage() {
               </div>
             )}
           </section>
+
+          {/* L'ÉCRITURE DE L'IMPÔT (ligne A11) · proposée par le serveur,
+              passée au seul clic, relue avec le résultat fiscal. */}
+          {exerciceId && resultat.regime === 'IMPOT_SOCIETES' && (
+            <EcritureImpotResultat
+              exerciceId={exerciceId}
+              version={resultat}
+              apresChangement={() => charger(exerciceId)}
+            />
+          )}
         </div>
       )}
     </div>

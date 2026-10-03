@@ -795,6 +795,7 @@ model Tenant {
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
   mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
   verrouCreancesDouteuses     VerrouCreancesDouteuses?
+  constatsImpotResultat       ConstatImpotResultat[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1439,6 +1440,7 @@ model Exercice {
   creancesDouteuses           CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
   mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
+  constatsImpotResultat       ConstatImpotResultat[]
   cloturesLocationAcquisition ClotureLocationAcquisition[]
   depreciationsImmo           DepreciationImmobilisation[]
   reclassementsImmo           ReclassementImmobilisation[]
@@ -1524,6 +1526,7 @@ model Ecriture {
   creanceDouteuseReclassement CreanceDouteuse?           @relation("CreanceDouteuseReclassement")
   ajustementCreanceDouteuse   AjustementCreanceDouteuse?
   mouvementCreanceDouteuse    MouvementCreanceDouteuse?
+  constatImpotResultat        ConstatImpotResultat?
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -9055,4 +9058,49 @@ model VerrouCreancesDouteuses {
   createdAt DateTime @default(now())
 
   @@map("verrous_creances_douteuses")
+}
+
+/// LIGNE A11 · l'écriture de l'impôt sur le résultat PROPOSÉE à la clôture,
+/// passée au seul clic du cabinet (AUDCIF Titre VII, compte 89 · « Débité de
+/// l'impôt exigible, par le crédit du compte 441 »), SYSCOHADA seul. Le
+/// montant est celui que le serveur REJOUE au clic
+/// (`FiscaliteService.resultatFiscal`), jamais reçu du client, et figé ici.
+model ConstatImpotResultat {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  /// L'impôt dû de l'exercice au débit du 89110000 (loi n° 23/053, art. 56,
+  /// ou l'impôt minimum de l'art. 57), figé au clic.
+  montantImpot    Decimal @db.Decimal(18, 2)
+  minimumApplique Boolean
+  /// Acomptes imputés sur la dette d'impôt (D 441 / C 4492, art. 57 bis,
+  /// al. 3 LPF) · zéro quand le cabinet ne l'a pas demandé.
+  montantImpute   Decimal @default(0) @db.Decimal(18, 2)
+  /// Ce que le cabinet déclare quand l'assujettissement de sa forme dépend
+  /// d'un fait que le dossier ne porte pas (option de l'art. 4, art. 5 et 6).
+  attestationRegime String?
+
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  /// ANNULATION (AUDCIF art. 20, al. 2) · l'écriture est supprimée au
+  /// brouillard (le lien est alors effacé) ou inscrite en négatif, et
+  /// l'enregistrement garde la date, l'auteur et le motif.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  // Un seul constat NON ANNULÉ par exercice · l'index est créé NULLS NOT
+  // DISTINCT par la migration, comme celui de la réévaluation des devises.
+  @@unique([exerciceId, annuleeLe])
+  @@index([tenantId])
+  @@map("constats_impot_resultat")
 }

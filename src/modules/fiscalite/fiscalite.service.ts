@@ -355,6 +355,37 @@ export class FiscaliteService {
     return { declares: arrondir(entree.declares), comptabilises: arrondir(entree.comptabilises), ecart, excedent, observations };
   }
 
+  /** Total des réintégrations « Impôt sur les sociétés et impôt minimum comptabilisés en charges ». */
+  static reintegrationsImpot(retraitements: { code: string; sens: SensRetraitementFiscal; montant: unknown }[]): number {
+    return arrondir(
+      retraitements
+        .filter((r) => r.code === 'IMPOT_SUR_LE_RESULTAT' && r.sens === SensRetraitementFiscal.REINTEGRATION)
+        .reduce((s, r) => s + Number(r.montant), 0),
+    );
+  }
+
+  /**
+   * L'IMPÔT DÉDUIT DE SON PROPRE CALCUL · ligne A11. Le résultat fiscal part
+   * du résultat comptable, que l'écriture du 89 diminue dès qu'elle est
+   * validée. Sans réintégration du même montant, l'impôt se recalcule sur une
+   * base amputée de lui-même · loi n° 23/053, art. 45 (« à l'exception de
+   * l'Impôt sur les Sociétés et du minimum forfaitaire de perception ») et
+   * art. 50, 2°. La balance boucle, l'impôt affiché baisse, rien ne le dit ·
+   * d'où l'observation, dans les deux sens. Rien n'est inscrit d'office (le
+   * logiciel se souvient, il ne qualifie pas).
+   */
+  static observationImpotNonReintegre(soldeCompte89: number, reintegrations: number): string | null {
+    const ecart = arrondir(soldeCompte89 - reintegrations);
+    if (Math.abs(ecart) < 0.005) return null;
+    return (
+      `IMPÔT NON RÉINTÉGRÉ À SA MESURE · le compte 89 porte ${soldeCompte89} au livre-journal, la réintégration ` +
+      `« Impôt sur les sociétés et impôt minimum comptabilisés en charges » vaut ${reintegrations} (écart ${ecart}). ` +
+      "L'impôt sur les sociétés et le minimum forfaitaire de perception ne sont pas déductibles (loi n° 23/053, art. 45 " +
+      "et art. 50, 2°) · tant que la réintégration n'égale pas le 89, le résultat fiscal et l'impôt calculés ici sont " +
+      "faux de cet écart. Ajustez la réintégration."
+    );
+  }
+
   private async lireBalance(tenantId: string, exerciceId: string) {
     // LE LIVRE-JOURNAL SEUL (audit du serveur du 2026-09-27, F6). Un résultat
     // fiscal, un impôt et un minimum de perception engagent le dossier devant
@@ -422,11 +453,26 @@ export class FiscaliteService {
     const acomptesAu4492 = details
       .filter((l) => l.numero.startsWith('4492'))
       .reduce((s, l) => s + l.solde, 0);
+    // LE COMPTE 89, LU AVANT LE SOLDE DE CLÔTURE comme le reste de la gestion
+    // (ligne A11). L'impôt sur le résultat n'est pas déductible de son propre
+    // calcul (loi n° 23/053, art. 45 et art. 50, 2°) · une fois l'écriture du
+    // 89 validée, le résultat comptable baisse d'autant, et seule la
+    // réintégration IMPOT_SUR_LE_RESULTAT le rétablit. Lire le 89 ici permet
+    // de dire l'écart au lieu de laisser l'impôt se recalculer, en silence,
+    // sur une base amputée de lui-même. 891 et 895 à part · ce sont l'impôt
+    // et l'impôt minimum DE L'EXERCICE (fiche du compte 89), un 892 ou un 899
+    // portant les exercices antérieurs.
+    const soldeCompte89 = gestion.filter((l) => l.numero.startsWith('89')).reduce((s, l) => s + l.solde, 0);
+    const impotExerciceAu89 = gestion
+      .filter((l) => l.numero.startsWith('891') || l.numero.startsWith('895'))
+      .reduce((s, l) => s + l.solde, 0);
     return {
       resultatComptable: arrondir(avantCloture ? resultatClasses678 : resultatCompte13),
       sourceResultat: avantCloture ? ('CLASSES_6_7_8' as const) : ('COMPTE_13' as const),
       chiffreAffaires: arrondir(chiffreAffaires),
       acomptesAu4492: arrondir(acomptesAu4492),
+      soldeCompte89: arrondir(soldeCompte89),
+      impotExerciceAu89: arrondir(impotExerciceAu89),
     };
   }
 
@@ -1331,6 +1377,9 @@ export class FiscaliteService {
     );
     observations.push(...this.avertissementsReportDeficitaire(deficitAnterieur));
     observations.push(...this.avertissementsPerimetreLoi(exercice.dateDebut));
+    const reintegrationsImpot = FiscaliteService.reintegrationsImpot(brut.retraitements);
+    const ecartImpotNonReintegre = FiscaliteService.observationImpotNonReintegre(brut.soldeCompte89, reintegrationsImpot);
+    if (ecartImpotNonReintegre) observations.push(ecartImpotNonReintegre);
 
     // Plafonds exprimés en francs pour cet exercice · l'écran s'en sert pour
     // calculer l'excédent à réintégrer à partir de la charge engagée.
@@ -1400,6 +1449,12 @@ export class FiscaliteService {
       })),
       totalReintegrations: brut.totalReintegrations,
       totalDeductions: brut.totalDeductions,
+      // Le 89 au livre-journal et sa réintégration · servis pour l'écriture
+      // de l'impôt (ligne A11), jamais recalculés à l'écran.
+      soldeCompte89: brut.soldeCompte89,
+      impotExerciceAu89: brut.impotExerciceAu89,
+      reintegrationsImpot,
+      acomptesAu4492: brut.acomptesAu4492,
       resultatFiscalBrut: brut.resultatFiscalBrut,
       deficitAnterieur: { montant: deficitAnterieur, saisi: deficitSaisi !== null, detail: calcules?.detail ?? [] },
       deficitImpute,
