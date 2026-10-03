@@ -3782,3 +3782,24 @@ publier depuis une session.
 
 Ce fichier-ci, en revanche, est un fichier du dépôt : il se modifie et se
 committe comme le reste, et il doit être tenu à jour quand une règle change.
+
+**Agents et compétences du dépôt, déclenchés SANS ÊTRE DEMANDÉS**
+(`.claude/agents/`, `.claude/skills/`, décision de Manasse du 2026-10-03 ·
+« je ne te dirais jamais spécifiquement d'activer telle ou telle
+compétence »). C'est à la session de les employer quand le cas se présente,
+jamais à Manasse de les nommer.
+
+- `silent-failure-hunter` · À CHAQUE ligne livrée, après la relecture
+  comptable et avant l'intégration · erreurs avalées, replis silencieux,
+  `catch` vides, `null` lu comme zéro (§ 10 bis).
+- `typescript-reviewer` · quand le lot touche le serveur (NestJS, Prisma,
+  migrations).
+- `react-reviewer` · quand le lot ajoute ou modifie un écran de `client/`.
+- `e2e-testing` · pour écrire ou réparer un test de `e2e/`.
+
+Leurs constats se classent comme ceux du relecteur comptable (BLOQUANT
+seulement pour un montant faussé en silence, un geste juste refusé sans
+issue, un dossier enfermé) et ne priment jamais sur ce fichier · là où ils
+le contredisent (couverture chiffrée, branches, quarantaine d'un test), ce
+fichier l'emporte. Les crochets de `.claude/ecc-hooks/` restent éteints tant
+que Manasse ne les active pas (`settings-hooks.EXEMPLE.json`).
