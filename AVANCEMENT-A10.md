@@ -57,6 +57,10 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    de campagne (`campagneAffichee`), (j) `scope`, (k) écart dit par un mot,
    (l) tests de structure (clés du corps envoyé, garde découpée par
    équilibrage), (m) dates du bloc en UTC.
+6. Bloc du § 3 de la seconde passe · serveur `tsc` et `npm run build` verts,
+   `npx jest --maxWorkers=2` · 701 suites, 9 729 tests, tous verts, aucune
+   suite tuée ; client `tsc`, 204 fichiers et 1 665 tests verts,
+   `npm run build` vert.
 
 ## Reste
 
