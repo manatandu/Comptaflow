@@ -1,6 +1,6 @@
 import { motifLignesTenues } from './lignes-tenues';
 import { ecartClasse9, motifRefusClasse9 } from './classe-9-equilibree';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LOT_ECRITURES, LOT_LECTURE, PremiersSelon, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { regrouperSurCollectifs } from '../tiers/collectifs-tiers';
 import { PrismaService } from '../../common/prisma.service';
@@ -792,6 +792,25 @@ export class EcritureService {
   }
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
+    return (await this.creerAvec(tenantId, createdBy, dto, async () => undefined)).ecriture;
+  }
+
+  /**
+   * CRÉER L'ÉCRITURE ET CE QUI LA TIENT DANS UNE SEULE TRANSACTION (ligne
+   * A7 quater, m1). Le module qui naît avec son écriture (le reclassement
+   * d'une créance douteuse et sa ligne `CreanceDouteuse`) l'écrivait en deux
+   * transactions · entre les deux, l'écriture existait sans son détenteur, et
+   * un échec de la seconde laissait au journal une pièce que rien ne tenait
+   * si la compensation échouait à son tour. `suite` s'exécute dans la même
+   * transaction sérialisable, après la création · son échec défait
+   * l'écriture.
+   */
+  async creerAvec<T>(
+    tenantId: string,
+    createdBy: string,
+    dto: CreerEcritureDto,
+    suite: (tx: Prisma.TransactionClient, ecriture: { id: string }) => Promise<T>,
+  ) {
     const { journal, date, dateValeur, sectionsParId } = await this.controlesDEntree(tenantId, dto);
 
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
@@ -805,7 +824,7 @@ export class EcritureService {
       this.prisma,
       async (tx) => {
         const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, dto.exerciceId, date, tx);
-        return tx.ecriture.create({
+        const ecriture = await tx.ecriture.create({
           data: {
             tenantId,
             exerciceId: dto.exerciceId,
@@ -820,6 +839,7 @@ export class EcritureService {
           },
           include: { lignes: true, journal: true },
         });
+        return { ecriture, suite: await suite(tx, ecriture) };
       },
       `Trop d'écritures enregistrées au même instant sur le journal ${journal.code} · veuillez réessayer.`,
     );
@@ -1115,8 +1135,21 @@ export class EcritureService {
           );
         }
       }
-      await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
-      await tx.ecriture.delete({ where: { id: ecritureId } });
+      // A7 QUATER, m6 · LE BROUILLARD SE RELIT DANS LA TRANSACTION. Lu par
+      // `trouverEnBrouillard` avant elle, il pouvait être validé entre-temps
+      // (lot de validation, autre poste) · la suppression retirait alors une
+      // écriture entrée au livre-journal, que l'art. 22, 2° de l'AUDCIF rend
+      // irréversible. Lignes et tête ne partent que si l'écriture est ENCORE
+      // au brouillard, une et une seule, sinon 409 et rien ne part (le
+      // retrait d'un mouvement de créance douteuse passe par ici aussi).
+      await tx.ligneEcriture.deleteMany({ where: { ecritureId, ecriture: { tenantId, statut: StatutEcriture.BROUILLARD } } });
+      const { count } = await tx.ecriture.deleteMany({ where: { id: ecritureId, tenantId, statut: StatutEcriture.BROUILLARD } });
+      if (count !== 1) {
+        throw new ConflictException(
+          "L'écriture a été validée ou retirée pendant sa suppression · elle n'est plus au brouillard, rien n'a été supprimé. " +
+            "Rechargez · une écriture validée se corrige par inscription en négatif (AUDCIF art. 20).",
+        );
+      }
     });
     return { supprime: true };
   }

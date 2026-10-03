@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { NumerotationPiece, Referentiel } from '@prisma/client';
 import { EcritureService } from './ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -55,6 +55,8 @@ function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROU
         immobilisationSortie: null, dotationAmortissement: null,
       }),
       delete: jest.fn().mockResolvedValue({}),
+      // A7 quater, m6 · la suppression relit le brouillard dans sa transaction.
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     ligneEcriture: {
       deleteMany: jest.fn().mockResolvedValue({}),
@@ -342,6 +344,20 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(serviceEcriture().supprimer('t1', 'e1')).resolves.toEqual({ supprime: true });
   });
 
+  // A7 QUATER, m6 · validée entre la lecture et la transaction, l'écriture ne
+  // part pas · la suppression filtre sur le brouillard, une ligne et une seule.
+  it('m6 · la suppression ne retire que ce qui est ENCORE au brouillard, sinon 409 et rien ne part', async () => {
+    const s = serviceEcriture();
+    const prisma = (s as any).prisma;
+    await s.supprimer('t1', 'e1');
+    expect(prisma.ecriture.deleteMany).toHaveBeenLastCalledWith({ where: { id: 'e1', tenantId: 't1', statut: 'BROUILLARD' } });
+    expect(prisma.ligneEcriture.deleteMany).toHaveBeenLastCalledWith({ where: { ecritureId: 'e1', ecriture: { tenantId: 't1', statut: 'BROUILLARD' } } });
+    expect(prisma.ecriture.delete).not.toHaveBeenCalled();
+    prisma.ecriture.deleteMany.mockResolvedValue({ count: 0 });
+    await expect(s.supprimer('t1', 'e1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(s.supprimer('t1', 'e1')).rejects.toThrow(/n'est plus au brouillard/);
+  });
+
   // A7 ter, mineur 7 · le module qui tient l'écriture défait SON lettrage dans
   // la transaction de la suppression · le refus des lignes lettrées tolère ce
   // groupe avant, et se rejoue dedans, après `liberer`.
@@ -363,11 +379,11 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     expect(liberer).toHaveBeenCalled();
     // Un groupe posé entre-temps, encore là après `liberer`, refuse DANS la transaction.
     prisma.ligneEcriture.findMany.mockResolvedValue([{ lettre: 'B', lettrageId: 'g-B' }]);
-    prisma.ecriture.delete.mockClear();
+    prisma.ecriture.deleteMany.mockClear();
     await expect(
       s.supprimer('t1', 'e1', { detenteur: 'une créance douteuse (perte ou recouvrement)', liberer, lettrageTolere: 'g-A' }),
     ).rejects.toThrow(/lettrée \(B\).*avant de supprimer/);
-    expect(prisma.ecriture.delete).not.toHaveBeenCalled();
+    expect(prisma.ecriture.deleteMany).not.toHaveBeenCalled();
   });
 });
 

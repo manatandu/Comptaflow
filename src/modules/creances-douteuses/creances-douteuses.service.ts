@@ -833,18 +833,26 @@ export class CreancesDouteusesService {
     // n° 10/001, art. 25, 2°), sans qu'aucun prix ne soit perçu. Le cabinet ne
     // lettre pas la facture avec cette pièce ; la ligne A7 bis du plan garde le
     // chantier de la TVA des créances douteuses.
-    const ecriture = await this.ecritures.creer(tenantId, userId, {
-      exerciceId: ex.id,
-      journalId: journal.id,
-      date: jour(date),
-      libelle: `Créance ${nature} reclassée · ${source.numero} ${source.intitule}`.slice(0, 190),
-      lignes: [
-        { compteId: c416.id, debit: centimes(dto.montant), credit: 0 },
-        { compteId: source.id, debit: 0, credit: centimes(dto.montant) },
-      ],
-    });
-    try {
-      const ligne = await transactionJournalisee(this.prisma, (tx) =>
+    // A7 QUATER, m1 · L'ÉCRITURE ET SA CRÉANCE DANS UNE SEULE TRANSACTION
+    // (`creerAvec`, sous `transactionJournalisee`). Écrites en deux, la pièce
+    // existait un instant sans détenteur · un lettrage automatique lancé dans
+    // cet intervalle ne la reconnaissait pas comme un reclassement et
+    // l'appariait à la facture, et un échec de la compensation la laissait au
+    // journal. Un refus de la seconde écriture défait la première.
+    const { suite: ligne } = await this.ecritures.creerAvec(
+      tenantId,
+      userId,
+      {
+        exerciceId: ex.id,
+        journalId: journal.id,
+        date: jour(date),
+        libelle: `Créance ${nature} reclassée · ${source.numero} ${source.intitule}`.slice(0, 190),
+        lignes: [
+          { compteId: c416.id, debit: centimes(dto.montant), credit: 0 },
+          { compteId: source.id, debit: 0, credit: centimes(dto.montant) },
+        ],
+      },
+      (tx, ecriture) =>
         tx.creanceDouteuse.create({
           data: {
             tenantId,
@@ -861,14 +869,9 @@ export class CreancesDouteusesService {
             createdBy: userId,
           },
         }),
-      );
-      // m9 · méthode des cotisations non déclarée · un avertissement, jamais un refus.
-      return { ...ligne, montant: n(ligne.montant), avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null) };
-    } catch (err) {
-      // Une ligne refusée ne laisse pas son écriture au journal.
-      await this.compenser(tenantId, ecriture.id);
-      throw err;
-    }
+    );
+    // m9 · méthode des cotisations non déclarée · un avertissement, jamais un refus.
+    return { ...ligne, montant: n(ligne.montant), avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null) };
   }
 
   /**

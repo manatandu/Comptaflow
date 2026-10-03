@@ -620,8 +620,16 @@ describe('créances douteuses · service', () => {
       lettrerLignesDuModule: jest.fn().mockResolvedValue({ code: 'A' }),
       defaireLettrageDuModule: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, lettrage as any);
-    return { service, prisma, creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation, lettrage };
+    // A7 quater, m1 · l'écriture et ce qui la tient dans une transaction · la
+    // doublure crée l'écriture (par `creer`, dont les appels sont relus) puis
+    // joue la suite ; un échec de la suite remonte, rien n'est compensé (la
+    // transaction réelle défait l'écriture).
+    const creerAvec = jest.fn().mockImplementation(async (t: string, u: string, dto: unknown, suite: (tx: unknown, e: { id: string }) => Promise<unknown>) => {
+      const ecriture = await creer(t, u, dto);
+      return { ecriture, suite: await suite(prisma, ecriture) };
+    });
+    const service = new CreancesDouteusesService(prisma, { creer, creerAvec, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, lettrage as any);
+    return { service, prisma, creer, creerAvec, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation, lettrage };
   }
 
   /**
@@ -852,10 +860,13 @@ describe('créances douteuses · service', () => {
     expect(prisma.verrouCreancesDouteuses.deleteMany).toHaveBeenLastCalledWith({ where: { tenantId: 't', id: 'verrou-1' } });
   });
 
-  it('une ligne refusée ne laisse pas son écriture au journal', async () => {
-    const { service, retirerCompensation } = monter({ creationEchoue: true });
+  // A7 QUATER, m1 · l'écriture et la créance naissent dans UNE transaction ·
+  // un refus de la créance défait l'écriture avec elle, sans compensation.
+  it('m1 · l’écriture de reclassement et la créance naissent dans une seule transaction ; un refus remonte sans compensation', async () => {
+    const { service, creerAvec, retirerCompensation } = monter({ creationEchoue: true });
     await expect(service.reclasser('t', 'u', dtoReclassement)).rejects.toThrow('base indisponible');
-    expect(retirerCompensation).toHaveBeenCalledWith('t', 'ecr-1');
+    expect(creerAvec).toHaveBeenCalledTimes(1);
+    expect(retirerCompensation).not.toHaveBeenCalled();
   });
 
   it('au SYCEBNL, un adhérent se reclasse au 4161', async () => {
@@ -1729,10 +1740,13 @@ describe('créances douteuses · service', () => {
   });
 
   it('M3 · le retrait d’une écriture orpheline qui échoue est consigné, et l’erreur d’origine remonte', async () => {
-    const { service, retirerCompensation } = monter({ creationEchoue: true });
+    // La revue écrit encore son écriture puis sa ligne · le reclassement, lui,
+    // les écrit dans une seule transaction depuis A7 quater (m1).
+    const { service, retirerCompensation, prisma } = monter({ creance: creance() });
+    prisma.ajustementCreanceDouteuse.create.mockRejectedValue(new Error('base indisponible'));
     retirerCompensation.mockRejectedValue(new Error('retrait impossible'));
     const consigne = jest.spyOn((service as any).journalServeur, 'error').mockImplementation(() => undefined);
-    await expect(service.reclasser('t', 'u', dtoReclassement)).rejects.toThrow('base indisponible');
+    await expect(service.revoir('t', 'u', 'cd-1', dtoRevue)).rejects.toThrow('base indisponible');
     expect(consigne.mock.calls[0][0]).toMatch(/Écriture ecr-1 du dossier t restée au brouillard/);
   });
 

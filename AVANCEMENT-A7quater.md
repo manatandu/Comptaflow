@@ -13,9 +13,14 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    du schéma (`OrigineLettrage.MODULE`), écran Lettrage (message de mise de
    côté, lettrage automatique et pré-lettrage).
 
+2. (m1) écriture de reclassement et `CreanceDouteuse` dans une seule
+   transaction (`EcritureService.creerAvec`, sous `avecRetrySerialisable`,
+   donc `transactionJournalisee`) ; (m6) `EcritureService.supprimer` ne
+   retire que ce qui est encore au brouillard (`deleteMany` filtré, une
+   ligne et une seule, sinon 409).
+
 ## Reste
 
-- (m1) écriture de reclassement et `CreanceDouteuse` dans une transaction.
 - (m3) position en devise sur le 416 partagé à la déclaration.
 - (m4) liste des à-nouveaux de « Lettrer au 416 » (tri, `tronque`).
 - (m6) `EcritureService.supprimer` filtré sur le brouillard.
