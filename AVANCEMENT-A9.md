@@ -60,9 +60,19 @@ Ligne A9 de `docs/suivi-immobilisations-verrouille.md` · relevé CPCC C5
   joue pas. Lecture d'OmegaX, écrite sur la ligne.
 - Aucune migration · le décompte n'est stocké que figé dans le bulletin (JSON).
 
+## Bloc du § 3 (2026-10-03)
+
+- Serveur · `tsc` vert, `nest build` vert, `jest --maxWorkers=2` · 704 suites,
+  9 731 tests ; 6 suites tombées au premier passage pour une cause
+  d'ENVIRONNEMENT (la copie n'avait pas de `node_modules` et lisait celui du
+  dépôt parent, client Prisma engendré d'un autre schéma, `ts-node` absent),
+  relancées seules après `npm ci` et `prisma generate` dans la copie · vertes.
+- Client · `tsc` vert, `vitest` 205 fichiers, 1 672 tests verts, `build` vert.
+
 ## Reste
 
-- Bloc du § 3 complet des deux côtés (en cours à la fin).
+- Intégration sur `main` (relecture, tests navigateur), puis retrait de cette
+  fiche et de la branche `travail/a9`.
 
 ## Commandes de vérification
 
