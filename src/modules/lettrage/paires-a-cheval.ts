@@ -100,6 +100,38 @@ const memeJour = (a: Date | null, b: Date | null) => (a === null || b === null ?
 const TRANCHE_GROUPES = 500;
 
 /**
+ * IMPUTE CE QU'UN GROUPE A RÉGLÉ SUR LE RESTE D'UNE LIGNE D'À-NOUVEAU (ligne
+ * A6 ter, seconde relecture, BLOQUANT). Une ligne EN DEVISE s'éteint dans sa
+ * devise, et les francs qui partent avec elle sont son COÛT HISTORIQUE, au
+ * prorata de la devise réglée · jamais les francs payés. Le dû d'une créance
+ * ou d'une dette en devise est au cours historique (AUDCIF art. 54 · « au
+ * cours de change à la date de l'opération » ; art. 55, l'écart de règlement
+ * se constate « par rapport à leur coût historique »). Retrancher les francs
+ * payés laissait sur le reste la perte ou le gain réalisé du groupe non
+ * encore passé · 1 000 USD de G à 2 800 réglés à 2 700 laissaient H (500 USD,
+ * 1 400 000) due de 1 500 000, son règlement chiffrait 150 000 de perte au
+ * lieu de 50 000, puis l'écart de G passait 100 000 de plus · 656 à 250 000
+ * et le client à −100 000. Le rapport francs sur devise du reste se garde
+ * ainsi d'un groupe à l'autre. Une ligne SANS devise s'éteint en francs.
+ */
+function imputer(
+  reste: { francs: number; devise: number | null },
+  paye: number,
+  payeDevise: number | null,
+): { paye: number; payeDevise: number | null } {
+  if (reste.devise !== null && payeDevise !== null) {
+    const prisDevise = Math.min(reste.devise, payeDevise);
+    const historique = reste.devise > 0 ? Math.min(reste.francs, Math.round((reste.francs * prisDevise) / reste.devise)) : 0;
+    reste.francs -= historique;
+    reste.devise -= prisDevise;
+    return { paye: Math.max(0, paye - historique), payeDevise: payeDevise - prisDevise };
+  }
+  const pris = Math.min(reste.francs, paye);
+  reste.francs -= pris;
+  return { paye: paye - pris, payeDevise };
+}
+
+/**
  * Lit les paires d'un exercice, sur les comptes que `compte` désigne. Une
  * lecture par tranches (§ 8 bis) des lignes de l'exercice dans un groupe à
  * cheval, puis des lignes antérieures de ces groupes, puis des lignes
@@ -248,15 +280,9 @@ export async function pairesACheval(
       let payeDevise =
         netDevise === null ? null : Math.max(0, memes.reduce((t, r) => t + (enDevise(r) ?? 0), 0) - Math.abs(netDevise));
       for (const r of memes) {
-        const reste = prendre(r, g.code);
-        const pris = Math.min(reste.francs, paye);
-        paye -= pris;
-        reste.francs -= pris;
-        if (reste.devise !== null && payeDevise !== null) {
-          const prisDevise = Math.min(reste.devise, payeDevise);
-          payeDevise -= prisDevise;
-          reste.devise -= prisDevise;
-        }
+        const imputee = imputer(prendre(r, g.code), paye, payeDevise);
+        paye = imputee.paye;
+        payeDevise = imputee.payeDevise;
       }
       continue;
     }
@@ -275,15 +301,9 @@ export async function pairesACheval(
       let paye = Math.abs(regle);
       let payeDevise = devise === null ? null : Math.abs(g.lignes.reduce((t, l) => t + (l.deviseId === devise ? Math.sign(signe(l)) * (enDevise(l) ?? 0) : 0), 0));
       for (const r of cibles) {
-        const reste = prendre(r, g.code);
-        const pris = Math.min(reste.francs, paye);
-        paye -= pris;
-        reste.francs -= pris;
-        if (reste.devise !== null && payeDevise !== null) {
-          const prisDevise = Math.min(reste.devise, payeDevise);
-          payeDevise -= prisDevise;
-          reste.devise -= prisDevise;
-        }
+        const imputee = imputer(prendre(r, g.code), paye, payeDevise);
+        paye = imputee.paye;
+        payeDevise = imputee.payeDevise;
       }
     }
   }

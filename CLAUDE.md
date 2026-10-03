@@ -616,7 +616,12 @@ reste du compte, lu sur ses lignes de l'EXERCICE ; D3 · c'est la CLÔTURE qui r
 tant qu'un lettrage dénoué dans l'exercice porte un réalisé non passé (art. 55,
 `ecartsRealisesNonConstates`, lu par tranches sans borne, groupes, comptes, montants
 et les trois issues nommés, jamais un second passage ni un délettrage, qui ferait
-glisser le réalisé au 479) ; et l'écart
+glisser le réalisé au 479 ; le groupe À CHEVAL de deux exercices compte aussi, lu sur
+toutes ses lignes, s'il s'est dénoué dans l'exercice, A6 ter · son écart se passe même
+figé, `groupeTolere`) ; l'écart d'une réévaluation et sa contre-passation sur le compte
+du tiers, reconnus par LIAISON (`lignesDeReevaluationSurLesTiers`, appariés à
+l'à-nouveau quand ils sont antérieurs), ne sont ni une échéance ni un règlement en
+francs ; la reconstitution suit la règle B1 du calcul (A6 ter) ; et l'écart
 est refusé (409) si la
 réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
 le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL QU'IL ÉTAIT,

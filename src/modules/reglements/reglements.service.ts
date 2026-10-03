@@ -20,6 +20,7 @@ import {
   type Referentiel,
 } from './ecart-change-realise';
 import { compteDeLEcart, referentielDuDossier } from './compte-ecart-change';
+import { lignesDeReevaluationSurLesTiers } from './lignes-de-reevaluation';
 import { avertissementExtourneManquante, issueReevaluationDejaPassee, motifReglementDejaReevalue } from './reevaluation-et-ecart-realise';
 import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
@@ -111,7 +112,17 @@ export class ReglementsService {
     const paires: PairesACheval | null = lignes.some((l) => estDAnouveau(l.ecriture))
       ? await pairesACheval(this.prisma, { tenantId, exercice, compte: { numero: { startsWith: sens === 'FOURNISSEUR' ? '40' : '41' } } })
       : null;
-    const aRegler = lignes.filter((l) => estEcheanceAReglerSur(l.compte.numero, sens) && !paires?.absorbees.has(l.id));
+    // L'ÉCART D'UNE RÉÉVALUATION n'est pas une facture (A6 ter) · sa ligne sur
+    // le compte du tiers, dans l'exercice ou reportée à l'à-nouveau, est
+    // reconnue par la liaison de la réévaluation et ne se règle pas.
+    const ecartsDeReevaluation = await lignesDeReevaluationSurLesTiers(this.prisma, {
+      tenantId,
+      exercice,
+      compteIds: [...new Set(lignes.filter((l) => l.deviseId === null).map((l) => l.compteId))],
+    });
+    const aRegler = lignes.filter(
+      (l) => estEcheanceAReglerSur(l.compte.numero, sens) && !paires?.absorbees.has(l.id) && !ecartsDeReevaluation.has(l.id),
+    );
     const ecartees = new Map<string, number>();
     for (const l of aRegler) {
       if (l.ecriture.estANouveauProvisoire === true && dueAvant(l)) ecartees.set(l.compteId, (ecartees.get(l.compteId) ?? 0) + 1);
@@ -614,7 +625,18 @@ export class ReglementsService {
       // Les règlements reportés SANS DEVISE (A6 bis, second tour, m4) · un
       // règlement d'avant la tenue en devise (avant A6) n'a que des francs, et
       // la borne, qui compte dans la devise, ne peut pas dire ce qu'il règle.
-      const enFrancs = { ...aNouveauNonLettre, deviseId: null } satisfies Prisma.LigneEcritureWhereInput;
+      // L'ÉCART D'UNE RÉÉVALUATION REPORTÉ (A6 ter, m-2) n'est pas un
+      // règlement · il porte sur le compte du tiers sans devise et passe au
+      // report ; reconnu par la liaison de la réévaluation, il sort de ces francs.
+      const exerciceLu = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { id: true, dateDebut: true } });
+      const ecartsReportes = exerciceLu
+        ? await lignesDeReevaluationSurLesTiers(this.prisma, { tenantId, exercice: exerciceLu, compteIds: [r.compteId] })
+        : new Set<string>();
+      const enFrancs = {
+        ...aNouveauNonLettre,
+        id: { notIn: [...r.ligneIds, ...eteintes, ...ecartsReportes] },
+        deviseId: null,
+      } satisfies Prisma.LigneEcritureWhereInput;
       const colonne = (signe: 'gt' | 'lt') => (sens === 'FOURNISSEUR' ? { debit: { [signe]: 0 } } : { credit: { [signe]: 0 } });
       const colonneFrancs = sens === 'FOURNISSEUR' ? ('debit' as const) : ('credit' as const);
       const [positives, negatives, francsPositifs, francsNegatifs] = await Promise.all([
@@ -635,9 +657,13 @@ export class ReglementsService {
         throw new BadRequestException(
           `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
             "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
-            `Les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · réglez au plus ${plafond.toFixed(2)}, puis complétez ` +
-            "le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage) ; si elles reviennent à une autre facture, " +
-            "lettrez-les d'abord avec elle. Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main " +
+            // L'ORDRE DES ISSUES (A6 ter, m-3) · le lettrage d'abord · un
+            // règlement reporté qui revient à une autre facture, lu avant
+            // « réglez au plus », ferait payer moins que le dû de la bonne.
+            "Si ces règlements reportés reviennent à une autre facture que celles choisies, lettrez-les d'abord avec leur facture " +
+            `(Interrogation et lettrage). Sinon, les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · ` +
+            `réglez au plus ${plafond.toFixed(2)}, puis complétez le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage). ` +
+            "Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main " +
             "avec la facture qu'il solde (Interrogation et lettrage).",
         );
       }

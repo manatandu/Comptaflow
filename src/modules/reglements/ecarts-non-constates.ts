@@ -10,6 +10,10 @@ export interface EcartNonConstate {
   compteNumero: string;
   /** Signé · positif pour une perte. */
   ecart: number;
+  /** Une de ses lignes est d'un autre exercice (A6 ter, m-1). */
+  aCheval?: boolean;
+  /** La date de sa dernière ligne · celle du dénouement. */
+  denouement?: Date;
 }
 
 /** Ce qu'un groupe accumule, tranche après tranche · la règle de `ecartDuGroupe`, en flux. */
@@ -19,6 +23,10 @@ interface Cumul {
   devises: Set<string>;
   soldeDevise: number;
   centimes: number;
+  /** La ligne la plus tardive · le dénouement, et son exercice. */
+  derniere: { date: Date; exerciceId: string } | null;
+  /** Une ligne d'un autre exercice · le groupe est à cheval. */
+  aCheval: boolean;
 }
 
 /**
@@ -31,12 +39,21 @@ interface Cumul {
  * réalisé que rien n'a passé · la réévaluation l'écarte déjà (art. 54) ;
  * c'est la CLÔTURE qui le refuse, jamais la réévaluation.
  *
- * UN GROUPE À CHEVAL DE DEUX EXERCICES N'EST PAS LU ICI (A6 bis) · ses
- * lignes de l'exercice ne disent pas son dénouement, et la clôture ne refuse
- * rien pour lui (premier tour de relecture · le refus enfermait un dossier
- * dont le groupe était figé). Son écart réalisé non passé est nommé par le
- * contrôle des comptes (`ECART_CHANGE_A_CHEVAL_NON_CONSTATE`), avec son
- * issue (`issueEcartACheval`).
+ * UN GROUPE À CHEVAL DE DEUX EXERCICES EST LU ICI, S'IL S'EST DÉNOUÉ DANS
+ * L'EXERCICE (ligne A6 ter, m-1) · sa facture en N, son règlement en N+1 ·
+ * l'art. 55 rattache la perte à la date du règlement, donc à N+1, et la
+ * clôture de N+1 la refuse comme celle de tout groupe. A6 bis l'écartait
+ * (filtre `every` sur l'exercice) parce qu'un groupe figé ne pouvait plus
+ * recevoir son écart et que le refus ENFERMAIT le dossier · depuis le B2 du
+ * second tour d'A6 bis, `passerEcartChange` complète un groupe figé de sa
+ * seule ligne (`groupeTolere`), la date du dénouement reportée au premier
+ * jour non clôturé si sa période est close (art. 22, 4°) · l'issue existe,
+ * le refus n'enferme plus rien, et l'avertissement seul laissait la clôture
+ * passer avec la perte hors du résultat. Le groupe est lu EN ENTIER, toutes
+ * ses lignes de tous les exercices (le solde en devise et en francs est
+ * celui du groupe), et retenu si sa DERNIÈRE ligne, celle du dénouement, est
+ * de l'exercice clôturé · un groupe à cheval dénoué plus tard appartient à
+ * la clôture suivante. Même règle que `lettragesACheval` (`ecartNonPasse`).
  *
  * LU PAR TRANCHES, SANS BORNE (§ 8 bis, relecture adverse M4) · un exercice
  * aux lettrages partiels nombreux n'est jamais refusé pour son volume ; seuls
@@ -54,10 +71,10 @@ export async function ecartsRealisesNonConstates(
         where: {
           lettrageId: { not: null },
           lettre: null,
-          // Toutes les lignes du groupe dans l'exercice · un groupe à cheval
-          // relève du contrôle des comptes (`lettragesACheval`, A6 bis).
-          lettrage: { statut: 'PARTIEL', lignes: { every: { ecriture: { exerciceId: p.exerciceId } } } },
-          ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId },
+          // Tout groupe PARTIEL qui touche l'exercice, lu sur TOUTES ses
+          // lignes · un groupe à cheval se juge sur son ensemble (A6 ter, m-1).
+          lettrage: { statut: 'PARTIEL', lignes: { some: { ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId } } } },
+          ecriture: { tenantId: p.tenantId },
         },
         select: {
           id: true,
@@ -66,6 +83,7 @@ export async function ecartsRealisesNonConstates(
           credit: true,
           deviseId: true,
           montantDevise: true,
+          ecriture: { select: { date: true, exerciceId: true } },
           lettrage: { select: { code: true, compte: { select: { numero: true } } } },
         },
         ...pageApres(curseur, LOT_LECTURE),
@@ -74,7 +92,15 @@ export async function ecartsRealisesNonConstates(
       const id = l.lettrageId!;
       const c =
         cumuls.get(id) ??
-        ({ code: l.lettrage?.code ?? '', compteNumero: l.lettrage?.compte.numero ?? '?', devises: new Set(), soldeDevise: 0, centimes: 0 } satisfies Cumul);
+        ({
+          code: l.lettrage?.code ?? '',
+          compteNumero: l.lettrage?.compte.numero ?? '?',
+          devises: new Set(),
+          soldeDevise: 0,
+          centimes: 0,
+          derniere: null,
+          aCheval: false,
+        } satisfies Cumul);
       const debit = Number(l.debit);
       const credit = Number(l.credit);
       if (l.deviseId !== null && l.montantDevise !== null) {
@@ -82,12 +108,29 @@ export async function ecartsRealisesNonConstates(
         c.soldeDevise += (debit - credit >= 0 ? 1 : -1) * Number(l.montantDevise);
       }
       c.centimes += Math.round(debit * 100) - Math.round(credit * 100);
+      if (l.ecriture.exerciceId !== p.exerciceId) c.aCheval = true;
+      if (!c.derniere || l.ecriture.date > c.derniere.date) c.derniere = { date: l.ecriture.date, exerciceId: l.ecriture.exerciceId };
       cumuls.set(id, c);
     },
   );
   const ecarts = [...cumuls.entries()]
-    .filter(([, c]) => c.devises.size === 1 && Math.abs(c.soldeDevise) <= 0.005 && c.centimes !== 0)
-    .map(([lettrageId, c]) => ({ lettrageId, code: c.code.toLowerCase(), compteNumero: c.compteNumero, ecart: c.centimes / 100 }))
+    .filter(
+      ([, c]) =>
+        c.devises.size === 1 &&
+        Math.abs(c.soldeDevise) <= 0.005 &&
+        c.centimes !== 0 &&
+        // Dénoué dans l'exercice · sa dernière ligne en est (A6 ter, m-1).
+        c.derniere !== null &&
+        c.derniere.exerciceId === p.exerciceId,
+    )
+    .map(([lettrageId, c]) => ({
+      lettrageId,
+      code: c.code.toLowerCase(),
+      compteNumero: c.compteNumero,
+      ecart: c.centimes / 100,
+      aCheval: c.aCheval,
+      denouement: c.derniere!.date,
+    }))
     .sort((a, b) => a.compteNumero.localeCompare(b.compteNumero) || a.code.localeCompare(b.code));
   return { ecarts };
 }
@@ -108,7 +151,11 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }
     Math.abs(x).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ | /g, ' ');
   const liste = r.ecarts
     .slice(0, 10)
-    .map((e) => `${e.compteNumero} lettrage ${e.code} · ${e.ecart > 0 ? 'perte' : 'gain'} de ${montant(e.ecart)}`)
+    .map(
+      (e) =>
+        `${e.compteNumero} lettrage ${e.code} · ${e.ecart > 0 ? 'perte' : 'gain'} de ${montant(e.ecart)}` +
+        (e.aCheval ? `, à cheval de deux exercices, dénoué le ${e.denouement ? e.denouement.toISOString().slice(0, 10) : '?'}` : ''),
+    )
     .join(' ; ');
   const reste = r.ecarts.length > 10 ? `, et ${r.ecarts.length - 10} autre(s)` : '';
   return (
@@ -117,7 +164,10 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }
     'Pour chacun, UNE seule issue · passez l’écart proposé depuis Interrogation et lettrage (« Écart de change ») ; ' +
     's’il a DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser ; si le geste est refusé ' +
     '(réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l\'écart, ' +
-    'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez. ' +
-    'Un lettrage qui mêle deux exercices n\'est pas compté ici · le contrôle des comptes nomme son écart, avec son issue.'
+    'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez.' +
+    (r.ecarts.some((e) => e.aCheval)
+      ? ' Un lettrage à cheval de deux exercices reçoit son écart même figé par la clôture de l\'exercice précédent · ' +
+        'si le dénouement tombe dans une période close, cochez le report au premier jour non clôturé, sa date de valeur gardée (AUDCIF art. 22, 4°).'
+      : '')
   );
 }

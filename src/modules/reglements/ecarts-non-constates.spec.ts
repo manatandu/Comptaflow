@@ -14,13 +14,22 @@ import { ecartsRealisesNonConstates, motifClotureEcartsNonConstates } from './ec
  * soldé en devise, 123 200 de perte en souffrance.
  */
 let n = 0;
-const ligne = (lettrageId: string, code: string, numero: string, debit: number, credit: number, montantDevise: number | null) => ({
+const ligne = (
+  lettrageId: string,
+  code: string,
+  numero: string,
+  debit: number,
+  credit: number,
+  montantDevise: number | null,
+  ecriture: { exerciceId: string; date: Date } = { exerciceId: 'n', date: new Date('2026-06-30') },
+) => ({
   id: `l${String(++n).padStart(4, '0')}`,
   lettrageId,
   debit,
   credit,
   deviseId: montantDevise === null ? null : 'usd',
   montantDevise,
+  ecriture,
   lettrage: { code, compte: { numero } },
 });
 const groupeEnSouffrance = [
@@ -35,14 +44,16 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
   it('le groupe soldé en devise et non en francs est nommé · le partiel encore ouvert ne l’est pas', async () => {
     const findMany = jest.fn().mockResolvedValueOnce([...groupeEnSouffrance, ...partielOuvert]).mockResolvedValue([]);
     const r = await ecartsRealisesNonConstates({ ligneEcriture: { findMany } } as never, { tenantId: 't', exerciceId: 'n' });
-    expect(r).toEqual({ ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }] });
-    // La requête · groupes PARTIELS, lignes non lettrées, de CET exercice, bornée.
+    expect(r).toEqual({
+      ecarts: [{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200, aCheval: false, denouement: new Date('2026-06-30') }],
+    });
+    // La requête · groupes PARTIELS qui touchent CET exercice, lus sur toutes leurs lignes, bornée.
     expect(findMany.mock.calls[0][0].where).toEqual({
       lettrageId: { not: null },
       lettre: null,
-      // A6 bis, B2 · un groupe à cheval de deux exercices n'est pas lu ici.
-      lettrage: { statut: 'PARTIEL', lignes: { every: { ecriture: { exerciceId: 'n' } } } },
-      ecriture: { tenantId: 't', exerciceId: 'n' },
+      // A6 ter, m-1 · un groupe à cheval de deux exercices est lu en entier.
+      lettrage: { statut: 'PARTIEL', lignes: { some: { ecriture: { tenantId: 't', exerciceId: 'n' } } } },
+      ecriture: { tenantId: 't' },
     });
     expect(findMany.mock.calls[0][0].take).toBeGreaterThan(0);
   });
@@ -57,9 +68,74 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
       .mockResolvedValueOnce([b, c])
       .mockResolvedValue([]);
     const r = await ecartsRealisesNonConstates({ ligneEcriture: { findMany } } as never, { tenantId: 't', exerciceId: 'n' });
-    expect(r.ecarts).toEqual([{ lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200 }]);
+    expect(r.ecarts).toEqual([
+      { lettrageId: 'L', code: 'a', compteNumero: '40110000', ecart: 123_200, aCheval: false, denouement: new Date('2026-06-30') },
+    ]);
     expect(findMany).toHaveBeenCalledTimes(2);
     expect(findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: expect.any(String) }, skip: 1 });
+  });
+
+  // A6 TER, m-1 · LE GROUPE À CHEVAL DÉNOUÉ DANS L'EXERCICE. Facture de
+  // 1 000 USD en N (2 800 000), réglée en N+1 pour 2 750 000 · le groupe est
+  // soldé en devise, 50 000 de perte réalisée non passée. La doublure HONORE
+  // la requête · elle ne rend que les lignes des groupes PARTIELS qui ont une
+  // ligne dans l'exercice demandé, de tous leurs exercices.
+  describe('le groupe à cheval de deux exercices', () => {
+    const N = { exerciceId: 'n', date: new Date('2026-11-15') };
+    const N1 = { exerciceId: 'n1', date: new Date('2027-02-10') };
+    const table = [
+      { ...ligne('C', 'C', '41110000', 2_800_000, 0, 1000, N), statut: 'PARTIEL', tenantId: 't' },
+      { ...ligne('C', 'C', '41110000', 0, 2_750_000, 1000, N1), statut: 'PARTIEL', tenantId: 't' },
+      // Un groupe d'un autre dossier · jamais rendu.
+      { ...ligne('Z', 'Z', '41110000', 1_000, 0, 1, N1), statut: 'PARTIEL', tenantId: 'autre' },
+    ];
+    type Where = {
+      lettrage: { statut: string; lignes: { some: { ecriture: { tenantId: string; exerciceId: string } } } };
+      ecriture: { tenantId: string; exerciceId?: string };
+    };
+    const honore = (where: Where) =>
+      table.filter(
+        (l) =>
+          l.tenantId === where.ecriture.tenantId &&
+          (where.ecriture.exerciceId === undefined || l.ecriture.exerciceId === where.ecriture.exerciceId) &&
+          l.statut === where.lettrage.statut &&
+          table.some(
+            (m) =>
+              m.lettrageId === l.lettrageId &&
+              m.tenantId === where.lettrage.lignes.some.ecriture.tenantId &&
+              m.ecriture.exerciceId === where.lettrage.lignes.some.ecriture.exerciceId,
+          ),
+      );
+    const prisma = () => {
+      let rendu = false;
+      return {
+        ligneEcriture: {
+          findMany: jest.fn().mockImplementation(async ({ where }: { where: Where }) => {
+            if (rendu) return [];
+            rendu = true;
+            return honore(where);
+          }),
+        },
+      };
+    };
+
+    it('dénoué en N+1 · compté à la clôture de N+1, avec son dénouement', async () => {
+      const r = await ecartsRealisesNonConstates(prisma() as never, { tenantId: 't', exerciceId: 'n1' });
+      expect(r.ecarts).toEqual([
+        { lettrageId: 'C', code: 'c', compteNumero: '41110000', ecart: 50_000, aCheval: true, denouement: new Date('2027-02-10') },
+      ]);
+      const motif = motifClotureEcartsNonConstates(r)!;
+      expect(motif).toContain('41110000 lettrage c · perte de 50 000,00, à cheval de deux exercices, dénoué le 2027-02-10');
+      // L'issue · passer l'écart, même figé, report au premier jour ouvert ; jamais délettrer.
+      expect(motif).toContain('reçoit son écart même figé');
+      expect(motif).toContain('AUDCIF art. 22, 4°');
+      expect(motif).toContain('Ne délettrez pas le groupe');
+    });
+
+    it('non compté à la clôture de N · son dénouement est dans N+1', async () => {
+      const r = await ecartsRealisesNonConstates(prisma() as never, { tenantId: 't', exerciceId: 'n' });
+      expect(r.ecarts).toEqual([]);
+    });
   });
 
   it('le refus nomme le compte, le groupe, le montant, l’article et l’issue', () => {
@@ -73,8 +149,8 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     expect(motif).toContain(
       "si le geste est refusé (réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l'écart, puis réévaluez. Ne délettrez pas le groupe, sans quoi l'écart ne serait plus constaté.",
     );
-    // A6 bis · un groupe à cheval n'est pas compté ici, et le motif dit où il se lit.
-    expect(motif).toContain('Un lettrage qui mêle deux exercices n\'est pas compté ici · le contrôle des comptes nomme son écart, avec son issue.');
+    // Sans groupe à cheval, rien sur le report de l'art. 22, 4°.
+    expect(motif).not.toMatch(/à cheval/);
     expect(motifClotureEcartsNonConstates({ ecarts: [] })).toBeNull();
   });
 });

@@ -884,7 +884,8 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
       const enPlus = [factureReportee(aNouveau(drapeaux)), ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau(drapeaux))];
       const { service, creer } = monter('SYSCOHADA', enPlus);
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
-        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*Les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
+        // A6 ter, m-3 · « lettrez-les d'abord avec leur facture » AVANT « réglez au plus ».
+        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*lettrez-les d'abord avec leur facture[\s\S]*les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
       );
       // L'issue qui reste, nommée (second tour, m5).
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
@@ -987,6 +988,33 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
     // Sans règlement reporté en francs, aucun avertissement.
     const net = monter('SYSCOHADA', [factureReportee()]);
     expect((await net.service.enregistrer('t', 'u', reglerLaReportee)).avertissements).toEqual([]);
+  });
+
+  // A6 ter, m-2 · L'ÉCART D'UNE RÉÉVALUATION REPORTÉ n'est pas un règlement ·
+  // un gain de change latent de N débite le 401 sans devise et passe à
+  // l'à-nouveau ; reconnu par la liaison de la réévaluation de N, il ne
+  // déclenche plus l'avertissement « en francs, sans devise ».
+  it('la ligne reportée d’une réévaluation · reconnue par sa liaison, aucun avertissement', async () => {
+    const enFrancs = { ...ligne('ranX', 'c401', 500_000, 0, 0, cloture), deviseId: null, montantDevise: null };
+    const ecartDeN = { id: 'eR1', compteId: 'c401', debit: 500_000, credit: 0, deviseId: null, montantDevise: null, lettre: null, ecriture: { exerciceId: 'n0', date: new Date('2025-12-31') } };
+    const { service, prisma } = monter('SYSCOHADA', [factureReportee(), enFrancs]);
+    (prisma.reevaluation.findMany as jest.Mock).mockImplementation(async ({ where }: { where: any }) =>
+      where.OR?.some((c: any) => c.ecritureEcartsId) ? [{ ecritureEcartsId: 'eR', ecritureExtourneId: null }] : [],
+    );
+    const findMany = prisma.ligneEcriture.findMany as jest.Mock;
+    const ordinaire = findMany.getMockImplementation()!;
+    findMany.mockImplementation(async (args: { where: any }) => {
+      const w = args.where;
+      // Les lignes de l'écriture d'écarts de N, sur le compte.
+      if (w.ecritureId?.in) return w.ecritureId.in.includes('eR') && w.compteId.in.includes('c401') ? [ecartDeN] : [];
+      // Les à-nouveau en francs, non lettrés, du compte.
+      if (w.deviseId === null && w.compteId?.in) {
+        return [enFrancs].filter((l) => w.compteId.in.includes(l.compteId) && ligneRetenue(l as LigneDouble, { ...w, compteId: undefined }));
+      }
+      return ordinaire(args);
+    });
+    const r = await service.enregistrer('t', 'u', reglerLaReportee);
+    expect(r.avertissements).toEqual([]);
   });
 });
 
@@ -1109,6 +1137,10 @@ function reevaluationDuCasMixte(prisma: PrismaService, perte: number) {
     montantDevise,
     lettrageId,
     lettrage: lettrageId ? { createdAt: new Date('2026-05-15') } : null,
+    // Les lignes du groupe, lues sur tous leurs exercices (A6 ter, m-4) ·
+    // toutes de l'exercice, avant la réévaluation.
+    compteId: 'c401',
+    ecriture: { exerciceId: 'ex', date: new Date('2026-06-01') },
   });
   const groupe = [l(0, 1_948_800, 1160, 'L'), l(1_008_000, 0, 600, 'L'), l(1_064_000, 0, 560, 'L')];
   (prisma.ligneEcriture.findMany as jest.Mock)

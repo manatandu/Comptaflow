@@ -26,7 +26,12 @@ function tient(obj: Objet, where: Objet): boolean {
       continue;
     }
     if (v !== null && typeof v === 'object') {
-      const op = v as { lte?: never; gt?: never; in?: unknown[]; not?: unknown };
+      const op = v as { lte?: never; gt?: never; in?: unknown[]; not?: unknown; some?: Objet };
+      // Relation à plusieurs · `some` (A6 ter, m-4, les groupes qui sortent de l'exercice).
+      if ('some' in op) {
+        if (!Array.isArray(val) || !(val as Objet[]).some((x) => tient(x, op.some!))) return false;
+        continue;
+      }
       if ('lte' in op || 'gt' in op || 'in' in op || 'not' in op) {
         if ('lte' in op && !(val !== null && val <= op.lte!)) return false;
         if ('gt' in op && !(val !== null && val > op.gt!)) return false;
@@ -90,7 +95,13 @@ function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, numb
       })),
     },
     exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },
-    ligneEcriture: { findMany: jest.fn(async ({ where }: { where: Objet }) => p.lignes.filter((l) => tient(l as unknown as Objet, where))) },
+    ligneEcriture: {
+      findMany: jest.fn(async ({ where }: { where: Objet }) => {
+        // Chaque groupe porte ses lignes, pour `lettrage.lignes.some`.
+        for (const l of p.lignes) if (l.lettrage) (l.lettrage as Objet).lignes = p.lignes.filter((x) => x.lettrageId === l.lettrageId);
+        return p.lignes.filter((l) => tient(l as unknown as Objet, where));
+      }),
+    },
     coursDevise: {
       findFirst: jest.fn(async ({ where }: { where: { deviseId: string } }) => {
         const c = (p.cours ?? { usd: 1850, eur: 1100 })[where.deviseId];
@@ -304,7 +315,13 @@ describe('la contre-passation de la réévaluation précédente oubliée', () =>
             : null;
         }),
       },
-      ligneEcriture: { findMany: jest.fn(async ({ where }: { where: Objet }) => p.lignes.filter((l) => tient(l as unknown as Objet, where))) },
+      ligneEcriture: {
+      findMany: jest.fn(async ({ where }: { where: Objet }) => {
+        // Chaque groupe porte ses lignes, pour `lettrage.lignes.some`.
+        for (const l of p.lignes) if (l.lettrage) (l.lettrage as Objet).lignes = p.lignes.filter((x) => x.lettrageId === l.lettrageId);
+        return p.lignes.filter((l) => tient(l as unknown as Objet, where));
+      }),
+    },
       coursDevise: { findFirst: jest.fn(async ({ where }: { where: { deviseId: string } }) => ({ usd: { cours: 1850 }, eur: { cours: 1100 } })[where.deviseId] ?? null) },
     } as unknown as PrismaService;
   }
@@ -407,6 +424,58 @@ describe('la contre-passation de la réévaluation précédente oubliée', () =>
  * (4 200 000 contre 4 200 000), seul l'EUR porte −10 000 ; F1 réglée le 15/11
  * à 2 150. Le total concorde avec le groupe lu par l'EUR seul · l'écart passe.
  */
+/**
+ * A6 TER, m-4 · LA RECONSTITUTION SUIT LA RÈGLE B1 DU CALCUL. Exercice 2026 ·
+ * facture A de 1 000 USD de 2025 (2 000 000), reportée à l'à-nouveau du
+ * 1er janvier hors de tout groupe, réglée le 1er mars à 2 150 (2 150 000)
+ * dans un groupe G À CHEVAL de 2025 et 2026, son écart réalisé de 150 000
+ * passé en francs sur le groupe, SOLDE ; facture B de 500 USD (850 000)
+ * ouverte. La réévaluation du 31 décembre à 1 850 a lu l'à-nouveau, le
+ * règlement et le réalisé (règle B1) · position −500 USD, 75 000 de perte.
+ * La reconstitution qui écartait le règlement lettré trouvait +75 000 et
+ * avertissait d'un changement qui n'avait pas eu lieu.
+ */
+describe('la reconstitution suit la règle B1 (groupe à cheval)', () => {
+  const G = { id: 'G', creeLe: new Date('2026-03-01'), soldeLe: new Date('2026-03-02') };
+  const lignes = () => {
+    const realise = ligne('usd', 0, 150_000, 0, G, { date: new Date('2026-03-01'), createdAt: new Date('2026-03-02') });
+    (realise as { deviseId: string | null }).deviseId = null;
+    (realise as { montantDevise: number | null }).montantDevise = null;
+    return [
+      // La facture de 2025, dans le groupe.
+      ligne('usd', 0, 2_000_000, 1000, G, { exerciceId: 'n0', date: new Date('2025-11-15'), createdAt: new Date('2025-11-15') }),
+      // Son à-nouveau, hors de tout groupe.
+      ligne('usd', 0, 2_000_000, 1000, null, { date: new Date('2026-01-01'), createdAt: new Date('2026-01-02'), estGenereeParCloture: true }),
+      ligne('usd', 2_150_000, 0, 1000, G, { date: new Date('2026-03-01'), createdAt: new Date('2026-03-01') }),
+      realise,
+      factureB(),
+    ];
+  };
+
+  it('le compte se reconstitue tel que la réévaluation l’a calculé · aucun avertissement', async () => {
+    expect(await issueReevaluationDejaPassee(monter({ lignes: lignes(), passe: -75_000 }), { ...params, lettrageId: 'H' })).toBeNull();
+  });
+
+  it('un autre montant passé ne se reconstitue pas · l’avertissement reste', async () => {
+    expect(await issueReevaluationDejaPassee(monter({ lignes: lignes(), passe: 75_000 }), { ...params, lettrageId: 'H' })).toHaveProperty('avertissement');
+  });
+
+  it('le groupe à cheval dénoué avant la date, réalisé non passé · écarté par la réévaluation, son écart passe', async () => {
+    const G2 = { id: 'G2', creeLe: new Date('2026-03-01') };
+    const prisma = monter({
+      lignes: [
+        ligne('usd', 0, 2_000_000, 1000, G2, { exerciceId: 'n0', date: new Date('2025-11-15'), createdAt: new Date('2025-11-15') }),
+        ligne('usd', 0, 2_000_000, 1000, null, { date: new Date('2026-01-01'), createdAt: new Date('2026-01-02'), estGenereeParCloture: true }),
+        ligne('usd', 2_150_000, 0, 1000, G2, { date: new Date('2026-03-01'), createdAt: new Date('2026-03-01') }),
+        factureB(),
+      ],
+      // La position de B seule, le réalisé de G2 sorti (75 000).
+      passe: -75_000,
+    });
+    expect(await issueReevaluationDejaPassee(prisma, { ...params, lettrageId: 'G2' })).toBeNull();
+  });
+});
+
 describe('la devise du groupe, réellement réévaluée', () => {
   const G = { id: 'G', creeLe: new Date('2026-11-15') };
   function monter30sept(lignes: Ligne[]) {

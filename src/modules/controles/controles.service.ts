@@ -4702,7 +4702,8 @@ export class ControlesService {
     // sa devise et non en francs, dénoué dans cet exercice, dont l'écart
     // réalisé n'est pas passé (AUDCIF art. 55) · l'écart proposé se passe sur
     // le groupe, figé compris (second tour, B2), et le contrôle s'éteint ;
-    // la clôture ne le refuse pas (D3 ne lit pas les groupes à cheval).
+    // la clôture le REFUSE désormais (A6 ter, m-1 · D3 lit le groupe à
+    // cheval dénoué dans l'exercice), ce contrôle l'annonce avant.
     // Sans ligne lettrée dans l'exercice (relevé au parcours), aucun groupe
     // n'y touche · la lecture des lettrages n'a pas lieu d'être.
     if (parcours.lettrageVu) {
@@ -4737,7 +4738,8 @@ export class ControlesService {
             '(AUDCIF art. 55) ; non passé, il reste au compte du tiers comme un reste qui n’est plus une créance ni une dette, et manque au résultat.',
           action:
             "Passez l'écart proposé sur le groupe (Interrogation et lettrage, « Écart de change »), figé ou non · jamais par une écriture hors " +
-            "du groupe, que la réévaluation recompterait. Dénouement dans une période close · report au premier jour non clôturé (AUDCIF art. 22, 4°).",
+            "du groupe, que la réévaluation recompterait. Dénouement dans une période close · report au premier jour non clôturé (AUDCIF art. 22, 4°). " +
+            "La clôture de l'exercice est refusée tant que l'écart n'est pas passé.",
           occurrences: [
             ...borne,
             ...ecarts.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueEcartACheval(g, tenant.referentiel), montant: g.ecartNonPasse! })),

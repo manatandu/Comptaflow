@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { groupesDenoues, positionDesLignes } from '../devises/perimetre-reevaluation';
+import { groupesDenoues, lectureDesGroupes, positionDesLignes } from '../devises/perimetre-reevaluation';
 
 type Lecteur = Pick<PrismaService, 'reevaluation' | 'ligneEcriture' | 'coursDevise' | 'exercice'>;
 
@@ -67,6 +67,8 @@ interface LectureDeLaReevaluation {
   passe: number;
   lignes: LigneAReconstituer[];
   denoues: Set<string>;
+  /** Les groupes à cheval qu'elle a écartés, dénoués avant sa date (B1, `lectureDesGroupes`). */
+  denouesACheval: Set<string>;
   /** Le cours qu'elle a RETENU (enregistré, D5), sinon celui en vigueur à sa date. */
   cours: Map<string, number | null>;
   /** Les devises du compte dont le cours de sa date a été CORRIGÉ depuis (D5). */
@@ -92,6 +94,17 @@ interface LectureDeLaReevaluation {
  *    décision D5 (`coursUtilises`) ; à défaut (réévaluation antérieure), le
  *    cours en vigueur à sa date. Un cours de sa date corrigé depuis est
  *    rendu à part (`coursCorriges`).
+ *  · LA RÈGLE B1 D'A6 BIS, celle de `DevisesService.calculer` (ligne A6 ter,
+ *    m-4) · un groupe n'éteint une ligne que s'il tient tout entier dans
+ *    l'exercice, à la date (`lectureDesGroupes`) ; à cheval, ses lignes de
+ *    l'exercice se lisent ouvertes, lettrées SOLDE comprises, ses lignes en
+ *    FRANCS (l'écart réalisé passé sur le groupe) entrent dans la valeur
+ *    comptable de SA devise, et un groupe à cheval dénoué avant la date en
+ *    sort son réalisé. Reconstituée autrement que la réévaluation n'a
+ *    calculé, la position ne concordait plus · l'avertissement « des
+ *    lettrages ou des écritures ont changé » tombait sans que rien n'ait
+ *    changé. Les lignes du groupe sont lues TELLES QU'ELLES ÉTAIENT (saisies
+ *    au plus tard d'elle, l'à-nouveau du début de l'exercice compris).
  */
 async function lireLaReevaluation(
   prisma: Lecteur,
@@ -137,8 +150,21 @@ async function lireLaReevaluation(
         compteId: p.compteId,
         deviseId: { not: null },
         ecriture: telQuIlEtait,
-        // Ouverte à la réévaluation · non lettrée, ou lettrée SOLDE après elle.
-        OR: [{ lettre: null }, { lettrage: { soldeAt: { gt: reeval.createdAt } } }],
+        // Ouverte à la réévaluation · non lettrée, ou lettrée SOLDE après elle,
+        // ou par un groupe qui sort de l'exercice ou dépasse la date (B1).
+        OR: [
+          { lettre: null },
+          { lettrage: { soldeAt: { gt: reeval.createdAt } } },
+          {
+            lettrage: {
+              lignes: {
+                some: {
+                  ecriture: { tenantId: p.tenantId, OR: [{ exerciceId: { not: p.exerciceId } }, { date: { gt: reeval.dateReevaluation } }] },
+                },
+              },
+            },
+          },
+        ],
       },
       select: {
         id: true,
@@ -159,25 +185,70 @@ async function lireLaReevaluation(
     lettrageId: groupeDAlors(l),
   }));
   const ids = [...new Set(lignes.flatMap((l) => (l.lettrageId ? [l.lettrageId] : [])))];
-  const denoues = new Set(
-    ids.length
-      ? groupesDenoues(
-          (
-            await prisma.ligneEcriture.findMany({
-              where: { lettrageId: { in: ids }, ecriture: telQuIlEtait },
-              select: { lettrageId: true, debit: true, credit: true, deviseId: true, montantDevise: true },
-            })
-          ).map((l) => ({
-            lettrageId: l.lettrageId!,
-            code: '',
-            debit: Number(l.debit),
-            credit: Number(l.credit),
-            deviseId: l.deviseId,
-            montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-          })),
-        ).keys()
-      : [],
-  );
+  // Les groupes d'alors, sur TOUTES leurs lignes telles qu'elles étaient ·
+  // celles d'un autre exercice disent s'il sort de l'exercice (B1).
+  const lignesDesGroupes = ids.length
+    ? (
+        await prisma.ligneEcriture.findMany({
+          where: {
+            lettrageId: { in: ids },
+            ecriture: {
+              tenantId: p.tenantId,
+              OR: [
+                { createdAt: { lte: reeval.createdAt } },
+                ...(exercice
+                  ? [
+                      {
+                        exerciceId: p.exerciceId,
+                        date: exercice.dateDebut,
+                        OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+          select: {
+            id: true,
+            lettrageId: true,
+            compteId: true,
+            debit: true,
+            credit: true,
+            deviseId: true,
+            montantDevise: true,
+            ecriture: { select: { exerciceId: true, date: true } },
+          },
+        })
+      ).map((l) => ({
+        id: l.id,
+        lettrageId: l.lettrageId!,
+        code: '',
+        compteId: l.compteId,
+        compte: null,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+        deviseId: l.deviseId,
+        devise: l.deviseId === null ? null : { id: l.deviseId, code: '' },
+        montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+        ecriture: l.ecriture,
+      }))
+    : [];
+  const lecture = lectureDesGroupes(lignesDesGroupes, { exerciceId: p.exerciceId, date: reeval.dateReevaluation });
+  const denoues = new Set(groupesDenoues(lignesDesGroupes.filter((l) => !lecture.aCheval.has(l.lettrageId))).keys());
+  // Les lignes en FRANCS d'un groupe à cheval, dans la valeur comptable de sa
+  // devise ; un groupe à plusieurs devises ne se range pas, comme au calcul.
+  for (const l of lecture.lignesEnFrancs) {
+    const devise = lecture.deviseDuGroupe.get(l.lettrageId);
+    if (!devise || l.compteId !== p.compteId) continue;
+    lignes.push({ id: l.id, deviseId: devise.id, debit: l.debit, credit: l.credit, montantDevise: null, lettrageId: l.lettrageId });
+  }
+  // Le groupe à cheval dénoué avant la date · son réalisé sort de la valeur
+  // comptable de sa devise (une ligne de reconstitution, sans montant en devise).
+  for (const [id, d] of lecture.denouesACheval) {
+    const devise = lecture.deviseDuGroupe.get(id);
+    if (!devise || !lignesDesGroupes.some((x) => x.lettrageId === id && x.compteId === p.compteId)) continue;
+    lignes.push({ deviseId: devise.id, debit: Math.max(0, -d.ecart), credit: Math.max(0, d.ecart), montantDevise: null, lettrageId: null });
+  }
   const cours = new Map<string, number | null>();
   const coursCorriges: LectureDeLaReevaluation['coursCorriges'] = [];
   for (const deviseId of new Set(lignes.map((l) => l.deviseId))) {
@@ -191,7 +262,16 @@ async function lireLaReevaluation(
     cours.set(deviseId, retenu ?? aujourdhui);
     if (retenu !== null && (aujourdhui === null || Math.abs(aujourdhui - retenu) > 1e-9)) coursCorriges.push({ deviseId, retenu, aujourdhui });
   }
-  return { date: reeval.dateReevaluation, creeeLe: reeval.createdAt, passe, lignes, denoues, cours, coursCorriges };
+  return {
+    date: reeval.dateReevaluation,
+    creeeLe: reeval.createdAt,
+    passe,
+    lignes,
+    denoues,
+    denouesACheval: new Set(lecture.denouesACheval.keys()),
+    cours,
+    coursCorriges,
+  };
 }
 
 /**
@@ -268,6 +348,9 @@ export async function issueReevaluationDejaPassee(
   const devisesDuGroupe = new Set(lu.lignes.filter((l) => l.lettrageId === p.lettrageId).map((l) => l.deviseId));
   const corriges = lu.coursCorriges.filter((c) => devisesDuGroupe.has(c.deviseId));
   if (corriges.length > 0) return { refus: motifCoursCorrige({ date: lu.date, coursCorriges: corriges }, p.compteNumero) };
+  // Un groupe à cheval dénoué avant sa date, elle l'a ÉCARTÉ, son réalisé
+  // nommé hors de la position (B1, `lectureDesGroupes`) · rien ne s'oppose.
+  if (lu.denouesACheval.has(p.lettrageId)) return null;
   const tolerance = 0.01 * Math.max(1, lu.cours.size);
   // La cible se bascule · écartée en (a), lue en (b), qu'elle ait existé ou non.
   const avecCible = new Set([...lu.denoues, p.lettrageId]);

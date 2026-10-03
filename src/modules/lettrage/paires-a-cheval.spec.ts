@@ -215,6 +215,44 @@ describe('la paire à cheval · au Solde', () => {
   });
 });
 
+// A6 TER, seconde relecture, BLOQUANT · le reste d'une ligne en devise est
+// son COÛT HISTORIQUE au prorata de la devise restante (AUDCIF art. 54, 55),
+// jamais « francs reportés moins francs payés », qui y laissait le réalisé
+// non passé du groupe. Le jeu du vérificateur (p1) · client au Solde, G de
+// 1 000 USD et H de 500 USD à 2 800 en N, G encaissée en N+1 à 2 700, lettrée
+// à cheval avant la clôture de N.
+describe('le reste d’une paire en devise est au coût historique (A6 ter)', () => {
+  const client = (mode: string) => ({ compteId: 'c411', compte: { ...compte401(mode), id: 'c411', numero: '41110000' } });
+
+  it('au Solde · H reste due de 1 400 000 pour 500 USD, pas de 1 500 000', async () => {
+    const c = client('SOLDE');
+    const lignes = [
+      ligne('g0', 2_800_000, 0, 1000, ecr('n', '2026-10-01'), { ...c, lettrageId: 'G' }),
+      // Le solde reporté en USD (G et H, 1 500 USD, 4 200 000), et le reste en francs (la réévaluation de N).
+      ligne('ranUsd', 4_200_000, 0, 1500, ecr('n1', '2027-01-01', CLOTURE), { ...c, libelle: 'Report à-nouveau 41110000 · Clients · en devise' }),
+      ligne('ranFc', 0, 75_000, null, ecr('n1', '2027-01-01', CLOTURE), { ...c, libelle: 'Report à-nouveau 41110000 · Clients' }),
+      ligne('rg', 0, 2_700_000, 1000, ecr('n1', '2027-02-10'), { ...c, lettrageId: 'G' }),
+    ];
+    const r = await pairesACheval(lecteur(lignes), { tenantId: 't', exercice: N1, compte: { numero: { startsWith: '41' } } });
+    expect(r.reste.get('ranUsd')).toEqual({ francs: 1_400_000, devise: 500, groupe: 'A' });
+    // L'écart de G passé ensuite sur le groupe (100 000) ne change rien au reste.
+    const avecEcart = [...lignes, ligne('ec', 0, 100_000, null, ecr('n1', '2027-02-10'), { ...c, lettrageId: 'G', lettre: 'G' })];
+    const r2 = await pairesACheval(lecteur(avecEcart), { tenantId: 't', exercice: N1, compte: { numero: { startsWith: '41' } } });
+    expect(r2.reste.get('ranUsd')).toEqual({ francs: 1_400_000, devise: 500, groupe: 'A' });
+  });
+
+  it('au Détail · 600 USD de G réglés à 2 700 · le reste est 400 USD à 2 800 (1 120 000), pas 1 180 000', async () => {
+    const c = client('DETAIL');
+    const lignes = [
+      ligne('g0', 2_800_000, 0, 1000, ecr('n', '2026-10-01'), { ...c, lettrageId: 'G' }),
+      ligne('ran', 2_800_000, 0, 1000, ecr('n1', '2027-01-01', CLOTURE), { ...c, libelle: 'RAN détail 41110000 · Facture NZUZI' }),
+      ligne('rg', 0, 1_620_000, 600, ecr('n1', '2027-02-10'), { ...c, lettrageId: 'G' }),
+    ];
+    const r = await pairesACheval(lecteur(lignes), { tenantId: 't', exercice: N1, compte: { numero: { startsWith: '41' } } });
+    expect(r.reste.get('ran')).toEqual({ francs: 1_120_000, devise: 400, groupe: 'A' });
+  });
+});
+
 describe('les relances lisent la paire (câblage, F4a)', () => {
   it('la créance reportée et encaissée par un groupe à cheval · aucune lettre de rappel', async () => {
     const compte411 = { id: 'c411', numero: '41110000', intitule: 'MBIKAYI', modeReportANouveau: 'DETAIL', tiersCompte: null as null };
