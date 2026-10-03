@@ -116,6 +116,65 @@ export function groupesDenoues(lignes: LigneDeGroupe[]): Map<string, { code: str
   return denoues;
 }
 
+/** Une ligne d'un groupe de lettrage, lue sur TOUS ses exercices. */
+export interface LigneDeGroupeDatee<C> extends LigneDeGroupe {
+  compteId: string;
+  compte: C;
+  devise: { id: string; code: string } | null;
+  ecriture: { exerciceId: string; date: Date };
+}
+
+/**
+ * CE QUE LA RÉÉVALUATION D'UN EXERCICE LIT DES GROUPES DE LETTRAGE (ligne
+ * A6 bis, B1 et B-3) · chaque exercice se lit pour lui-même, comme le report
+ * à-nouveau (`lettrage/lettrages-a-cheval.ts`). Un groupe qui a une ligne
+ * dans un AUTRE exercice, ou datée APRÈS la réévaluation, n'éteint aucune
+ * ligne de celui-ci (`aCheval`) · ses lignes de l'exercice se lisent
+ * ouvertes, celles en FRANCS comprises (`lignesEnFrancs`, l'écart réalisé
+ * passé sur le groupe), rangées dans la devise du groupe
+ * (`deviseDuGroupe`, absente si le groupe en porte plusieurs ou aucune).
+ *
+ * UN GROUPE DÉNOUÉ AVANT LA DATE, PAR-DESSUS L'OUVERTURE (`denouesACheval`) ·
+ * ses autres lignes sont d'exercices ANTÉRIEURS, aucune n'est postérieure à
+ * la date, et il est soldé dans sa devise sur l'ensemble de ses lignes.
+ * L'à-nouveau de l'exercice reporte ses lignes antérieures (règle 1 du
+ * report), si bien que la position porte le groupe entier · zéro en devise
+ * et, en francs, le réalisé QUI N'EST PAS ENCORE PASSÉ (AUDCIF art. 55).
+ * Rendu signé (positif = perte), il est retiré de la valeur comptable et
+ * nommé, comme `groupesDenoues` · laissé dans la position, il serait
+ * réévalué avec les autres factures de la devise, et le réalisé passerait au
+ * 478 et en provision. Un groupe qui a une ligne POSTÉRIEURE n'est pas
+ * dénoué à la date (B-3) · ses lignes se lisent ouvertes, sans plus.
+ */
+export function lectureDesGroupes<T extends LigneDeGroupeDatee<unknown>>(
+  lignes: T[],
+  p: { exerciceId: string; date: Date },
+): {
+  aCheval: Set<string>;
+  lignesEnFrancs: T[];
+  deviseDuGroupe: Map<string, { id: string; code: string }>;
+  denouesACheval: Map<string, { code: string; ecart: number }>;
+} {
+  const dans = (l: T) => l.ecriture.exerciceId === p.exerciceId && l.ecriture.date.getTime() <= p.date.getTime();
+  const aCheval = new Set(lignes.filter((l) => !dans(l)).map((l) => l.lettrageId));
+  const posterieurs = new Set(lignes.filter((l) => l.ecriture.date.getTime() > p.date.getTime()).map((l) => l.lettrageId));
+  const denouesACheval = new Map<string, { code: string; ecart: number }>();
+  for (const [id, d] of groupesDenoues(lignes.filter((l) => aCheval.has(l.lettrageId) && !posterieurs.has(l.lettrageId)))) {
+    if (Math.abs(d.ecart) >= 0.005) denouesACheval.set(id, d);
+  }
+  const devises = new Map<string, Map<string, { id: string; code: string }>>();
+  for (const l of lignes) {
+    if (!aCheval.has(l.lettrageId) || !l.deviseId || !l.devise) continue;
+    const parId = devises.get(l.lettrageId) ?? new Map<string, { id: string; code: string }>();
+    parId.set(l.devise.id, l.devise);
+    devises.set(l.lettrageId, parId);
+  }
+  const deviseDuGroupe = new Map<string, { id: string; code: string }>();
+  for (const [id, parId] of devises) if (parId.size === 1) deviseDuGroupe.set(id, [...parId.values()][0]!);
+  const lignesEnFrancs = lignes.filter((l) => aCheval.has(l.lettrageId) && l.deviseId === null && dans(l));
+  return { aCheval, lignesEnFrancs, deviseDuGroupe, denouesACheval };
+}
+
 /**
  * LA POSITION D'UN COMPTE DANS UNE DEVISE, comme `DevisesService.calculer`
  * l'agrège · le montant en devise prend le SENS de sa ligne (débit moins

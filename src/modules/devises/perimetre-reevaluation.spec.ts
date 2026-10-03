@@ -190,6 +190,8 @@ describe('réévaluation · un groupe partiel dénoué sur un compte qui porte d
     lettrageId,
     compte: { id: 'c401', numero: '40110000', intitule: 'NZUZI' },
     devise: { id: 'd1', code: 'USD' },
+    // Toutes de l'exercice, avant sa clôture · le groupe n'en sort pas (A6 bis).
+    ecriture: { exerciceId: 'ex1', date: new Date('2026-06-01') },
   });
   const lignes = [
     ligne(0, 1_948_800, 1160, 'L'),
@@ -265,9 +267,13 @@ describe('réévaluation · un groupe à cheval sur deux exercices', () => {
     lettrage: { code: 'A' },
     compte: { id: 'c401', numero: '40110000', intitule: 'NZUZI' },
     devise: { id: 'd1', code: 'USD' },
+    ecriture: { exerciceId: l.exercice, date: new Date(l.exercice === 'N' ? '2026-06-01' : '2027-06-01') },
   });
 
-  it('borné à N+1, le groupe n’est pas dénoué · la position soldée en devise ne se réévalue pas', async () => {
+  // A6 bis, B1 · le groupe se lit sur TOUTES ses lignes, et c'est ce qui dit
+  // qu'il sort de N+1 · il n'éteint alors aucune ligne de N+1, et n'est
+  // jamais jugé dénoué par ses seules lignes de N+1.
+  it('à cheval, dénoué par-dessus l’ouverture · la position soldée en devise ne se réévalue pas, le groupe est nommé', async () => {
     const findMany = jest.fn(async ({ where }: { where: { lettrageId?: { in: string[] }; ecriture: { exerciceId?: string } } }) =>
       toutes
         .filter((l) => (where.ecriture.exerciceId === undefined || l.exercice === where.ecriture.exerciceId))
@@ -288,10 +294,13 @@ describe('réévaluation · un groupe à cheval sur deux exercices', () => {
       coursDevise: { findFirst: jest.fn().mockResolvedValue({ cours: 1850 }) },
     };
     const r = await new DevisesService(prisma as unknown as PrismaService, {} as EcritureService).calculer('t1', { exerciceId: 'N1' });
-    // La lecture du groupe porte l'exercice de la position.
-    expect(findMany.mock.calls.some(([a]) => a.where.lettrageId && a.where.ecriture.exerciceId === 'N1')).toBe(true);
+    // La lecture du groupe n'est pas bornée à l'exercice · c'est elle qui voit N.
+    expect(findMany.mock.calls.some(([a]) => a.where.lettrageId && a.where.ecriture.exerciceId === undefined)).toBe(true);
     expect(r.positions).toHaveLength(0);
-    expect(r.positionsNonReevaluees).toEqual([expect.objectContaining({ numero: '40110000', montantDevise: 0, motif: expect.stringMatching(/^position dénouée/) })]);
+    // A6 bis · le groupe se nomme, avec le réalisé qui reste à passer (123 200).
+    expect(r.positionsNonReevaluees).toEqual([
+      expect.objectContaining({ numero: '40110000', montantDevise: 0, motif: expect.stringMatching(/^lettrage a · position dénouée.*123200\.00/) }),
+    ]);
   });
 });
 
