@@ -102,6 +102,7 @@ détail de chaque lot (périmètre, sources, décisions D-1 à D-28) reste dans
 
 ## Relevés en attente (hors liste tant que Manasse ne les y met pas)
 
+- 2026-10-03 · mineurs de la relecture TypeScript d'A7 (second et dernier tour, aucun BLOQUANT) · (1) DTO des créances douteuses, `compte416Id`, `compte491Id`, `comptePerteId`, `motif`, `pieces` sous `@IsOptional()` seul, `null` lu comme absence par le service (sans effet faux) · `@FacultatifNonNul` ou commentaire ; (2) verrou du dossier à échéance de quinze minutes, même mécanique qu'A5 ; (3) deux `delete` par identifiant après un `findFirst` borné, à écrire `deleteMany` avec `tenantId` pour la symétrie ; (4) refus D3 d'A6 lu avant la transaction de clôture, écrit en commentaire.
 - FERMÉ par la décision D1 du 2026-10-03 (réévaluation à la date de clôture
   seulement, AUDCIF art. 54 ; les réévaluations déjà passées ailleurs sont
   signalées). Relevé par la seconde relecture d'A6 (2026-10-03), défaut
