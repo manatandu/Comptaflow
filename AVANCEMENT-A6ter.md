@@ -43,17 +43,38 @@ Branche de sauvegarde `travail/a6ter`, partie de `main` 0dbc315.
   411 0, 52 4 050 000, 656 150 000, 478 0, 4991 0, 7591 -75 000 ; N+2 ouvre
   411 0, 52 4 050 000. Scripts · scratchpad `a6ter/s2.mjs`, `s3.mjs`.
 
+- SECONDE RELECTURE, BLOQUANT (`lettrage/paires-a-cheval.ts`, `imputer`) · le
+  reste d'une ligne d'à-nouveau en devise réglée en partie par un groupe à
+  cheval est son COÛT HISTORIQUE au prorata de la devise restante (AUDCIF
+  art. 54, 55), au Solde comme au Détail, jamais « francs reportés moins
+  francs payés ». D3 et `lectureDesGroupes` ne lisent pas ce reste (la
+  réévaluation retire le réalisé du groupe dénoué, `denouesACheval`).
+  Rejeu p1 du vérificateur sur vraie base (base `a6ter_2`) · échéance de H
+  1 400 000 pour 500 USD (au lieu de 1 500 000), règlement de H avant l'écart
+  de G · écart 50 000 (au lieu de 150 000), écart de G 100 000, clôture N+1 ·
+  656 150 000, 411 0, 52 4 050 000, 478 0, 4991 0, 7591 -75 000 ; N+2 ouvre
+  411 0.
+- SECONDE RELECTURE, mineur b (`lignes-de-reevaluation.ts`) · les lignes
+  d'à-nouveau déjà lettrées consomment leur ligne de réévaluation, la ligne
+  lettrée avec une écriture de réévaluation d'abord, la ligne ouverte en
+  dernier. Rejeu p4 · après le lettrage automatique de la contre-passation,
+  la facture H de 50 000 FC est bien due.
+
 ## Reste (au suivi, non traité)
+
+- Mineur a de la seconde relecture · l'écart réalisé PARTIEL d'un groupe à
+  cheval sur trois exercices se date dans le mauvais exercice. Non traité.
+- Limite du mineur b · AVANT tout lettrage, deux lignes d'à-nouveau ouvertes
+  de même montant (la ligne reportée de l'écart, une vraie facture en francs)
+  ne se distinguent pas sans lien en base · la première lue est prise pour
+  l'écart (rejeu p4 · avant le lettrage, H est masquée et l'écart montré dû).
+  Le total dû reste juste ; un lien d'origine sur la ligne d'à-nouveau le
+  lèverait (schéma).
 
 - En Solde, N clôturé, la perte réalisée d'une facture payée en N+1 SANS
   lettrage reste dans la position et se provisionne (rien ne dit à D3 son
   dénouement) · le calcul de la réévaluation la nomme seulement.
 - Contrôle qui nomme les réévaluations déjà passées que B-3 change.
-- Relevé du rejeu · avant le passage de l'écart d'un groupe à cheval, la
-  ligne d'à-nouveau qui reporte sa facture se lit due du reste EN FRANCS du
-  paiement (1 500 000 pour 500 USD, au lieu de 1 400 000) · le règlement de
-  l'autre facture passé AVANT l'écart chiffrerait son réalisé sur ce reste.
-  Après l'écart, 1 400 000. À vérifier (`paires-a-cheval.ts`).
 - Le groupe à cheval dont la seule ligne de l'exercice est en francs est lu
   désormais en entier par D3 (m-1) ; pas de rejeu dédié.
 
