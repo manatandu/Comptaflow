@@ -29,7 +29,6 @@ function blocApres(source: string, debut: string | number): string {
 describe('marqueurs posés après creer', () => {
   it.each([
     ['regularisation/regularisation.service.ts', 'data: { ecritureRepriseId: ecriture.id },', 'ecritureRepriseId: null'],
-    ['devises/devises.service.ts', 'ecritureExtourneId: ecriture.id,', 'ecritureExtourneId: null'],
     ['regularisation/regularisation.service.ts', 'await this.prisma.echeanceAbonnement.updateMany({', 'ecritureId: null'],
   ])('%s · %s', (fichier, ancre, condition) => {
     const source = lire(fichier);
@@ -38,6 +37,22 @@ describe('marqueurs posés après creer', () => {
     expect(bloc).toContain(condition);
     expect(bloc).toContain('if (count === 0) {');
     expect(bloc).toContain('this.ecritureService.retirerCompensation(tenantId, ecriture.id)');
+  });
+
+  // La contre-passation d'une réévaluation pose son lien par un `update`
+  // UNITAIRE (relecture adverse d'A5 bis, M6) · le journal d'audit en garde
+  // l'avant et l'après, ce qu'un `updateMany` ne laisse pas. Même garde ·
+  // conditionné au lien encore nul, et le perdant (P2025) retire sa pièce.
+  it('la contre-passation d’une réévaluation · update unitaire conditionné au lien nul, le perdant retire sa pièce', () => {
+    const source = lire('devises/devises.service.ts');
+    const debut = source.indexOf('private async extournerSousVerrou(');
+    expect(['ancre trouvée', debut >= 0]).toEqual(['ancre trouvée', true]);
+    const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
+    const lien = corps.slice(corps.indexOf('await this.prisma.reevaluation.update({'));
+    expect(lien).toContain('AND: [{ ecritureExtourneId: null }]');
+    const perdu = lien.slice(lien.indexOf('} catch (e) {'));
+    expect(perdu).toContain('this.ecritureService.retirerCompensation(tenantId, ecriture.id)');
+    expect(perdu).toContain("e.code === 'P2025'");
   });
 
   it('la réévaluation retire ses deux écritures si son marqueur ne s’écrit pas', () => {
