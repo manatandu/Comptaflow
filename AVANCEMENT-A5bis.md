@@ -68,9 +68,62 @@ l'écart sur la ligne de sa devise (écart passé sans devise, F55).
    « No difference detected ». A13 reconnaît la contre-passation par
    liaison, elle ne porte simplement plus de ligne de banque.
 
+## Premier tour de relecture (2026-10-03) · corrigé
+
+- M4 · citations · Application 84 (« 411 · 4781 »), 85 (« 4793 · 4812 »),
+  86 ; anomalie « Selon l'article 58 » de la section 4 signalée (la règle
+  est à l'art. 57).
+- B1 · une réévaluation antérieure n'enferme plus le dossier · (a) devise
+  nulle en devise ET en francs ignorée ; (b) à défaut du cours gardé, cours
+  de la table à sa date, vérifié au centime ; (c) à défaut, VENTILATION
+  DÉCLARÉE par devise avec sa source (`POST
+  /devises/reevaluations/:id/ventilation-disponibilites`, update unitaire au
+  journal d'audit, sous le verrou, ouverte même sur exercice clos, refusée
+  si la ligne se relit, figée dès qu'une réévaluation postérieure l'a lue) ;
+  (d) la réserve nomme la déclaration, l'annulation seulement si l'exercice
+  est ouvert. Relecture du compte TEL QU'IL ÉTAIT (saisi avant elle, sauf
+  l'à-nouveau du début ; lignes alors ouvertes).
+- M5 · sommes par `groupBy` (compte, devise, sens), comme
+  `lireComptesDuReport`.
+- M3 · « relancez l'à-nouveau provisoire, ou clôturez l'exercice
+  précédent » ; « validez » seulement si l'écriture des écarts est au
+  brouillard.
+- `extourner` n'écrit plus `ecartsDisponibilites` · nul = ancien régime.
+- M1 · `extourner` n'accepte que l'exercice qui suit IMMÉDIATEMENT ; le
+  portillon vérifie que la contre-passation est dans l'exercice réévalué ;
+  issue d'une contre-passation mal placée · `POST
+  /devises/reevaluations/:id/contre-passation/annuler` (motif, réservée au
+  comptable, brouillard supprimé filtré sur le statut, validée en négatif,
+  update unitaire, trace `annulationsContrePassation`) ; le report ne tient
+  une inversion pour faite que dans l'exercice qui suit.
+- B3 · `reporterAuPremierJourOuvert: true` (art. 22, 4°), dit au portillon.
+- B2 · exercice suivant réévalué sous l'ancien régime · contre-passation
+  INTÉGRALE imposée, dite au libellé et dans la réponse
+  (`contrePassationIntegrale`) · banque N+1 1 505 000 et non 1 605 000,
+  gain N+1 41 000 et non 141 000 (test chiffré).
+- M2 · écriture qui ne se partage pas · contre-passation intégrale à
+  demander (`integrale`), refusée ailleurs.
+- M6 · `extourner` sous le verrou, lien par update unitaire.
+- M7 · contrôle 34 · phrase de l'exercice clos seulement s'il l'est ;
+  préalables de D6 nommés ; intégrale par exception dite.
+- M8 · Devises · « Rien à contre-passer » pour les seules disponibilités,
+  bouton vers l'exercice qui suit immédiatement (servi par le serveur,
+  `contrePassationAPasser`, `exerciceDeContrePassation`), bulle (art. 57),
+  « Annuler la contre-passation », « Ventiler l'écart des disponibilités ».
+
+Migration `20270124000000` complétée (six colonnes, non encore sur main) ;
+`prisma migrate diff` · « No difference detected » ; formes de requête
+éprouvées sur base jetable (filtre JSON DbNull, update à filtre étendu,
+groupBy à référence de champ).
+
 ## Reste
 
-- Relectures (silent-failure-hunter, typescript-reviewer) à l'intégration.
+- Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
+  à l'intégration.
+- Limite connue · une contre-passation ANCIENNE qui inversait une banque,
+  annulée par le nouveau geste, n'est plus reconnue par liaison au contrôle
+  32 d'A13 (compte 52 fermé) · cas d'école (contre-passation mal placée ET
+  banque inversée ET compte fermé).
 - A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
   pas la part reportée en francs par l'à-nouveau · une caisse en devise
   réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la
@@ -80,5 +133,6 @@ l'écart sur la ligne de sa devise (écart passé sans devise, F55).
 
 ```bash
 npx tsc --noEmit
-npx jest src/modules/devises
+npx jest src/modules/devises src/modules/controles/contre-passation-de-disponibilite.spec.ts
+cd client && npx vitest run src/lib/contre-passation.spec.ts src/lib/reevaluation-cloture.spec.ts
 ```
