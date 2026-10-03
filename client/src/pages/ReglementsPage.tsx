@@ -8,6 +8,7 @@ import { Aide } from '../components/chrome/Aide';
 import { OrdresVirement } from '../components/OrdresVirement';
 import { lignesDepuisSelection, rappelerLot, type LotVirement } from '../lib/lots-virement';
 import { montant as fmt } from '../lib/montants';
+import { jourFr } from '../lib/jour-fr';
 import { coursPropose, devisesEtrangeres, type DeviseDuDossier } from '../lib/ligne-en-devise';
 import { comptesProposablesEcart, corpsReglementEnDevise, ecartEstime, libelleEcartRealise, natureDuCompte, nombreSaisi, type Referentiel } from '../lib/ecart-change';
 import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
@@ -575,7 +576,7 @@ export function ReglementsPage() {
                                 inputMode="decimal"
                                 value={coursDuGroupe(g, devise.id)}
                                 onChange={(e) => setCoursSaisis((c) => ({ ...c, [g.compteId]: e.target.value }))}
-                                title={coursCote ? `Dernier cours coté le ${new Date(coursCote.date).toLocaleDateString('fr-FR')}` : 'Aucun cours coté à cette date · saisissez-le'}
+                                title={coursCote ? `Dernier cours coté le ${jourFr(coursCote.date)}` : 'Aucun cours coté à cette date · saisissez-le'}
                                 className="w-[90px] border border-border px-1.5 py-[1px] text-right"
                               />
                               <span className="text-text-dim">ou payé en francs</span>
@@ -647,7 +648,7 @@ export function ReglementsPage() {
                   {g.creanceReclassee && (
                     <tr>
                       <td colSpan={5} className="px-2 py-1 text-[11.5px] text-warning">
-                        Créance reclassée au {g.creanceReclassee.compte416} le {g.creanceReclassee.date} · son encaissement se passe par
+                        Créance reclassée au {g.creanceReclassee.compte416} le {jourFr(g.creanceReclassee.date)} · son encaissement se passe par
                         « Recouvrement » dans « Créances douteuses ou litigieuses »
                       </td>
                     </tr>
@@ -663,7 +664,7 @@ export function ReglementsPage() {
                           onChange={() => basculer(l.id)}
                         />
                       </td>
-                      <td className="px-2 py-1">{new Date(l.echeance).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-2 py-1">{jourFr(l.echeance)}</td>
                       <td className="px-2 py-1 text-text-dim">
                         {l.journalCode} {l.numeroPiece ?? ''}
                       </td>

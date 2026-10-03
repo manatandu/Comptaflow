@@ -35,7 +35,7 @@ import {
   resteDeLaCreance,
   revueAFaire,
 } from './creances-douteuses';
-import { CreancesDouteusesService } from './creances-douteuses.service';
+import { CreancesDouteusesService, PLAFOND_COMPTES_416_491 } from './creances-douteuses.service';
 import { CreancesDouteusesController } from './creances-douteuses.controller';
 import { CLE_ACCES_ROLES_CANTONNES } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
@@ -553,11 +553,14 @@ describe('créances douteuses · service', () => {
               (e.estANouveauProvisoire !== false || !l.provisoire) &&
               (auDebit ? l.debit > 0 || l.credit < 0 : l.credit > 0 || l.debit < 0),
           );
-          const groupes = new Map<string, { compteId: string; deviseId: string; _sum: { montantDevise: number } }>();
+          // A7 quater, m3 · les francs des positions sont sommés aussi.
+          const groupes = new Map<string, { compteId: string; deviseId: string; _sum: { montantDevise: number; debit: number; credit: number } }>();
           for (const l of retenues) {
             const cle = `${l.compteId}|${l.deviseId}`;
-            const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId!, _sum: { montantDevise: 0 } };
+            const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId!, _sum: { montantDevise: 0, debit: 0, credit: 0 } };
             g._sum.montantDevise += l.montantDevise ?? 0;
+            g._sum.debit += l.debit;
+            g._sum.credit += l.credit;
             groupes.set(cle, g);
           }
           return Promise.resolve([...groupes.values()]);
@@ -620,8 +623,16 @@ describe('créances douteuses · service', () => {
       lettrerLignesDuModule: jest.fn().mockResolvedValue({ code: 'A' }),
       defaireLettrageDuModule: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new CreancesDouteusesService(prisma, { creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, lettrage as any);
-    return { service, prisma, creer, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation, lettrage };
+    // A7 quater, m1 · l'écriture et ce qui la tient dans une transaction · la
+    // doublure crée l'écriture (par `creer`, dont les appels sont relus) puis
+    // joue la suite ; un échec de la suite remonte, rien n'est compensé (la
+    // transaction réelle défait l'écriture).
+    const creerAvec = jest.fn().mockImplementation(async (t: string, u: string, dto: unknown, suite: (tx: unknown, e: { id: string }) => Promise<unknown>) => {
+      const ecriture = await creer(t, u, dto);
+      return { ecriture, suite: await suite(prisma, ecriture) };
+    });
+    const service = new CreancesDouteusesService(prisma, { creer, creerAvec, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation } as any, lettrage as any);
+    return { service, prisma, creer, creerAvec, retirerCompensation, supprimer, inscrireEnNegatifPourAnnulation, lettrage };
   }
 
   /**
@@ -852,10 +863,13 @@ describe('créances douteuses · service', () => {
     expect(prisma.verrouCreancesDouteuses.deleteMany).toHaveBeenLastCalledWith({ where: { tenantId: 't', id: 'verrou-1' } });
   });
 
-  it('une ligne refusée ne laisse pas son écriture au journal', async () => {
-    const { service, retirerCompensation } = monter({ creationEchoue: true });
+  // A7 QUATER, m1 · l'écriture et la créance naissent dans UNE transaction ·
+  // un refus de la créance défait l'écriture avec elle, sans compensation.
+  it('m1 · l’écriture de reclassement et la créance naissent dans une seule transaction ; un refus remonte sans compensation', async () => {
+    const { service, creerAvec, retirerCompensation } = monter({ creationEchoue: true });
     await expect(service.reclasser('t', 'u', dtoReclassement)).rejects.toThrow('base indisponible');
-    expect(retirerCompensation).toHaveBeenCalledWith('t', 'ecr-1');
+    expect(creerAvec).toHaveBeenCalledTimes(1);
+    expect(retirerCompensation).not.toHaveBeenCalled();
   });
 
   it('au SYCEBNL, un adhérent se reclasse au 4161', async () => {
@@ -1473,6 +1487,25 @@ describe('créances douteuses · service', () => {
     );
   });
 
+  // A7 QUATER, m4 · la liste se lit par date puis identifiant, une de plus que
+  // le plafond · à 200 pile elle n'est pas tronquée, à 201 elle l'est.
+  it('m4 · « Lettrer au 416 » · à-nouveaux par date puis identifiant, `tronque` lu sur le plafond plus un', async () => {
+    const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
+    installerBase(m, { lignes: lignesB2(null) });
+    await m.service.propositionLettrage416('t', 'cd-1', 'ex-27');
+    const appel = m.prisma.ligneEcriture.findMany.mock.calls.map((c: any[]) => c[0]).find((a: any) => a?.take !== undefined);
+    expect(appel).toMatchObject({ orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }], take: PLAFOND_COMPTES_416_491 + 1 });
+    const an = (i: number) => ({ id: `an-${i}`, debit: 1, credit: 0, libelle: null, ecriture: { date: new Date('2027-01-01'), numeroPiece: i } });
+    const lecture = m.prisma.ligneEcriture.findMany.getMockImplementation();
+    for (const [nombre, tronque] of [[PLAFOND_COMPTES_416_491, false], [PLAFOND_COMPTES_416_491 + 1, true]] as const) {
+      m.prisma.ligneEcriture.findMany.mockImplementation((args: any) =>
+        args?.take !== undefined ? Promise.resolve(Array.from({ length: nombre }, (_, i) => an(i))) : lecture(args),
+      );
+      const p: any = await m.service.propositionLettrage416('t', 'cd-1', 'ex-27');
+      expect({ tronque: p.tronque, servies: p.aNouveaux.length }).toEqual({ tronque, servies: PLAFOND_COMPTES_416_491 });
+    }
+  });
+
   it('m2 (troisième passage) · « Lettrer au 416 » exige une ligne de la créance elle-même, jamais deux à-nouveaux seuls', async () => {
     const m = monter({ creance: creance([], [recouvreB2, perteB2]) });
     // Les lignes de la créance en 2027 sont déjà lettrées ; deux à-nouveaux d'autres créances, de sens contraire.
@@ -1729,10 +1762,13 @@ describe('créances douteuses · service', () => {
   });
 
   it('M3 · le retrait d’une écriture orpheline qui échoue est consigné, et l’erreur d’origine remonte', async () => {
-    const { service, retirerCompensation } = monter({ creationEchoue: true });
+    // La revue écrit encore son écriture puis sa ligne · le reclassement, lui,
+    // les écrit dans une seule transaction depuis A7 quater (m1).
+    const { service, retirerCompensation, prisma } = monter({ creance: creance() });
+    prisma.ajustementCreanceDouteuse.create.mockRejectedValue(new Error('base indisponible'));
     retirerCompensation.mockRejectedValue(new Error('retrait impossible'));
     const consigne = jest.spyOn((service as any).journalServeur, 'error').mockImplementation(() => undefined);
-    await expect(service.reclasser('t', 'u', dtoReclassement)).rejects.toThrow('base indisponible');
+    await expect(service.revoir('t', 'u', 'cd-1', dtoRevue)).rejects.toThrow('base indisponible');
     expect(consigne.mock.calls[0][0]).toMatch(/Écriture ecr-1 du dossier t restée au brouillard/);
   });
 
@@ -1852,6 +1888,41 @@ describe('créances douteuses · service', () => {
       Promise.resolve(where.id === 'cli' ? { id: 'cli', numero: '41110000', intitule: 'Clients', typeCompte: TypeCompteDetailTotal.TOTAL, estActif: true } : plan.find((c) => c.id === where.id) ?? plan.find((c) => c.numero.startsWith(where.numero?.startsWith)) ?? null),
     );
     await expect(regroupement.service.declarer('t', 'u', dtoDeclaration)).rejects.toThrow(/compte de regroupement/);
+  });
+
+  // A7 QUATER, m3 · une créance en dollars d'un AUTRE client, au 416 partagé,
+  // refusait la déclaration de toute créance en francs, sans issue. Ses
+  // francs sont désormais retranchés de la borne, et le dépassement le dit.
+  it('m3 · une position en devise sur le 416 partagé ne refuse plus · ses francs sont retranchés de la borne, et nommés', async () => {
+    const lignes = [
+      // À-nouveau du 4162 · 1 000 000 en francs, et 600 000 d'une créance de 400 USD d'un autre client.
+      { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true },
+      { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 600_000, credit: 0, aNouveau: true, deviseId: 'usd', montantDevise: 400 },
+    ];
+    const admis = monter({ lignes, aNouveauDans: ['ex-26'] });
+    await expect(admis.service.declarer('t', 'u', dtoDeclaration)).resolves.toMatchObject({ montant: 500_000 });
+    // 1 100 000 en francs dépasse le 1 000 000 qui n'est pas en devise · refusé, la part en devise nommée.
+    const trop = monter({ lignes, aNouveauDans: ['ex-26'] });
+    await expect(trop.service.declarer('t', 'u', { ...dtoDeclaration, montant: 1_100_000 })).rejects.toThrow(
+      /dépasse son à-nouveau \(1600000\.00, dont 600000\.00 portés par une créance en devise non réglée, hors du module et retranchés\)/,
+    );
+    // Soldée en devise (réglée en N-1), la position ne retranche rien.
+    const soldee = monter({
+      lignes: [...lignes, { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 0, credit: 600_000, aNouveau: true, deviseId: 'usd', montantDevise: 400 }],
+      aNouveauDans: ['ex-26'],
+    });
+    await expect(soldee.service.declarer('t', 'u', { ...dtoDeclaration, montant: 1_000_000 })).resolves.toMatchObject({ montant: 1_000_000 });
+    // Second tour · une position en devise CRÉDITRICE (un trop-perçu de 200 USD,
+    // 300 000 FC) n'élargit jamais la borne · l'à-nouveau en francs vaut
+    // 1 000 000 − 300 000 = 700 000, et 800 000 reste refusé.
+    const crediteur = monter({
+      lignes: [
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true },
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 0, credit: 300_000, aNouveau: true, deviseId: 'usd', montantDevise: 200 },
+      ],
+      aNouveauDans: ['ex-26'],
+    });
+    await expect(crediteur.service.declarer('t', 'u', { ...dtoDeclaration, montant: 800_000 })).rejects.toThrow(/dépasse son à-nouveau \(700000\.00\)/);
   });
 
   it('m5 · les listes des 416 et 491 de détail disent leur total et si elles sont tronquées', async () => {

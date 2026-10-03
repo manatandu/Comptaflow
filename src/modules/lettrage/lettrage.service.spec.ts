@@ -121,6 +121,7 @@ function service(lignes: LigneFausse[], options: { lettrable?: boolean; clotures
     },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where))),
+      count: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where).length)),
       updateMany: jest.fn().mockImplementation(({ where, data }: any) => {
         const cibles = filtrer(where);
         for (const l of cibles) Object.assign(l, data);
@@ -270,14 +271,16 @@ describe('Lettrage automatique', () => {
   // `creerGroupe` réaffectait les lignes sans vérifier qu'elles étaient
   // encore libres · un lettrage concurrent perdait des lignes, et son solde
   // stocké devenait faux.
-  it('refuse, sans rien lettrer, une ligne prise par un autre lettrage entre le calcul et la transaction', async () => {
+  // A7 QUATER, m1 · le calcul se fait désormais DANS la transaction qui pose ·
+  // une ligne prise avant elle n'est simplement plus proposée.
+  it('une ligne prise par un autre lettrage avant la transaction n’est pas proposée, et rien n’est lettré', async () => {
     const { service: s, lignes, groupes, prisma } = service([ligne('a', 750, 0), ligne('b', 0, 750)]);
     const transaction = prisma.$transaction;
     prisma.$transaction = (<R>(fn: (tx: unknown) => Promise<R>) => {
       lignes[1].lettrageId = 'autre';
       return transaction(fn);
     }) as typeof prisma.$transaction;
-    await expect(s.lettrageAutomatique('t1', 'c1', 'u1')).rejects.toThrow(/lettrée entre-temps/);
+    await expect(s.lettrageAutomatique('t1', 'c1', 'u1')).resolves.toMatchObject({ groupes: 0 });
     expect(groupes).toHaveLength(0);
     expect(lignes[0].lettrageId).toBeNull();
   });
@@ -318,7 +321,9 @@ describe('Lettrage automatique', () => {
       lectures: prisma.lettrage.findMany.mock.calls.length,
       codes: groupes.map((g) => g.code).sort(),
       delai: (transaction.mock.calls[0] as unknown[])[1] as { timeout?: number },
-    }).toEqual({ lectures: 1, codes: ['A', 'B', 'C'], delai: expect.objectContaining({ timeout: 10_150 }) });
+      // A7 quater, m1 · le lot n'est connu que dans la transaction · le délai
+      // se règle sur les six lignes ouvertes du compte, qui le bornent.
+    }).toEqual({ lectures: 1, codes: ['A', 'B', 'C'], delai: expect.objectContaining({ timeout: 10_300 }) });
   });
 
   it('ne réapparie pas une ligne déjà rattachée à un groupe partiel', async () => {
