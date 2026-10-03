@@ -57,8 +57,11 @@ test('SYSCOHADA · la provision de N est reprise en N+1 quand la créance est d�
   // L'exercice le plus récent est retenu par l'écran · c'est N+1. Le
   // contexte d'exercice a été lu à la connexion, avant que N+1 n'existe ·
   // la page se recharge pour le relire.
-  await page.goto('/#/devises');
+  // Recharger D'ABORD, puis aller à Devises par le seul fragment · recharger
+  // une fenêtre qui charge coupe ses requêtes, et WebKit les rend en
+  // exceptions (« due to access control checks », run 269).
   await page.reload();
+  await page.goto('/#/devises');
   await expect(page.getByText('Réévaluation à la clôture')).toBeVisible();
   await expect(page.getByText(FENETRE_EN_ERREUR)).toHaveCount(0);
   await page.getByRole('button', { name: 'Calculer' }).click();
@@ -141,8 +144,11 @@ test('SYSCOHADA · bilan d’ouverture importé, provision déclarée à l’éc
     ],
   });
 
-  await page.goto('/#/devises');
+  // Recharger D'ABORD, puis aller à Devises par le seul fragment · recharger
+  // une fenêtre qui charge coupe ses requêtes, et WebKit les rend en
+  // exceptions (« due to access control checks », run 269).
   await page.reload();
+  await page.goto('/#/devises');
   const cadre = page.getByTestId('provision-ouverture');
   await expect(cadre).toBeVisible();
   await expect(page.getByText(FENETRE_EN_ERREUR)).toHaveCount(0);
