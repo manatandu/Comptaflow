@@ -77,9 +77,18 @@ ligne A7 quater). Branche locale `travail-a7quater`, sauvegarde `travail/a7quate
    d'à-nouveau = 1 160 000 + 580 000 − 300 000 − 600 000, plus 1 160 000
    recouvrés, plus 10) ; 41610000 580 000 ; 41110101 et 41110102 à zéro.
 
+6. Bloc du § 3 · `npx prisma generate`, `npx tsc --noEmit`, `npx jest
+   --maxWorkers=3` (715 suites, 10 017 tests ; deux doublures corrigées
+   après le premier passage, `tva/annulation-liquidation.spec.ts` pour
+   m6 et `client/src/lib/jour-fr.spec.ts` sans import de vitest, rejouées
+   au vert), `npm run build` ; client · `npx tsc --noEmit`, `npm test`
+   (209 fichiers, 1 702 tests), `npm run build` ; dérive du schéma ·
+   « No difference detected » (seul un commentaire a changé).
+
 ## Reste
 
-- Bloc du § 3 complet avant la dernière fiche.
+- Intégration sur `main` (tests navigateur en CI, dont le nouveau
+  `lettrage-reclassement.e2e.ts`, non joué en local faute de navigateur).
 
 ## Décisions
 
