@@ -7,7 +7,7 @@ Fiche retirée à l'intégration.
 
 - [x] B1 · l'à-nouveau PROVISOIRE n'arrête plus la chaîne ni ne sert de solde
 - [x] B3 · la ligne C 411 d'un reclassement hors du lettrage (automatique, pré-lettrage, manuel)
-- [ ] B2 (a) · `TIERS_ANCIEN_NON_LETTRE` écarte les écritures tenues par une créance douteuse
+- [x] B2 (a) · `TIERS_ANCIEN_NON_LETTRE` écarte les écritures tenues par une créance douteuse
 - [ ] B2 (b) · le module lettre ses lignes 416 à l'extinction, et défait ce lettrage à l'annulation
 - [ ] m3 · SYCEBNL, le 651 croisé refusé comme le 416 (E3)
 - [ ] m4 · déclaration d'ouverture · devise, compte non détail ou inactif refusés
@@ -29,6 +29,10 @@ Fiche retirée à l'intégration.
   liaison, est écartée de `calculerPropositions` et refusée par `lettrerManuel`, `completer`, `confirmerPreLettrage`
   (une ligne d'appel chacun, rien d'autre de réécrit · fusion simple avec A6 bis). Tests à part
   (`ligne-de-reclassement.spec.ts`).
+
+- B2 (a) · `controles.service.ts` · `estTenueParUneCreanceDouteuse` (liaisons reclassement, mouvement, revue, acte
+  et créance non annulés) sort l'écriture du contrôle ; la facture d'un compte d'origine en vigueur est nommée
+  (`surLeCompteDUneCreanceReclassee`), lu dans la MÊME lecture (select imbriqué, aucune doublure à compléter).
 
 ## Décisions prises, avec leur source
 

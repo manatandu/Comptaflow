@@ -346,8 +346,29 @@ const SELECT_ECRITURE_CONTROLEE = {
   reevaluationEcarts: { select: { id: true } },
   reevaluationExtourne: { select: { id: true } },
   corrigeEcriture: { select: { reevaluationEcarts: { select: { id: true } }, reevaluationExtourne: { select: { id: true } } } },
+  // Ligne A7 ter, B2 · les écritures que tient une créance douteuse (son
+  // reclassement, ses pertes et recouvrements, ses revues) se reconnaissent
+  // par leur LIAISON, avec l'état d'annulation de l'acte et de la créance.
+  creanceDouteuseReclassement: { select: { annuleeLe: true } },
+  mouvementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
+  ajustementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
   lignes: {
-    select: { debit: true, credit: true, lettre: true, compte: { select: { id: true, numero: true, intitule: true } } },
+    select: {
+      debit: true,
+      credit: true,
+      lettre: true,
+      compte: {
+        select: {
+          id: true,
+          numero: true,
+          intitule: true,
+          // B2 · le compte client d'ORIGINE d'une créance reclassée en
+          // vigueur · sa facture se nomme comme telle (elle ne se lettre pas
+          // avec le reclassement, `lettrage/ligne-de-reclassement.ts`).
+          creancesDouteusesSource: { where: { annuleeLe: null }, select: { id: true }, take: 1 },
+        },
+      },
+    },
   },
 } satisfies Prisma.EcritureSelect;
 
@@ -370,6 +391,33 @@ function estEcritureDeConversion(e: EcritureControlee): boolean {
     e.reevaluationExtourne != null ||
     (e.corrigeEcriture != null &&
       (e.corrigeEcriture.reevaluationEcarts != null || e.corrigeEcriture.reevaluationExtourne != null))
+  );
+}
+
+/**
+ * L'ÉCRITURE QUE TIENT UNE CRÉANCE DOUTEUSE EN VIGUEUR (ligne A7 ter, B2) ·
+ * son reclassement au 416, une perte ou un recouvrement, une revue de sa
+ * dépréciation, tant que ni l'acte ni la créance ne sont annulés. Le contrôle
+ * d'ancienneté les listait et conseillait « Lettrez ce qui est réglé » · or la
+ * créance se suit dans son module, et lettrer la facture avec le reclassement
+ * rendrait la TVA exigible (règle 6 de `creances-douteuses.ts`). Le module
+ * lettre lui-même ses lignes 416 quand la créance est éteinte.
+ * `!= null` · une liaison absente vaut `null`, et une doublure qui ne la sert
+ * pas ne fait jamais passer une écriture pour tenue.
+ */
+function estTenueParUneCreanceDouteuse(e: EcritureControlee): boolean {
+  const vivant = (acte: { annuleeLe: Date | null; creance?: { annuleeLe: Date | null } } | null | undefined) =>
+    acte != null && acte.annuleeLe == null && (acte.creance === undefined || acte.creance.annuleeLe == null);
+  return vivant(e.creanceDouteuseReclassement) || vivant(e.mouvementCreanceDouteuse) || vivant(e.ajustementCreanceDouteuse);
+}
+
+/** Une ligne de tiers ouverte sur le compte d'origine d'une créance reclassée en vigueur (B2). */
+function surLeCompteDUneCreanceReclassee(e: EcritureControlee): boolean {
+  return e.lignes.some(
+    (l) =>
+      !l.lettre &&
+      (l.compte.numero.startsWith('40') || l.compte.numero.startsWith('41')) &&
+      (l.compte.creancesDouteusesSource?.length ?? 0) > 0,
   );
 }
 
@@ -1355,6 +1403,8 @@ export class ControlesService {
 
         if (
           e.date < seuilAnciennete &&
+          // B2 · la créance douteuse se suit dans son module, jamais ici.
+          !estTenueParUneCreanceDouteuse(e) &&
           e.lignes.some(
             (l) =>
               !l.lettre &&
@@ -1655,10 +1705,17 @@ export class ControlesService {
           // aucune. Le compte de charge n'est pas nommé : son intitulé diffère
           // d'un référentiel à l'autre.
           "Une créance ancienne non lettrée est soit déjà réglée sans que le rapprochement ait été fait, soit douteuse · dans le second cas elle se reclasse au 416 (créances litigieuses ou douteuses) et appelle une dépréciation au 491 (note annexe).",
-        action: 'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire.',
+        action:
+          'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire. Les pièces d’une créance ' +
+          'reclassée au 416 dans « Créances douteuses ou litigieuses » ne sont pas listées, le module les suit ; la facture ' +
+          'd’une telle créance est nommée comme telle et ne se lettre pas avec le reclassement (la TVA deviendrait exigible).',
         occurrences: anciennes.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
-          detail: e.libelle,
+          // B2 · la facture d'une créance reclassée se nomme, au lieu d'un
+          // « lettrez ce qui est réglé » qui pousserait au lettrage refusé.
+          detail: surLeCompteDUneCreanceReclassee(e)
+            ? `${e.libelle} · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement`
+            : e.libelle,
           date: e.date.toISOString().slice(0, 10),
         })),
         ...nombreSiTronque(parcours.anciennes),
