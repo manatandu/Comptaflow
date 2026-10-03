@@ -54,6 +54,14 @@ export class ReglementsService {
    * l'échéancier et la balance âgée. Seules les lignes JAMAIS lettrées sont
    * rendues · un groupe partiel se complète depuis l'interrogation et
    * lettrage, qui connaît son reste à solder.
+   *
+   * L'À-NOUVEAU PROVISOIRE EST ÉCARTÉ, ET C'EST DIT (A6 bis, second tour,
+   * m6) · le régler le lettrerait, et la clôture de l'exercice précédent
+   * refuse de remplacer un à-nouveau provisoire lettré (« délettrez-les »,
+   * `ExerciceService`). Chaque compte dit combien de ses lignes sont
+   * écartées (`aNouveauProvisoireEcartees`), même sans autre échéance ·
+   * attendre la clôture, ou saisir le règlement au journal de trésorerie et
+   * le lettrer ensuite avec la ligne d'à-nouveau définitif.
    */
   async echeances(tenantId: string, exerciceId: string, sens: SensReglement, jusquau?: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
@@ -67,7 +75,9 @@ export class ReglementsService {
         ...(sens === 'FOURNISSEUR' ? { credit: { gt: 0 } } : { debit: { gt: 0 } }),
       },
       include: {
-        ecriture: { select: { date: true, libelle: true, reference: true, numeroPiece: true, journal: { select: { code: true } } } },
+        ecriture: {
+          select: { date: true, libelle: true, reference: true, numeroPiece: true, estANouveauProvisoire: true, journal: { select: { code: true } } },
+        },
         compte: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true, code: true } } } } } },
         devise: { select: { code: true } },
       },
@@ -77,8 +87,14 @@ export class ReglementsService {
       orderBy: [{ compteId: 'asc' }, { ecriture: { date: 'asc' } }, { id: 'asc' }],
     });
 
-    const retenues = lignes
-      .filter((l) => estEcheanceAReglerSur(l.compte.numero, sens))
+    const dueAvant = (l: (typeof lignes)[number]) => !limite || (l.dateEcheance ?? l.ecriture.date).getTime() <= limite.getTime();
+    const aRegler = lignes.filter((l) => estEcheanceAReglerSur(l.compte.numero, sens));
+    const ecartees = new Map<string, number>();
+    for (const l of aRegler) {
+      if (l.ecriture.estANouveauProvisoire === true && dueAvant(l)) ecartees.set(l.compteId, (ecartees.get(l.compteId) ?? 0) + 1);
+    }
+    const retenues = aRegler
+      .filter((l) => l.ecriture.estANouveauProvisoire !== true)
       .map((l) => ({
         id: l.id,
         compteId: l.compteId,
@@ -98,9 +114,17 @@ export class ReglementsService {
       }))
       .filter((l) => !limite || l.echeance.getTime() <= limite.getTime());
 
-    const parCompte = new Map<string, { compteId: string; numero: string; intitule: string; tiers: string | null; lignes: typeof retenues }>();
-    for (const l of retenues) {
-      const c = lignes.find((x) => x.id === l.id)!.compte;
+    type Groupe = {
+      compteId: string;
+      numero: string;
+      intitule: string;
+      tiers: string | null;
+      lignes: typeof retenues;
+      /** Lignes d'à-nouveau PROVISOIRE écartées (m6) · attendre la clôture de l'exercice précédent. */
+      aNouveauProvisoireEcartees: number;
+    };
+    const parCompte = new Map<string, Groupe>();
+    const groupeDe = (c: (typeof lignes)[number]['compte']) => {
       if (!parCompte.has(c.id)) {
         parCompte.set(c.id, {
           compteId: c.id,
@@ -108,9 +132,18 @@ export class ReglementsService {
           intitule: c.intitule,
           tiers: c.tiersCompte ? `${c.tiersCompte.tiers.code} · ${c.tiersCompte.tiers.nom}` : null,
           lignes: [],
+          aNouveauProvisoireEcartees: ecartees.get(c.id) ?? 0,
         });
       }
-      parCompte.get(c.id)!.lignes.push(l);
+      return parCompte.get(c.id)!;
+    };
+    // Même ordre que la lecture · le compte d'une ligne écartée a sa place,
+    // même sans autre échéance.
+    const parId = new Map(retenues.map((x) => [x.id, x]));
+    for (const l of aRegler) {
+      const retenue = parId.get(l.id);
+      if (retenue) groupeDe(l.compte).lignes.push(retenue);
+      else if (ecartees.has(l.compteId)) groupeDe(l.compte);
     }
     return [...parCompte.values()];
   }
@@ -179,6 +212,11 @@ export class ReglementsService {
         }
         if (l.ecriture.exerciceId !== dto.exerciceId) {
           throw new BadRequestException('Les factures réglées doivent appartenir à l\'exercice du règlement.');
+        }
+        // L'À-NOUVEAU PROVISOIRE NE SE RÈGLE PAS ICI (second tour, m6) · lettré,
+        // il ferait refuser la clôture de l'exercice précédent.
+        if (l.ecriture.estANouveauProvisoire === true) {
+          throw new BadRequestException(motifANouveauProvisoire(l.compte.numero));
         }
       }
       const du = Math.round(siennes.reduce((s, l) => s + montantDu({ debit: Number(l.debit), credit: Number(l.credit) }, dto.sens), 0) * 100) / 100;
@@ -681,4 +719,17 @@ interface ReglementEnDevise {
   partiel: boolean;
   /** Un avertissement qui n'arrête rien (second tour, m4). */
   avertissement: string | null;
+}
+
+/**
+ * Le refus d'une ligne d'à-nouveau PROVISOIRE au règlement des tiers (A6 bis,
+ * second tour, m6) · lettrée, elle empêcherait de remplacer l'à-nouveau à la
+ * clôture de l'exercice précédent, qui refuse un report provisoire lettré.
+ */
+export function motifANouveauProvisoire(numero: string): string {
+  return (
+    `${numero} · la ligne d'à-nouveau choisie est PROVISOIRE, l'exercice précédent n'étant pas clôturé · lettrée par ce règlement, ` +
+    "elle ferait refuser la clôture de cet exercice, qui remplace l'à-nouveau provisoire. Attendez sa clôture, ou saisissez le règlement " +
+    "au journal de trésorerie et lettrez-le avec la ligne d'à-nouveau définitif une fois l'exercice clôturé."
+  );
 }

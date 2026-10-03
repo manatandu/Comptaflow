@@ -218,3 +218,114 @@ describe('ordre de virement préparé avec les règlements', () => {
     expect(r.ordre).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// A6 bis, second tour, m6 · l'à-nouveau PROVISOIRE ne se règle pas ici ·
+// lettré, il ferait refuser la clôture de l'exercice précédent, qui remplace
+// le report provisoire et refuse de le faire s'il est lettré.
+// ---------------------------------------------------------------------------
+
+type LigneEcheance = {
+  id: string;
+  compteId: string;
+  debit: number;
+  credit: number;
+  lettrageId: string | null;
+  dateEcheance: Date | null;
+  deviseId: string | null;
+  montantDevise: number | null;
+  coursApplique: number | null;
+  libelle: string | null;
+  compte: { id: string; numero: string; intitule: string; lettrable: boolean; tiersCompte: null };
+  ecriture: Record<string, unknown> & { exerciceId: string; date: Date };
+};
+
+/** Une doublure qui HONORE la requête des échéances (F4b) · exercice, compte, sens, lettrage. */
+function echeancier(lignes: LigneEcheance[]) {
+  const prisma = {
+    exercice: { findFirst: jest.fn(async () => ({ id: 'ex', dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31') })) },
+    ligneEcriture: {
+      findMany: jest.fn(async ({ where }: { where: any }) =>
+        lignes.filter((l) => {
+          if (where.id?.in) return where.id.in.includes(l.id);
+          if (where.ecriture?.exerciceId && l.ecriture.exerciceId !== where.ecriture.exerciceId) return false;
+          if (where.lettrageId === null && l.lettrageId !== null) return false;
+          if (where.lettrageId?.not === null && l.lettrageId === null) return false;
+          if (where.compte?.numero?.startsWith && !l.compte.numero.startsWith(where.compte.numero.startsWith)) return false;
+          if (where.credit?.gt !== undefined && !(l.credit > where.credit.gt)) return false;
+          if (where.debit?.gt !== undefined && !(l.debit > where.debit.gt)) return false;
+          return true;
+        }),
+      ),
+    },
+    cloture: { findMany: jest.fn(async () => []) },
+    ribBanque: { findFirst: jest.fn(async () => null) },
+    journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'BQ', type: 'TRESORERIE', compteTresorerieId: 'c521' })) },
+  } as unknown as PrismaService;
+  const creer = jest.fn();
+  const service = new ReglementsService(
+    prisma,
+    { creer, retirerCompensation: jest.fn() } as unknown as EcritureService,
+    { lettrerManuel: jest.fn() } as unknown as LettrageService,
+    {} as unknown as OrdresVirementService,
+  );
+  return { service, creer, prisma };
+}
+
+function ligneEcheance(id: string, credit: number, ecriture: Partial<LigneEcheance['ecriture']> = {}, enPlus: Partial<LigneEcheance> = {}): LigneEcheance {
+  return {
+    id,
+    compteId: 'c401',
+    debit: 0,
+    credit,
+    lettrageId: null,
+    dateEcheance: null,
+    deviseId: null,
+    montantDevise: null,
+    coursApplique: null,
+    libelle: null,
+    compte: { id: 'c401', numero: '40110000', intitule: 'Fournisseur A', lettrable: true, tiersCompte: null },
+    ecriture: {
+      exerciceId: 'ex',
+      date: new Date('2027-01-01'),
+      libelle: 'Facture',
+      reference: null,
+      numeroPiece: 1,
+      journal: { code: 'AN' },
+      journalId: 'jAN',
+      exercice: { statut: 'OUVERT' },
+      estANouveauProvisoire: false,
+      ...ecriture,
+    },
+    ...enPlus,
+  };
+}
+
+describe('les échéances · l’à-nouveau provisoire écarté et dit (A6 bis, second tour, m6)', () => {
+  it('écartées de la liste, comptées sur leur compte · un compte qui n’a qu’elles reste nommé', async () => {
+    const { service } = echeancier([
+      ligneEcheance('ranP', 600, { estANouveauProvisoire: true }),
+      ligneEcheance('fx', 400, { date: new Date('2027-02-01'), journal: { code: 'ACH' } }),
+      { ...ligneEcheance('ranQ', 300, { estANouveauProvisoire: true }), compteId: 'c402', compte: { id: 'c402', numero: '40120000', intitule: 'Fournisseur B', lettrable: true, tiersCompte: null } },
+    ]);
+    const r = await service.echeances('t', 'ex', 'FOURNISSEUR');
+    expect(r.map((g) => [g.numero, g.lignes.map((l) => l.id), g.aNouveauProvisoireEcartees])).toEqual([
+      ['40110000', ['fx'], 1],
+      ['40120000', [], 1],
+    ]);
+  });
+
+  it('un à-nouveau définitif reste dû, et rien n’est écarté', async () => {
+    const { service } = echeancier([ligneEcheance('ranD', 600, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false })]);
+    const r = await service.echeances('t', 'ex', 'FOURNISSEUR');
+    expect(r).toEqual([expect.objectContaining({ numero: '40110000', aNouveauProvisoireEcartees: 0, lignes: [expect.objectContaining({ id: 'ranD', montant: 600 })] })]);
+  });
+
+  it('choisi malgré tout · refusé avant toute pièce, l’issue nommée', async () => {
+    const { service, creer } = echeancier([ligneEcheance('ranP', 600, { estANouveauProvisoire: true })]);
+    await expect(service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['ranP'] }] })).rejects.toThrow(
+      /40110000 · la ligne d'à-nouveau choisie est PROVISOIRE[\s\S]*Attendez sa clôture, ou saisissez le règlement au journal de trésorerie/,
+    );
+    expect(creer).not.toHaveBeenCalled();
+  });
+});

@@ -35,6 +35,8 @@ interface GroupeTiers {
   intitule: string;
   tiers: string | null;
   lignes: LigneEcheance[];
+  /** Lignes d'à-nouveau PROVISOIRE écartées par le serveur (A6 bis, m6) · elles attendent la clôture de l'exercice précédent. */
+  aNouveauProvisoireEcartees?: number;
 }
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
@@ -642,6 +644,14 @@ export function ReglementsPage() {
                       ) : null}
                     </td>
                   </tr>
+                  {(g.aNouveauProvisoireEcartees ?? 0) > 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-warning">
+                        {g.aNouveauProvisoireEcartees} ligne(s) d'à-nouveau provisoire écartée(s) · attendez la clôture de l'exercice
+                        précédent, ou saisissez le règlement au journal de trésorerie.
+                      </td>
+                    </tr>
+                  )}
                   {g.lignes.map((l) => (
                     <tr key={l.id}>
                       <td className="px-2 py-1">

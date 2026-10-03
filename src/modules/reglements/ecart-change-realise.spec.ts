@@ -871,7 +871,14 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
   });
 
   it('la ligne d’à-nouveau choisie, 1 160 USD contre 600 reportés · refusée avant toute pièce, l’issue nommée ; 560 USD passent', async () => {
-    for (const drapeaux of [{ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }, { estANouveauProvisoire: true }] as Array<Record<string, boolean>>) {
+    // L'à-nouveau PROVISOIRE ne se règle plus ici (second tour, m6) · refusé
+    // avant la borne, l'issue nommée.
+    const provisoire = monter('SYSCOHADA', [
+      factureReportee(aNouveau({ estANouveauProvisoire: true })),
+      ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau({ estANouveauProvisoire: true })),
+    ]);
+    await expect(provisoire.service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(/la ligne d'à-nouveau choisie est PROVISOIRE/);
+    for (const drapeaux of [{ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }] as Array<Record<string, boolean>>) {
       const enPlus = [factureReportee(aNouveau(drapeaux)), ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau(drapeaux))];
       const { service, creer } = monter('SYSCOHADA', enPlus);
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
