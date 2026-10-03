@@ -58,7 +58,10 @@ import type { RubriqueDecompte, VerdictDecompteFinal } from './decompte-final';
  * rangée par défaut · le test le gèle.
  */
 export const NATURE_DES_RUBRIQUES: Readonly<Record<string, NatureElementPaie>> = {
-  // Art. 63, al. 3 (préavis non observé) et art. 61 bis (somme convenue).
+  // Art. 63, al. 3 (préavis non observé), art. 61 bis (somme convenue) et,
+  // depuis A9, art. 66, al. 2 (rémunération du préavis restant à courir après
+  // un départ à mi-préavis) · la fiche du compte 66 range au 6614 les
+  // « indemnités de préavis », et c'est la part du préavis payée sans travail.
   preavis: 'INDEMNITE_DE_FIN_DE_CONTRAT',
   // Art. 70 · dommages-intérêts de la rupture d'un CDD par l'employeur.
   'dommages-interets-art-70': 'INDEMNITE_DE_FIN_DE_CONTRAT',

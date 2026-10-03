@@ -671,13 +671,44 @@ export class DecompteFinalDto {
   deuxMoisDeSuspension?: boolean;
 
   @IsOptional()
-  @IsEnum(['PRESTE', 'NON_OBSERVE', 'DISPENSE_PAR_EMPLOYEUR', 'DISPENSE_A_LA_DEMANDE_DU_TRAVAILLEUR'])
+  @IsEnum([
+    'PRESTE',
+    'NON_OBSERVE',
+    'DISPENSE_PAR_EMPLOYEUR',
+    'DISPENSE_A_LA_DEMANDE_DU_TRAVAILLEUR',
+    // A9 · Code du travail, art. 66 et 67.
+    'DEPART_A_MI_PREAVIS',
+    'DEPART_POUR_NOUVEL_EMPLOI',
+  ])
   executionPreavis?: string;
 
+  /** Jours ouvrables du préavis non observés ou, au départ à mi-préavis, restant à courir (art. 63, al. 3 ; art. 66). */
   @IsOptional()
   @IsNumber()
   @Min(0)
   joursPreavisNonObserves?: number;
+
+  /** A9 · art. 66, al. 2 et art. 7, point 8 · avantages en nature du temps restant, logement et transport exclus. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  avantagesEnNatureRestantsFc?: number;
+
+  /** A9 · art. 67 · « justifie avoir trouvé un nouvel emploi ». */
+  @IsOptional()
+  @IsBoolean()
+  nouvelEmploiJustifie?: boolean;
+
+  /**
+   * A9 · art. 67 · délai de départ convenu, en jours de calendrier, à dater du
+   * nouvel engagement. Aucun plafond ici · au-delà de sept jours, le moteur
+   * nomme le refus avec l'article, au lieu d'un message de validation brut.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(366)
+  delaiDepartNouvelEmploiJours?: number;
 
   @IsOptional()
   @IsEnum(['EMPLOYEUR', 'TRAVAILLEUR'])
