@@ -51,7 +51,7 @@ compte de tiers qu'il ajuste) ; rien des disponibilités.
 3. `reevaluerSousVerrou` refuse tant que la réévaluation de l'exercice
    précédent porte un 478 / 479 non contre-passé (Application 85),
    issue nommée.
-4. Contrôle 34 `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
+4. Contrôle 34 (A13 tient le 32 et le 33) `CONTRE_PASSATION_DE_DISPONIBILITE` (INFORMATION) · les
    anciennes contre-passations qui ont inversé une banque ou une caisse,
    issue selon l'exercice de la réévaluation (D6 si ouvert ; sinon au
    cabinet, sans repasser la ligne de la banque à la main).
@@ -61,11 +61,19 @@ Décision non tranchée par le texte, retenue · la valeur de la banque en
 N+1 se lit par la chaîne des réévaluations, l'à-nouveau ne portant pas
 l'écart sur la ligne de sa devise (écart passé sans devise, F55).
 
+6. Rattachée à main 5d388c0 (A11, A13, A10) par un merge · doublures
+   `reevaluation.findMany` posées aussi dans les specs d'A13 ; migration
+   renumérotée `20270124000000` ; `prisma migrate diff` sur base jetable ·
+   « No difference detected ». A13 reconnaît la contre-passation par
+   liaison, elle ne porte simplement plus de ligne de banque.
+
 ## Reste
 
-- Bloc du § 3 complet (serveur et client) à repasser à l'intégration.
-- `prisma migrate diff` contre une base jetable (aucune base ici).
 - Relectures (silent-failure-hunter, typescript-reviewer) à l'intégration.
+- A10 (`uniteDeLaCaisse`) écarte les écritures d'écarts de réévaluation,
+  pas la part reportée en francs par l'à-nouveau · une caisse en devise
+  réévaluée en N se lit « mêlée » en N+1 (déjà le cas avant A5 bis, la
+  contre-passation étant elle aussi en francs). Non traité ici.
 
 ## Vérification
 
