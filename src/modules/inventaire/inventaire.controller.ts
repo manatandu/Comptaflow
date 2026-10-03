@@ -50,6 +50,30 @@ export class InventaireController {
     return this.inventaire.resumePourLivreInventaire(user.tenantId, exerciceId);
   }
 
+  /**
+   * LES ÉDITIONS DE L'INVENTAIRE (ligne A19, relevé CPCC C16) · lectures
+   * seules, servies au contenu (`editions-inventaire.ts`), l'écran ne fait que
+   * les mettre en page.
+   */
+  @Get('pv-caisse/:pvId/edition')
+  editionPvCaisse(@CurrentUser() user: AuthenticatedUser, @Param('pvId') pvId: string) {
+    return this.inventaire.editionPvCaisse(user.tenantId, pvId);
+  }
+
+  @Get(':id/editions/fiches-de-comptage')
+  editionFichesVierges(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('sousCommissionId') sousCommissionId?: string,
+  ) {
+    return this.inventaire.editionFichesVierges(user.tenantId, id, sousCommissionId);
+  }
+
+  @Get(':id/editions/proces-verbal')
+  editionProcesVerbal(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.inventaire.editionProcesVerbal(user.tenantId, id);
+  }
+
   @Get(':id')
   consulter(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inventaire.consulter(user.tenantId, id);

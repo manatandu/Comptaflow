@@ -72,9 +72,24 @@ const jourUtc = (d: Date) => d.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
  * Titre X). Le système est donc imprimé à côté du référentiel, comme le jeu
  * d'états l'est pour un dossier SYCEBNL.
  */
-export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitre?: string }) {
+export function EnteteImpression({
+  titre,
+  sousTitre,
+  exercice,
+}: {
+  titre: string;
+  sousTitre?: string;
+  /**
+   * L'exercice DU DOCUMENT quand il n'est pas celui du sélecteur (ligne A19) ·
+   * une caisse comptée en janvier se lit sur l'exercice suivant, et son PV
+   * porte sur l'exercice clos que la campagne inventorie. Sans lui, l'en-tête
+   * imprimerait les dates de l'exercice choisi à l'écran.
+   */
+  exercice?: { dateDebut: string; dateFin: string; dateArreteComptes: string | null } | null;
+}) {
   const { utilisateur } = useAuth();
-  const { exerciceCourant } = useExercice();
+  const { exerciceCourant: choisi } = useExercice();
+  const exerciceCourant = exercice ?? choisi;
   const tenant = utilisateur?.tenant;
 
   // « Exercice clos le » et « Durée (en mois) », deux des quatre mentions

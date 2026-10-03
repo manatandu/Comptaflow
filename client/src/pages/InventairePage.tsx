@@ -8,6 +8,7 @@ import type {
   CampagneInventaire,
   Compte,
   EcartInventaire,
+  EditionInventaire,
   Exercice,
   FicheInventaire,
   ApercuPvCaisse,
@@ -19,6 +20,8 @@ import type {
 } from '../lib/types';
 import { montant } from '../lib/montants';
 import { compteDuNumeroTape, RETENUS } from '../lib/comptes-proposes';
+import { cheminEdition, LIBELLE_DECISION_ECART } from '../lib/editions-inventaire';
+import { EditionInventaireImprimee } from '../components/EditionsInventaire';
 
 /**
  * INVENTAIRE PHYSIQUE · les six étapes du CPCC, dans l'ordre où elles se font.
@@ -48,12 +51,9 @@ const COULEUR_STATUT: Record<string, string> = {
   CLOTUREE: 'bg-positive-soft text-positive',
 };
 
-const LIBELLE_DECISION: Record<string, string> = {
-  A_REDRESSER: 'À redresser',
-  EXPLIQUE: 'Expliqué, non redressé',
-  EXCEDENT_NON_COMPTABILISE: 'Excédent laissé au bilan',
-  RENVOYE_COMMISSION_PRINCIPALE: 'Renvoyé à la commission principale',
-};
+// Libellés partagés avec le procès-verbal imprimé (`lib/editions-inventaire.ts`)
+// · l'écran et le papier ne nomment jamais une décision de deux façons.
+const LIBELLE_DECISION: Record<string, string> = LIBELLE_DECISION_ECART;
 
 /** Les deux valeurs de l'enum `RoleMembreInventaire` du schéma. */
 const LIBELLE_ROLE: Record<RoleMembreInventaire, string> = {
@@ -116,6 +116,32 @@ export function InventairePage() {
 
   const charger = () => {
     api.get<CampagneInventaire[]>('/inventaire').then(setCampagnes, (e: Error) => setErreur(e.message));
+  };
+
+  // L'ÉDITION PRÉPARÉE (ligne A19) · lue au serveur, puis seule imprimée (la
+  // fenêtre porte `avec-edition` tant qu'elle existe). Retirée après la boîte
+  // d'impression, pour qu'une impression suivante ne ressorte pas un document
+  // périmé. Une lecture refusée se dit, rien n'est imprimé.
+  const [edition, setEdition] = useState<EditionInventaire | null>(null);
+  const [preparation, setPreparation] = useState(false);
+  useEffect(() => {
+    const retirer = () => setEdition(null);
+    window.addEventListener('afterprint', retirer);
+    return () => window.removeEventListener('afterprint', retirer);
+  }, []);
+  const imprimerEdition = (chemin: string) => {
+    setErreur(null);
+    setPreparation(true);
+    api
+      .get<EditionInventaire>(chemin)
+      .then(
+        (e) => {
+          setEdition(e);
+          window.setTimeout(() => window.print(), 50);
+        },
+        (e: Error) => setErreur(e.message || 'L’édition n’a pas pu être préparée.'),
+      )
+      .finally(() => setPreparation(false));
   };
 
   useEffect(() => {
@@ -217,8 +243,13 @@ export function InventairePage() {
   const nonValorisees = (detail?.fiches ?? []).filter((f) => f.valeurInventaire === null);
 
   return (
-    <div className="p-2">
-      <EnteteImpression titre="Inventaire physique" />
+    <div className={`p-2 ${edition ? 'avec-edition' : ''}`}>
+      <EnteteImpression
+        titre={edition?.titre ?? 'Inventaire physique'}
+        sousTitre={edition?.campagne.libelle}
+        exercice={edition?.campagne.exercice}
+      />
+      {edition && <EditionInventaireImprimee edition={edition} />}
       <div className="ecran-seul mb-1.5 max-w-[1240px] flex items-center justify-end gap-2">
         <Aide
           titre="Inventaire physique"
@@ -346,6 +377,29 @@ export function InventairePage() {
                         : 'PV non établi'}
                     </div>
                   </div>
+                  <div className="flex gap-1.5 items-center">
+                    <button
+                      type="button"
+                      disabled={preparation}
+                      onClick={() => imprimerEdition(cheminEdition({ nature: 'FICHES_DE_COMPTAGE', campagneId: detail.id }))}
+                      className={BOUTON}
+                    >
+                      Fiches de comptage
+                    </button>
+                    <button
+                      type="button"
+                      disabled={preparation}
+                      onClick={() => imprimerEdition(cheminEdition({ nature: 'PROCES_VERBAL_INVENTAIRE', campagneId: detail.id }))}
+                      className={BOUTON}
+                    >
+                      Procès-verbal d’inventaire
+                    </button>
+                    <Aide
+                      titre="Éditions de l’inventaire"
+                      texte="Les fiches de comptage portent, par sous-commission, chaque élément à compter avec son compte et son lieu ; quantité, valeur et pièce restent à remplir sur place. Le procès-verbal reprend le relevé, les totaux par compte, les écarts figés au rapprochement et leur décision, les caisses comptées, et laisse la place des signatures de ceux qui ont inventorié et assisté. Le lieu d’un bien du parc est recopié sur sa fiche quand elle naît. Mise en page, ordre des lignes (lieu, compte, désignation) et regroupement par sous-commission sont des définitions d’OmegaX ; le contenu est celui que la campagne porte."
+                      source="AUDCIF art. 16, al. 4 et 5 ; CPCC, étapes 1 et 2"
+                    />
+                  </div>
                   {peutEcrire && (
                     <div className="flex gap-1.5">
                       {(detail.statut === 'PREPARATION' || detail.statut === 'RECENSEMENT') && (
@@ -404,7 +458,15 @@ export function InventairePage() {
               )}
 
               {/* --- Sous-commissions ------------------------------------- */}
-              <BlocSousCommissions campagne={detail} peutEcrire={peutEcrire} agir={agir} />
+              <BlocSousCommissions
+                campagne={detail}
+                peutEcrire={peutEcrire}
+                agir={agir}
+                imprimerFiches={(sousCommissionId) =>
+                  imprimerEdition(cheminEdition({ nature: 'FICHES_DE_COMPTAGE', campagneId: detail.id, sousCommissionId }))
+                }
+                preparation={preparation}
+              />
 
               {/* --- Écarts ------------------------------------------------ */}
               {ecarts.length > 0 && (
@@ -493,7 +555,11 @@ export function InventairePage() {
               {detail.statut !== 'CLOTUREE' && (
                 <BlocCaisses campagne={detail} caisses={caisses} erreur={erreurCaisses} peutEcrire={peutEcrire} agir={agir} />
               )}
-              <BlocPvCaisse pvs={detail.pvComptageCaisse} />
+              <BlocPvCaisse
+                pvs={detail.pvComptageCaisse}
+                imprimer={(pvId) => imprimerEdition(cheminEdition({ nature: 'PROCES_VERBAL_CAISSE', pvId }))}
+                preparation={preparation}
+              />
             </>
           )}
         </div>
@@ -514,10 +580,14 @@ function BlocSousCommissions({
   campagne,
   peutEcrire,
   agir,
+  imprimerFiches,
+  preparation,
 }: {
   campagne: CampagneInventaire;
   peutEcrire: boolean;
   agir: Agir;
+  imprimerFiches: (sousCommissionId: string) => void;
+  preparation: boolean;
 }) {
   const [nom, setNom] = useState('');
   const [perimetre, setPerimetre] = useState('');
@@ -551,9 +621,14 @@ function BlocSousCommissions({
       {liste.length === 0 && <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucune sous-commission.</div>}
       {liste.map((sc) => (
         <div key={sc.id} className="px-2.5 py-1.5 border-b border-border/40">
-          <div className="text-[11.5px] font-semibold">
-            {sc.nom}
-            {sc.perimetre && <span className="font-normal text-text-dim"> · {sc.perimetre}</span>}
+          <div className="text-[11.5px] font-semibold flex items-center gap-2">
+            <span>
+              {sc.nom}
+              {sc.perimetre && <span className="font-normal text-text-dim"> · {sc.perimetre}</span>}
+            </span>
+            <button type="button" disabled={preparation} onClick={() => imprimerFiches(sc.id)} className={`${BOUTON} font-normal`}>
+              Ses fiches de comptage
+            </button>
           </div>
           {sc.membres.length === 0 ? (
             <div className="text-[11px] text-text-dim">Aucun membre.</div>
@@ -1431,7 +1506,15 @@ function ApercuDuPv({ apercu, erreur }: { apercu: ApercuPvCaisse | null; erreur:
  * à la clôture · totaux FIGÉS au PV, mouvements lus à la demande, tels que le
  * PV les a lus. Rien à montrer tant qu'aucun PV n'est établi.
  */
-function BlocPvCaisse({ pvs }: { pvs: ProcesVerbalCaisse[] | undefined }) {
+function BlocPvCaisse({
+  pvs,
+  imprimer,
+  preparation,
+}: {
+  pvs: ProcesVerbalCaisse[] | undefined;
+  imprimer: (pvId: string) => void;
+  preparation: boolean;
+}) {
   if (pvs === undefined || pvs.length === 0) return null;
   return (
     <div className="border border-border bg-surface mt-2">
@@ -1444,13 +1527,13 @@ function BlocPvCaisse({ pvs }: { pvs: ProcesVerbalCaisse[] | undefined }) {
         />
       </div>
       {pvs.map((pv) => (
-        <PvCaisse key={pv.id} pv={pv} />
+        <PvCaisse key={pv.id} pv={pv} imprimer={() => imprimer(pv.id)} preparation={preparation} />
       ))}
     </div>
   );
 }
 
-function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
+function PvCaisse({ pv, imprimer, preparation }: { pv: ProcesVerbalCaisse; imprimer: () => void; preparation: boolean }) {
   const [mouvements, setMouvements] = useState<MouvementsReconstitutionCaisse | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [lecture, setLecture] = useState(false);
@@ -1489,6 +1572,9 @@ function PvCaisse({ pv }: { pv: ProcesVerbalCaisse }) {
           {pv.heureComptage ? ` à ${pv.heureComptage}` : ''}
           {u ? ` · en ${u}` : ''}
         </span>
+        <button type="button" onClick={imprimer} disabled={preparation} className={BOUTON}>
+          Imprimer le procès-verbal
+        </button>
       </div>
       <table className="mt-1">
         <tbody>
