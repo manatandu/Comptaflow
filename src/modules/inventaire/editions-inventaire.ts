@@ -7,14 +7,14 @@ import { DecisionEcartInventaire, ModeComparaisonCaisse, RoleMembreInventaire, S
  *
  * CE QUE LES TEXTES DEMANDENT, ET RIEN DE PLUS.
  *
- *  - AUDCIF art. 16, al. 6 (non écarté par l'art. 3 du SYCEBNL, dont la liste
+ *  - AUDCIF art. 16, al. 4 (non écarté par l'art. 3 du SYCEBNL, dont la liste
  *    d'exclusion passe de « 10 à 13 » à « 17 alinéas 7 et 8 » · il vaut aux
  *    deux) · « L'entité procède à l'opération
  *    d'inventaire par le relevé physique de tous les éléments de son
  *    patrimoine avec la mention de la NATURE, de la QUANTITÉ et de la VALEUR
  *    de chacun d'eux à la date de l'inventaire. » D'où les trois colonnes à
  *    remplir de la fiche vierge et du relevé du procès-verbal.
- *  - AUDCIF art. 16, al. 7 · « Les données d'inventaire sont organisées et
+ *  - AUDCIF art. 16, al. 5 · « Les données d'inventaire sont organisées et
  *    conservées de manière à justifier le contenu de chacun des éléments
  *    recensés du patrimoine. » D'où la pièce de référence et le lieu.
  *  - Séminaire du CPCC (Organisation et exécution des travaux de fin
@@ -51,7 +51,7 @@ export const TITRE_FICHES_DE_COMPTAGE = 'Fiches de comptage';
 export const TITRE_PV_INVENTAIRE = "Procès-verbal d'inventaire physique";
 export const TITRE_PV_CAISSE = 'Procès-verbal de comptage de caisse';
 
-/** Les colonnes que la commission remplit · art. 16, al. 6 et étape 3 du CPCC. */
+/** Les colonnes que la commission remplit · art. 16, al. 4 et étape 3 du CPCC. */
 export const COLONNES_A_REMPLIR = ["Quantité comptée", "Valeur d'inventaire", 'Pièce de référence'] as const;
 
 const LIEU_NON_RENSEIGNE = 'Lieu non renseigné';
@@ -192,7 +192,7 @@ export interface EditionFichesVierges {
 /**
  * LES FICHES PRÉPARÉES D'AVANCE · une section par sous-commission (celle qui
  * va compter), les lignes rangées par lieu. Les trois colonnes de l'art. 16,
- * al. 6 que la commission remplit (quantité, valeur, pièce) restent VIDES,
+ * al. 4 que la commission remplit (quantité, valeur, pièce) restent VIDES,
  * même sur une fiche déjà saisie · c'est une feuille de comptage, pas un
  * relevé, et le nombre de fiches déjà comptées est dit en tête pour qu'une
  * feuille de recomptage ne passe pas pour un premier comptage.
@@ -344,7 +344,7 @@ export interface PvCaisseLuPourResume {
 /**
  * LE PROCÈS-VERBAL D'INVENTAIRE PHYSIQUE d'une campagne, tiré de ce qu'elle
  * porte · le relevé (nature, quantité, valeur de chaque élément, art. 16,
- * al. 6), les totaux par compte, les écarts FIGÉS au rapprochement et leur
+ * al. 4), les totaux par compte, les écarts FIGÉS au rapprochement et leur
  * décision (CPCC, étapes 4 et 5), les caisses comptées (chacune a SON PV,
  * l'édition y renvoie), et les signataires.
  */

@@ -362,7 +362,7 @@ export class InventaireService {
     const connues = new Set(dejaFichees.map((f) => f.immobilisationId));
     const aCreer = biens.filter((b) => !connues.has(b.id));
 
-    // LE LIEU DU BIEN SUR SA FICHE (ligne A19, AUDCIF art. 16, al. 6 et 7 ·
+    // LE LIEU DU BIEN SUR SA FICHE (ligne A19, AUDCIF art. 16, al. 4 et 5 ·
     // `lieu-sur-fiche.ts`). Une fiche engendrée avant la règle, encore SANS
     // emplacement, le reçoit au geste suivant · jamais une fiche dont
     // l'emplacement a été saisi, qui dit où le bien a été VU et prime sur le

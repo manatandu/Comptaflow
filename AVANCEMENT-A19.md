@@ -6,7 +6,7 @@ C16. Branche de sauvegarde `travail/a19`, partie de `main` c7a73b4.
 
 ## Textes lus
 
-- AUDCIF art. 16, al. 6 · « L'entité procède à l'opération d'inventaire par le
+- AUDCIF art. 16, al. 4 · « L'entité procède à l'opération d'inventaire par le
   relevé physique de tous les éléments de son patrimoine avec la mention de la
   nature, de la quantité et de la valeur de chacun d'eux à la date de
   l'inventaire. » Al. 7 · « Les données d'inventaire sont organisées et

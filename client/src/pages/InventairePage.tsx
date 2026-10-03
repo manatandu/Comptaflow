@@ -397,7 +397,7 @@ export function InventairePage() {
                     <Aide
                       titre="Éditions de l’inventaire"
                       texte="Les fiches de comptage portent, par sous-commission, chaque élément à compter avec son compte et son lieu ; quantité, valeur et pièce restent à remplir sur place. Le procès-verbal reprend le relevé, les totaux par compte, les écarts figés au rapprochement et leur décision, les caisses comptées, et laisse la place des signatures de ceux qui ont inventorié et assisté. Le lieu d’un bien du parc est recopié sur sa fiche quand elle naît. Mise en page, ordre des lignes (lieu, compte, désignation) et regroupement par sous-commission sont des définitions d’OmegaX ; le contenu est celui que la campagne porte."
-                      source="AUDCIF art. 16, al. 6 et 7 ; CPCC, étapes 1 et 2"
+                      source="AUDCIF art. 16, al. 4 et 5 ; CPCC, étapes 1 et 2"
                     />
                   </div>
                   {peutEcrire && (

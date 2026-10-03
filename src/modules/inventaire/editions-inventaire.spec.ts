@@ -27,7 +27,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
  *  4. Une feuille de comptage qui perd une fiche · une fiche confiée à une
  *     sous-commission inconnue disparaissait de toutes les sections.
  *  5. Le lieu du bien absent de sa fiche · le bien se cherche au lieu de se
- *     compter (AUDCIF art. 16, al. 6 et 7).
+ *     compter (AUDCIF art. 16, al. 4 et 5).
  */
 
 const CAMPAGNE: CampagneEdition = {
@@ -67,7 +67,7 @@ const fiche = (p: Partial<FicheLue> & { id: string }): FicheLue => ({
   ...p,
 });
 
-describe('le lieu du bien sur sa fiche (AUDCIF art. 16, al. 6 et 7)', () => {
+describe('le lieu du bien sur sa fiche (AUDCIF art. 16, al. 4 et 5)', () => {
   it('« code · intitulé », un seul des deux s’il manque l’autre, null sans lieu', () => {
     expect(libelleLieuBien({ code: 'B2', intitule: 'Bureau du directeur' })).toBe('B2 · Bureau du directeur');
     expect(libelleLieuBien({ code: '', intitule: 'Entrepôt' })).toBe('Entrepôt');
@@ -166,7 +166,7 @@ describe('fiches de comptage vierges', () => {
     });
   });
 
-  it('les trois colonnes de l’art. 16, al. 6 restent à remplir · aucune quantité ni valeur n’est servie', () => {
+  it('les trois colonnes de l’art. 16, al. 4 restent à remplir · aucune quantité ni valeur n’est servie', () => {
     const e = editionFichesVierges({ campagne: CAMPAGNE, sousCommissions: [SC_PARC], fiches });
     expect(e.colonnesARemplir).toEqual(COLONNES_A_REMPLIR);
     expect(e.colonnesARemplir).toEqual(["Quantité comptée", "Valeur d'inventaire", 'Pièce de référence']);
