@@ -22,6 +22,31 @@ interface LigneBalance { numero: string; mouvementDebit: number; mouvementCredit
 const jour = (iso: string) => iso.slice(0, 10);
 const lendemain = (iso: string) => new Date(Date.parse(jour(iso)) + 86_400_000).toISOString().slice(0, 10);
 
+/**
+ * A5 BIS · LES ÉCARTS DE CONVERSION DE N SE CONTRE-PASSENT À L'OUVERTURE DE
+ * N+1, AVANT QUE N+1 NE SE RÉÉVALUE. Guide SYSCOHADA, Partie 2 ch. 22 ·
+ * « Écarts de conversion à la clôture (478 actif / 479 passif), contrepassés
+ * à la réouverture » ; Application 84 · « Contrepassation de l'écart au
+ * 01/01/N+1 : 411 · 4781 ». Non contre-passé, l'écart de N resterait sur la
+ * créance, et la réévaluation de N+1 le repasserait depuis le coût historique
+ * (AUDCIF art. 54 ; Titre VIII ch. 22 § 2.2) · le serveur refuse donc de
+ * réévaluer N+1 tant que celle de N ne l'est pas. La contre-passation ne
+ * touche que le 478 ou le 479 et le compte du tiers, jamais la provision
+ * (Application 84 · la provision n'est reprise qu'à la clôture de N+1, « 4911 ·
+ * 7591 ») · aucun solde attendu du 4991 ne change. Même route que le bouton
+ * « Contre-passer les écarts de conversion » de l'écran Devises.
+ */
+async function contrePasser(page: import('@playwright/test').Page, exerciceReevalueId: string, exerciceSuivantId: string) {
+  const reevaluations = await appelApi<{ id: string; annuleeLe: string | null }[]>(
+    page,
+    'GET',
+    `/devises/reevaluation/liste?exerciceId=${exerciceReevalueId}`,
+  );
+  const enVigueur = reevaluations.filter((r) => r.annuleeLe === null);
+  expect(enVigueur).toHaveLength(1);
+  await appelApi(page, 'POST', `/devises/reevaluation/${enVigueur[0].id}/extourne`, { exerciceSuivantId });
+}
+
 test('SYSCOHADA · la provision de N est reprise en N+1 quand la créance est dénouée, depuis l’écran', async ({ page }) => {
   const pannes = surveiller(page);
   const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Devises e2e SYSCOHADA', montant: 10_000 });
@@ -53,6 +78,10 @@ test('SYSCOHADA · la provision de N est reprise en N+1 quand la créance est d�
   // N+1 · la créance a été encaissée, plus aucune position en devise.
   const debut = lendemain(exercice.dateFin);
   const suivant = await appelApi<Exercice>(page, 'POST', '/exercices', { dateDebut: debut, dateFin: `${debut.slice(0, 4)}-12-31` });
+  // A5 bis · l'écart de N (D 478 / C 411, 100 000) se contre-passe à l'ouverture
+  // de N+1 avant que N+1 ne se réévalue · la provision de 100 000 reste en place
+  // jusqu'à la clôture de N+1, où elle est reprise (Application 84).
+  await contrePasser(page, exercice.id, suivant.id);
 
   // L'exercice le plus récent est retenu par l'écran · c'est N+1. Le
   // contexte d'exercice a été lu à la connexion, avant que N+1 n'existe ·
@@ -359,6 +388,8 @@ test('SYSCOHADA · N réévalué, à-nouveaux provisoires, puis N+1 · le 4991 f
   await appelApi(page, 'POST', `/exercices/${exercice.id}/a-nouveaux-provisoires`, {});
   const suivant = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).find((e) => e.dateDebut.slice(0, 10) === lendemain(exercice.dateFin))!;
   await coter(suivant, 1900);
+  // A5 bis · l'écart de N contre-passé à l'ouverture de N+1 avant de le réévaluer.
+  await contrePasser(page, exercice.id, suivant.id);
 
   const lecture = await appelApi<{ comptes: { compteProvision: string; soldeOuverturePropose: number; statutSoldeOuverture: string; reserve: boolean }[] }>(
     page,
@@ -405,8 +436,12 @@ test('SYSCOHADA · N, N+1, N+2 ouverts sans à-nouveau · le 4991 finit à la pe
   }
   // L'ordre · N+2 refusé tant que N et N+1 ne sont pas réévalués.
   await expect(appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n2.id })).rejects.toThrow(/400.*antérieur et encore ouvert/);
+  // A5 bis · chaque écart se contre-passe à l'ouverture de l'exercice qui suit,
+  // avant que celui-ci ne se réévalue (N vers N+1, puis N+1 vers N+2).
   await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: exercice.id });
+  await contrePasser(page, exercice.id, n1.id);
   await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n1.id });
+  await contrePasser(page, n1.id, n2.id);
   const lecture = await appelApi<{ comptes: { compteProvision: string; soldeOuverturePropose: number; reserve: boolean }[] }>(
     page,
     'GET',
@@ -601,6 +636,9 @@ for (const { cas, lecture: lectureDuSolde, declare, final } of LECTURES) {
     await appelApi(page, 'POST', `/exercices/${exercice.id}/a-nouveaux-provisoires`, {});
     const suivant = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).find((e) => e.dateDebut.slice(0, 10) === lendemain(exercice.dateFin))!;
     await coter(suivant, 1940);
+    // A5 bis · l'écart de N contre-passé à l'ouverture de N+1 avant de le réévaluer ·
+    // la réserve de la provision d'ouverture reste alors le seul refus.
+    await contrePasser(page, exercice.id, suivant.id);
 
     const lecture = await appelApi<{ comptes: { compteProvision: string; soldeOuverturePropose: number; statutSoldeOuverture: string; reserve: boolean }[] }>(
       page,
@@ -665,7 +703,10 @@ test('SYSCOHADA · L1 · litige saisi dans N+1 ouvert · N+2 accepte 80 000 de c
       { compteId: detail('4991').id, libelle: 'Provision pour litige', debit: 0, credit: 30_000 },
     ],
   });
+  // A5 bis · chaque écart contre-passé à l'ouverture de l'exercice qui suit avant de le réévaluer.
+  await contrePasser(page, exercice.id, n1.id);
   await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n1.id });
+  await contrePasser(page, n1.id, n2.id);
   await expect(appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n2.id })).rejects.toThrow(/400.*non déclarée \(4991\)/);
   await appelApi(page, 'POST', '/devises/provision-ouverture', {
     compteProvision: '4991',
@@ -727,6 +768,8 @@ test('SYSCOHADA · X1 · un franc au 4991 dans N ne fait plus passer une version
     ],
   });
   await appelApi(page, 'POST', `/exercices/${exercice.id}/a-nouveaux-provisoires`, {});
+  // A5 bis · l'écart de N contre-passé à l'ouverture de N+1 · le refus attendu est celui de la version.
+  await contrePasser(page, exercice.id, suivant.id);
 
   const lecture = await appelApi<{ comptes: { compteProvision: string; provisionModuleOuverture: number; plancherVersion: number; plafondVersion: number; horsBornes: string | null }[] }>(
     page,
@@ -755,6 +798,8 @@ test('SYSCOHADA · X3 · N clôturé, la version périmée est refusée contre l
   const { exercice, suivant, debut, soldeDu4991 } = await versionPerimee(page, 'Devises e2e X3');
   await appelApi(page, 'POST', '/ecritures/valider-jusqua', { exerciceId: exercice.id, dateLimite: jour(exercice.dateFin) });
   await appelApi(page, 'POST', `/exercices/${exercice.id}/cloturer`, {});
+  // A5 bis · l'écart de N, reporté par l'à-nouveau validé, contre-passé à l'ouverture de N+1.
+  await contrePasser(page, exercice.id, suivant.id);
   const lecture = await appelApi<{ comptes: { compteProvision: string; statutSoldeOuverture: string; soldeOuverturePropose: number; plancherVersion: number }[] }>(
     page,
     'GET',
@@ -805,6 +850,8 @@ test('SYSCOHADA · Y9 · contestation déclarée avant la réévaluation de N ·
   await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: exercice.id });
   await appelApi(page, 'POST', `/exercices/${exercice.id}/a-nouveaux-provisoires`, {});
   await coter(suivant, 1930);
+  // A5 bis · l'écart de N contre-passé à l'ouverture de N+1 · le refus attendu est celui de la contestation.
+  await contrePasser(page, exercice.id, suivant.id);
   await expect(appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: suivant.id })).rejects.toThrow(
     /400.*4991 · la provision passée par OmegaX a changé depuis la contestation \(0\.00 contestés, 100000\.00 aujourd'hui\)/,
   );
@@ -835,7 +882,10 @@ test('SYSCOHADA · Y9b · la contestation visait les 50 000 de N-1, N dote 100 0
     `/devises/provision-ouverture?exerciceId=${n2.id}`,
   );
   expect(lecture.comptes.find((c) => c.compteProvision === '4991')!.enVigueur).toMatchObject({ provisionModuleContesteeMontant: 50_000 });
+  // A5 bis · chaque écart contre-passé à l'ouverture de l'exercice qui suit avant de le réévaluer.
+  await contrePasser(page, exercice.id, n1.id);
   await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n1.id });
+  await contrePasser(page, n1.id, n2.id);
   await expect(appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: n2.id })).rejects.toThrow(
     /400.*a changé depuis la contestation \(50000\.00 contestés, 150000\.00 aujourd'hui\)/,
   );
