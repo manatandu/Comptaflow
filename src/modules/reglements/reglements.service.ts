@@ -147,7 +147,9 @@ export class ReglementsService {
         compte: {
           select: { numero: true, intitule: true, lettrable: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } },
         },
-        ecriture: { select: { exerciceId: true, date: true } },
+        ecriture: {
+          select: { exerciceId: true, date: true, estANouveauProvisoire: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true },
+        },
       },
     });
     if (lignes.length !== toutesLignes.length) {
@@ -367,7 +369,14 @@ export class ReglementsService {
     sens: SensReglement,
     r: ReglementTiersDto,
     numero: string,
-    siennes: Array<{ id: string; debit: unknown; credit: unknown; deviseId?: string | null; montantDevise?: unknown; ecriture: { date?: Date } }>,
+    siennes: Array<{
+      id: string;
+      debit: unknown;
+      credit: unknown;
+      deviseId?: string | null;
+      montantDevise?: unknown;
+      ecriture: { date?: Date; estANouveauProvisoire?: boolean; estGenereeParCloture?: boolean; estSoldeDesComptesDeGestion?: boolean };
+    }>,
   ): Promise<ReglementEnDevise> {
     if (siennes.some((l) => (l.deviseId ?? null) === null)) {
       throw new BadRequestException(
@@ -405,70 +414,63 @@ export class ReglementsService {
           `(${duDevise.toFixed(2)}) · l'excédent est une avance ou un trop-perçu, à comptabiliser à part.`,
       );
     }
-    // LE RESTE DÛ DANS LA DEVISE, ACOMPTES DE N COMPRIS (A6 bis, M6,
-    // vérifié) · un lettrage PARTIEL de N passe au report Détail ligne à
+    // LE RESTE DÛ D'UNE FACTURE REPORTÉE, ACOMPTES DE N COMPRIS (A6 bis,
+    // M6, vérifié) · un lettrage PARTIEL de N passe au report Détail ligne à
     // ligne, la facture ENTIÈRE d'un côté, le règlement partiel de l'autre
-    // (`exercice/report-a-nouveau.ts`, aucune des deux n'a de lettre, et le
-    // groupe ne passe pas l'exercice) · en N+1 la facture ressortait due en
-    // entier, et 1 160 USD se payaient sur 560 dus (le tiers soldé à tort,
-    // l'écart réalisé calculé sur 600 USD déjà réglés). AUCUN LIEN ne relie
-    // la ligne d'à-nouveau à sa facture d'origine (ni groupe, ni référence)
-    // · deux bornes, toutes deux protectrices, lues sur les lignes du compte
-    // dans la devise, de l'exercice, hors factures choisies.
+    // (`exercice/report-a-nouveau.ts`, aucune des deux n'a de lettre) · en
+    // N+1 la ligne d'à-nouveau de la facture ressortait due en entier, et
+    // 1 160 USD se payaient sur 560 dus (le tiers soldé à tort, l'écart
+    // réalisé calculé sur 600 USD déjà réglés). AUCUN LIEN ne relie la ligne
+    // d'à-nouveau à sa facture d'origine · la borne est PROTECTRICE et ne
+    // vise que les lignes CHOISIES qui sont elles-mêmes des à-nouveaux, contre
+    // LEUR part du dû · les règlements, acomptes et avoirs reportés par
+    // l'à-nouveau dans la devise, hors de tout groupe, s'en retranchent. Une
+    // facture de l'exercice n'en est jamais bornée (premier tour de
+    // relecture). La colonne du RÈGLEMENT les dit (débit pour un fournisseur,
+    // crédit pour un client), signe compris · une ligne inscrite en négatif
+    // (art. 20) annule celle qu'elle contre-passe, et le montant en devise
+    // est stocké SANS signe (`lignesEnNegatif`).
+    //
+    // RIEN D'AUTRE NE BORNE (premier tour) · un règlement, un acompte ou un
+    // avoir non lettré passé DANS l'exercice ne dit pas à quelle facture il
+    // revient, et le compte du fournisseur est aussi « débité des avances et
+    // acomptes versés » (fiche du compte 40) · la borne au reste dû du compte
+    // refusait de régler une facture à côté d'une avance ou d'un avoir qui ne
+    // la concernait pas. Le règlement se borne au dû des factures choisies
+    // dans LEUR devise (plus haut), l'avoir se lettre à part.
     const deviseId = [...devises][0]!;
-    const autres = {
-      compteId: r.compteId,
-      deviseId,
-      id: { notIn: r.ligneIds },
-      ecriture: { tenantId, exerciceId },
-    } satisfies Prisma.LigneEcritureWhereInput;
-    // (1) Les règlements, acomptes et avoirs REPORTÉS par l'à-nouveau, hors
-    // de tout groupe · rien ne dit à quelle facture ils reviennent, ils sont
-    // donc lus contre celle-ci. C'est la colonne du RÈGLEMENT qui les dit
-    // (débit pour un fournisseur, crédit pour un client), signe compris · une
-    // ligne inscrite en négatif (art. 20) annule celle qu'elle contre-passe,
-    // et le montant en devise est stocké SANS signe (`lignesEnNegatif`).
-    const reportees = {
-      ...autres,
-      lettrageId: null,
-      ecriture: {
-        tenantId,
-        exerciceId,
-        OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
-      },
-    } satisfies Prisma.LigneEcritureWhereInput;
-    const colonne = (signe: 'gt' | 'lt') => (sens === 'FOURNISSEUR' ? { debit: { [signe]: 0 } } : { credit: { [signe]: 0 } });
-    const credit = this.prisma.ligneEcriture.fields.credit;
-    const [reporteesPositives, reporteesNegatives, auDebit, auCredit] = await Promise.all([
-      this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('gt') }, _sum: { montantDevise: true } }),
-      this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('lt') }, _sum: { montantDevise: true } }),
-      // (2) Le COMPTE entier, lignes non soldées (groupes partiels compris,
-      // leur solde net étant ce qui reste dû) · payer au-delà ferait du tiers
-      // un débiteur dans la devise, une avance qui n'est pas ce règlement.
-      this.prisma.ligneEcriture.aggregate({ where: { ...autres, lettre: null, debit: { gte: credit } }, _sum: { montantDevise: true } }),
-      this.prisma.ligneEcriture.aggregate({ where: { ...autres, lettre: null, debit: { lt: credit } }, _sum: { montantDevise: true } }),
-    ]);
-    const centimes = (x: number) => Math.round(x * 100);
-    const reglesAuReport = Number(reporteesPositives._sum.montantDevise ?? 0) - Number(reporteesNegatives._sum.montantDevise ?? 0);
-    const resteApresReport = Math.round((duDevise - Math.max(0, reglesAuReport)) * 100) / 100;
-    if (centimes(montantDevise) > centimes(resteApresReport)) {
-      throw new BadRequestException(
-        `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
-          "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
-          `Réglez au plus ${Math.max(0, resteApresReport).toFixed(2)}, puis complétez le lettrage de la facture avec ces lignes d'à-nouveau ` +
-          "(Interrogation et lettrage) ; si elles reviennent à une autre facture, lettrez-les d'abord avec elle.",
-      );
-    }
-    const devisesAuDebit = Number(auDebit._sum.montantDevise ?? 0);
-    const devisesAuCredit = Number(auCredit._sum.montantDevise ?? 0);
-    const autresDus = sens === 'FOURNISSEUR' ? devisesAuCredit - devisesAuDebit : devisesAuDebit - devisesAuCredit;
-    const resteDuCompte = Math.round((duDevise + autresDus) * 100) / 100;
-    if (centimes(montantDevise) > centimes(resteDuCompte)) {
-      throw new BadRequestException(
-        `${numero} · le compte ne doit plus que ${Math.max(0, resteDuCompte).toFixed(2)} dans la devise des factures choisies, et non ` +
-          `${montantDevise.toFixed(2)} · des règlements, acomptes ou avoirs dans cette devise y sont passés sans être lettrés. ` +
-          `Réglez au plus ${Math.max(0, resteDuCompte).toFixed(2)}, ou lettrez d'abord ces lignes avec les factures qu'elles règlent (Interrogation et lettrage).`,
-      );
+    const estANouveau = (e: (typeof siennes)[number]['ecriture']) =>
+      e.estANouveauProvisoire === true || (e.estGenereeParCloture === true && e.estSoldeDesComptesDeGestion !== true);
+    const duReporte = Math.round(siennes.filter((l) => estANouveau(l.ecriture)).reduce((t, l) => t + Number(l.montantDevise), 0) * 100) / 100;
+    if (duReporte > 0) {
+      const reportees = {
+        compteId: r.compteId,
+        deviseId,
+        id: { notIn: r.ligneIds },
+        lettrageId: null,
+        ecriture: {
+          tenantId,
+          exerciceId,
+          OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+        },
+      } satisfies Prisma.LigneEcritureWhereInput;
+      const colonne = (signe: 'gt' | 'lt') => (sens === 'FOURNISSEUR' ? { debit: { [signe]: 0 } } : { credit: { [signe]: 0 } });
+      const [positives, negatives] = await Promise.all([
+        this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('gt') }, _sum: { montantDevise: true } }),
+        this.prisma.ligneEcriture.aggregate({ where: { ...reportees, ...colonne('lt') }, _sum: { montantDevise: true } }),
+      ]);
+      const reglesAuReport = Math.round((Number(positives._sum.montantDevise ?? 0) - Number(negatives._sum.montantDevise ?? 0)) * 100) / 100;
+      const resteReporte = Math.max(0, Math.round((duReporte - Math.max(0, reglesAuReport)) * 100) / 100);
+      const plafond = Math.round((duDevise - duReporte + resteReporte) * 100) / 100;
+      if (Math.round(montantDevise * 100) > Math.round(plafond * 100)) {
+        throw new BadRequestException(
+          `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
+            "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
+            `Les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · réglez au plus ${plafond.toFixed(2)}, puis complétez ` +
+            "le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage) ; si elles reviennent à une autre facture, " +
+            "lettrez-les d'abord avec elle.",
+        );
+      }
     }
     // Le débit RÉEL saisi en francs prime, le cours s'en déduit · même règle
     // que toute ligne en devise (comptabilite/ligne-en-devise.ts).

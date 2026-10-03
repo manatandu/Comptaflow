@@ -304,15 +304,17 @@ export function motifRefusTresorerieEnDevise(p: {
     if (ribEtranger && enDevise.length > 0) {
       return (
         `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} · cochez « Moyen de paiement en devise », sans quoi le ` +
-        'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57).'
+        'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57) ; ' +
+        'ou, si le RIB est mal renseigné, corrigez sa devise (Banques).'
       );
     }
     if (ribEtranger) {
       return (
         `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} et les factures choisies sont en francs · le compte de trésorerie ` +
         `recevrait des francs sans leur devise et la conversion des disponibilités à la clôture le fausserait (AUDCIF art. 57). ` +
-        'Réglez ces factures depuis le journal d’un compte tenu en francs ; le paiement d’une facture en francs par une trésorerie en ' +
-        'devise ne passe pas par le règlement des tiers, il se saisit au journal avec sa devise et son cours.'
+        'Réglez ces factures depuis le journal d’un compte tenu en francs, ou, si le RIB est mal renseigné, corrigez sa devise (Banques) ; ' +
+        'le paiement d’une facture en francs par une trésorerie en devise ne passe pas par le règlement des tiers, il se saisit au journal ' +
+        'avec sa devise et son cours.'
       );
     }
     return null;
