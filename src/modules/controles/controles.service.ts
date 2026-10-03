@@ -4380,10 +4380,20 @@ export class ControlesService {
     // contre-passé), la réaligne · le résultat net en sort juste, ses 676 et
     // 776 en sont gonflés de part et d'autre, et la trésorerie est fausse
     // jusque-là.
+    //
+    // Le texte suit les faits (relecture adverse, M7) · la phrase de
+    // l'exercice clôturé ne vient que si l'un l'est ; l'annulation nomme ses
+    // préalables (D6 · une réévaluation postérieure s'annule d'abord, une
+    // version de provision d'ouverture déclarée après elle se retire ou se
+    // corrige) ; une contre-passation INTÉGRALE par exception nommée (B2, M2)
+    // est dite comme telle, sans issue à prendre.
     {
       const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
       if (contrePassees.elements.length > 0 || contrePassees.tronque) {
-        const annulable = contrePassees.elements.some((e) => !e.exerciceReevaluationClos);
+        const anciennes = contrePassees.elements.filter((e) => e.exception === null);
+        const annulable = anciennes.some((e) => !e.exerciceReevaluationClos);
+        const close = anciennes.some((e) => e.exerciceReevaluationClos);
+        const parException = contrePassees.elements.some((e) => e.exception !== null);
         anomalies.push({
           code: 'CONTRE_PASSATION_DE_DISPONIBILITE',
           gravite: 'INFORMATION',
@@ -4395,10 +4405,17 @@ export class ControlesService {
             'le résultat net en sort juste, la présentation des pertes et gains de change ne l’est pas.',
           action:
             (annulable
-              ? "Réévaluation d'un exercice encore ouvert · annulez-la (Devises, AUDCIF art. 20, al. 2), repassez-la, puis contre-passez " +
-                'à nouveau · seuls le 478, le 479 et les comptes de tiers le seront. '
+              ? "Réévaluation d'un exercice encore ouvert · annulez-la (Devises, AUDCIF art. 20, al. 2), après avoir annulé toute " +
+                "réévaluation postérieure et retiré ou corrigé toute provision d'ouverture déclarée après elle, repassez-la, puis " +
+                'contre-passez à nouveau · seuls le 478, le 479 et les comptes de tiers le seront. '
               : '') +
-            "Réévaluation d'un exercice clôturé · la contre-passation ne s'annule plus ; toute régularisation est à décider par le cabinet. " +
+            (close
+              ? "Réévaluation d'un exercice clôturé · la contre-passation ne s'annule plus ; toute régularisation est à décider par le cabinet. "
+              : '') +
+            (parException
+              ? "Contre-passation intégrale par exception nommée (exercice suivant réévalué sous l'ancien régime, ou écriture des écarts " +
+                'qui ne se partage pas) · voulue, rien à reprendre. '
+              : '') +
             'Ne repassez pas à la main la seule ligne de la banque · la réévaluation de clôture, qui mesure la banque depuis son coût ' +
             'historique, passerait l’écart une seconde fois.',
           occurrences: [
@@ -4409,7 +4426,8 @@ export class ControlesService {
               reference: `${e.compteNumero} · contre-passation n° ${e.piece ?? '·'}`,
               detail:
                 `Réévaluation du ${e.dateReevaluation.toISOString().slice(0, 10)}${e.exerciceReevaluationClos ? ' (exercice clôturé)' : ''} · ` +
-                `disponibilité ${e.montant > 0 ? 'débitée' : 'créditée'} de ${Math.abs(e.montant).toFixed(2)} à l'ouverture`,
+                `disponibilité ${e.montant > 0 ? 'débitée' : 'créditée'} de ${Math.abs(e.montant).toFixed(2)} à l'ouverture` +
+                (e.exception ? ` · contre-passation intégrale par exception (${e.exception})` : ''),
               date: e.date.toISOString().slice(0, 10),
               montant: e.montant,
             })),

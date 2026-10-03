@@ -177,6 +177,37 @@ export function ecartsDisponibilitesEnregistres(valeur: unknown): EcartDeDisponi
   return sortie;
 }
 
+/**
+ * LA CONTRE-PASSATION INTÉGRALE, par exception NOMMÉE (relecture adverse
+ * d'A5 bis) · jamais un choix silencieux.
+ *  · `EXERCICE_SUIVANT_ANCIEN_REGIME` (B2) · l'exercice qui reçoit la
+ *    contre-passation a été réévalué avant A5 bis, depuis le coût historique
+ *    de la banque · garder l'écart de N sur la banque le compterait deux fois.
+ *  · `PARTAGE_IMPOSSIBLE` (M2) · l'écriture des écarts ne se sépare pas, la
+ *    contre-passation intégrale a été demandée.
+ * Dans les deux cas la réévaluation suivante mesure la banque depuis son coût
+ * historique (`ecartsReportesDesDisponibilites` ne reporte pas un écart
+ * contre-passé) · le total de l'exercice suivant reste juste ; seule la
+ * présentation au 676 et au 776 s'en écarte, et c'est dit.
+ */
+export type CodeContrePassationIntegrale = 'EXERCICE_SUIVANT_ANCIEN_REGIME' | 'PARTAGE_IMPOSSIBLE';
+
+export const LIBELLE_INTEGRALE: Record<CodeContrePassationIntegrale, string> = {
+  EXERCICE_SUIVANT_ANCIEN_REGIME: 'exercice suivant réévalué sous l’ancien régime',
+  PARTAGE_IMPOSSIBLE: 'écriture des écarts qui ne se partage pas',
+};
+
+export const AVERTISSEMENT_INTEGRALE: Record<CodeContrePassationIntegrale, string> = {
+  EXERCICE_SUIVANT_ANCIEN_REGIME:
+    "Contre-passation INTÉGRALE, banque et caisse comprises · l'exercice suivant a été réévalué avant A5 bis, depuis le coût " +
+    "historique de la banque et de la caisse ; leur garder l'écart de cette réévaluation le compterait deux fois. Le total de " +
+    "l'exercice suivant est juste ; l'écart réalisé (AUDCIF art. 57) y paraît contre-passé puis repassé.",
+  PARTAGE_IMPOSSIBLE:
+    "Contre-passation INTÉGRALE demandée, banque et caisse comprises · l'écriture des écarts ne se partage pas. La " +
+    "réévaluation suivante mesure la banque et la caisse depuis leur coût historique · le total est juste ; l'écart réalisé " +
+    '(AUDCIF art. 57) paraît contre-passé puis repassé.',
+};
+
 /** Les sommes en devise d'une disponibilité, pour une devise, telles que la réévaluation les a lues. */
 export interface SommeDeviseDuCompte {
   deviseId: string;

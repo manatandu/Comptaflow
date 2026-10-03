@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { estDisponibilite } from './ecarts-disponibilites';
+import { CodeContrePassationIntegrale, LIBELLE_INTEGRALE, estDisponibilite } from './ecarts-disponibilites';
 
 type Lecteur = Pick<PrismaService, 'reevaluation'>;
 
@@ -21,6 +21,12 @@ export interface DisponibiliteContrePassee {
   compteNumero: string;
   /** Débit moins crédit de la ligne de contre-passation. */
   montant: number;
+  /**
+   * La contre-passation INTÉGRALE par exception nommée (relecture adverse
+   * d'A5 bis, B2 et M2), dite au libellé · sa raison, ou `null` pour une
+   * contre-passation d'avant A5 bis, qui inversait tout sans le dire.
+   */
+  exception: string | null;
 }
 
 /**
@@ -46,6 +52,7 @@ export async function contrePassationsDeDisponibilites(
     take: PLAFOND_REEVALUATIONS_EXAMINEES + 1,
     select: {
       dateReevaluation: true,
+      contrePassationIntegrale: true,
       exercice: { select: { statut: true } },
       ecritureExtourne: {
         select: {
@@ -69,6 +76,9 @@ export async function contrePassationsDeDisponibilites(
         date: r.ecritureExtourne.date,
         compteNumero: l.compte.numero,
         montant: Math.round((Number(l.debit) - Number(l.credit)) * 100) / 100,
+        exception: r.contrePassationIntegrale
+          ? (LIBELLE_INTEGRALE[r.contrePassationIntegrale as CodeContrePassationIntegrale] ?? r.contrePassationIntegrale)
+          : null,
       });
     }
   }

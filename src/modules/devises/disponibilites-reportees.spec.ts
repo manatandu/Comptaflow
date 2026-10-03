@@ -210,10 +210,17 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       },
       // L'ancienne contre-passation inversait toute l'écriture ; celle d'A5 bis, le seul écart de conversion.
       ecritureExtourne: r.extourneInverseLaCaisse
-        ? { exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId), lignes: lignesEcarts.map((l) => ({ compte: { numero: l.numero } })) }
+        ? {
+            exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId),
+            numeroPiece: 12,
+            date: new Date('2027-01-01'),
+            lignes: lignesEcarts.map((l) => ({ compte: { numero: l.numero } })),
+          }
         : r.contrePassee
           ? {
               exerciceId: r.contrePasseeDans ?? suivantDe(r.exerciceId),
+              numeroPiece: 12,
+              date: new Date('2028-01-01'),
               lignes: lignesEcarts.filter((l) => !/^(52|53|55|57|58|676|776)/.test(l.numero)).map((l) => ({ compte: { numero: l.numero } })),
             }
           : null,
@@ -590,6 +597,23 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
     const { rapport } = await svc.reevaluer('t', 'u', { exerciceId: 'e27' });
     expect(rapport.positions).toEqual([expect.objectContaining({ numero: '41110000', valeurComptable: 2_000_000, ecart: 150_000 })]);
     expect(creer).toHaveBeenCalled();
+  });
+
+  it('B3 · le refus nomme le report au premier jour non clôturé quand la première période est close (art. 22, 4°)', async () => {
+    const { svc } = monter({ lignes: [creanceN, report], reeval: { exerciceId: 'e26', lignesEcarts: ecartsN }, cours: 2150 });
+    await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(/premier jour non clôturé.*AUDCIF art\. 22, 4°/);
+  });
+
+  it('M1 · contre-passée dans un exercice plus lointain · refus nommé, l’issue (annuler la contre-passation) dite, rien écrit', async () => {
+    const { svc, creer } = monter({
+      lignes: [creanceN, report],
+      reeval: { exerciceId: 'e26', lignesEcarts: ecartsN, contrePassee: true, contrePasseeDans: 'e28' },
+      cours: 2150,
+    });
+    await expect(svc.reevaluer('t', 'u', { exerciceId: 'e27' })).rejects.toThrow(
+      /n'est pas à l'ouverture de cet exercice[\s\S]*Annuler la contre-passation/,
+    );
+    expect(creer).not.toHaveBeenCalled();
   });
 
   it('une réévaluation qui ne portait que des disponibilités n’a rien à contre-passer · ne bloque pas', async () => {

@@ -80,6 +80,22 @@ describe('contrôle 34 · contre-passation qui a inversé une disponibilité', (
     expect(a!.action).toMatch(/passerait l’écart une seconde fois/);
   });
 
+  it('M7 · exercice ouvert · l’annulation nomme ses préalables (D6), et la phrase de l’exercice clôturé ne vient pas', async () => {
+    const { svc } = service([ancienne('OUVERT')]);
+    const a = await trouver(svc);
+    expect(a!.action).toMatch(/annulé toute réévaluation postérieure et retiré ou corrigé toute provision d'ouverture déclarée après elle/);
+    expect(a!.action).not.toMatch(/exercice clôturé/);
+  });
+
+  it('M7 · contre-passation intégrale par exception nommée (B2) · dite comme telle, sans issue à prendre', async () => {
+    const voulue = { ...ancienne('OUVERT'), contrePassationIntegrale: 'EXERCICE_SUIVANT_ANCIEN_REGIME' };
+    const { svc } = service([voulue]);
+    const a = await trouver(svc);
+    expect(a!.occurrences[0].detail).toMatch(/contre-passation intégrale par exception \(exercice suivant réévalué sous l’ancien régime\)/);
+    expect(a!.action).toMatch(/par exception nommée/);
+    expect(a!.action).not.toMatch(/annulez-la/);
+  });
+
   it('se tait sur une contre-passation qui ne porte que le 478, le 479 et le tiers (forme d’A5 bis)', async () => {
     const a5bis = ancienne('OUVERT');
     a5bis.ecritureExtourne.lignes = a5bis.ecritureExtourne.lignes.slice(0, 2);

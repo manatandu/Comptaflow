@@ -131,7 +131,21 @@ export class DevisesController {
     @Param('id') id: string,
     @Body() body: ExtournerReevaluationDto,
   ) {
-    return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId);
+    return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId, { integrale: body.integrale === true });
+  }
+
+  /**
+   * ANNULER UNE CONTRE-PASSATION (relecture adverse d'A5 bis, M1) · pour la
+   * repasser à l'ouverture de l'exercice qui suit immédiatement · inscription
+   * en négatif si validée, suppression au brouillard, motif au journal
+   * d'audit ; une décision de validation, réservée au comptable comme
+   * l'annulation de la réévaluation.
+   */
+  @Post('reevaluations/:id/contre-passation/annuler')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async annulerContrePassation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
+    return this.devises.annulerContrePassation(user.tenantId, user.userId, id, body.motif);
   }
 
   /**

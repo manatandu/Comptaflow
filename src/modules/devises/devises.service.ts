@@ -6,7 +6,10 @@ import { motifLignesTenues } from '../comptabilite/lignes-tenues';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import {
+  AVERTISSEMENT_INTEGRALE,
+  CodeContrePassationIntegrale,
   EcartDeDisponibilite,
+  LIBELLE_INTEGRALE,
   RACINES_CHANGE_DISPONIBILITES,
   SommeDeviseDuCompte,
   ecartsDisponibilitesEnregistres,
@@ -1143,6 +1146,13 @@ export class DevisesService {
    * IMMÉDIATEMENT, et seulement si elle porte un écart de conversion (une
    * réévaluation des seules disponibilités n'a rien à contre-passer, AUDCIF
    * art. 57).
+   *
+   * LA CONTRE-PASSATION DOIT ÊTRE DANS CET EXERCICE-CI (relecture adverse,
+   * M1) · une contre-passation qu'une version antérieure a laissé passer
+   * dans un exercice plus lointain laissait l'écart de N en place pendant
+   * tout celui-ci, et sa réévaluation le repassait depuis le coût historique.
+   * L'issue est nommée · annuler cette contre-passation (Devises), puis la
+   * repasser à l'ouverture de cet exercice.
    */
   private async motifContrePassationManquante(tenantId: string, exercice: { id: string; dateDebut: Date }): Promise<string | null> {
     const precedent = await this.prisma.exercice.findFirst({
@@ -1156,19 +1166,36 @@ export class DevisesService {
       select: {
         dateReevaluation: true,
         ecritureExtourneId: true,
+        ecritureExtourne: { select: { exerciceId: true, numeroPiece: true, date: true } },
         ecritureEcarts: { select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } } },
       },
     });
-    if (!reeval?.ecritureEcarts || reeval.ecritureExtourneId) return null;
+    if (!reeval?.ecritureEcarts) return null;
+    const jour = reeval.dateReevaluation.toISOString().slice(0, 10);
+    if (reeval.ecritureExtourneId) {
+      const ailleurs = reeval.ecritureExtourne && reeval.ecritureExtourne.exerciceId !== exercice.id;
+      if (!ailleurs) return null;
+      return (
+        `La contre-passation de la réévaluation du ${jour} (pièce n° ${reeval.ecritureExtourne?.numeroPiece ?? '·'} du ` +
+        `${reeval.ecritureExtourne?.date.toISOString().slice(0, 10) ?? '·'}) n'est pas à l'ouverture de cet exercice, qui suit ` +
+        "immédiatement le sien · ses écarts de conversion y sont donc toujours en place, et réévaluer cet exercice les " +
+        'repasserait. Annulez cette contre-passation (Devises, « Annuler la contre-passation »), passez-la à l’ouverture de ' +
+        'cet exercice, puis réévaluez.'
+      );
+    }
     const partage = partagerLignesDEcarts(
       reeval.ecritureEcarts.lignes.map((l) => ({ compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
     );
     if (partage.aContrePasser.length === 0) return null;
-    const jour = reeval.dateReevaluation.toISOString().slice(0, 10);
     return (
       `La réévaluation du ${jour} n'est pas contre-passée · ses écarts de conversion (478, 479 et comptes de tiers) sont ` +
       "toujours en place, et réévaluer cet exercice repasserait le même écart sur les créances et dettes en devise. " +
-      `Passez la contre-passation de la réévaluation du ${jour} (Devises) à l'ouverture de cet exercice, puis réévaluez.`
+      `Passez la contre-passation de la réévaluation du ${jour} (Devises) à l'ouverture de cet exercice, puis réévaluez · ` +
+      "si la première période en est close, la pièce est reportée au premier jour non clôturé, sa date de valeur restant " +
+      "l'ouverture (AUDCIF art. 22, 4°)." +
+      (partage.motifRefus
+        ? " Son écriture des écarts ne se partage pas · demandez la contre-passation intégrale (« Contre-passation intégrale »)."
+        : '')
     );
   }
 
@@ -1465,11 +1492,50 @@ export class DevisesService {
    * ajustent se contre-passent (`partagerLignesDEcarts`). Contre-passer la
    * banque la remettait au cours historique et rouvrait au 676 ou au 776 de
    * N+1 une perte ou un gain déjà supporté.
+   *
+   * RELECTURE ADVERSE D'A5 BIS ·
+   *  · M1 · l'exercice qui suit IMMÉDIATEMENT celui de la réévaluation, et lui
+   *    seul · plus tard, l'écart de N vivait pendant tout l'exercice
+   *    intermédiaire, que sa réévaluation repassait depuis le coût historique.
+   *  · B3 · une première période close reporte la pièce au premier jour non
+   *    clôturé, sa date de valeur restant l'ouverture (AUDCIF art. 22, 4°) ·
+   *    sans quoi la contre-passation était impossible, et le portillon de la
+   *    réévaluation suivante fermé pour de bon.
+   *  · B2 · l'exercice suivant a déjà été réévalué SOUS L'ANCIEN RÉGIME (son
+   *    `ecartsDisponibilites` est nul) · il a mesuré la banque depuis son coût
+   *    historique, l'ancienne contre-passation devant l'y ramener. Ne
+   *    contre-passer que le 478 et le 479 laisserait l'écart de N sur la
+   *    banque PLUS celui que N+1 a recompté depuis le coût · la banque et la
+   *    caisse sont donc contre-passées aussi, par exception nommée.
+   *  · M2 · une écriture des écarts qui ne se partage pas · la
+   *    contre-passation INTÉGRALE se demande expressément.
+   *  · M6 · sous le verrou du dossier, lien posé par un `update` unitaire.
    */
-  async extourner(tenantId: string, createdBy: string, reevaluationId: string, exerciceSuivantId: string) {
+  async extourner(
+    tenantId: string,
+    createdBy: string,
+    reevaluationId: string,
+    exerciceSuivantId: string,
+    options: { integrale?: boolean } = {},
+  ) {
+    return this.sousVerrouDuDossier(tenantId, 'CONTRE_PASSATION', () =>
+      this.extournerSousVerrou(tenantId, createdBy, reevaluationId, exerciceSuivantId, options),
+    );
+  }
+
+  private async extournerSousVerrou(
+    tenantId: string,
+    createdBy: string,
+    reevaluationId: string,
+    exerciceSuivantId: string,
+    options: { integrale?: boolean },
+  ) {
     const reeval = await this.prisma.reevaluation.findFirst({
       where: { id: reevaluationId, tenantId },
-      include: { ecritureEcarts: { include: { lignes: { include: { compte: { select: { numero: true } } } } } } },
+      include: {
+        exercice: { select: { dateFin: true } },
+        ecritureEcarts: { include: { lignes: { include: { compte: { select: { numero: true } } } } } },
+      },
     });
     if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
     if (reeval.annuleeLe) throw new ConflictException('Cette réévaluation est annulée · il n’y a rien à contre-passer.');
@@ -1478,7 +1544,6 @@ export class DevisesService {
 
     const suivant = await this.prisma.exercice.findFirst({ where: { id: exerciceSuivantId, tenantId } });
     if (!suivant) throw new BadRequestException('Exercice suivant introuvable pour ce dossier');
-    if (suivant.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice suivant est clôturé.");
     // L'extourne se passe « à l'ouverture de l'exercice SUIVANT » · un exercice
     // ouvert antérieur, ou celui de la réévaluation, l'aurait annulée dans la
     // période même où elle a été constatée (même règle que les régularisations,
@@ -1488,35 +1553,56 @@ export class DevisesService {
         "La contre-passation se passe à l'ouverture d'un exercice qui commence après la réévaluation · choisissez l'exercice suivant.",
       );
     }
+    // M1 · l'exercice qui suit IMMÉDIATEMENT, et lui seul.
+    const fin = reeval.exercice?.dateFin ?? reeval.dateReevaluation;
+    const immediat = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { gt: fin } },
+      orderBy: { dateDebut: 'asc' },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    if (immediat && immediat.id !== suivant.id) {
+      const jour = (d: Date) => d.toISOString().slice(0, 10);
+      throw new BadRequestException(
+        `La contre-passation se passe à l'ouverture de l'exercice qui suit immédiatement la réévaluation, celui du ` +
+          `${jour(immediat.dateDebut)} au ${jour(immediat.dateFin)} · passée plus tard, l'écart de conversion vivrait pendant ` +
+          'tout cet exercice, que sa réévaluation repasserait depuis le coût historique.',
+      );
+    }
+    if (suivant.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice suivant est clôturé.");
 
-    // Partage par la RACINE du compte, jamais par le montant ni le libellé ·
-    // deux parts qui ne s'équilibrent pas chacune disent une écriture
-    // retouchée, et l'on refuse plutôt que de boucler sur un compte deviné.
-    const partage = partagerLignesDEcarts(
-      reeval.ecritureEcarts.lignes.map((l) => ({ ...l, compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
-    );
-    if (partage.motifRefus) throw new BadRequestException(partage.motifRefus);
-    if (partage.aContrePasser.length === 0) {
+    // Partage par la RACINE du compte, jamais par le montant ni le libellé.
+    const lignes = reeval.ecritureEcarts.lignes.map((l) => ({
+      ...l,
+      compteNumero: l.compte.numero,
+      debit: Number(l.debit),
+      credit: Number(l.credit),
+    }));
+    const partage = partagerLignesDEcarts(lignes);
+    const integrale = await this.motifContrePassationIntegrale(tenantId, suivant.id, partage, options.integrale === true);
+    if (integrale.refus) throw new BadRequestException(integrale.refus);
+    const aContrePasser = integrale.code ? lignes : partage.aContrePasser;
+    if (aContrePasser.length === 0) {
       throw new BadRequestException(
         "Cette réévaluation ne porte que des disponibilités · leur écart est réalisé et reste au résultat de l'exercice " +
           '(AUDCIF art. 57) · il n’y a aucun écart de conversion à contre-passer.',
       );
     }
-    // UNE RÉÉVALUATION ANTÉRIEURE À A5 BIS n'a pas gardé l'écart de ses
-    // disponibilités, et RIEN NE L'ÉCRIT ICI (relecture adverse, B2) · nul,
-    // `ecartsDisponibilites` dit qu'elle a été passée sous l'ancien régime,
-    // et c'est sur ce fait que la contre-passation de l'exercice précédent se
-    // règle. La réévaluation suivante relit l'écart sur le compte tel qu'il
-    // était (`ecartsDeDisponibilitesDe`), sans dépendre de ce geste.
 
+    const jourReeval = reeval.dateReevaluation.toISOString().slice(0, 10);
     const journal = await this.journalGeneral(tenantId);
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
       exerciceId: suivant.id,
       journalId: journal.id,
       date: suivant.dateDebut.toISOString().slice(0, 10),
-      libelle: `Contre-passation des écarts de conversion du ${reeval.dateReevaluation.toISOString().slice(0, 10)}`,
+      // B3 · AUDCIF art. 22, 4° · une première période close reporte la
+      // pièce au premier jour non clôturé, date de valeur gardée. Ouverte, la
+      // date reste l'ouverture.
+      reporterAuPremierJourOuvert: true,
+      libelle: integrale.code
+        ? `Contre-passation intégrale des écarts du ${jourReeval}, banque et caisse comprises (${LIBELLE_INTEGRALE[integrale.code]})`
+        : `Contre-passation des écarts de conversion du ${jourReeval}`,
       reference: 'REEVAL',
-      lignes: partage.aContrePasser.map((l) => ({
+      lignes: aContrePasser.map((l) => ({
         compteId: l.compteId,
         // Sens inverse, ligne à ligne.
         debit: l.credit || undefined,
@@ -1527,16 +1613,183 @@ export class DevisesService {
 
     // Lien posé sur une réévaluation encore libre (audit F10) · deux
     // extournes simultanées passaient toutes deux le test du dessus, et la
-    // première restait au journal sans détenteur.
-    const { count } = await this.prisma.reevaluation.updateMany({
-      where: { id: reevaluationId, tenantId, ecritureExtourneId: null },
-      data: { ecritureExtourneId: ecriture.id },
-    });
-    if (count === 0) {
+    // première restait au journal sans détenteur. Un `update` UNITAIRE (M6)
+    // · le journal d'audit garde l'avant et l'après ; P2025 si une autre
+    // contre-passation est passée entre-temps.
+    try {
+      await this.prisma.reevaluation.update({
+        where: { id: reevaluationId, tenantId, AND: [{ ecritureExtourneId: null }] },
+        data: { ecritureExtourneId: ecriture.id, contrePassationIntegrale: integrale.code },
+      });
+    } catch (e) {
       await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
-      throw new ConflictException('Cette réévaluation a déjà été extournée.');
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new ConflictException('Cette réévaluation a déjà été extournée.');
+      }
+      throw e;
     }
-    return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reevaluationId, tenantId } });
+    const enregistree = await this.prisma.reevaluation.findFirstOrThrow({ where: { id: reevaluationId, tenantId } });
+    return {
+      ...enregistree,
+      // Le dire dans la réponse (B2, M2) · l'exception n'est jamais tue.
+      avertissement: integrale.code ? AVERTISSEMENT_INTEGRALE[integrale.code] : null,
+    };
+  }
+
+  /**
+   * LA CONTRE-PASSATION INTÉGRALE, exception nommée (B2, M2) · le code qui la
+   * fonde, ou le refus. B2 s'impose · l'exercice qui reçoit la
+   * contre-passation porte une réévaluation non annulée de l'ancien régime
+   * (`ecartsDisponibilites` nul) et l'écriture contre-passée porte des
+   * disponibilités. M2 se demande · l'écriture ne se partage pas. Demandée
+   * hors de ce cas, elle est refusée · la banque garde son écart (art. 57).
+   */
+  private async motifContrePassationIntegrale(
+    tenantId: string,
+    exerciceSuivantId: string,
+    partage: { realisees: unknown[]; motifRefus: string | null },
+    demandee: boolean,
+  ): Promise<{ code: CodeContrePassationIntegrale | null; refus: string | null }> {
+    if (partage.realisees.length > 0) {
+      const ancienRegime = await this.prisma.reevaluation.findFirst({
+        where: { tenantId, exerciceId: exerciceSuivantId, annuleeLe: null, ecartsDisponibilites: { equals: Prisma.DbNull } },
+        select: { id: true },
+      });
+      if (ancienRegime) return { code: 'EXERCICE_SUIVANT_ANCIEN_REGIME', refus: null };
+    }
+    if (partage.motifRefus) {
+      return demandee ? { code: 'PARTAGE_IMPOSSIBLE', refus: null } : { code: null, refus: partage.motifRefus };
+    }
+    if (demandee) {
+      return {
+        code: null,
+        refus:
+          "La contre-passation intégrale n'est ouverte qu'à une écriture des écarts qui ne se partage pas · celle-ci se partage, " +
+          "et seuls le 478, le 479 et les comptes de tiers se contre-passent (l'écart de la banque et de la caisse est réalisé, " +
+          'AUDCIF art. 57).',
+      };
+    }
+    return { code: null, refus: null };
+  }
+
+  /**
+   * ANNULER UNE CONTRE-PASSATION (relecture adverse d'A5 bis, M1) · celle
+   * qu'une version antérieure a laissé passer hors de l'exercice qui suit
+   * immédiatement la réévaluation, pour la repasser au bon endroit. AUDCIF
+   * art. 20, al. 2 · au brouillard, elle est supprimée ; validée, inscrite en
+   * négatif (art. 22, 2° et 4°). La réévaluation redevient libre de toute
+   * contre-passation, et la trace est gardée (`annulationsContrePassation`,
+   * journal d'audit). C'est l'issue du refus de la réévaluation suivante
+   * quand l'exercice de la réévaluation est clôturé, que l'annulation entière
+   * (D6) n'atteint plus.
+   *
+   * REFUS · réévaluation annulée ; aucune contre-passation ; contre-passation
+   * dans un exercice clôturé ; une réévaluation non annulée de l'exercice qui
+   * porte la contre-passation (elle a mesuré ses positions après elle,
+   * l'annuler d'abord) ; ligne lettrée ou pointée. Sous le verrou du dossier.
+   */
+  async annulerContrePassation(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const raison = (motif ?? '').trim();
+    if (!raison) throw new BadRequestException("Le motif de l'annulation est obligatoire (AUDCIF art. 20).");
+    return this.sousVerrouDuDossier(tenantId, 'ANNULATION DE CONTRE-PASSATION', () =>
+      this.annulerContrePassationSousVerrou(tenantId, userId, reevaluationId, raison),
+    );
+  }
+
+  private async annulerContrePassationSousVerrou(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const reeval = await this.prisma.reevaluation.findFirst({
+      where: { id: reevaluationId, tenantId },
+      select: {
+        id: true,
+        dateReevaluation: true,
+        annuleeLe: true,
+        annulationsContrePassation: true,
+        ecritureExtourne: {
+          select: {
+            id: true,
+            statut: true,
+            numeroPiece: true,
+            exerciceId: true,
+            exercice: { select: { statut: true } },
+            lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } },
+          },
+        },
+      },
+    });
+    if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+    const jour = (d: Date) => d.toISOString().slice(0, 10);
+    if (reeval.annuleeLe) throw new ConflictException(`Cette réévaluation est annulée, le ${jour(reeval.annuleeLe)}.`);
+    const e = reeval.ecritureExtourne;
+    if (!e) throw new BadRequestException("Cette réévaluation n'est pas contre-passée · il n'y a rien à annuler.");
+    if (e.exercice.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException(
+        "La contre-passation est passée dans un exercice clôturé · elle ne s'annule plus (AUDCIF art. 20, al. 3).",
+      );
+    }
+    const lectrice = await this.prisma.reevaluation.findFirst({
+      where: { tenantId, exerciceId: e.exerciceId, annuleeLe: null },
+      select: { dateReevaluation: true },
+    });
+    if (lectrice) {
+      throw new BadRequestException(
+        `La réévaluation du ${jour(lectrice.dateReevaluation)}, passée dans l'exercice qui porte cette contre-passation, a ` +
+          "mesuré ses positions après elle · annulez-la d'abord (Devises), puis la contre-passation.",
+      );
+    }
+    const nom = `la contre-passation n° ${e.numeroPiece ?? '·'}`;
+    const tenues = motifLignesTenues(e.lignes, nom, 'annuler');
+    if (tenues) throw new BadRequestException(tenues);
+    return transactionJournalisee(this.prisma, async (tx) => {
+      const relues = await tx.ligneEcriture.findMany({
+        where: { ecritureId: e.id, ecriture: { tenantId } },
+        select: { lettre: true, lettrageId: true, rapprochementId: true },
+      });
+      const motifTenues = motifLignesTenues(relues, nom, 'annuler');
+      if (motifTenues) throw new BadRequestException(motifTenues);
+      // Le statut se RELIT dans la transaction · une contre-passation validée
+      // entre la lecture et ce geste s'inscrit en négatif, jamais supprimée.
+      const statut = (await tx.ecriture.findFirst({ where: { id: e.id, tenantId }, select: { statut: true } }))?.statut;
+      const negatif =
+        statut === StatutEcriture.BROUILLARD
+          ? null
+          : await this.ecritureService.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+      const trace = {
+        ecritureId: e.id,
+        numeroPiece: e.numeroPiece,
+        traitement: negatif ? 'INSCRITE_EN_NEGATIF' : 'SUPPRIMEE',
+        ...(negatif ? { negatifId: negatif.id, negatifNumeroPiece: negatif.numeroPiece } : {}),
+        motif,
+        par: userId,
+        le: new Date().toISOString(),
+      };
+      const anciennes = Array.isArray(reeval.annulationsContrePassation) ? reeval.annulationsContrePassation : [];
+      // Délié AVANT la suppression du brouillard, par un `update` UNITAIRE
+      // filtré sur le lien encore en place · deux gestes simultanés ne passent
+      // pas tous les deux (P2025).
+      try {
+        await tx.reevaluation.update({
+          where: { id: reeval.id, tenantId, ecritureExtourneId: e.id },
+          data: {
+            ecritureExtourneId: null,
+            contrePassationIntegrale: null,
+            annulationsContrePassation: [...anciennes, trace] as unknown as Prisma.InputJsonValue,
+          },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException('La contre-passation de cette réévaluation a changé entre-temps · relancez le geste.');
+        }
+        throw err;
+      }
+      if (!negatif) {
+        // Filtrée sur le statut, lignes comprises · validée entre-temps, rien
+        // n'est supprimé et la transaction tombe (M1 d'A7, même règle).
+        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id, ecriture: { tenantId, statut: StatutEcriture.BROUILLARD } } });
+        const { count } = await tx.ecriture.deleteMany({ where: { id: e.id, tenantId, statut: StatutEcriture.BROUILLARD } });
+        if (count !== 1) throw new ConflictException('La contre-passation a été validée entre-temps · relancez le geste.');
+      }
+      return tx.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+    });
   }
 
   /**

@@ -87,6 +87,15 @@ export class ReevaluerDto {
 export class ExtournerReevaluationDto {
   @IsUUID()
   exerciceSuivantId!: string;
+
+  /**
+   * La contre-passation INTÉGRALE, banque et caisse comprises (relecture
+   * adverse d'A5 bis, M2) · ouverte à la seule écriture des écarts qui ne se
+   * partage pas, refusée ailleurs par le service.
+   */
+  @FacultatifNonNul('La contre-passation intégrale est demandée ou non · omettez le champ pour ne rien demander.')
+  @IsBoolean()
+  integrale?: boolean;
 }
 
 /**
