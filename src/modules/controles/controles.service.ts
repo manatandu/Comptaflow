@@ -43,7 +43,11 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
-import { PLAFOND_REEVALUATIONS_EXAMINEES, contrePassationsDeDisponibilites } from '../devises/contre-passations-de-disponibilites';
+import {
+  PLAFOND_REEVALUATIONS_EXAMINEES,
+  contrePassationsDeDisponibilites,
+  ecrituresDesContrePassationsAnnulees,
+} from '../devises/contre-passations-de-disponibilites';
 import {
   comptesBancairesSansRapprochement,
   estCompteBancaireARapprocher,
@@ -1272,6 +1276,11 @@ export class ControlesService {
     // Ligne A13 · relevés au passage, sans seconde lecture des écritures.
     const journauxEcrits = new Map<string, JournalEcrit>();
     const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
+    // Une contre-passation ANNULÉE (A5 bis, M1) et son négatif ne portent
+    // plus la liaison · la trace gardée sur la réévaluation les nomme (second
+    // tour, m3), sans quoi une ancienne contre-passation qui inversait la
+    // banque avançait la dernière ligne d'un compte fermé.
+    const contrePassationsAnnulees = (await ecrituresDesContrePassationsAnnulees(this.prisma, tenantId)).ids;
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1314,7 +1323,7 @@ export class ControlesService {
             // (seconde relecture, B-α) · elle compte au solde, jamais à la
             // date de la dernière ligne, sans quoi l'écart du 31/12 d'un
             // compte en devises fermé en juin le rendait non couvert.
-            const mouvementDeBanque = !estEcritureDeConversion(e);
+            const mouvementDeBanque = !estEcritureDeConversion(e) && !contrePassationsAnnulees.has(e.id);
             const vu = comptesBancaires.get(l.compte.id);
             if (vu === undefined) {
               comptesBancaires.set(l.compte.id, {

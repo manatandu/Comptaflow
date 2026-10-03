@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { PrismaService } from '../../common/prisma.service';
 import { CodeContrePassationIntegrale, LIBELLE_INTEGRALE, estDisponibilite } from './ecarts-disponibilites';
 
@@ -90,4 +91,36 @@ export async function contrePassationsDeDisponibilites(
     }
   }
   return { elements, tronque };
+}
+
+/**
+ * LES ÉCRITURES D'UNE CONTRE-PASSATION ANNULÉE ET LEURS NÉGATIFS (second
+ * tour, m3) · déliées de la réévaluation par « Annuler la contre-passation »
+ * (M1), elles ne se reconnaissent plus par la liaison `reevaluationExtourne`,
+ * et une ancienne contre-passation qui inversait la banque passerait pour un
+ * mouvement du relevé (contrôle 32 d'A13, compte 52 fermé). La trace gardée
+ * (`annulationsContrePassation`) les nomme · l'écriture d'origine et son
+ * inscription en négatif. Bornée comme le contrôle 34 (une réévaluation non
+ * annulée par exercice, quelques annulations au plus) ; au-delà, `tronque`.
+ */
+export async function ecrituresDesContrePassationsAnnulees(
+  prisma: Lecteur,
+  tenantId: string,
+): Promise<{ ids: Set<string>; tronque: boolean }> {
+  const traces = await prisma.reevaluation.findMany({
+    where: { tenantId, annulationsContrePassation: { not: Prisma.DbNull } },
+    take: PLAFOND_REEVALUATIONS_EXAMINEES + 1,
+    select: { annulationsContrePassation: true },
+  });
+  const ids = new Set<string>();
+  for (const t of traces.slice(0, PLAFOND_REEVALUATIONS_EXAMINEES)) {
+    const liste = Array.isArray(t.annulationsContrePassation) ? t.annulationsContrePassation : [];
+    for (const a of liste) {
+      if (!a || typeof a !== 'object' || Array.isArray(a)) continue;
+      const { ecritureId, negatifId } = a as { ecritureId?: unknown; negatifId?: unknown };
+      if (typeof ecritureId === 'string') ids.add(ecritureId);
+      if (typeof negatifId === 'string') ids.add(negatifId);
+    }
+  }
+  return { ids, tronque: traces.length > PLAFOND_REEVALUATIONS_EXAMINEES };
 }

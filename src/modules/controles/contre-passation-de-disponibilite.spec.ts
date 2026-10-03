@@ -75,7 +75,9 @@ describe('contrôle 34 · contre-passation qui a inversé une disponibilité', (
     ]);
     expect(a!.action).toMatch(/annulez-la \(Devises, « Annuler la contre-passation »/);
     // Lu dans l'exercice qui PORTE la contre-passation, réévaluations annulées écartées.
-    expect(findMany.mock.calls[0][0].where).toMatchObject({ tenantId: 't', annuleeLe: null, ecritureExtourne: { is: { exerciceId: 'e27' } } });
+    // (Le contrôle 32 lit aussi les traces des contre-passations annulées, m3 · l'appel du 34 se retrouve par son filtre.)
+    const appel34 = findMany.mock.calls.find((c) => c[0].where?.ecritureExtourne);
+    expect(appel34?.[0].where).toMatchObject({ tenantId: 't', annuleeLe: null, ecritureExtourne: { is: { exerciceId: 'e27' } } });
   });
 
   it('exercice qui porte la contre-passation clôturé · aucune annulation proposée, et la ligne de la banque ne se repasse pas à la main', async () => {

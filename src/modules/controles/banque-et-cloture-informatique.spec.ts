@@ -324,6 +324,8 @@ function monter(options: {
   rapprochements?: Rap[];
   clotures?: Clo[];
   ecritures?: ReturnType<typeof ecriture>[];
+  /** Les traces des contre-passations annulées (A5 bis, M1) · lues par le contrôle 32 (second tour, m3). */
+  annulationsContrePassation?: { ecritureId: string; negatifId?: string }[];
 }) {
   const ecritures = options.ecritures ?? [
     ecriture('e1', 'jBQ', 'BQ', [ligne('1', '52110000', 1000), ligne('2', '52670000', 0, 1000)]),
@@ -390,8 +392,15 @@ function monter(options: {
     amortissementDerogatoire: { findMany: jest.fn().mockResolvedValue([]) },
     clotureLocationAcquisition: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
-    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
-    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici ; le
+    // contrôle 32, les traces des contre-passations annulées (second tour, m3).
+    reevaluation: {
+      findMany: jest.fn(async ({ where }: { where: { annulationsContrePassation?: unknown } }) =>
+        where.annulationsContrePassation && options.annulationsContrePassation
+          ? [{ annulationsContrePassation: options.annulationsContrePassation }]
+          : [],
+      ),
+    },
     rapprochementBancaire,
     cloture,
   };
@@ -521,6 +530,21 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
           ecriture('e5', 'jOD', 'OD', [ligne('9', '52110000', 20), ligne('10', '77600000', 0, 20)], { date: '2026-12-31', ecartsDeReevaluation: true }),
         ],
         rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+      });
+      expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+    });
+
+    it('m3 · contre-passation annulée (A5 bis, M1) · l’écriture déliée et son négatif, nommés par la trace, ne sont pas des opérations de banque', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: [
+          ...fermeEnDevisesPuisReevalue({ ecartsDeReevaluation: true }),
+          // L'ancienne contre-passation qui inversait la banque, déliée, et son inscription en négatif.
+          ecriture('e6', 'jOD', 'OD', [ligne('11', '52110000', 0, 20), ligne('12', '77600000', 20)], { date: '2026-12-31' }),
+          ecriture('e7', 'jOD', 'OD', [ligne('13', '52110000', 20), ligne('14', '77600000', 0, 20)], { date: '2026-12-31' }),
+        ],
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+        annulationsContrePassation: [{ ecritureId: 'e6', negatifId: 'e7' }],
       });
       expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
     });
