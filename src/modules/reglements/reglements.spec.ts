@@ -236,7 +236,7 @@ type LigneEcheance = {
   montantDevise: number | null;
   coursApplique: number | null;
   libelle: string | null;
-  compte: { id: string; numero: string; intitule: string; lettrable: boolean; tiersCompte: null };
+  compte: { id: string; numero: string; intitule: string; lettrable: boolean; tiersCompte: null; modeReportANouveau?: string };
   ecriture: Record<string, unknown> & { exerciceId: string; date: Date };
 };
 
@@ -245,31 +245,47 @@ function echeancier(lignes: LigneEcheance[]) {
   const prisma = {
     exercice: { findFirst: jest.fn(async () => ({ id: 'ex', dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31') })) },
     ligneEcriture: {
-      findMany: jest.fn(async ({ where }: { where: any }) =>
-        lignes.filter((l) => {
-          if (where.id?.in) return where.id.in.includes(l.id);
-          if (where.ecriture?.exerciceId && l.ecriture.exerciceId !== where.ecriture.exerciceId) return false;
-          if (where.lettrageId === null && l.lettrageId !== null) return false;
-          if (where.lettrageId?.not === null && l.lettrageId === null) return false;
-          if (where.compte?.numero?.startsWith && !l.compte.numero.startsWith(where.compte.numero.startsWith)) return false;
-          if (where.credit?.gt !== undefined && !(l.credit > where.credit.gt)) return false;
-          if (where.debit?.gt !== undefined && !(l.debit > where.debit.gt)) return false;
-          return true;
-        }),
-      ),
+      findMany: jest.fn(async ({ where, cursor, take }: { where: any; cursor?: { id: string }; take?: number }) => {
+        const toutes = lignes
+          .filter((l) => {
+            if (where.id?.in) return where.id.in.includes(l.id);
+            if (where.compteId?.in && !where.compteId.in.includes(l.compteId)) return false;
+            const e = where.ecriture;
+            if (e?.exerciceId && l.ecriture.exerciceId !== e.exerciceId) return false;
+            if (e?.date?.lt && !(l.ecriture.date < e.date.lt)) return false;
+            if (e?.OR && !e.OR.some((c: Record<string, boolean>) => Object.entries(c).every(([k, v]) => ((l.ecriture as any)[k] ?? false) === v))) return false;
+            if (where.lettrageId === null && l.lettrageId !== null) return false;
+            if (where.lettrageId?.not === null && l.lettrageId === null) return false;
+            if (where.lettrageId?.in && !where.lettrageId.in.includes(l.lettrageId)) return false;
+            if (where.compte?.numero?.startsWith && !l.compte.numero.startsWith(where.compte.numero.startsWith)) return false;
+            if (where.compte?.id?.in && !where.compte.id.in.includes(l.compteId)) return false;
+            const anterieure = where.lettrage?.lignes?.some?.ecriture?.date?.lt;
+            if (anterieure && !lignes.some((x) => x.lettrageId !== null && x.lettrageId === l.lettrageId && x.ecriture.date < anterieure)) return false;
+            if (where.credit?.gt !== undefined && !(l.credit > where.credit.gt)) return false;
+            if (where.debit?.gt !== undefined && !(l.debit > where.debit.gt)) return false;
+            return true;
+          })
+          .map((l) => ({ ...l, lettrage: l.lettrageId ? { code: 'A' } : null }));
+        const depart = cursor ? toutes.findIndex((l) => l.id === cursor.id) + 1 : 0;
+        return take ? toutes.slice(depart, depart + take) : toutes.slice(depart);
+      }),
     },
     cloture: { findMany: jest.fn(async () => []) },
     ribBanque: { findFirst: jest.fn(async () => null) },
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'BQ', type: 'TRESORERIE', compteTresorerieId: 'c521' })) },
   } as unknown as PrismaService;
-  const creer = jest.fn();
+  const creer = jest.fn(async (_t: string, _u: string, dto: { lignes: { compteId: string }[] }) => ({
+    id: 'e1',
+    lignes: dto.lignes.map((l, i) => ({ ...l, id: `p-${i}` })),
+  }));
+  const lettrerManuel = jest.fn(async () => ({ lettre: 'b' }));
   const service = new ReglementsService(
     prisma,
     { creer, retirerCompensation: jest.fn() } as unknown as EcritureService,
-    { lettrerManuel: jest.fn() } as unknown as LettrageService,
+    { lettrerManuel } as unknown as LettrageService,
     {} as unknown as OrdresVirementService,
   );
-  return { service, creer, prisma };
+  return { service, creer, lettrerManuel, prisma };
 }
 
 function ligneEcheance(id: string, credit: number, ecriture: Partial<LigneEcheance['ecriture']> = {}, enPlus: Partial<LigneEcheance> = {}): LigneEcheance {
@@ -284,7 +300,7 @@ function ligneEcheance(id: string, credit: number, ecriture: Partial<LigneEchean
     montantDevise: null,
     coursApplique: null,
     libelle: null,
-    compte: { id: 'c401', numero: '40110000', intitule: 'Fournisseur A', lettrable: true, tiersCompte: null },
+    compte: { id: 'c401', numero: '40110000', intitule: 'Fournisseur A', lettrable: true, tiersCompte: null, modeReportANouveau: 'DETAIL' },
     ecriture: {
       exerciceId: 'ex',
       date: new Date('2027-01-01'),
@@ -327,5 +343,61 @@ describe('les échéances · l’à-nouveau provisoire écarté et dit (A6 bis, 
       /40110000 · la ligne d'à-nouveau choisie est PROVISOIRE[\s\S]*Attendez sa clôture, ou saisissez le règlement au journal de trésorerie/,
     );
     expect(creer).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, second tour, m1 · la paire à cheval se compense au règlement des
+// tiers · la ligne d'à-nouveau qui reporte une facture de N lettrée avec un
+// règlement de cet exercice n'est plus due, ou seulement de son reste
+// (lettrage/paires-a-cheval.ts). Sans elle, 1 160 USD se payaient deux fois.
+// ---------------------------------------------------------------------------
+
+describe('les échéances et le règlement · la paire à cheval se compense (A6 bis, second tour, m1)', () => {
+  const N = { exerciceId: 'n', date: new Date('2026-12-15'), journal: { code: 'ACH' } };
+  const CLOTURE = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false };
+  const scene = (reglementUsd: number, reglementFrancs: number) => [
+    // La facture de N, 1 160 USD à 1 680, lettrée avec le règlement de cet exercice.
+    ligneEcheance('f0', 1_948_800, N, { lettrageId: 'G', deviseId: 'usd', montantDevise: 1160, libelle: 'Facture NZUZI' }),
+    // Sa ligne d'à-nouveau, reportée ouverte (règle 1).
+    ligneEcheance('ran', 1_948_800, CLOTURE, { deviseId: 'usd', montantDevise: 1160, libelle: 'RAN détail 40110000 · Facture NZUZI' }),
+    // Le règlement de cet exercice, au coût historique.
+    { ...ligneEcheance('p1', 0, { date: new Date('2027-02-10'), journal: { code: 'BQ' } }, { lettrageId: 'G', deviseId: 'usd', montantDevise: reglementUsd }), debit: reglementFrancs },
+  ];
+
+  it('soldée par le groupe · absente des échéances, refusée si choisie, l’issue nommée', async () => {
+    const { service, creer } = echeancier(scene(1160, 1_948_800));
+    expect(await service.echeances('t', 'ex', 'FOURNISSEUR')).toEqual([]);
+    await expect(
+      service.enregistrer('t', 'u', { ...base, exerciceId: 'ex', reglements: [{ compteId: 'c401', ligneIds: ['ran'], montantDevise: 1160, coursReglement: 1750 }] }),
+    ).rejects.toThrow(/40110000 · la ligne d'à-nouveau choisie est déjà réglée par le lettrage A à cheval de deux exercices[\s\S]*Elle n'est plus due/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('réglée en partie, en francs · le règlement ne paie que le reste, son lettrage reste partiel, et c’est dit', async () => {
+    const { service, creer, lettrerManuel } = echeancier([
+      ligneEcheance('f0', 1_000_000, N, { lettrageId: 'G', libelle: 'Facture NZUZI' }),
+      ligneEcheance('ran', 1_000_000, CLOTURE, { libelle: 'RAN détail 40110000 · Facture NZUZI' }),
+      { ...ligneEcheance('p1', 0, { date: new Date('2027-02-10'), journal: { code: 'BQ' } }, { lettrageId: 'G' }), debit: 600_000 },
+    ]);
+    const r = await service.enregistrer('t', 'u', { ...base, exerciceId: 'ex', reglements: [{ compteId: 'c401', ligneIds: ['ran'] }] });
+    expect(creer.mock.calls[0]![2].lignes).toEqual([
+      expect.objectContaining({ compteId: 'c401', debit: 400_000 }),
+      expect.objectContaining({ compteId: 'c521', credit: 400_000 }),
+    ]);
+    expect(lettrerManuel).toHaveBeenCalledWith('t', 'c401', ['ran', 'p-0'], 'u', { autoriserPartiel: true });
+    expect(r.avertissements).toEqual([expect.stringMatching(/réglée en partie par le lettrage A à cheval de deux exercices · seul son reste est dû/)]);
+    // Plus que le reste · refusé comme tout excédent.
+    await expect(
+      service.enregistrer('t', 'u', { ...base, exerciceId: 'ex', reglements: [{ compteId: 'c401', ligneIds: ['ran'], montant: 400_000.01 }] }),
+    ).rejects.toThrow(/40110000 ·/);
+  });
+
+  it('réglée en partie · seul son reste est dû, en francs et en devise, et le groupe qui la règle est dit', async () => {
+    const { service } = echeancier(scene(600, 1_008_000));
+    const [g] = await service.echeances('t', 'ex', 'FOURNISSEUR');
+    expect(g!.lignes).toEqual([
+      expect.objectContaining({ id: 'ran', montant: 940_800, montantDevise: 560, regleParLettrageACheval: { groupe: 'A', montant: 1_008_000 } }),
+    ]);
   });
 });

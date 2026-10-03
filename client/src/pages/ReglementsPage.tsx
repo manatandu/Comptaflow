@@ -27,6 +27,8 @@ interface LigneEcheance {
   deviseId?: string | null;
   deviseCode?: string | null;
   montantDevise?: number | null;
+  /** Ligne d'à-nouveau réglée en partie par un lettrage à cheval de deux exercices (A6 bis, m1) · le dû est son reste. */
+  regleParLettrageACheval?: { groupe: string; montant: number } | null;
 }
 
 interface GroupeTiers {
@@ -676,6 +678,11 @@ export function ReglementsPage() {
                         {l.deviseId && l.montantDevise !== null && l.montantDevise !== undefined ? (
                           <div className="text-text-dim">
                             {fmt(l.montantDevise)} {l.deviseCode}
+                          </div>
+                        ) : null}
+                        {l.regleParLettrageACheval ? (
+                          <div className="text-text-dim">
+                            reste · {fmt(l.regleParLettrageACheval.montant)} réglés par le lettrage {l.regleParLettrageACheval.groupe}
                           </div>
                         ) : null}
                       </td>

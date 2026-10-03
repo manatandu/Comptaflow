@@ -3,6 +3,7 @@ import { Prisma, StatutLettrage, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
+import { pairesACheval, type PairesACheval } from '../lettrage/paires-a-cheval';
 import { refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { EnregistrerReglementsDto, PasserEcartChangeDto, type ReglementTiersDto } from './reglements.dto';
 import { contrevaleurAdmise } from '../comptabilite/ligne-en-devise';
@@ -62,6 +63,12 @@ export class ReglementsService {
    * écartées (`aNouveauProvisoireEcartees`), même sans autre échéance ·
    * attendre la clôture, ou saisir le règlement au journal de trésorerie et
    * le lettrer ensuite avec la ligne d'à-nouveau définitif.
+   *
+   * LA PAIRE À CHEVAL SE COMPENSE (A6 bis, second tour, m1) · la ligne
+   * d'à-nouveau qui reporte une facture lettrée avec un règlement de cet
+   * exercice n'est plus due, ou ne l'est plus que de son reste
+   * (`lettrage/paires-a-cheval.ts`) · sans quoi la facture se payait deux
+   * fois. La ligne réglée en partie dit le groupe qui la règle.
    */
   async echeances(tenantId: string, exerciceId: string, sens: SensReglement, jusquau?: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
@@ -76,7 +83,16 @@ export class ReglementsService {
       },
       include: {
         ecriture: {
-          select: { date: true, libelle: true, reference: true, numeroPiece: true, estANouveauProvisoire: true, journal: { select: { code: true } } },
+          select: {
+            date: true,
+            libelle: true,
+            reference: true,
+            numeroPiece: true,
+            estANouveauProvisoire: true,
+            estGenereeParCloture: true,
+            estSoldeDesComptesDeGestion: true,
+            journal: { select: { code: true } },
+          },
         },
         compte: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true, code: true } } } } } },
         devise: { select: { code: true } },
@@ -88,31 +104,43 @@ export class ReglementsService {
     });
 
     const dueAvant = (l: (typeof lignes)[number]) => !limite || (l.dateEcheance ?? l.ecriture.date).getTime() <= limite.getTime();
-    const aRegler = lignes.filter((l) => estEcheanceAReglerSur(l.compte.numero, sens));
+    // Lue seulement quand une ligne d'à-nouveau est due · sans elle, aucune paire.
+    const paires: PairesACheval | null = lignes.some((l) => estDAnouveau(l.ecriture))
+      ? await pairesACheval(this.prisma, { tenantId, exercice, compte: { numero: { startsWith: sens === 'FOURNISSEUR' ? '40' : '41' } } })
+      : null;
+    const aRegler = lignes.filter((l) => estEcheanceAReglerSur(l.compte.numero, sens) && !paires?.absorbees.has(l.id));
     const ecartees = new Map<string, number>();
     for (const l of aRegler) {
       if (l.ecriture.estANouveauProvisoire === true && dueAvant(l)) ecartees.set(l.compteId, (ecartees.get(l.compteId) ?? 0) + 1);
     }
     const retenues = aRegler
       .filter((l) => l.ecriture.estANouveauProvisoire !== true)
-      .map((l) => ({
-        id: l.id,
-        compteId: l.compteId,
-        echeance: l.dateEcheance ?? l.ecriture.date,
-        date: l.ecriture.date,
-        journalCode: l.ecriture.journal.code,
-        numeroPiece: l.ecriture.numeroPiece,
-        reference: l.ecriture.reference,
-        libelle: l.libelle ?? l.ecriture.libelle,
-        montant: montantDu({ debit: Number(l.debit), credit: Number(l.credit) }, sens),
-        // La facture en devise se règle dans sa devise (ligne A6) · l'écran
-        // demande alors le montant en devise et le cours du jour.
-        deviseId: l.deviseId ?? null,
-        deviseCode: l.devise?.code ?? null,
-        montantDevise: l.montantDevise === null || l.montantDevise === undefined ? null : Number(l.montantDevise),
-        coursApplique: l.coursApplique === null || l.coursApplique === undefined ? null : Number(l.coursApplique),
-      }))
-      .filter((l) => !limite || l.echeance.getTime() <= limite.getTime());
+      .map((l) => {
+        const due = ligneDue(l, paires);
+        const entiere = montantDu({ debit: Number(l.debit), credit: Number(l.credit) }, sens);
+        const montant = montantDu({ debit: Number(due.debit), credit: Number(due.credit) }, sens);
+        const reste = paires?.reste.get(l.id);
+        return {
+          id: l.id,
+          compteId: l.compteId,
+          echeance: l.dateEcheance ?? l.ecriture.date,
+          date: l.ecriture.date,
+          journalCode: l.ecriture.journal.code,
+          numeroPiece: l.ecriture.numeroPiece,
+          reference: l.ecriture.reference,
+          libelle: l.libelle ?? l.ecriture.libelle,
+          montant,
+          // La facture en devise se règle dans sa devise (ligne A6) · l'écran
+          // demande alors le montant en devise et le cours du jour.
+          deviseId: l.deviseId ?? null,
+          deviseCode: l.devise?.code ?? null,
+          montantDevise: due.montantDevise === null || due.montantDevise === undefined ? null : Number(due.montantDevise),
+          coursApplique: l.coursApplique === null || l.coursApplique === undefined ? null : Number(l.coursApplique),
+          // Réglée en partie par un lettrage à cheval (m1) · le groupe et ce qu'il a réglé.
+          regleParLettrageACheval: reste ? { groupe: reste.groupe, montant: Math.round((entiere - montant) * 100) / 100 } : null,
+        };
+      })
+      .filter((l) => l.montant > 0 && (!limite || l.echeance.getTime() <= limite.getTime()));
 
     type Groupe = {
       compteId: string;
@@ -189,8 +217,38 @@ export class ReglementsService {
       throw new NotFoundException('Une ou plusieurs factures sont introuvables.');
     }
 
+    // LA PAIRE À CHEVAL (A6 bis, second tour, m1) · une ligne d'à-nouveau que
+    // le règlement d'un lettrage à cheval éteint n'est plus due, ou ne l'est
+    // plus que de son reste · relue ici, jamais reçue de l'écran.
+    let paires: PairesACheval | null = null;
+    if (lignes.some((l) => estDAnouveau(l.ecriture))) {
+      const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { id: true, dateDebut: true } });
+      if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
+      paires = await pairesACheval(this.prisma, { tenantId, exercice, compte: { id: { in: idsComptes } } });
+    }
+    const avertissementsPaires: string[] = [];
+
     const plan = dto.reglements.map((r) => {
-      const siennes = lignes.filter((l) => r.ligneIds.includes(l.id));
+      const lues = lignes.filter((l) => r.ligneIds.includes(l.id));
+      for (const l of lues) {
+        if (paires?.absorbees.has(l.id)) {
+          throw new BadRequestException(
+            `${l.compte.numero} · la ligne d'à-nouveau choisie est déjà réglée par le lettrage ${paires.groupeDe.get(l.id) ?? ''} ` +
+              "à cheval de deux exercices · sa facture d'origine y est lettrée avec un règlement de cet exercice. Elle n'est plus due ; " +
+              "ne la lettrez avec aucun autre règlement.",
+          );
+        }
+        const reste = paires?.reste.get(l.id);
+        if (reste) {
+          avertissementsPaires.push(
+            `${l.compte.numero} · la ligne d'à-nouveau du ${l.ecriture.date.toISOString().slice(0, 10)} est réglée en partie par le lettrage ` +
+              `${reste.groupe} à cheval de deux exercices · seul son reste est dû, et son lettrage avec ce règlement restera partiel de ce que ` +
+              'le groupe a réglé.',
+          );
+        }
+      }
+      // Les montants DUS · le reste d'une ligne réglée en partie par une paire.
+      const siennes = lues.map((l) => ({ ...l, ...ligneDue(l, paires) }));
       for (const l of siennes) {
         if (l.compteId !== r.compteId) {
           throw new BadRequestException('Toutes les factures d\'un règlement doivent être sur le compte du tiers réglé.');
@@ -223,14 +281,21 @@ export class ReglementsService {
       if (!(du > 0)) {
         throw new BadRequestException(`Rien n'est dû sur les factures choisies du compte ${siennes[0].compte.numero}.`);
       }
-      return { r, compte: siennes[0].compte, siennes, du };
+      return { r, compte: siennes[0].compte, siennes, du, reduite: lues.some((l) => paires?.reste.has(l.id) === true) };
     });
 
     // LES RÈGLEMENTS EN DEVISE (ligne A6) se préparent ICI, avec le reste ·
     // cours, dû en devise et compte d'écart sont vérifiés avant la première
     // pièce, comme tout le lot.
     let referentiel: Referentiel | null = null;
-    const prepares: Array<{ r: ReglementTiersDto; compte: (typeof plan)[number]['compte']; du: number; montant: number; enDevise: ReglementEnDevise | null }> = [];
+    const prepares: Array<{
+      r: ReglementTiersDto;
+      compte: (typeof plan)[number]['compte'];
+      du: number;
+      montant: number;
+      enDevise: ReglementEnDevise | null;
+      reduite: boolean;
+    }> = [];
     for (const p of plan) {
       const numero = p.compte.numero;
       if (!p.siennes.some((l) => (l.deviseId ?? null) !== null)) {
@@ -244,12 +309,14 @@ export class ReglementsService {
         const montant = p.r.montant === undefined ? p.du : p.r.montant;
         const refus = motifRefusMontant(montant, p.du);
         if (refus) throw new BadRequestException(`${numero} · ${refus}`);
-        prepares.push({ r: p.r, compte: p.compte, du: p.du, montant, enDevise: null });
+        prepares.push({ r: p.r, compte: p.compte, du: p.du, montant, enDevise: null, reduite: p.reduite });
         continue;
       }
       if (referentiel === null) referentiel = await referentielDuDossier(this.prisma, tenantId);
-      const enDevise = await this.preparerEnDevise(tenantId, dto.exerciceId, referentiel, dto.sens, p.r, numero, p.siennes);
-      prepares.push({ r: p.r, compte: p.compte, du: p.du, montant: enDevise.francsPayes, enDevise });
+      const enDevise = await this.preparerEnDevise(tenantId, dto.exerciceId, referentiel, dto.sens, p.r, numero, p.siennes, [
+        ...(paires?.absorbees ?? []),
+      ]);
+      prepares.push({ r: p.r, compte: p.compte, du: p.du, montant: enDevise.francsPayes, enDevise, reduite: p.reduite });
     }
 
     // LA DEVISE DU MOYEN DE PAIEMENT (ligne A6) · déclarée, jamais prise sur
@@ -287,7 +354,7 @@ export class ReglementsService {
     // (relecture adverse, bloquant 1) · la réévaluation de l'exercice qui l'a
     // lue a porté son écart au 478 et en provision ; le 656 du règlement
     // recompterait la perte. Refus avant la première pièce.
-    const avertissements: string[] = [];
+    const avertissements: string[] = [...avertissementsPaires];
     for (const x of prepares) {
       if (!x.enDevise) continue;
       if (x.enDevise.avertissement) avertissements.push(x.enDevise.avertissement);
@@ -328,7 +395,7 @@ export class ReglementsService {
 
     const resultats = [];
     const aOrdonner: LigneAOrdonner[] = [];
-    for (const { r, compte, du, montant, enDevise } of prepares) {
+    for (const { r, compte, du, montant, enDevise, reduite } of prepares) {
       const libelle = `Règlement ${compte.tiersCompte?.tiers.nom ?? compte.intitule}`.slice(0, 190);
       const ecriture = await this.ecritures.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
@@ -355,7 +422,9 @@ export class ReglementsService {
       const ligneTiers = ecriture.lignes.find((l) => l.compteId === r.compteId)!;
       // En devise, le partiel se lit DANS LA DEVISE · la contrevaleur payée au
       // cours du jour peut dépasser le dû en francs sans solder la facture.
-      const partiel = enDevise ? enDevise.partiel : Math.round(montant * 100) < Math.round(du * 100);
+      // Une ligne d'à-nouveau réglée en partie par une paire garde son montant
+      // entier · son lettrage avec ce règlement reste partiel (m1).
+      const partiel = (enDevise ? enDevise.partiel : Math.round(montant * 100) < Math.round(du * 100)) || reduite;
       // Un lettrage refusé malgré tout (une facture lettrée entre-temps par un
       // autre clic) retire la pièce qu'il devait accompagner · jamais un
       // règlement sans le lettrage qui dit ce qu'il a payé (audit final F56).
@@ -416,6 +485,8 @@ export class ReglementsService {
       montantDevise?: unknown;
       ecriture: { date?: Date; estANouveauProvisoire?: boolean; estGenereeParCloture?: boolean; estSoldeDesComptesDeGestion?: boolean };
     }>,
+    // Les lignes qu'une paire à cheval éteint (m1) · ni dues, ni reportées.
+    eteintes: string[] = [],
   ): Promise<ReglementEnDevise> {
     if (siennes.some((l) => (l.deviseId ?? null) === null)) {
       throw new BadRequestException(
@@ -478,14 +549,12 @@ export class ReglementsService {
     // la concernait pas. Le règlement se borne au dû des factures choisies
     // dans LEUR devise (plus haut), l'avoir se lettre à part.
     const deviseId = [...devises][0]!;
-    const estANouveau = (e: (typeof siennes)[number]['ecriture']) =>
-      e.estANouveauProvisoire === true || (e.estGenereeParCloture === true && e.estSoldeDesComptesDeGestion !== true);
-    const duReporte = Math.round(siennes.filter((l) => estANouveau(l.ecriture)).reduce((t, l) => t + Number(l.montantDevise), 0) * 100) / 100;
+    const duReporte = Math.round(siennes.filter((l) => estDAnouveau(l.ecriture)).reduce((t, l) => t + Number(l.montantDevise), 0) * 100) / 100;
     let avertissement: string | null = null;
     if (duReporte > 0) {
       const aNouveauNonLettre = {
         compteId: r.compteId,
-        id: { notIn: r.ligneIds },
+        id: { notIn: [...r.ligneIds, ...eteintes] },
         lettrageId: null,
         ecriture: {
           tenantId,
@@ -732,4 +801,26 @@ export function motifANouveauProvisoire(numero: string): string {
     "elle ferait refuser la clôture de cet exercice, qui remplace l'à-nouveau provisoire. Attendez sa clôture, ou saisissez le règlement " +
     "au journal de trésorerie et lettrez-le avec la ligne d'à-nouveau définitif une fois l'exercice clôturé."
   );
+}
+
+/** Une écriture d'à-nouveau · le report provisoire, ou celui de la clôture hors solde des comptes de gestion. */
+function estDAnouveau(e: { estANouveauProvisoire?: boolean; estGenereeParCloture?: boolean; estSoldeDesComptesDeGestion?: boolean }): boolean {
+  return e.estANouveauProvisoire === true || (e.estGenereeParCloture === true && e.estSoldeDesComptesDeGestion !== true);
+}
+
+/**
+ * Les montants DUS d'une ligne · ceux de la ligne, ou le reste qu'une paire à
+ * cheval lui laisse (`lettrage/paires-a-cheval.ts`, A6 bis, second tour, m1).
+ */
+function ligneDue<L extends { id: string; debit: unknown; credit: unknown; montantDevise?: unknown }>(
+  l: L,
+  paires: PairesACheval | null,
+): { debit: unknown; credit: unknown; montantDevise: unknown } {
+  const reste = paires?.reste.get(l.id);
+  if (!reste) return { debit: l.debit, credit: l.credit, montantDevise: l.montantDevise ?? null };
+  return {
+    debit: reste.francs > 0 ? reste.francs : 0,
+    credit: reste.francs < 0 ? -reste.francs : 0,
+    montantDevise: reste.devise ?? l.montantDevise ?? null,
+  };
 }
