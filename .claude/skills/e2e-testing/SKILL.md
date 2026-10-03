@@ -139,19 +139,9 @@ export default defineConfig({
 
 ## Flaky Test Patterns
 
-### Quarantine
+### Quarantine · interdit dans ce dépôt
 
-```typescript
-test('flaky: complex search', async ({ page }) => {
-  test.fixme(true, 'Flaky - Issue #123')
-  // test code...
-})
-
-test('conditional skip', async ({ page }) => {
-  test.skip(process.env.CI, 'Flaky in CI - Issue #123')
-  // test code...
-})
-```
+> **Retiré.** Le dépôt OmegaX interdit de mettre un test instable en quarantaine (`test.skip`, `test.fixme`) : un test qui échoue se corrige à sa cause, jamais en le désactivant (règle du dépôt, décidée par Manasse le 2026-10-03). Voir les sections ci-dessous pour trouver et corriger la cause.
 
 ### Identify Flakiness
 
