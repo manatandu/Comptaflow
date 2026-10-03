@@ -4,8 +4,18 @@ import { LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
-import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture, SensFacture, StatutEcriture } from '@prisma/client';
+import {
+  Prisma,
+  ClasseCompte,
+  Referentiel,
+  TypeJournal,
+  NatureFacture,
+  SensFacture,
+  StatutEcriture,
+  TypeMouvementCreanceDouteuse,
+} from '@prisma/client';
 import { DETENTEUR_LIQUIDATION_TVA, EcritureService } from '../comptabilite/ecriture.service';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { FicheAutorisationDebits, situationAutorisationDebits } from '../tiers/periode-autorisation-debits';
 
 const EPSILON = 0.005;
@@ -655,6 +665,20 @@ export function repartirAuCentime(total: number, bruts: ReadonlyMap<string, numb
   if (plusLourd !== null && Math.abs(reste) > 0) rendu.set(plusLourd, Math.round((rendu.get(plusLourd)! + reste) * 100) / 100);
   return rendu;
 }
+
+/**
+ * Les lignes d'un groupe de lettrage, avec la date de leur écriture et, pour
+ * un reclassement en créance douteuse, les recouvrements de la créance
+ * (ligne A7, K3).
+ */
+type LignesGroupeLettrage = Array<{
+  debit: unknown;
+  credit: unknown;
+  ecriture?: {
+    date: Date;
+    creanceDouteuseReclassement?: { mouvements: Array<{ date: Date; montant: unknown }> } | null;
+  } | null;
+}>;
 
 @Injectable()
 export class TauxTvaService {
@@ -1321,7 +1345,7 @@ export class TauxTvaService {
         statut: string;
         solde: unknown;
         soldeAt: Date | null;
-        lignes?: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }>;
+        lignes?: LignesGroupeLettrage;
       } | null;
     }>,
     dateEcriture: Date,
@@ -1339,6 +1363,30 @@ export class TauxTvaService {
     // groupe, un règlement d'une autre facture.
     const sensFacture = avecLettrage.reduce((t, l) => t + (Number(l.debit) - Number(l.credit)), 0);
     const dateReglement = TauxTvaService.dateDernierReglement(groupe.lignes, sensFacture);
+
+    /*
+      UN GROUPE QUI PORTE UN RECLASSEMENT EN CRÉANCE DOUTEUSE (ligne A7, K3) ·
+      le reclassement solde le compte du client sans qu'un franc soit entré.
+      Lu comme un règlement, il rendait exigible au jour du reclassement la TVA
+      d'une prestation qui n'a jamais été payée (décret n° 011/42, art. 57,
+      « l'encaissement s'entend de la perception des sommes »). La part
+      reclassée reste donc EN ATTENTE, et devient exigible au RECOUVREMENT du
+      module, à son prorata ; une perte ne l'encaisse jamais. La proportion se
+      lit sur le groupe entier (règlements et recouvrements sur factures),
+      comme l'imputation la plus neutre décrite plus haut.
+    */
+    if (TauxTvaService.porteUnReclassement(groupe.lignes, sensFacture)) {
+      const reglements = TauxTvaService.reglementsDuGroupe(groupe.lignes, sensFacture);
+      const factures = (groupe.lignes ?? []).reduce((t, g) => {
+        const sens = Number(g.debit) - Number(g.credit);
+        return Math.abs(sens) > EPSILON && sens > 0 === sensFacture > 0 ? t + Math.abs(sens) : t;
+      }, 0);
+      if (factures <= EPSILON) return { date: null, fraction: 0 };
+      const encaisse = reglements.reduce((t, r) => t + r.montant, 0);
+      const fraction = Math.min(1, Math.max(0, encaisse / factures));
+      if (fraction <= EPSILON) return { date: null, fraction: 0 };
+      return { date: dateReglement ?? dateEcriture, fraction };
+    }
 
     if (groupe.statut === 'SOLDE') {
       // Dénoué : exigible en totalité, à la date du DERNIER règlement · c'est
@@ -1371,21 +1419,57 @@ export class TauxTvaService {
    * `null` quand le groupe n'en porte aucune · l'appelant retombe alors sur la
    * date de l'écriture, et le dit.
    */
-  private static dateDernierReglement(
-    lignes: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }> | undefined,
-    sensFacture: number,
-  ): Date | null {
-    if (!lignes || lignes.length === 0 || Math.abs(sensFacture) <= EPSILON) return null;
+  private static dateDernierReglement(lignes: LignesGroupeLettrage | undefined, sensFacture: number): Date | null {
     let plusRecent: Date | null = null;
+    for (const r of TauxTvaService.reglementsDuGroupe(lignes, sensFacture)) {
+      if (!plusRecent || r.date > plusRecent) plusRecent = r.date;
+    }
+    return plusRecent;
+  }
+
+  /** Le groupe porte-t-il, en sens de règlement, la ligne d'un reclassement en créance douteuse ? */
+  private static porteUnReclassement(lignes: LignesGroupeLettrage | undefined, sensFacture: number): boolean {
+    return (lignes ?? []).some((l) => {
+      const sens = Number(l.debit) - Number(l.credit);
+      return Math.abs(sens) > EPSILON && sens > 0 !== sensFacture > 0 && !!l.ecriture?.creanceDouteuseReclassement;
+    });
+  }
+
+  /**
+   * LES ENCAISSEMENTS D'UN GROUPE DE LETTRAGE, datés · les lignes de sens
+   * opposé à la facture, À L'EXCEPTION du reclassement en créance douteuse
+   * (ligne A7, K3), qui n'encaisse rien ; à sa place, les RECOUVREMENTS
+   * validés et non annulés de la créance, chacun à sa date, bornés au montant
+   * que la ligne reclasse. Une perte n'est jamais un encaissement.
+   */
+  private static reglementsDuGroupe(
+    lignes: LignesGroupeLettrage | undefined,
+    sensFacture: number,
+  ): Array<{ date: Date; montant: number }> {
+    if (!lignes || lignes.length === 0 || Math.abs(sensFacture) <= EPSILON) return [];
+    const reglements: Array<{ date: Date; montant: number }> = [];
     for (const l of lignes) {
       const sens = Number(l.debit) - Number(l.credit);
       if (Math.abs(sens) <= EPSILON) continue;
       if (sens > 0 === sensFacture > 0) continue;
+      const reclassement = l.ecriture?.creanceDouteuseReclassement;
+      if (reclassement) {
+        let reste = Math.abs(sens);
+        const recouvrements = [...reclassement.mouvements].sort((a, b) => a.date.getTime() - b.date.getTime());
+        for (const r of recouvrements) {
+          const part = Math.min(reste, Number(r.montant));
+          if (part <= EPSILON) continue;
+          reglements.push({ date: r.date, montant: part });
+          reste -= part;
+          if (reste <= EPSILON) break;
+        }
+        continue;
+      }
       const date = l.ecriture?.date;
       if (!date) continue;
-      if (!plusRecent || date > plusRecent) plusRecent = date;
+      reglements.push({ date, montant: Math.abs(sens) });
     }
-    return plusRecent;
+    return reglements;
   }
 
   /**
@@ -1430,7 +1514,7 @@ export class TauxTvaService {
       debit: unknown;
       credit: unknown;
       lettrage: {
-        lignes?: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }>;
+        lignes?: LignesGroupeLettrage;
       } | null;
     }>,
     dateDebit: Date,
@@ -1444,17 +1528,15 @@ export class TauxTvaService {
     const lignesGroupe = facture.lettrage!.lignes ?? [];
     if (engage <= EPSILON || lignesGroupe.length === 0) return auDebit;
     let memeSens = 0;
-    const anterieurs: Array<{ date: Date; montant: number }> = [];
     for (const g of lignesGroupe) {
       const sens = Number(g.debit) - Number(g.credit);
-      if (Math.abs(sens) <= EPSILON) continue;
-      if (sens > 0 === sensFacture > 0) {
-        memeSens += Math.abs(sens);
-        continue;
-      }
-      const date = g.ecriture?.date;
-      if (date && date.getTime() < dateDebit.getTime()) anterieurs.push({ date, montant: Math.abs(sens) });
+      if (Math.abs(sens) > EPSILON && sens > 0 === sensFacture > 0) memeSens += Math.abs(sens);
     }
+    // Les règlements du groupe, le reclassement en créance douteuse remplacé
+    // par ses recouvrements (ligne A7, K3) · un reclassement n'avance rien.
+    const anterieurs = TauxTvaService.reglementsDuGroupe(lignesGroupe, sensFacture).filter(
+      (r) => r.date.getTime() < dateDebit.getTime(),
+    );
     // D'autres factures dans le groupe · l'imputation est inconnue.
     if (memeSens > engage + EPSILON || anterieurs.length === 0) return auDebit;
     anterieurs.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -1817,6 +1899,56 @@ export class TauxTvaService {
   }
 
   /**
+   * LA BASE D'EXIGIBILITÉ DE VENTES DONNÉES, lue par la même règle que la
+   * déclaration (`baseExigibilite`, régime du dossier À LA DATE de la vente) ·
+   * servie au module des créances douteuses (ligne A7, K3). La TVA d'une vente
+   * exigible au FAIT GÉNÉRATEUR a été déclarée, et sa part perdue se récupère
+   * (O.-L. n° 10/001, art. 52) ; celle d'une vente exigible à l'ENCAISSEMENT
+   * (art. 25, 2°) ne l'a jamais été pour la part perdue, et rien ne se
+   * récupère. Des ventes de bases différentes ne se tranchent pas · `null`,
+   * avec la raison.
+   */
+  async baseExigibiliteDesVentes(
+    tenantId: string,
+    ecritureIds: readonly string[],
+  ): Promise<{ base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT' | null; raison: string | null }> {
+    if (ecritureIds.length === 0) return { base: null, raison: 'Aucune vente d’origine.' };
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const regime = tenant?.regimeExigibiliteTva ?? 'LIVRAISONS';
+    const dateAutorisation = tenant?.dateAutorisationDebitsTva ?? null;
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: { tenantId, id: { in: [...ecritureIds] } },
+      select: {
+        date: true,
+        lignes: {
+          where: {
+            OR: [{ compte: { numero: { startsWith: RACINE_COLLECTEE } } }, { compte: { classe: ClasseCompte.CLASSE_7 } }],
+          },
+          select: { compte: { select: { numero: true, classe: true } } },
+        },
+      },
+      take: ecritureIds.length,
+    });
+    const bases = new Set<'FAIT_GENERATEUR' | 'ENCAISSEMENT'>();
+    for (const e of ecritures) {
+      const regimeVente = regime === 'DEBITS' && dateAutorisation && e.date < dateAutorisation ? 'LIVRAISONS' : regime;
+      const contreparties = e.lignes.filter((l) => l.compte.classe === ClasseCompte.CLASSE_7).map((l) => l.compte.numero);
+      for (const l of e.lignes) {
+        if (!l.compte.numero.startsWith(RACINE_COLLECTEE)) continue;
+        bases.add(this.baseExigibilite(tenant?.referentiel, regimeVente, l.compte.numero, true, false, contreparties).base);
+      }
+    }
+    if (bases.size === 1) return { base: [...bases][0], raison: null };
+    if (bases.size === 0) return { base: null, raison: 'Les ventes d’origine ne portent aucune TVA facturée.' };
+    return {
+      base: null,
+      raison:
+        'Les ventes d’origine mêlent une TVA exigible à la facture et une TVA exigible à l’encaissement (O.-L. n° 10/001, art. 25) · ' +
+        'la part récupérable ne se tranche pas d’office. Rattachez la créance à des ventes d’une seule nature.',
+    };
+  }
+
+  /**
    * CRÉDIT DE TVA REPORTÉ SUR LA PÉRIODE · article 63.
    *
    * Fichier `code-general-2026/references/10-tva-ol10-001-loi-base-ch1-10.md`,
@@ -2077,9 +2209,19 @@ export class TauxTvaService {
               // LA PERTE SUR CRÉANCE IRRÉCOUVRABLE (ligne A7, E2) · sa ligne de
               // 443 n'est pas un avoir sur vente · elle se justifie par le
               // DUPLICATA surchargé (décret n° 011/42, art. 127), jamais par une
-              // note de crédit, et s'inscrit en déduction le mois SUIVANT sa
-              // constatation (art. 126), sur sa propre ligne.
-              mouvementCreanceDouteuse: { select: { id: true } },
+              // note de crédit, et s'inscrit en déduction dans une déclaration
+              // POSTÉRIEURE à sa constatation (art. 126), sur sa propre ligne,
+              // une seule fois · celle que la liquidation qui l'impute fige
+              // (`liquidationRecuperation`, K1). Annulée, elle ne compte plus
+              // (K4), et son inscription en négatif non plus.
+              mouvementCreanceDouteuse: {
+                select: {
+                  id: true,
+                  annuleeLe: true,
+                  liquidationRecuperation: { select: { dateDebut: true, dateFin: true } },
+                },
+              },
+              corrigeEcriture: { select: { mouvementCreanceDouteuse: { select: { id: true } } } },
               // DEUX contreparties sont lues sur la même écriture, et pour
               // trois questions différentes : la ligne de TIERS lettrée dit
               // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
@@ -2148,7 +2290,32 @@ export class TauxTvaService {
                       solde: true,
                       soldeAt: true,
                       lignes: {
-                        select: { debit: true, credit: true, ecriture: { select: { date: true } } },
+                        select: {
+                          debit: true,
+                          credit: true,
+                          ecriture: {
+                            select: {
+                              date: true,
+                              // LE RECLASSEMENT EN CRÉANCE DOUTEUSE N'EST PAS UN
+                              // ENCAISSEMENT (ligne A7, K3) · sa ligne au compte du
+                              // client, lettrée avec la facture, ne date rien ; ce
+                              // sont les RECOUVREMENTS validés du module, non
+                              // annulés, qui encaissent la part reclassée.
+                              creanceDouteuseReclassement: {
+                                select: {
+                                  mouvements: {
+                                    where: {
+                                      type: TypeMouvementCreanceDouteuse.RECOUVREMENT,
+                                      annuleeLe: null,
+                                      ecriture: { statut: StatutEcriture.VALIDEE },
+                                    },
+                                    select: { date: true, montant: true },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
                       },
                     },
                   },
@@ -2174,19 +2341,18 @@ export class TauxTvaService {
       recuperation: number;
       /** TVA de créances irrécouvrables constatée dans la période · déduite le mois suivant. */
       creanceConstatee: number;
-      /** TVA de créances irrécouvrables constatée le mois précédent · déduite ici (art. 52, décret art. 126). */
+      /** TVA de créances irrécouvrables constatée avant la période, non encore imputée · déduite ici (art. 52, décret art. 126). */
       recuperationCreance: number;
     };
     const parTaux = new Map<string, Cumul>();
     for (const t of taux) {
       parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0, avoir: 0, recuperation: 0, creanceConstatee: 0, recuperationCreance: 0 });
     }
-    // LE MOIS QUI PRÉCÈDE LA PÉRIODE · une créance irrécouvrable constatée ce
-    // mois-là est inscrite en déduction ICI, et nulle part ailleurs (décret
-    // n° 011/42, art. 126, « la déclaration du ou des mois suivants celui de
-    // la constatation »). La déclaration est mensuelle · une ligne n'est lue
-    // en récupération que par la déclaration du mois qui suit sa date.
-    const debutMoisPrecedent = new Date(Date.UTC(dateDebut.getUTCFullYear(), dateDebut.getUTCMonth() - 1, 1));
+    // LES PERTES SUR CRÉANCES IRRÉCOUVRABLES QUE CETTE DÉCLARATION RÉCUPÈRE
+    // et qu'aucune liquidation n'impute encore · la liquidation de la période
+    // les marque (K1). Et celles dont le délai de l'art. 37, al. 2 est expiré.
+    const pertesARecuperer = new Set<string>();
+    let recuperationCreancesDechue = 0;
     // LE MÊME CUMUL, COMPTE PAR COMPTE. La saisie et la facture passée au
     // journal ROUTENT la taxe sur la subdivision que la contrepartie appelle
     // (4432 pour une prestation vendue, 4453 pour un transport déduit), quand
@@ -2296,23 +2462,56 @@ export class TauxTvaService {
             elle aussi le 443 : ses lignes sont posées sans `tauxTvaId` (voir
             `comptabiliserLiquidation`) et la requête ci-dessus filtre dessus.
           */
+          // UNE PERTE ANNULÉE NE COMPTE PLUS (ligne A7, K4) · ni sa ligne, ni
+          // son inscription en négatif, qui la neutralise au 443.
+          const perte = l.ecriture.mouvementCreanceDouteuse;
+          if ((perte && perte.annuleeLe) || l.ecriture.corrigeEcriture?.mouvementCreanceDouteuse) return;
           const avoir = estCollecte ? Number(l.debit) : Number(l.credit);
-          if (avoir > EPSILON && estCollecte && l.ecriture.mouvementCreanceDouteuse) {
+          if (avoir > EPSILON && estCollecte && perte) {
             /*
               TVA D'UNE CRÉANCE IRRÉCOUVRABLE (ligne A7, E2 · O.-L. n° 10/001,
               art. 52 ; décret n° 011/42, art. 126 et 127). Le D 443 de la perte
               n'est PAS une TVA collectée négative · il n'est jamais retranché
-              de la collecte du mois de la perte. Il est montré constaté ce
-              mois-là, puis inscrit en DÉDUCTION, une seule fois, dans la
-              déclaration du mois qui suit. La liquidation de ce mois-là le
-              solde au 443 par sa ligne de récupération (`parCompte`).
+              de la collecte de la période de la perte, où il est montré
+              constaté.
+
+              LA RÉCUPÉRATION SUIT LA LIQUIDATION, JAMAIS LE CALENDRIER
+              (seconde relecture, K1). Le décret dit « la déclaration du ou des
+              mois suivants celui de la constatation » · toute déclaration dont
+              la période commence APRÈS la perte la reprend, tant qu'aucune
+              liquidation ne l'a imputée (`liquidationRecuperationId`, posé par
+              `comptabiliserLiquidation`, remis à null par son annulation). Un
+              mois sauté, un trimestre, deux demi-mois, une perte validée en
+              retard · elle entre dans la première liquidation qui suit, une
+              seule fois. La règle du « mois précédent » la perdait au premier
+              écart de période.
+
+              LA DÉCHÉANCE DE L'ART. 37, AL. 2 JOUE · la récupération s'inscrit
+              « dans les conditions prévues pour exercer le droit à déduction »
+              (décret art. 126), et ce droit « est exercé jusqu'au 31 décembre
+              de l'année qui suit celle au cours de laquelle la taxe est devenue
+              exigible » (O.-L. n° 10/001, art. 37 al. 2 ; décret art. 96). Le
+              droit naît à la constatation · une perte constatée avant le
+              1er janvier de l'année qui précède la clôture de la période est
+              DÉCHUE, comptée et dite, jamais reprise.
             */
-            if (dansLaPeriode) cumul.creanceConstatee = TauxTvaService.c(cumul.creanceConstatee + avoir);
-            else if (dateEcriture < dateDebut && dateEcriture >= debutMoisPrecedent) {
-              cumul.recuperationCreance = TauxTvaService.c(cumul.recuperationCreance + avoir);
-              const v = suivi(l.tauxTvaId!, l.compteId);
-              v.recuperation = TauxTvaService.c(v.recuperation + avoir);
+            if (dansLaPeriode) {
+              cumul.creanceConstatee = TauxTvaService.c(cumul.creanceConstatee + avoir);
+              return;
             }
+            if (dateEcriture >= dateDebut) return;
+            const liq = perte.liquidationRecuperation;
+            const parCetteLiquidation =
+              !!liq && liq.dateDebut.getTime() === dateDebut.getTime() && liq.dateFin.getTime() === dateFin.getTime();
+            if (liq && !parCetteLiquidation) return;
+            if (!parCetteLiquidation && dateEcriture < limiteDecheance) {
+              recuperationCreancesDechue = TauxTvaService.c(recuperationCreancesDechue + avoir);
+              return;
+            }
+            cumul.recuperationCreance = TauxTvaService.c(cumul.recuperationCreance + avoir);
+            const v = suivi(l.tauxTvaId!, l.compteId);
+            v.recuperation = TauxTvaService.c(v.recuperation + avoir);
+            if (!liq) pertesARecuperer.add(perte.id);
             return;
           }
           if (avoir > EPSILON) {
@@ -2615,6 +2814,7 @@ export class TauxTvaService {
         recuperationArt52,
         creancesIrrecouvrablesConstatees,
         recuperationCreancesIrrecouvrables,
+        recuperationCreancesDechue,
         avoirsCollecteNonImputes,
         avoirsSansNoteDeCredit,
         tvaExclueArt41,
@@ -2642,6 +2842,13 @@ export class TauxTvaService {
       creancesIrrecouvrablesConstatees,
       /** Récupération sur créance irrécouvrable, art. 52 · en déduction ici, sur sa ligne. */
       recuperationCreancesIrrecouvrables,
+      /** TVA de pertes antérieures dont le délai de l'art. 37, al. 2 est expiré · jamais reprise (K1). */
+      recuperationCreancesDechue,
+      /**
+       * Les pertes que cette déclaration récupère et qu'aucune liquidation
+       * n'impute encore · la liquidation de la période les marque (K1).
+       */
+      pertesCreancesARecuperer: [...pertesARecuperer],
       /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
       avoirsCollecteNonImputes,
       /**
@@ -2739,6 +2946,7 @@ export class TauxTvaService {
     recuperationArt52: number;
     creancesIrrecouvrablesConstatees: number;
     recuperationCreancesIrrecouvrables: number;
+    recuperationCreancesDechue?: number;
     avoirsCollecteNonImputes: number;
     avoirsSansNoteDeCredit: number;
     tvaExclueArt41: number;
@@ -3014,15 +3222,24 @@ export class TauxTvaService {
     if (e.recuperationCreancesIrrecouvrables > EPSILON) {
       phrases.push(
         `RÉCUPÉRATION SUR CRÉANCE IRRÉCOUVRABLE, ART. 52 · ${fc(e.recuperationCreancesIrrecouvrables)} CDF de TVA de créances ` +
-          'devenues irrécouvrables le mois précédent sont inscrits ici en DÉDUCTION (O.-L. n° 10/001, art. 52 ; décret ' +
-          'n° 011/42, art. 126), sur la foi du duplicata surchargé envoyé au client (art. 127). Sans prorata.',
+          'constatées irrécouvrables avant cette période, et qu’aucune liquidation n’a encore imputée, sont inscrits ici en ' +
+          'DÉDUCTION (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126), sur la foi du duplicata surchargé envoyé au ' +
+          'client (art. 127). Sans prorata · la liquidation de la période les marque, et aucune autre ne les reprendra.',
+      );
+    }
+    if ((e.recuperationCreancesDechue ?? 0) > EPSILON) {
+      phrases.push(
+        `RÉCUPÉRATION SUR CRÉANCE IRRÉCOUVRABLE DÉCHUE · ${fc(e.recuperationCreancesDechue ?? 0)} CDF de TVA de pertes ` +
+          'constatées avant le 1er janvier de l’année précédente n’ont été imputés par aucune liquidation · le droit à déduction ' +
+          '« est exercé jusqu’au 31 décembre de l’année qui suit » (O.-L. n° 10/001, art. 37 al. 2 ; décret n° 011/42, art. 96 et ' +
+          '126). Ils ne sont pas repris.',
       );
     }
     if (e.creancesIrrecouvrablesConstatees > EPSILON) {
       phrases.push(
         `CRÉANCES IRRÉCOUVRABLES CONSTATÉES · ${fc(e.creancesIrrecouvrablesConstatees)} CDF de TVA récupérée sur des créances ` +
-          'perdues ce mois-ci · elle n’est PAS retranchée de la TVA collectée ici ; elle s’inscrit en déduction dans la ' +
-          'déclaration du mois suivant (décret n° 011/42, art. 126).',
+          'perdues sur cette période · elle n’est PAS retranchée de la TVA collectée ici ; elle s’inscrit en déduction dans la ' +
+          'déclaration de la période suivante liquidée (décret n° 011/42, art. 126).',
       );
     }
     if (e.avoirsCollecteNonImputes > EPSILON) {
@@ -3306,16 +3523,41 @@ export class TauxTvaService {
     // fermer, en silence. `EcritureService.creer` ne participe pas à une
     // transaction (voir sa signature), d'où la compensation explicite.
     try {
-      await this.prisma.liquidationTva.create({
-        data: {
-          tenantId,
-          dateDebut,
-          dateFin,
-          ecritureId: ecriture.id,
-          net: decl.net,
-          prorataApplique: decl.prorata.pourcentage,
-          createdBy: userId,
-        },
+      // LA LIQUIDATION MARQUE LES PERTES DONT ELLE IMPUTE LA RÉCUPÉRATION
+      // (ligne A7, K1), dans la même transaction que son marqueur · une perte
+      // déjà marquée entre-temps refuse tout (409), sans quoi deux
+      // liquidations la déduiraient. Une mise à jour UNITAIRE par perte, pour
+      // que le journal d'audit nomme chacune.
+      const pertes = decl.pertesCreancesARecuperer ?? [];
+      const marqueur = {
+        tenantId,
+        dateDebut,
+        dateFin,
+        ecritureId: ecriture.id,
+        net: decl.net,
+        prorataApplique: decl.prorata.pourcentage,
+        createdBy: userId,
+      };
+      // Sans perte à marquer, une écriture seule · nulle transaction à ouvrir.
+      if (pertes.length === 0) await this.prisma.liquidationTva.create({ data: marqueur });
+      else await transactionJournalisee(this.prisma, async (tx) => {
+        const liquidation = await tx.liquidationTva.create({ data: marqueur });
+        for (const id of pertes) {
+          try {
+            await tx.mouvementCreanceDouteuse.update({
+              where: { id, tenantId, liquidationRecuperationId: null, annuleeLe: null },
+              data: { liquidationRecuperationId: liquidation.id },
+            });
+          } catch (err) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+              throw new ConflictException(
+                'Une perte sur créance irrécouvrable de cette déclaration a été imputée ou annulée entre-temps · ' +
+                  'rechargez la déclaration avant de liquider.',
+              );
+            }
+            throw err;
+          }
+        }
       });
     } catch (e) {
       // Lignes puis tête, et un échec de la compensation remonte (F1) ·
@@ -3383,7 +3625,20 @@ export class TauxTvaService {
     // dans son module » au module lui-même (audit du 2026-09-27, B1).
     await this.ecritureService.supprimer(tenantId, liquidation.ecritureId, {
       detenteur: DETENTEUR_LIQUIDATION_TVA,
-      liberer: (tx) => tx.liquidationTva.delete({ where: { id: liquidation.id } }),
+      liberer: async (tx) => {
+        // LES PERTES QU'ELLE IMPUTAIT REDEVIENNENT À RÉCUPÉRER (ligne A7, K1) ·
+        // la déclaration suivante les reprendra. Une mise à jour par perte,
+        // nommée au journal d'audit ; la clé RESTRICT refuserait sinon la
+        // suppression du marqueur.
+        const pertes = await tx.mouvementCreanceDouteuse.findMany({
+          where: { tenantId, liquidationRecuperationId: liquidation.id },
+          select: { id: true },
+        });
+        for (const p of pertes) {
+          await tx.mouvementCreanceDouteuse.update({ where: { id: p.id, tenantId }, data: { liquidationRecuperationId: null } });
+        }
+        await tx.liquidationTva.delete({ where: { id: liquidation.id } });
+      },
     });
     return { supprime: true, ecritureId: liquidation.ecritureId };
   }

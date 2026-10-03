@@ -68,6 +68,16 @@ export function motifAnnulationValide(motif: string): boolean {
   return m.length >= 3 && m.length <= 500;
 }
 
+/**
+ * LE MOUVEMENT PROPOSÉ À L'ANNULATION (K4) · le plus récent, celui qu'une
+ * revue n'a le plus probablement pas encore compté ; le cabinet en choisit un
+ * autre dans la modale. `null` sans mouvement.
+ */
+export function mouvementAAnnulerParDefaut(mouvements: readonly { id: string; date: string }[]): string | null {
+  if (mouvements.length === 0) return null;
+  return [...mouvements].sort((a, b) => a.date.localeCompare(b.date)).at(-1)!.id;
+}
+
 export const LIBELLE_NATURE: Record<NatureCreance, string> = {
   LITIGIEUSE: 'Litigieuse (le client conteste)',
   DOUTEUSE: 'Douteuse (le client se dérobe)',

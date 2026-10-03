@@ -662,18 +662,49 @@ taxes ET du 443) ; la seule mention « hors TVA » du corpus (Titre VIII ch. 15
 RÉCUPÈRE AU GESTE DE PERTE, sur demande · D 651 hors taxe, D 443 TVA (fiche du compte
 70, « débité des taxes facturées des retours »), C 416 TTC, au centime. Conditions,
 chacune refusée par son motif (`motifRefusRecuperationTva`) · dossier déclaré
-assujetti, 443 de détail choisi (proposé par le LETTRAGE du 411 avec les factures,
-`tvaOrigine`, jamais deviné ; au SYCEBNL, les 443 réellement semés), TVA au plus le
-PRORATA de la TVA facturée sur la part perdue, DUPLICATA SURCHARGÉ envoyé (référence
-et date, au plus tard la perte · O.-L. n° 10/001, art. 52 ; décret n° 011/42,
-art. 127). Sans elles, la perte passe au TTC entier ; rien d'office. La récupération
-s'inscrit dans la déclaration du mois SUIVANT (art. 126) · la ligne du 443 porte le
-TAUX de la vente d'origine (lu par le lettrage ; absent, ambigu ou autre compte,
-refus nommé), et `TauxTvaService.declaration` la reconnaît à sa liaison
-(`mouvementCreanceDouteuse`) · constatée au mois M sans toucher la collecte, en
-DÉDUCTION au seul mois M+1 sur sa ligne (« récupération sur créance irrécouvrable,
-art. 52 », sans prorata), jamais avoir sans note de crédit ni collecte négative ; la
-liquidation de M+1 la solde au 443 (`parCompte.recuperation`).
+assujetti, 443 de détail, celui des VENTES D'ORIGINE (K3, ci-dessous ; au SYCEBNL,
+les 443 réellement semés), TVA au plus le PRORATA de la TVA facturée sur la part
+perdue, DUPLICATA SURCHARGÉ envoyé (référence et date, au plus tard la perte ·
+O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127). Sans elles, la perte passe
+au TTC entier ; rien d'office. La ligne du 443 porte le TAUX de la vente d'origine
+(absent, ambigu ou autre compte, refus nommé), et `TauxTvaService.declaration` la
+reconnaît à sa liaison (`mouvementCreanceDouteuse`) · constatée dans la période de
+la perte sans toucher la collecte, en DÉDUCTION ensuite sur sa ligne
+(« récupération sur créance irrécouvrable, art. 52 », sans prorata), jamais avoir
+sans note de crédit ni collecte négative, soldée au 443 par la liquidation
+(`parCompte.recuperation`). SECONDE RELECTURE (2026-10-03). (K1) LA RÉCUPÉRATION
+SUIT LA LIQUIDATION, JAMAIS LE CALENDRIER · toute déclaration dont la période
+commence après une perte VALIDÉE la reprend tant que
+`MouvementCreanceDouteuse.liquidationRecuperationId` est nul ; la liquidation le
+pose (`update` unitaire, 409 si une autre l'a pris), son annulation le remet à null
+(clé RESTRICT) · mois sauté, trimestre, demi-mois, validation tardive, une seule
+fois. DÉCHÉANCE de l'art. 37, al. 2 (décret art. 96 ; art. 126, « dans les
+conditions prévues pour exercer le droit à déduction ») · perte antérieure au
+1er janvier de l'année qui précède la clôture de la période, non imputée · DÉCHUE,
+comptée et dite (`recuperationCreancesDechue`), jamais reprise. (K2) LA TVA
+FACTURÉE VIENT DU SERVEUR · calculée sur les ventes d'origine au prorata de la part
+reprise (`tvaFactureeDesOrigines`), valeur envoyée refusée au-delà d'un centime
+d'écart, la sienne figée. (K3) LA FACTURE D'ORIGINE SE CHOISIT · ventes validées non
+lettrées du client à la date (`OrigineCreanceDouteuse`, `repartirSurLesOrigines`, la
+plus ancienne d'abord, la dernière en partiel, convention d'OmegaX ; proposée seule
+sans ambiguïté, `origineProposee`), jamais lue sur le lettrage. LE RECLASSEMENT
+N'EST PAS UN ENCAISSEMENT (décret art. 57) · dans un groupe de lettrage, sa ligne ne
+date rien ; ce sont les RECOUVREMENTS validés non annulés du module qui encaissent la
+part reclassée, à leur prorata (`reglementsDuGroupe`, exigibilité et art. 62). Une
+vente dont la TVA n'est exigible qu'à l'ENCAISSEMENT (art. 25, 2°,
+`baseExigibiliteDesVentes`) n'a jamais été déclarée pour la part perdue · sa TVA sort
+du 443 sur une ligne SANS TAUX (`tvaNonExigible`), hors de toute déclaration ; bases
+mêlées, refus. (K4) UN MOUVEMENT S'ANNULE comme une revue · brouillard supprimé,
+validé inscrit en négatif, marqué par un `update` unitaire, motif ; refus · revue qui
+l'a compté non annulée, exercice clos, perte imputée par une liquidation non
+annulée ; annulé, il sort du reste, des revues, de la clôture, de la déclaration
+(son négatif aussi) et des détenteurs. (M-a) la déclaration d'ouverture se borne par
+l'à-nouveau MOINS ce que le module porte déjà sur ce 416 (reste à la veille des
+créances reclassées avant, déclarées comprises) et sur ce 491. (M-b) le rapprochement
+lit le seul 491 des créances du module. (M-c) mouvement de l'exercice sans revue ·
+information. (M-d) perte et annulation `@ReserveAuComptable()`. (M-e) une créance
+déclarée à l'ouverture n'ouvre de récupération que si ses ventes d'origine sont
+tenues dans OmegaX, et l'écran le dit.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

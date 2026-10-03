@@ -9,6 +9,7 @@ import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CreancesDouteusesService } from './creances-douteuses.service';
 import {
+  AnnulerMouvementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
   PerteCreanceDto,
@@ -40,7 +41,24 @@ export class CreancesDouteusesController {
     return this.service.comptes(user.tenantId, exerciceId);
   }
 
-  /** E2 · la TVA facturée de la vente d'origine, proposée par le lettrage, et les 443 de détail du plan. */
+  /**
+   * K3 · les ventes du client qui peuvent être l'origine d'une créance, et la
+   * proposition sans ambiguïté · ouvertes à la date du reclassement, ou
+   * antérieures à l'exercice pour une déclaration d'ouverture (M-e).
+   */
+  @Get('ventes-origine')
+  ventesOrigine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('compteCreanceId', ParseUUIDPipe) compteCreanceId: string,
+    @Query('montant') montant?: string,
+    @Query('date') date?: string,
+    @Query('ouverture') ouverture?: string,
+  ) {
+    return this.service.ventesOrigine(user.tenantId, { exerciceId, compteCreanceId, montant, date, ouverture });
+  }
+
+  /** E2 · la TVA facturée des ventes d'origine rattachées (K3), et les 443 de détail du plan. */
   @Get(':id/tva-origine')
   tvaOrigine(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.tvaOrigine(user.tenantId, id);
@@ -76,7 +94,12 @@ export class CreancesDouteusesController {
     return this.service.revoir(user.tenantId, user.userId, id, dto);
   }
 
+  /**
+   * La perte · réservée au comptable comme la revue (seconde relecture, M-d) ·
+   * elle peut écrire une récupération de TVA qui entre dans la déclaration.
+   */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Post(':id/perte')
   perte(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PerteCreanceDto) {
     return this.service.perte(user.tenantId, user.userId, id, dto);
@@ -105,6 +128,19 @@ export class CreancesDouteusesController {
     @Body() dto: AnnulerRevueDto,
   ) {
     return this.service.annulerRevue(user.tenantId, user.userId, id, revueId, dto);
+  }
+
+  /** L'annulation d'une perte ou d'un recouvrement (K4 · AUDCIF art. 20, al. 2) · réservée au comptable. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  @Post(':id/mouvements/:mouvementId/annuler')
+  annulerMouvement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('mouvementId', ParseUUIDPipe) mouvementId: string,
+    @Body() dto: AnnulerMouvementDto,
+  ) {
+    return this.service.annulerMouvement(user.tenantId, user.userId, id, mouvementId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

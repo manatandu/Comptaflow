@@ -792,6 +792,7 @@ model Tenant {
   creancesDouteuses            CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
   mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
+  originesCreancesDouteuses    OrigineCreanceDouteuse[]
   provisionsChangeOuverture    ProvisionChangeOuverture[]
   verrouProvisionChange        VerrouProvisionChange?
   verrouCreancesDouteuses      VerrouCreancesDouteuses?
@@ -1525,6 +1526,7 @@ model Ecriture {
   creanceDouteuseReclassement CreanceDouteuse?                   @relation("CreanceDouteuseReclassement")
   ajustementCreanceDouteuse   AjustementCreanceDouteuse?
   mouvementCreanceDouteuse    MouvementCreanceDouteuse?
+  originesCreancesDouteuses   OrigineCreanceDouteuse[]
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -3622,6 +3624,10 @@ model LiquidationTva {
 
   /// Prorata effectivement appliqué, pour retrouver la base d'une régularisation.
   prorataApplique Decimal @db.Decimal(5, 2)
+
+  /// Les pertes sur créances irrécouvrables dont CETTE liquidation impute la
+  /// récupération de TVA (ligne A7, K1) · une perte n'est récupérée qu'une fois.
+  recuperationsCreances MouvementCreanceDouteuse[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -8942,6 +8948,7 @@ model CreanceDouteuse {
 
   ajustements AjustementCreanceDouteuse[]
   mouvements  MouvementCreanceDouteuse[]
+  origines    OrigineCreanceDouteuse[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -9024,9 +9031,31 @@ model MouvementCreanceDouteuse {
   compteTva          Compte?   @relation("MouvementCreanceDouteuseTva", fields: [compteTvaId], references: [id], onDelete: Restrict)
   duplicataReference String?
   duplicataDateEnvoi DateTime? @db.Date
+  /// La TVA d'une vente qui n'est exigible qu'à l'ENCAISSEMENT (O.-L.
+  /// n° 10/001, art. 25, 2°) · la part perdue n'a jamais été exigible ni
+  /// déclarée, sa ligne au 443 ne porte aucun taux et n'entre dans aucune
+  /// déclaration (K3).
+  tvaNonExigible     Boolean   @default(false)
 
-  ecritureId String   @unique
-  ecriture   Ecriture @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+  /// LA LIQUIDATION QUI IMPUTE LA RÉCUPÉRATION (K1) · posée par elle, remise à
+  /// null par son annulation. Nulle, la perte validée reste à récupérer par la
+  /// déclaration de toute période qui commence après elle (décret n° 011/42,
+  /// art. 126), une seule fois.
+  liquidationRecuperationId String?
+  liquidationRecuperation   LiquidationTva? @relation(fields: [liquidationRecuperationId], references: [id], onDelete: Restrict)
+
+  /// Nulle quand l'écriture, restée au brouillard, est supprimée par
+  /// l'annulation du mouvement (K4).
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  /// L'ANNULATION (K4 · AUDCIF art. 20, al. 2) · le mouvement est MARQUÉ,
+  /// jamais supprimé ; son écriture est supprimée au brouillard, inscrite en
+  /// négatif validée.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
 
   createdAt DateTime @default(now())
   createdBy String
@@ -9034,7 +9063,35 @@ model MouvementCreanceDouteuse {
   @@index([tenantId])
   @@index([creanceId])
   @@index([exerciceId])
+  @@index([liquidationRecuperationId])
   @@map("mouvements_creances_douteuses")
+}
+
+/// LA FACTURE D'ORIGINE D'UNE CRÉANCE DOUTEUSE (ligne A7, K3) · l'écriture de
+/// vente dont la créance reclassée (ou déclarée) reprend une part, et cette
+/// part. Choisie par le cabinet parmi les ventes ouvertes du client, ou
+/// proposée quand elle est sans ambiguïté · jamais lue sur le lettrage, qui
+/// confondait le reclassement avec un encaissement. Elle porte le compte et
+/// le taux de la TVA facturée, et la part qui se récupère à la perte.
+model OrigineCreanceDouteuse {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  creanceId  String
+  creance    CreanceDouteuse @relation(fields: [creanceId], references: [id], onDelete: Restrict)
+  ecritureId String
+  ecriture   Ecriture        @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  /// La part de la vente (TTC, au compte du client) que la créance reprend.
+  montant Decimal @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([creanceId, ecritureId])
+  @@index([tenantId])
+  @@index([ecritureId])
+  @@map("origines_creances_douteuses")
 }
 
 /// Le verrou des gestes sur les créances douteuses · une ligne par dossier,

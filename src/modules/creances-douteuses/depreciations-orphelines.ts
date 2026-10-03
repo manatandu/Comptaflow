@@ -39,7 +39,7 @@ export async function depreciationsOrphelines(
             where: { annuleeLe: null },
             select: { exerciceId: true, ecart: true, exercice: { select: { dateFin: true } } },
           },
-          mouvements: { select: { date: true, montant: true } },
+          mouvements: { where: { annuleeLe: null }, select: { date: true, montant: true } },
         },
         ...pageApres(curseur, LOT_ECRITURES),
       }),

@@ -303,6 +303,7 @@ export const DETENTEUR_PAIE_DU_MOIS: DetenteurEcriture = 'la paie du mois (bulle
 export const DETENTEUR_RECLASSEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (reclassement au 416)';
 export const DETENTEUR_REVUE_CREANCE: DetenteurEcriture = 'une créance douteuse (revue de la dépréciation)';
 export const DETENTEUR_MOUVEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (perte ou recouvrement)';
+export const DETENTEUR_ORIGINE_CREANCE: DetenteurEcriture = 'une créance douteuse (vente d’origine)';
 
 /**
  * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
@@ -1213,7 +1214,10 @@ export class EcritureService {
       // Une revue ANNULÉE ne retient plus son écriture (B2) · validée, elle est
       // neutralisée par son inscription en négatif.
       [DETENTEUR_REVUE_CREANCE, this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
-      [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId } })],
+      // Un mouvement annulé (K4) ne retient plus · son écriture validée est
+      // neutralisée par l'inscription en négatif, celle du brouillard est partie.
+      [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
+      [DETENTEUR_ORIGINE_CREANCE, this.prisma.origineCreanceDouteuse.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La

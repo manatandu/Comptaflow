@@ -391,8 +391,13 @@ export interface EntreeRecuperationTva {
   /** Le montant de la créance reclassée ou déclarée. */
   montantCreance: number;
   tvaRecuperee: number;
-  /** La TVA facturée que portait la créance entière. */
+  /**
+   * La TVA facturée que portait la créance entière, CALCULÉE PAR LE SERVEUR
+   * sur les factures d'origine (K2) · jamais reçue de l'écran.
+   */
   tvaFactureeCreance: number | null | undefined;
+  /** La valeur que l'écran a montrée, s'il en envoie une · refusée au-delà d'un centime d'écart. */
+  tvaFactureeSaisie?: number | null;
   numeroCompteTva: string | null;
   compteTvaEstDetail: boolean;
   duplicataReference: string | null | undefined;
@@ -428,7 +433,18 @@ export function motifRefusRecuperationTva(e: EntreeRecuperationTva): string | nu
   }
   const facturee = e.tvaFactureeCreance;
   if (facturee == null || !(facturee > 0) || facturee >= e.montantCreance) {
-    return 'Déclarez la TVA facturée que portait la créance · positive, et inférieure à la créance taxe comprise.';
+    return 'Les factures d’origine ne portent aucune TVA facturée lisible pour cette créance · rien ne se récupère.';
+  }
+  // LA TVA FACTURÉE NE VIENT PAS DE L'ÉCRAN (seconde relecture, K2) · elle
+  // borne la récupération, et une valeur saisie plus haute ouvrait le
+  // prorata à une TVA que la vente n'a jamais portée. Le serveur la calcule
+  // sur les factures d'origine ; une valeur envoyée qui s'en écarte de plus
+  // d'un centime est refusée, et c'est la sienne qui est figée.
+  if (e.tvaFactureeSaisie != null && Math.abs(centimes(e.tvaFactureeSaisie) - centimes(facturee)) > 0.01 + 1e-9) {
+    return (
+      `La TVA facturée envoyée (${centimes(e.tvaFactureeSaisie).toFixed(2)}) n'est pas celle des factures d'origine ` +
+      `(${centimes(facturee).toFixed(2)}) · elle se lit sur les ventes rattachées à la créance, jamais à la saisie.`
+    );
   }
   if (!(e.tvaRecuperee > 0)) return 'La TVA récupérée doit être positive.';
   const plafond = plafondTvaRecuperable(facturee, e.montantSorti, e.montantCreance);
@@ -551,7 +567,11 @@ export interface EntreeDeclaration {
   exerciceOuvert: boolean;
   /** L'à-nouveau de l'exercice existe. */
   aNouveau: boolean;
-  /** Débit net de l'à-nouveau du 416 choisi, et ce qui est déjà déclaré sur lui à cette date. */
+  /**
+   * Débit net de l'à-nouveau du 416 choisi, et ce que le module y porte déjà
+   * à cette date · reste à la veille des créances reclassées avant, et
+   * créances déjà déclarées (M-a).
+   */
   aNouveau416: number;
   dejaDeclare416: number;
   /** Crédit net de l'à-nouveau du 491 de la nature, et ce qui est déjà déclaré sur lui. */
@@ -594,15 +614,159 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   }
   if (centimes(e.dejaDeclare416 + e.montant) > centimes(e.aNouveau416) + 0.005) {
     return (
-      `Les créances déclarées sur le ${e.numero416} (${centimes(e.dejaDeclare416 + e.montant).toFixed(2)}) dépassent son à-nouveau ` +
-      `(${centimes(e.aNouveau416).toFixed(2)}) · on ne déclare que ce que le bilan d'ouverture porte.`
+      `Ce que le module porte déjà sur le ${e.numero416} à l'ouverture (${centimes(e.dejaDeclare416).toFixed(2)}, créances reclassées ` +
+      `avant et non sorties, ou déjà déclarées) plus cette créance (${centimes(e.montant).toFixed(2)}) dépasse son à-nouveau ` +
+      `(${centimes(e.aNouveau416).toFixed(2)}) · on ne déclare que ce que le bilan d'ouverture porte, et une seule fois.`
     );
   }
   if (centimes(e.dejaDeclare491 + e.depreciation) > centimes(e.aNouveau491) + 0.005) {
     return (
-      `Les dépréciations déclarées sur le 491 (${centimes(e.dejaDeclare491 + e.depreciation).toFixed(2)}) dépassent son à-nouveau ` +
-      `(${centimes(e.aNouveau491).toFixed(2)}).`
+      `Les dépréciations que le module porte déjà sur le 491 à l'ouverture (${centimes(e.dejaDeclare491).toFixed(2)}) plus celle-ci ` +
+      `(${centimes(e.depreciation).toFixed(2)}) dépassent son à-nouveau (${centimes(e.aNouveau491).toFixed(2)}).`
     );
   }
   return null;
+}
+
+/**
+ * L'ANNULATION D'UN MOUVEMENT (seconde relecture, K4) · même règle que
+ * l'annulation d'une revue (AUDCIF art. 20, al. 2, « exclusivement par
+ * inscription en négatif des éléments erronés ; l'enregistrement exact est
+ * ensuite opéré »). Refus · déjà annulé, exercice clôturé, revue qui a compté
+ * le mouvement et n'est pas annulée, récupération de TVA déjà imputée par une
+ * liquidation non annulée (sa déduction est acquise · on annule la
+ * liquidation d'abord), motif absent.
+ */
+export function motifRefusAnnulationMouvement(p: {
+  dejaAnnule: string | null;
+  exerciceClos: boolean;
+  revueNonAnnulee: string | null;
+  liquidationRecuperation: { du: string; au: string } | null;
+  motif: string | null | undefined;
+}): string | null {
+  if (p.dejaAnnule) return `Ce mouvement est déjà annulé, le ${p.dejaAnnule}.`;
+  if (p.exerciceClos) {
+    return "L'exercice de ce mouvement est clôturé · son erreur se corrige par le report à nouveau (AUDCIF art. 20, al. 3), hors de ce geste.";
+  }
+  if (p.revueNonAnnulee) {
+    return (
+      `La revue de la clôture du ${p.revueNonAnnulee} a compté ce mouvement dans le reste de la créance · annulez-la d'abord, ` +
+      'puis annulez le mouvement, puis refaites la revue.'
+    );
+  }
+  if (p.liquidationRecuperation) {
+    return (
+      `La TVA récupérée par cette perte est imputée par la liquidation du ${p.liquidationRecuperation.du} au ` +
+      `${p.liquidationRecuperation.au} · annulez d'abord cette liquidation (Déclaration de TVA), sans quoi la déduction resterait ` +
+      'acquise sur une perte qui n’existe plus (décret n° 011/42, art. 126).'
+    );
+  }
+  const m = (p.motif ?? '').trim();
+  if (m.length < MOTIF_ANNULATION_MIN || m.length > MOTIF_ANNULATION_MAX) {
+    return `Le motif de l'annulation est exigé, de ${MOTIF_ANNULATION_MIN} à ${MOTIF_ANNULATION_MAX} caractères (AUDCIF art. 20, al. 2).`;
+  }
+  return null;
+}
+
+/** Une vente du client candidate à l'origine d'une créance · son écriture, sa date, ce qui en reste à rattacher. */
+export interface VenteCandidate {
+  ecritureId: string;
+  date: Date;
+  /** TTC au compte du client, moins ce que d'autres créances en reprennent déjà. */
+  ouvert: number;
+}
+
+/**
+ * LA FACTURE D'ORIGINE SE CHOISIT, ELLE NE SE DEVINE PAS (seconde relecture,
+ * K3). Le lettrage du reclassement avec la facture ne la désigne pas · il la
+ * faisait lire comme ENCAISSÉE (décret n° 011/42, art. 57), et une prestation
+ * de services devenait exigible au reclassement. Le cabinet choisit les
+ * ventes dont la créance est issue ; la répartition du montant sur elles suit
+ * leur date, la plus ancienne d'abord, la dernière en partiel (convention
+ * d'OmegaX, dite à l'écran). Les ventes choisies doivent couvrir le montant,
+ * et chacune doit servir.
+ */
+export function repartirSurLesOrigines(
+  montant: number,
+  choisies: readonly VenteCandidate[],
+): { parts: { ecritureId: string; montant: number }[]; refus: string | null } {
+  const ordre = [...choisies].sort((a, b) => a.date.getTime() - b.date.getTime() || a.ecritureId.localeCompare(b.ecritureId));
+  const couvert = centimes(ordre.reduce((s, v) => s + Math.max(0, v.ouvert), 0));
+  if (couvert + 0.005 < centimes(montant)) {
+    return {
+      parts: [],
+      refus:
+        `Les ventes choisies ne portent que ${couvert.toFixed(2)} au compte du client, hors ce que d'autres créances en reprennent · ` +
+        `la créance de ${centimes(montant).toFixed(2)} ne peut en être issue. Choisissez toutes les ventes dont elle provient.`,
+    };
+  }
+  const parts: { ecritureId: string; montant: number }[] = [];
+  let reste = centimes(montant);
+  for (const v of ordre) {
+    if (reste <= 0.005) break;
+    const part = centimes(Math.min(Math.max(0, v.ouvert), reste));
+    if (part <= 0.005) continue;
+    parts.push({ ecritureId: v.ecritureId, montant: part });
+    reste = centimes(reste - part);
+  }
+  const inutiles = ordre.length - parts.length;
+  if (inutiles > 0) {
+    return { parts: [], refus: `${inutiles} vente(s) choisie(s) ne servent pas · les plus anciennes couvrent déjà la créance. Retirez-les.` };
+  }
+  return { parts, refus: null };
+}
+
+/**
+ * LA PROPOSITION SANS AMBIGUÏTÉ · une seule vente ouverte égale au montant,
+ * ou toutes les ventes ouvertes du client dont la somme l'égale au centime.
+ * Ailleurs, rien n'est proposé et le cabinet choisit.
+ */
+export function origineProposee(montant: number, candidates: readonly VenteCandidate[]): string[] {
+  const m = centimes(montant);
+  const exactes = candidates.filter((v) => Math.abs(centimes(v.ouvert) - m) < 0.005);
+  if (exactes.length === 1) return [exactes[0].ecritureId];
+  if (exactes.length > 1) return [];
+  const total = centimes(candidates.reduce((s, v) => s + Math.max(0, v.ouvert), 0));
+  return candidates.length > 0 && Math.abs(total - m) < 0.005 ? candidates.map((v) => v.ecritureId) : [];
+}
+
+/**
+ * LA TVA FACTURÉE DE LA CRÉANCE · sur chaque vente d'origine, la TVA de la
+ * vente au prorata de la part que la créance en reprend (TTC au compte du
+ * client). Un seul compte et un seul taux · sinon la récupération ne se
+ * répartit pas d'office, et la raison est dite.
+ */
+export function tvaFactureeDesOrigines(
+  origines: readonly { part: number; ttcClient: number; tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[] }[],
+): { compteId: string; numero: string; tauxTvaId: string; tvaFacturee: number } | { raison: string } {
+  if (origines.length === 0) {
+    return { raison: 'Aucune facture d’origine n’est rattachée à cette créance · la TVA facturée et son taux ne se lisent pas.' };
+  }
+  const comptes = new Map<string, string>();
+  const taux = new Set<string | null>();
+  let total = 0;
+  for (const o of origines) {
+    const tvaVente = o.tva.reduce((s, l) => s + l.montant, 0);
+    for (const l of o.tva) {
+      comptes.set(l.compteId, l.numero);
+      taux.add(l.tauxTvaId);
+    }
+    if (o.ttcClient > 0) total += (tvaVente * o.part) / o.ttcClient;
+  }
+  if (comptes.size === 0) return { raison: 'Les ventes d’origine ne portent aucune TVA facturée.' };
+  if (comptes.size > 1) return { raison: 'Les ventes d’origine portent plusieurs comptes de TVA · la récupération ne se répartit pas d’office.' };
+  if (taux.has(null)) return { raison: 'Une ligne de TVA des ventes d’origine ne porte aucun taux · le taux de la vente ne se lit pas.' };
+  if (taux.size !== 1) return { raison: 'Les ventes d’origine portent plusieurs taux de TVA · le taux de la récupération serait deviné.' };
+  const [[compteId, numero]] = [...comptes.entries()];
+  return { compteId, numero, tauxTvaId: [...taux][0]!, tvaFacturee: centimes(total) };
+}
+
+/**
+ * UN MOUVEMENT DE L'EXERCICE SANS REVUE (seconde relecture, M-c) · une
+ * information, jamais un refus · la dépréciation en place n'a pas été revue
+ * après la perte ou le recouvrement. Le refus à la clôture reste celui des
+ * dépréciations orphelines (B1).
+ */
+export function mouvementsSansRevue(p: { revueDeLExercice: boolean; mouvementsDeLExercice: number }): number {
+  return p.revueDeLExercice ? 0 : p.mouvementsDeLExercice;
 }

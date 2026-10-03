@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { motifRefusDepreciationSmt } from '../../common/systeme-minimal';
 import {
   DETENTEUR_MOUVEMENT_CREANCE,
@@ -18,6 +19,7 @@ import {
   EcritureService,
 } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
+import { TauxTvaService } from '../tva/taux-tva.service';
 import {
   COMPTES_CREANCES_DOUTEUSES,
   RACINES_CREANCE_SOURCE,
@@ -27,11 +29,16 @@ import {
   comptePertePropose,
   ecartDeDepreciation,
   enPlaceAvant,
+  motifRefusAnnulationMouvement,
   motifRefusAnnulationRevue,
+  mouvementsSansRevue,
+  origineProposee,
+  repartirSurLesOrigines,
+  tvaFactureeDesOrigines,
+  VenteCandidate,
   motifRefusDeclaration,
   motifRefusMouvement,
   motifRefusRecuperationTva,
-  plafondTvaRecuperable,
   ventilationPerte,
   motifRefusReclassement,
   motifRefusRevue,
@@ -40,6 +47,7 @@ import {
   revueAFaire,
 } from './creances-douteuses';
 import {
+  AnnulerMouvementDto,
   AnnulerRevueDto,
   DeclarerCreanceOuvertureDto,
   PerteCreanceDto,
@@ -78,7 +86,16 @@ const INCLURE_CREANCE = {
     include: { exercice: { select: { dateDebut: true, dateFin: true, statut: true } } },
     orderBy: { date: 'asc' as const },
   },
-  mouvements: { orderBy: { date: 'asc' as const } },
+  // Seuls les mouvements NON ANNULÉS comptent (seconde relecture, K4) · le
+  // reste de la créance, les revues, la clôture et la déclaration de TVA les
+  // ignorent ; les annulés sont lus à part, pour l'écran.
+  mouvements: {
+    where: { annuleeLe: null },
+    include: { liquidationRecuperation: { select: { dateDebut: true, dateFin: true } } },
+    orderBy: { date: 'asc' as const },
+  },
+  // Les ventes d'origine (K3) · la TVA facturée se lit sur elles.
+  origines: { select: { ecritureId: true, montant: true }, orderBy: { createdAt: 'asc' as const } },
 } satisfies Prisma.CreanceDouteuseInclude;
 
 type Creance = Prisma.CreanceDouteuseGetPayload<{ include: typeof INCLURE_CREANCE }>;
@@ -100,6 +117,7 @@ export class CreancesDouteusesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
+    private readonly tva: TauxTvaService,
   ) {}
 
   /**
@@ -323,7 +341,7 @@ export class CreancesDouteusesService {
    */
   async lister(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
-    const [total, lignes, regime, annulees] = await Promise.all([
+    const [total, lignes, regime, annulees, mouvementsAnnules] = await Promise.all([
       this.prisma.creanceDouteuse.count({ where: { tenantId, dateReclassement: { lte: ex.dateFin } } }),
       this.prisma.creanceDouteuse.findMany({
         where: { tenantId, dateReclassement: { lte: ex.dateFin } },
@@ -338,15 +356,29 @@ export class CreancesDouteusesService {
         orderBy: { annuleeLe: 'asc' },
         take: PLAFOND_CREANCES_LISTEES,
       }),
+      this.prisma.mouvementCreanceDouteuse.findMany({
+        where: { tenantId, exerciceId: ex.id, annuleeLe: { not: null } },
+        select: { id: true, creanceId: true, type: true, date: true, montant: true, annuleeLe: true, motifAnnulation: true },
+        orderBy: { annuleeLe: 'asc' },
+        take: PLAFOND_CREANCES_LISTEES,
+      }),
     ]);
     const creances = lignes.map((c) => ({
       ...this.presenter(c, ex, regime.referentiel),
       revuesAnnulees: annulees.filter((a) => a.creanceId === c.id).map((a) => ({ id: a.id, annuleeLe: a.annuleeLe, motif: a.motifAnnulation })),
+      mouvementsAnnules: mouvementsAnnules
+        .filter((m) => m.creanceId === c.id)
+        .map((m) => ({ id: m.id, type: m.type, date: m.date, montant: n(m.montant), annuleeLe: m.annuleeLe, motif: m.motifAnnulation })),
     }));
     const { ids, provisoire } = await this.chaine(tenantId, ex);
+    // LE 491 DU MODULE SEUL (seconde relecture, M-b) · les comptes que ses
+    // créances déprécient. Un 491 qui porte d'autres dépréciations (créance
+    // dépréciée hors module, autre nature) fabriquait un écart qui n'est pas
+    // celui du module.
+    const comptes491 = [...new Set(lignes.map((c) => c.compte491Id))];
     const [solde416, solde491] = await Promise.all([
       this.solde(tenantId, { numero: { startsWith: COMPTES_CREANCES_DOUTEUSES.creances416 } }, ids, ex.dateFin),
-      this.solde(tenantId, { numero: { startsWith: '491' } }, ids, ex.dateFin),
+      comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
     ]);
     return {
       exercice: { id: ex.id, dateDebut: ex.dateDebut, dateFin: ex.dateFin, statut: ex.statut },
@@ -392,6 +424,12 @@ export class CreancesDouteusesService {
       depreciationOuverture: enPlaceOuverture,
       depreciationALaCloture: centimes(revue ? n(revue.depreciationNecessaire) : enPlaceOuverture),
       revueAFaire: revueAFaire({ revueDeLExercice: !!revue, enPlace: enPlaceOuverture, reste, aucuneRevue: c.ajustements.length === 0 }),
+      // M-c · une INFORMATION, jamais un refus.
+      mouvementsSansRevue: mouvementsSansRevue({
+        revueDeLExercice: !!revue,
+        mouvementsDeLExercice: c.mouvements.filter((m) => m.date >= ex.dateDebut && m.date <= ex.dateFin).length,
+      }),
+      ventesOrigine: c.origines.map((o) => ({ ecritureId: o.ecritureId, montant: n(o.montant) })),
       comptePertePropose: comptePertePropose(referentiel, c.compteCreance.numero),
       revue: revue
         ? {
@@ -422,7 +460,115 @@ export class CreancesDouteusesService {
         motif: m.motif,
         pieces: m.pieces,
         ecritureId: m.ecritureId,
+        tvaRecuperee: m.tvaRecuperee == null ? null : n(m.tvaRecuperee),
+        tvaNonExigible: m.tvaNonExigible,
+        // La liquidation qui impute la récupération (K1) · tant qu'elle tient,
+        // la perte ne s'annule pas.
+        liquidationRecuperation: m.liquidationRecuperation
+          ? { du: jour(m.liquidationRecuperation.dateDebut), au: jour(m.liquidationRecuperation.dateFin) }
+          : null,
       })),
+    };
+  }
+
+  /**
+   * LES VENTES DU CLIENT QUI PEUVENT ÊTRE L'ORIGINE D'UNE CRÉANCE (K3) · les
+   * écritures VALIDÉES qui débitent son compte jusqu'à la date, hors écritures
+   * du module, avec leur TTC au compte du client et ce qu'aucune autre
+   * créance n'en reprend déjà. Au reclassement, les seules lignes OUVERTES
+   * (sans lettre, donc hors d'un groupe soldé) ; à la déclaration d'ouverture
+   * (M-e), toutes les ventes antérieures à l'exercice, la créance ayant pu
+   * être reclassée à la main.
+   */
+  private async ventesCandidates(
+    tenantId: string,
+    compteCreanceId: string,
+    p: { auPlusTard?: Date; avant?: Date; ouvertes: boolean },
+  ): Promise<{ ventes: (VenteCandidate & { numeroPiece: number | null; libelle: string; ttc: number })[]; tronque: boolean }> {
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compteId: compteCreanceId,
+        debit: { gt: 0 },
+        ...(p.ouvertes ? { lettre: null } : {}),
+        ecriture: {
+          tenantId,
+          statut: StatutEcriture.VALIDEE,
+          date: p.avant ? { lt: p.avant } : { lte: p.auPlusTard },
+          creanceDouteuseReclassement: { is: null },
+          mouvementCreanceDouteuse: { is: null },
+        },
+      },
+      select: { ecritureId: true, debit: true, ecriture: { select: { date: true, numeroPiece: true, libelle: true } } },
+      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+      take: PLAFOND_COMPTES_CANDIDATS + 1,
+    });
+    const parEcriture = new Map<string, { date: Date; numeroPiece: number | null; libelle: string; ttc: number }>();
+    for (const l of lignes) {
+      const v = parEcriture.get(l.ecritureId) ?? { date: l.ecriture.date, numeroPiece: l.ecriture.numeroPiece, libelle: l.ecriture.libelle, ttc: 0 };
+      v.ttc = centimes(v.ttc + n(l.debit));
+      parEcriture.set(l.ecritureId, v);
+    }
+    const ids = [...parEcriture.keys()];
+    const repris = ids.length
+      ? await this.prisma.origineCreanceDouteuse.groupBy({
+          by: ['ecritureId'],
+          where: { tenantId, ecritureId: { in: ids } },
+          _sum: { montant: true },
+          orderBy: { ecritureId: 'asc' },
+        })
+      : [];
+    const dejaRepris = new Map(repris.map((r) => [r.ecritureId, n(r._sum?.montant)]));
+    return {
+      ventes: ids.map((id) => {
+        const v = parEcriture.get(id)!;
+        return { ecritureId: id, ...v, ouvert: centimes(v.ttc - (dejaRepris.get(id) ?? 0)) };
+      }),
+      tronque: lignes.length > PLAFOND_COMPTES_CANDIDATS,
+    };
+  }
+
+  /** Les ventes d'origine choisies, vérifiées et réparties · un refus nommé sinon. */
+  private async originesChoisies(
+    tenantId: string,
+    compteCreanceId: string,
+    montant: number,
+    choisies: readonly string[] | undefined,
+    p: { auPlusTard?: Date; avant?: Date; ouvertes: boolean },
+  ): Promise<{ ecritureId: string; montant: number }[]> {
+    if (!choisies || choisies.length === 0) return [];
+    const { ventes } = await this.ventesCandidates(tenantId, compteCreanceId, p);
+    const parId = new Map(ventes.map((v) => [v.ecritureId, v]));
+    const inconnues = [...new Set(choisies)].filter((id) => !parId.has(id));
+    if (inconnues.length > 0) {
+      throw new BadRequestException(
+        `${inconnues.length} vente(s) choisie(s) ne sont pas des ventes validées ${p.ouvertes ? 'ouvertes ' : ''}de ce client ` +
+          `datées ${p.avant ? `avant le ${jour(p.avant)}` : `au plus tard le ${jour(p.auPlusTard!)}`} · la facture d'origine se choisit parmi elles.`,
+      );
+    }
+    const r = repartirSurLesOrigines(montant, [...new Set(choisies)].map((id) => parId.get(id)!));
+    if (r.refus) throw new BadRequestException(r.refus);
+    return r.parts;
+  }
+
+  /** L'écran · les ventes candidates et la proposition sans ambiguïté (K3, M-e). */
+  async ventesOrigine(
+    tenantId: string,
+    q: { exerciceId: string; compteCreanceId: string; montant?: string; date?: string; ouverture?: string },
+  ) {
+    const ex = await this.exercice(tenantId, q.exerciceId);
+    const compte = await this.compteParId(tenantId, q.compteCreanceId);
+    const ouverture = q.ouverture === 'true' || q.ouverture === '1';
+    const date = q.date ? new Date(q.date.slice(0, 10)) : ex.dateFin;
+    const { ventes, tronque } = await this.ventesCandidates(
+      tenantId,
+      compte.id,
+      ouverture ? { avant: ex.dateDebut, ouvertes: false } : { auPlusTard: date, ouvertes: true },
+    );
+    const montant = Number(q.montant);
+    return {
+      ventes: ventes.map((v) => ({ ecritureId: v.ecritureId, date: jour(v.date), numeroPiece: v.numeroPiece, libelle: v.libelle, ttc: v.ttc, ouvert: v.ouvert })),
+      proposees: Number.isFinite(montant) && montant > 0 ? origineProposee(montant, ventes.filter((v) => v.ouvert > 0.005)) : [],
+      tronque,
     };
   }
 
@@ -483,6 +629,8 @@ export class CreancesDouteusesService {
         "passez l'à-nouveau (ou le bilan d'ouverture), puis reprenez le reclassement.";
     }
     if (motif) throw new BadRequestException(motif);
+    // LES VENTES D'ORIGINE, vérifiées AVANT l'écriture (K3).
+    const origines = await this.originesChoisies(tenantId, source.id, dto.montant, dto.ventesOrigineIds, { auPlusTard: date, ouvertes: true });
 
     const nature = dto.nature === NatureCreanceDouteuse.LITIGIEUSE ? 'litigieuse' : 'douteuse';
     const ecriture = await this.ecritures.creer(tenantId, userId, {
@@ -496,8 +644,8 @@ export class CreancesDouteusesService {
       ],
     });
     try {
-      const ligne = await transactionJournalisee(this.prisma, (tx) =>
-        tx.creanceDouteuse.create({
+      const ligne = await transactionJournalisee(this.prisma, async (tx) => {
+        const creee = await tx.creanceDouteuse.create({
           data: {
             tenantId,
             exerciceId: ex.id,
@@ -512,9 +660,13 @@ export class CreancesDouteusesService {
             ecritureReclassementId: ecriture.id,
             createdBy: userId,
           },
-        }),
-      );
-      return { ...ligne, montant: n(ligne.montant) };
+        });
+        for (const o of origines) {
+          await tx.origineCreanceDouteuse.create({ data: { tenantId, creanceId: creee.id, ecritureId: o.ecritureId, montant: o.montant } });
+        }
+        return creee;
+      });
+      return { ...ligne, montant: n(ligne.montant), ventesOrigine: origines };
     } catch (err) {
       // Une ligne refusée ne laisse pas son écriture au journal.
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
@@ -542,18 +694,11 @@ export class CreancesDouteusesService {
     const c491 = await this.compteDetail(tenantId, compte491(dto.nature));
     const date = ex.dateDebut;
     const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
-    const [an416, an491, declare416, declare491, existe] = await Promise.all([
+    const [an416, an491, existe, dejaPorte] = await Promise.all([
       this.prisma.ligneEcriture.aggregate({ where: { compteId: c416.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
       this.prisma.ligneEcriture.aggregate({ where: { compteId: c491.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
-      this.prisma.creanceDouteuse.aggregate({
-        where: { tenantId, declareeOuverture: true, compte416Id: c416.id, dateReclassement: date },
-        _sum: { montant: true },
-      }),
-      this.prisma.creanceDouteuse.aggregate({
-        where: { tenantId, declareeOuverture: true, compte491Id: c491.id, dateReclassement: date },
-        _sum: { depreciationOuverture: true },
-      }),
       this.aUnANouveau(tenantId, ex.id),
+      this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
     ]);
     const motif = motifRefusDeclaration({
       referentiel,
@@ -568,13 +713,15 @@ export class CreancesDouteusesService {
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
       aNouveau: existe,
       aNouveau416: centimes(n(an416._sum.debit) - n(an416._sum.credit)),
-      dejaDeclare416: n(declare416._sum.montant),
+      dejaDeclare416: dejaPorte.sur416,
       aNouveau491: centimes(n(an491._sum.credit) - n(an491._sum.debit)),
-      dejaDeclare491: n(declare491._sum.depreciationOuverture),
+      dejaDeclare491: dejaPorte.sur491,
     });
     if (motif) throw new BadRequestException(motif);
-    const ligne = await transactionJournalisee(this.prisma, (tx) =>
-      tx.creanceDouteuse.create({
+    // M-e · les ventes d'origine, si elles sont tenues dans OmegaX.
+    const origines = await this.originesChoisies(tenantId, source.id, dto.montant, dto.ventesOrigineIds, { avant: date, ouvertes: false });
+    const ligne = await transactionJournalisee(this.prisma, async (tx) => {
+      const creee = await tx.creanceDouteuse.create({
         data: {
           tenantId,
           exerciceId: ex.id,
@@ -591,9 +738,44 @@ export class CreancesDouteusesService {
           depreciationOuverture: centimes(dto.depreciationOuverture),
           createdBy: userId,
         },
-      }),
+      });
+      for (const o of origines) {
+        await tx.origineCreanceDouteuse.create({ data: { tenantId, creanceId: creee.id, ecritureId: o.ecritureId, montant: o.montant } });
+      }
+      return creee;
+    });
+    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture), ventesOrigine: origines };
+  }
+
+  /**
+   * CE QUE LE MODULE PORTE DÉJÀ À L'OUVERTURE sur un 416 et un 491 (seconde
+   * relecture, M-a) · le RESTE à la veille de chaque créance reclassée avant
+   * l'exercice et non sortie, et chaque créance déjà DÉCLARÉE à cette
+   * ouverture ; leur dépréciation en place au premier jour. Sans ce reste,
+   * une créance reclassée en N-1 et encore au 416 laissait déclarer une
+   * seconde fois le même montant, sous la borne de l'à-nouveau.
+   */
+  private async dejaPorteALOuverture(tenantId: string, ouverture: Date, compte416Id: string, compte491Id: string) {
+    const veille = new Date(ouverture.getTime() - 24 * 60 * 60 * 1000);
+    let sur416 = 0;
+    let sur491 = 0;
+    await lireParLots(
+      (curseur) =>
+        this.prisma.creanceDouteuse.findMany({
+          where: { tenantId, dateReclassement: { lte: ouverture }, OR: [{ compte416Id }, { compte491Id }] },
+          include: INCLURE_CREANCE,
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      (c) => {
+        const aLOuverture = c.dateReclassement.getTime() === ouverture.getTime();
+        if (c.compte416Id === compte416Id) {
+          sur416 += aLOuverture ? n(c.montant) : this.reste(c, veille);
+        }
+        if (c.compte491Id === compte491Id) sur491 += this.enPlace(c, ouverture);
+      },
+      LOT_ECRITURES,
     );
-    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture) };
+    return { sur416: centimes(sur416), sur491: centimes(sur491) };
   }
 
   /**
@@ -873,14 +1055,27 @@ export class CreancesDouteusesService {
     let compteTva: { id: string } | null = null;
     let tauxTvaId: string | null = null;
     let ventilation: { horsTaxe: number; tva: number } | null = null;
+    let tvaFacturee: number | null = null;
+    let tvaNonExigible = false;
     if (recup) {
       const k = await this.compteParId(tenantId, recup.compteTvaId);
+      // LA VENTE D'ORIGINE DIT LE COMPTE, LE TAUX ET LA TVA FACTURÉE (K2, K3) ·
+      // lus sur les ventes rattachées à la créance, jamais devinés ni reçus de
+      // l'écran · absents ou ambigus, la récupération est refusée.
+      const origine = await this.origineTva(tenantId, c);
+      if (!origine.proposition) {
+        throw new BadRequestException(
+          `${origine.raison} La ligne de récupération doit porter le compte et le taux de la vente d’origine (décret n° 011/42, ` +
+            'art. 126) · sans eux, la récupération est refusée ; la perte peut passer au TTC entier.',
+        );
+      }
       const refusTva = motifRefusRecuperationTva({
         assujetti: assujettiTva,
         montantSorti: montant,
         montantCreance: n(c.montant),
         tvaRecuperee: recup.tvaRecuperee,
-        tvaFactureeCreance: recup.tvaFactureeCreance,
+        tvaFactureeCreance: origine.proposition.tvaFactureeCreance,
+        tvaFactureeSaisie: recup.tvaFactureeCreance ?? null,
         numeroCompteTva: k.numero,
         compteTvaEstDetail: k.typeCompte === TypeCompteDetailTotal.DETAIL,
         duplicataReference: recup.duplicataReference,
@@ -888,22 +1083,19 @@ export class CreancesDouteusesService {
         datePerte: jour(date),
       });
       if (refusTva) throw new BadRequestException(refusTva);
-      // LE TAUX DE LA VENTE D'ORIGINE (décret n° 011/42, art. 126) · lu par le
-      // lettrage, jamais deviné · absent ou ambigu, la récupération est refusée.
-      const origine = await this.origineTva(tenantId, c);
-      if (!origine.proposition) {
-        throw new BadRequestException(
-          `${origine.raison} La ligne de récupération doit porter le taux de la vente d’origine pour entrer dans la déclaration ` +
-            'du mois suivant (décret n° 011/42, art. 126) · sans lui, la récupération est refusée ; la perte peut passer au TTC entier.',
-        );
-      }
       if (origine.proposition.compteTvaId !== k.id) {
         throw new BadRequestException(
           `La TVA de la vente d’origine est au ${origine.proposition.numero} · la récupération se débite sur ce compte, celui que la ` +
             'liquidation a soldé (fiche du compte 70, « le compte 443 est débité des taxes facturées des retours »).',
         );
       }
-      tauxTvaId = origine.proposition.tauxTvaId;
+      // UNE TVA EXIGIBLE À L'ENCAISSEMENT N'A JAMAIS ÉTÉ DÉCLARÉE POUR LA PART
+      // PERDUE (O.-L. n° 10/001, art. 25, 2° ; K3) · elle sort du 443, qui la
+      // portait en attente, sur une ligne SANS TAUX, hors de toute
+      // déclaration · la « récupérer » rembourserait une taxe jamais payée.
+      tvaNonExigible = origine.proposition.base === 'ENCAISSEMENT';
+      tauxTvaId = tvaNonExigible ? null : origine.proposition.tauxTvaId;
+      tvaFacturee = origine.proposition.tvaFactureeCreance;
       compteTva = { id: k.id };
       ventilation = ventilationPerte(montant, recup.tvaRecuperee);
     }
@@ -941,7 +1133,9 @@ export class CreancesDouteusesService {
             ...(recup && ventilation && compteTva
               ? {
                   tvaRecuperee: ventilation.tva,
-                  tvaFactureeCreance: centimes(recup.tvaFactureeCreance),
+                  // La valeur du SERVEUR, figée (K2).
+                  tvaFactureeCreance: centimes(tvaFacturee ?? 0),
+                  tvaNonExigible,
                   compteTvaId: compteTva.id,
                   duplicataReference: recup.duplicataReference.trim(),
                   duplicataDateEnvoi: new Date(recup.duplicataDateEnvoi.slice(0, 10)),
@@ -965,10 +1159,9 @@ export class CreancesDouteusesService {
 
   /**
    * LA TVA FACTURÉE DE LA VENTE D'ORIGINE, PROPOSÉE · jamais devinée (E2).
-   * Lue par le LETTRAGE du compte du client · la ligne du reclassement lettrée
-   * avec les factures, et les lignes du 443 de ces factures. Un seul 443
-   * proposé ; plusieurs, ou aucun lettrage, rien n'est proposé et la raison
-   * est dite. La liste des 443 de détail du plan est servie à côté.
+   * Lue sur les VENTES D'ORIGINE rattachées à la créance (K3), avec la base
+   * d'exigibilité de leur TVA. La liste des 443 de détail du plan est servie
+   * à côté.
    */
   async tvaOrigine(tenantId: string, id: string) {
     const c = await this.creance(tenantId, id);
@@ -991,58 +1184,64 @@ export class CreancesDouteusesService {
   }
 
   /**
-   * LA TVA DE LA VENTE D'ORIGINE, lue par le LETTRAGE du compte du client · la
-   * ligne du reclassement lettrée avec les factures, et les lignes du 443 de
-   * ces factures, avec leur TAUX. Un seul compte et un seul taux proposés ;
-   * plusieurs, ou aucun, rien n'est proposé et la raison est dite. Le TAUX
-   * est celui que la ligne de récupération portera (décret n° 011/42,
-   * art. 126 · la récupération s'inscrit dans les déductions de la
-   * déclaration), et il n'est jamais deviné.
+   * LA TVA DE LA VENTE D'ORIGINE, lue sur les VENTES RATTACHÉES à la créance
+   * (seconde relecture, K3) · jamais sur le lettrage du reclassement, qui
+   * faisait lire la facture comme encaissée. Sur chaque vente, la TVA au
+   * prorata de la part que la créance en reprend ; un seul compte et un seul
+   * taux, sinon rien n'est proposé et la raison est dite. Le TAUX est celui
+   * que la ligne de récupération portera (décret n° 011/42, art. 126), et la
+   * BASE dit si cette TVA a jamais été exigible (O.-L. n° 10/001, art. 25).
    */
   private async origineTva(
     tenantId: string,
     c: Creance,
   ): Promise<{
-    proposition: { compteTvaId: string; numero: string; tauxTvaId: string; tvaFactureeCreance: number } | null;
+    proposition: {
+      compteTvaId: string;
+      numero: string;
+      tauxTvaId: string;
+      tvaFactureeCreance: number;
+      base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT';
+    } | null;
     raison: string | null;
   }> {
     const sans = (raison: string) => ({ proposition: null, raison });
-    if (!c.ecritureReclassementId) return sans('Créance déclarée à l’ouverture · aucune facture d’origine connue, son taux ne se lit pas.');
-    const reclassement = await this.prisma.ligneEcriture.findFirst({
-      where: { ecritureId: c.ecritureReclassementId, compteId: c.compteCreance.id, ecriture: { tenantId } },
-      select: { lettrageId: true },
-    });
-    if (!reclassement?.lettrageId) {
-      return sans('Le reclassement n’est pas lettré avec les factures du client · la TVA facturée et son taux ne se lisent pas. Lettrez-le d’abord.');
+    if (c.origines.length === 0) {
+      return sans(
+        c.declareeOuverture
+          ? 'Créance déclarée à l’ouverture sans vente d’origine tenue dans OmegaX · sa TVA ne se récupère pas dans le module.'
+          : 'Aucune vente d’origine n’est rattachée à cette créance · la TVA facturée et son taux ne se lisent pas.',
+      );
     }
-    const factures = await this.prisma.ligneEcriture.findMany({
-      where: { lettrageId: reclassement.lettrageId, compteId: c.compteCreance.id, debit: { gt: 0 }, ecriture: { tenantId } },
-      select: { ecritureId: true, debit: true },
-      take: 200,
+    const ids = c.origines.map((o) => o.ecritureId);
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecritureId: { in: ids },
+        ecriture: { tenantId },
+        OR: [{ compteId: c.compteCreance.id }, { compte: { tenantId, numero: { startsWith: '443' } } }],
+      },
+      select: { ecritureId: true, compteId: true, tauxTvaId: true, debit: true, credit: true, compte: { select: { numero: true } } },
+      take: 2000,
     });
-    const tva = await this.prisma.ligneEcriture.findMany({
-      where: { ecritureId: { in: factures.map((f) => f.ecritureId) }, compte: { tenantId, numero: { startsWith: '443' } }, ecriture: { tenantId } },
-      select: { compteId: true, tauxTvaId: true, debit: true, credit: true, compte: { select: { numero: true } } },
-      take: 500,
-    });
-    const parCompte = new Map<string, { numero: string; montant: number }>();
-    const taux = new Set<string | null>();
-    for (const l of tva) {
-      const k = parCompte.get(l.compteId) ?? { numero: l.compte.numero, montant: 0 };
-      k.montant += n(l.credit) - n(l.debit);
-      parCompte.set(l.compteId, k);
-      taux.add(l.tauxTvaId ?? null);
-    }
-    if (parCompte.size === 0) return sans('Les factures lettrées ne portent aucune TVA facturée.');
-    if (parCompte.size > 1) return sans('Les factures lettrées portent plusieurs comptes de TVA · la récupération ne se répartit pas d’office.');
-    if (taux.has(null)) return sans('Une ligne de TVA des factures lettrées ne porte aucun taux · le taux de la vente d’origine ne se lit pas.');
-    if (taux.size !== 1) return sans('Les factures lettrées portent plusieurs taux de TVA · le taux de la récupération serait deviné.');
-    const [[compteTvaId, k]] = [...parCompte.entries()];
-    const ttcFactures = factures.reduce((s, f) => s + n(f.debit), 0);
-    // La TVA des factures, ramenée à la créance reclassée quand celle-ci n'en
-    // reprend qu'une part (même prorata que la borne de la récupération).
-    const tvaFacturee = ttcFactures > 0 ? plafondTvaRecuperable(k.montant, Math.min(n(c.montant), ttcFactures), ttcFactures) : 0;
-    return { proposition: { compteTvaId, numero: k.numero, tauxTvaId: [...taux][0]!, tvaFactureeCreance: tvaFacturee }, raison: null };
+    const lue = tvaFactureeDesOrigines(
+      c.origines.map((o) => {
+        const dela = lignes.filter((l) => l.ecritureId === o.ecritureId);
+        return {
+          part: n(o.montant),
+          ttcClient: dela.filter((l) => l.compteId === c.compteCreance.id).reduce((s, l) => s + n(l.debit) - n(l.credit), 0),
+          tva: dela
+            .filter((l) => l.compte.numero.startsWith('443'))
+            .map((l) => ({ compteId: l.compteId, numero: l.compte.numero, tauxTvaId: l.tauxTvaId, montant: n(l.credit) - n(l.debit) })),
+        };
+      }),
+    );
+    if ('raison' in lue) return sans(lue.raison);
+    const base = await this.tva.baseExigibiliteDesVentes(tenantId, ids);
+    if (!base.base) return sans(base.raison ?? 'La base d’exigibilité de la TVA des ventes d’origine ne se lit pas.');
+    return {
+      proposition: { compteTvaId: lue.compteId, numero: lue.numero, tauxTvaId: lue.tauxTvaId, tvaFactureeCreance: lue.tvaFacturee, base: base.base },
+      raison: null,
+    };
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable. */
@@ -1065,22 +1264,30 @@ export class CreancesDouteusesService {
   retirerCreance(tenantId: string, id: string) {
     return this.sousVerrou(tenantId, 'RETRAIT', async () => {
       const c = await this.creance(tenantId, id);
-      const toutes = await this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id } });
-      if (toutes > 0 || c.mouvements.length > 0) {
+      const [toutes, tousMouvements] = await Promise.all([
+        this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id } }),
+        this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, creanceId: c.id } }),
+      ]);
+      if (toutes > 0 || tousMouvements > 0) {
         throw new BadRequestException(
-          'Cette créance porte déjà une revue (même annulée, elle se garde) ou un mouvement · la créance ne se retire plus, ' +
+          'Cette créance porte déjà une revue ou un mouvement (même annulés, ils se gardent) · la créance ne se retire plus, ' +
             'sa sortie se fait par la perte ou le recouvrement.',
         );
       }
       const ex = await this.exercice(tenantId, c.exerciceId);
       if (ex.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice de cette créance est clôturé.");
+      // Les ventes d'origine partent avec la créance, dans la même transaction.
+      const retirer = async (tx: Prisma.TransactionClient) => {
+        await tx.origineCreanceDouteuse.deleteMany({ where: { tenantId, creanceId: c.id } });
+        await tx.creanceDouteuse.delete({ where: { id: c.id } });
+      };
       if (!c.ecritureReclassementId) {
-        await transactionJournalisee(this.prisma, (tx) => tx.creanceDouteuse.delete({ where: { id: c.id } }));
+        await transactionJournalisee(this.prisma, retirer);
         return { retire: true };
       }
       await this.ecritures.supprimer(tenantId, c.ecritureReclassementId, {
         detenteur: DETENTEUR_RECLASSEMENT_CREANCE,
-        liberer: (tx) => tx.creanceDouteuse.delete({ where: { id: c.id } }),
+        liberer: retirer,
       });
       return { retire: true };
     });
@@ -1097,11 +1304,117 @@ export class CreancesDouteusesService {
           `La revue de la clôture du ${jour(revue.date)} a compté ce mouvement dans le reste de la créance · annulez-la d’abord.`,
         );
       }
+      if (!mv.ecritureId) throw new BadRequestException('Ce mouvement n’a plus d’écriture · il est annulé.');
       await this.ecritures.supprimer(tenantId, mv.ecritureId, {
         detenteur: DETENTEUR_MOUVEMENT_CREANCE,
         liberer: (tx) => tx.mouvementCreanceDouteuse.delete({ where: { id: mv.id } }),
       });
       return { retire: true };
+    });
+  }
+
+  /**
+   * L'ANNULATION D'UNE PERTE OU D'UN RECOUVREMENT (seconde relecture, K4) ·
+   * sur le modèle de `annulerRevue` (AUDCIF art. 20, al. 2) · au brouillard,
+   * l'écriture est supprimée ; validée, elle est inscrite en négatif ; une
+   * ligne lettrée ou pointée refuse (`motifLignesTenues`) ; le mouvement est
+   * MARQUÉ annulé par un `update` unitaire (journal d'audit), jamais
+   * supprimé. Refus · revue qui l'a compté et n'est pas annulée, exercice
+   * clôturé, perte dont une liquidation non annulée impute la récupération.
+   * Annulé, il sort du reste de la créance, des revues, de la clôture (B1),
+   * de la déclaration de TVA et du rapprochement ; l'enregistrement exact se
+   * repasse ensuite par le geste ordinaire.
+   */
+  annulerMouvement(tenantId: string, userId: string, id: string, mouvementId: string, dto: AnnulerMouvementDto) {
+    return this.sousVerrou(tenantId, 'ANNULATION DE MOUVEMENT', () =>
+      this.annulerMouvementSousVerrou(tenantId, userId, id, mouvementId, dto.motif),
+    );
+  }
+
+  private async annulerMouvementSousVerrou(tenantId: string, userId: string, id: string, mouvementId: string, motifSaisi: string) {
+    const mv = await this.prisma.mouvementCreanceDouteuse.findFirst({
+      where: { id: mouvementId, creanceId: id, tenantId },
+      include: {
+        exercice: { select: { statut: true } },
+        liquidationRecuperation: { select: { dateDebut: true, dateFin: true } },
+        ecriture: {
+          select: { id: true, statut: true, numeroPiece: true, lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } } },
+        },
+      },
+    });
+    if (!mv) throw new NotFoundException('Mouvement introuvable pour cette créance.');
+    const revue = await this.prisma.ajustementCreanceDouteuse.findFirst({
+      where: { tenantId, creanceId: id, annuleeLe: null, exercice: { dateFin: { gte: mv.date } } },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+    const refus = motifRefusAnnulationMouvement({
+      dejaAnnule: mv.annuleeLe ? jour(mv.annuleeLe) : null,
+      exerciceClos: mv.exercice.statut === StatutExercice.CLOTURE,
+      revueNonAnnulee: revue ? jour(revue.date) : null,
+      liquidationRecuperation: mv.liquidationRecuperation
+        ? { du: jour(mv.liquidationRecuperation.dateDebut), au: jour(mv.liquidationRecuperation.dateFin) }
+        : null,
+      motif: motifSaisi,
+    });
+    if (refus) throw new BadRequestException(refus);
+    const motif = motifSaisi.trim();
+    const nom = mv.type === TypeMouvementCreanceDouteuse.PERTE ? 'de la perte' : 'du recouvrement';
+    const objet = `l'écriture ${nom} n° ${mv.ecriture?.numeroPiece ?? '·'}`;
+    if (mv.ecriture) {
+      const tenues = motifLignesTenues(mv.ecriture.lignes, objet, 'annuler', ', puis annulez le mouvement');
+      if (tenues) throw new BadRequestException(tenues);
+    }
+    return transactionJournalisee(this.prisma, async (tx) => {
+      const e = mv.ecriture;
+      let annulation: Record<string, unknown> = { traitement: 'SANS_ECRITURE' };
+      if (e) {
+        // Relu dans la transaction · un lettrage ou un pointage posé entre-temps refuse aussi.
+        const relues = await tx.ligneEcriture.findMany({
+          where: { ecritureId: e.id, ecriture: { tenantId } },
+          select: { lettre: true, lettrageId: true, rapprochementId: true },
+        });
+        const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le mouvement');
+        if (tenues) throw new BadRequestException(tenues);
+        if (e.statut === StatutEcriture.BROUILLARD) {
+          annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
+        } else {
+          const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+          annulation = {
+            traitement: 'INSCRITE_EN_NEGATIF',
+            ecritureId: e.id,
+            numeroPiece: e.numeroPiece,
+            negatifId: negatif.id,
+            negatifNumeroPiece: negatif.numeroPiece,
+          };
+        }
+      }
+      // Marqué AVANT la suppression du brouillard, sur une ligne encore non
+      // annulée et non imputée par une liquidation · le lien vers une
+      // écriture supprimée est effacé, l'écriture inscrite en négatif reste
+      // nommée.
+      try {
+        await tx.mouvementCreanceDouteuse.update({
+          where: { id: mv.id, tenantId, annuleeLe: null, liquidationRecuperationId: null },
+          data: {
+            annuleeLe: new Date(),
+            annuleePar: userId,
+            motifAnnulation: motif,
+            annulation: annulation as Prisma.InputJsonValue,
+            ...(annulation.traitement === 'SUPPRIMEE' ? { ecritureId: null } : {}),
+          },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException('Ce mouvement est déjà annulé, ou une liquidation de TVA vient d’en imputer la récupération.');
+        }
+        throw err;
+      }
+      if (e && annulation.traitement === 'SUPPRIMEE') {
+        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id } });
+        await tx.ecriture.deleteMany({ where: { id: e.id, tenantId } });
+      }
+      return { annule: true, annulation };
     });
   }
 }

@@ -7,7 +7,7 @@ import { appelApi, creerDossier, seConnecter, surveiller } from './outils';
  * qu'elles sont lues et écrites comme le schéma l'annonce. Parcours court ·
  * une vente de 1 160 000 au client, reclassée au 416, dépréciée de 400 000
  * à la clôture (D 6594 / C 491), l'écriture tenue par le module, puis la
- * revue retirée et la créance avec elle.
+ * revue annulée, et une perte saisie fausse annulée puis repassée (K4).
  */
 interface Exercice { id: string; dateDebut: string; dateFin: string }
 interface Compte { id: string; numero: string; typeCompte: string }
@@ -116,7 +116,26 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(apres.creances[0].revuesAnnulees).toHaveLength(1);
     expect(apres.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 0, depreciationModule: 0 });
     // Une créance dont une revue est gardée, même annulée, ne se retire plus.
-    await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*même annulée/);
+    await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*même annulés/);
+
+    // K4 · une perte saisie 1 000 000 au lieu de 100 000 s'ANNULE (au brouillard,
+    // son écriture part), reste au dossier marquée, et le bon montant se repasse.
+    const perte = (montant: number) =>
+      appelApi<{ id: string }>(page, 'POST', `/creances-douteuses/${creance.id}/perte`, {
+        exerciceId: exercice.id,
+        journalId: od.id,
+        date: `${annee}-12-20`,
+        montant,
+        motif: 'Liquidation judiciaire clôturée pour insuffisance d’actif',
+        pieces: [{ nature: 'Certificat d’irrécouvrabilité', reference: 'CI-1' }],
+      });
+    const fausse = await perte(1_000_000);
+    await appelApi(page, 'POST', `/creances-douteuses/${creance.id}/mouvements/${fausse.id}/annuler`, { motif: 'Montant saisi faux' });
+    await perte(100_000);
+    const fin = await appelApi<Liste & { creances: Array<{ mouvementsAnnules: unknown[] }> }>(page, 'GET', `/creances-douteuses?exerciceId=${exercice.id}`);
+    expect(fin.creances[0].resteALaCloture).toBe(1_060_000);
+    expect(fin.creances[0].mouvementsAnnules).toHaveLength(1);
+    expect(fin.rapprochement?.solde416).toBe(1_060_000);
     expect(pannes).toEqual([]);
   });
 }

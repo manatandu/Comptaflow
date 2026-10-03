@@ -70,6 +70,17 @@ export class ReclasserCreanceDto extends MotifEtPiecesDto {
 
   @IsNumber({ maxDecimalPlaces: 2 })
   montant!: number;
+
+  /**
+   * K3 · les écritures de VENTE dont la créance est issue, choisies parmi
+   * les ventes ouvertes du client (ou proposées sans ambiguïté). Absentes,
+   * la créance n'a pas de facture d'origine, et sa TVA ne se récupère pas.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  ventesOrigineIds?: string[];
 }
 
 /** La revue de la dépréciation à la clôture d'un exercice (fiche du compte 49). */
@@ -93,8 +104,14 @@ export class RecuperationTvaDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   tvaRecuperee!: number;
 
+  /**
+   * La TVA facturée que l'écran a montrée · FACULTATIVE, le serveur la
+   * calcule sur les factures d'origine et refuse un écart de plus d'un
+   * centime (K2). Jamais figée depuis l'écran.
+   */
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
-  tvaFactureeCreance!: number;
+  tvaFactureeCreance?: number;
 
   @IsString()
   @MaxLength(200)
@@ -155,6 +172,9 @@ export class AnnulerRevueDto {
   motif!: string;
 }
 
+/** L'annulation d'une perte ou d'un recouvrement (K4 · AUDCIF art. 20, al. 2) · même motif. */
+export class AnnulerMouvementDto extends AnnulerRevueDto {}
+
 /**
  * DOSSIER REPRIS · la créance déjà au 416 et sa dépréciation déjà au 491
  * avant OmegaX, déclarées au premier jour de l'exercice choisi, sans écriture.
@@ -193,4 +213,15 @@ export class DeclarerCreanceOuvertureDto {
   @ValidateNested({ each: true })
   @Type(() => PieceJustificativeDto)
   pieces?: PieceJustificativeDto[];
+
+  /**
+   * M-e · les ventes d'origine, quand elles sont tenues dans OmegaX
+   * (exercice antérieur gardé) · seules elles ouvrent la récupération de la
+   * TVA à la perte. Absentes, aucune TVA ne se récupère dans le module.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  ventesOrigineIds?: string[];
 }
