@@ -40,6 +40,8 @@ import {
   type UniteComparaison,
   valideesDepuisLePv,
 } from './solde-caisse-au-comptage';
+import { libelleLieuBien } from './lieu-sur-fiche';
+import { type CampagneEdition, editionFichesVierges, editionPvCaisse, editionPvInventaire } from './editions-inventaire';
 
 /**
  * INVENTAIRE PHYSIQUE · l'obligation qu'OmegaX ne portait pas.
@@ -349,16 +351,32 @@ export class InventaireService {
     const [biens, dejaFichees] = await Promise.all([
       this.prisma.immobilisation.findMany({
         where: { tenantId, statut: StatutImmobilisation.EN_SERVICE },
+        include: { lieu: { select: { code: true, intitule: true } } },
         orderBy: { designation: 'asc' },
       }),
       this.prisma.ficheInventaire.findMany({
         where: { tenantId, campagneId, immobilisationId: { not: null } },
-        select: { immobilisationId: true },
+        select: { id: true, immobilisationId: true, emplacement: true },
       }),
     ]);
     const connues = new Set(dejaFichees.map((f) => f.immobilisationId));
     const aCreer = biens.filter((b) => !connues.has(b.id));
-    if (aCreer.length === 0) return { creees: 0, deja: connues.size };
+
+    // LE LIEU DU BIEN SUR SA FICHE (ligne A19, AUDCIF art. 16, al. 6 et 7 ·
+    // `lieu-sur-fiche.ts`). Une fiche engendrée avant la règle, encore SANS
+    // emplacement, le reçoit au geste suivant · jamais une fiche dont
+    // l'emplacement a été saisi, qui dit où le bien a été VU et prime sur le
+    // fichier. Une à une, sur l'identifiant · la campagne est encore ouverte
+    // (statut vérifié plus haut), rien n'est figé.
+    const lieuParBien = new Map(biens.map((b) => [b.id, libelleLieuBien(b.lieu)]));
+    const aCompleter = dejaFichees.filter((f) => !f.emplacement && f.immobilisationId && lieuParBien.get(f.immobilisationId));
+    for (const f of aCompleter) {
+      await this.prisma.ficheInventaire.updateMany({
+        where: { id: f.id, tenantId, emplacement: null },
+        data: { emplacement: lieuParBien.get(f.immobilisationId as string) },
+      });
+    }
+    if (aCreer.length === 0) return { creees: 0, deja: connues.size, lieuxRecopies: aCompleter.length };
 
     // Le compte d'imputation du bien est celui contre lequel son écart se
     // mesurera · c'est lui qui porte la valeur d'entrée au bilan. À la date
@@ -371,10 +389,11 @@ export class InventaireService {
         compteId: compteInscritALaDate(b, campagne.dateInventaire),
         immobilisationId: b.id,
         designation: b.numeroInventaire ? `${b.numeroInventaire} · ${b.designation}` : b.designation,
+        emplacement: libelleLieuBien(b.lieu),
         uniteMesure: 'unité',
       })),
     });
-    return { creees: aCreer.length, deja: connues.size };
+    return { creees: aCreer.length, deja: connues.size, lieuxRecopies: aCompleter.length };
   }
 
   async creerFiche(tenantId: string, campagneId: string, dto: CreerFicheDto) {
@@ -1478,6 +1497,140 @@ export class InventaireService {
 
   /** Une tranche de travail qui se dit (§ 8 bis) · total et `tronque` servis. */
   static readonly PLAFOND_MOUVEMENTS_RECONSTITUTION = 500;
+
+  // --- Éditions (ligne A19, relevé CPCC C16 · `editions-inventaire.ts`) -----
+
+  /** La campagne telle qu'une édition la présente, exercice compris. */
+  private async campagnePourEdition(tenantId: string, campagneId: string): Promise<CampagneEdition> {
+    const c = await this.prisma.campagneInventaire.findFirst({
+      where: { id: campagneId, tenantId },
+      include: { exercice: { select: { dateDebut: true, dateFin: true, dateArreteComptes: true } } },
+    });
+    if (!c) throw new NotFoundException("Campagne d'inventaire introuvable.");
+    return {
+      id: c.id,
+      libelle: c.libelle,
+      dateInventaire: c.dateInventaire,
+      statut: c.statut,
+      instructions: c.instructions,
+      exercice: c.exercice,
+    };
+  }
+
+  /**
+   * L'auteur d'un acte est un identifiant en base · un lecteur du document ne
+   * lit pas un uuid. Retiré du dossier, il est NOMMÉ comme tel, jamais laissé
+   * en case vide qui se lirait « personne » (même règle que l'export du
+   * journal).
+   */
+  private async courrielDe(tenantId: string, userId: string): Promise<string> {
+    const u = await this.prisma.user.findFirst({ where: { id: userId, tenantId }, select: { email: true } });
+    return u?.email ?? 'utilisateur retiré du dossier';
+  }
+
+  private sousCommissionsAvecMembres(tenantId: string, campagneId: string) {
+    return this.prisma.sousCommissionInventaire.findMany({
+      where: { tenantId, campagneId },
+      include: { membres: { select: { nom: true, fonction: true, role: true }, orderBy: { createdAt: 'asc' } } },
+      orderBy: { nom: 'asc' },
+    });
+  }
+
+  private fichesPourEdition(tenantId: string, campagneId: string) {
+    return this.prisma.ficheInventaire.findMany({
+      where: { tenantId, campagneId },
+      include: { compte: { select: { numero: true, intitule: true } } },
+      orderBy: { designation: 'asc' },
+    });
+  }
+
+  /**
+   * LES FICHES DE COMPTAGE VIERGES, d'une sous-commission ou de toutes. Une
+   * sous-commission qui n'est pas celle de la campagne est REFUSÉE · une
+   * feuille vide se lirait « rien à compter ».
+   */
+  async editionFichesVierges(tenantId: string, campagneId: string, sousCommissionId?: string) {
+    const [campagne, sousCommissions, fiches] = await Promise.all([
+      this.campagnePourEdition(tenantId, campagneId),
+      this.sousCommissionsAvecMembres(tenantId, campagneId),
+      this.fichesPourEdition(tenantId, campagneId),
+    ]);
+    if (sousCommissionId && !sousCommissions.some((sc) => sc.id === sousCommissionId)) {
+      throw new BadRequestException("Cette sous-commission n'appartient pas à la campagne.");
+    }
+    return editionFichesVierges({ campagne, sousCommissions, fiches, sousCommissionId: sousCommissionId || null });
+  }
+
+  /** LE PROCÈS-VERBAL D'INVENTAIRE PHYSIQUE de la campagne, tiré de ce qu'elle porte. */
+  async editionProcesVerbal(tenantId: string, campagneId: string) {
+    const campagne = await this.campagnePourEdition(tenantId, campagneId);
+    const [enTete, sousCommissions, fiches, ecarts, pvCaisses] = await Promise.all([
+      this.prisma.campagneInventaire.findFirst({
+        where: { id: campagneId, tenantId },
+        select: { procesVerbalEtabliLe: true, procesVerbalPar: true },
+      }),
+      this.sousCommissionsAvecMembres(tenantId, campagneId),
+      this.fichesPourEdition(tenantId, campagneId),
+      this.prisma.ecartInventaire.findMany({
+        where: { tenantId, campagneId },
+        include: { compte: { select: { numero: true, intitule: true } } },
+      }),
+      this.prisma.procesVerbalComptageCaisse.findMany({
+        where: { tenantId, campagneId },
+        include: {
+          compte: { select: { numero: true, intitule: true } },
+          sousCommission: { select: { nom: true } },
+          devise: { select: { code: true } },
+        },
+      }),
+    ]);
+    const etabli =
+      enTete?.procesVerbalEtabliLe
+        ? {
+            le: enTete.procesVerbalEtabliLe,
+            par: enTete.procesVerbalPar ? await this.courrielDe(tenantId, enTete.procesVerbalPar) : 'non renseigné',
+          }
+        : null;
+    return editionPvInventaire({
+      campagne,
+      etabli,
+      sousCommissions,
+      fiches,
+      ecarts,
+      pvCaisses: pvCaisses.map((p) => ({
+        ...p,
+        unite: p.modeComparaison === ModeComparaisonCaisse.DEVISE && p.devise ? p.devise.code : null,
+      })),
+    });
+  }
+
+  /**
+   * LE PROCÈS-VERBAL D'UNE CAISSE, tel que `presenterPvCaisse` le présente à
+   * l'écran (chiffres figés, reconstitution, MENTIONS du serveur) · une seule
+   * lecture pour l'écran et pour le papier.
+   */
+  async editionPvCaisse(tenantId: string, pvId: string) {
+    const pv = await this.prisma.procesVerbalComptageCaisse.findFirst({
+      where: { id: pvId, tenantId },
+      include: {
+        compte: { select: { numero: true, intitule: true } },
+        coupures: true,
+        devise: { select: { code: true } },
+        sousCommission: {
+          include: { membres: { select: { nom: true, fonction: true, role: true }, orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+    if (!pv) throw new NotFoundException('Procès-verbal de comptage introuvable.');
+    const campagne = await this.campagnePourEdition(tenantId, pv.campagneId);
+    const presente = InventaireService.presenterPvCaisse(pv, campagne.exercice.dateFin);
+    return editionPvCaisse({
+      campagne,
+      pv: presente,
+      sousCommission: pv.sousCommission,
+      etabliPar: await this.courrielDe(tenantId, pv.etabliPar),
+    });
+  }
 
   /**
    * LE RÉSUMÉ DE L'OPÉRATION D'INVENTAIRE · ce que le livre d'inventaire
