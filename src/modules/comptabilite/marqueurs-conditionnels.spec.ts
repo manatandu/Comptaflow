@@ -29,7 +29,7 @@ function blocApres(source: string, debut: string | number): string {
 describe('marqueurs posés après creer', () => {
   it.each([
     ['regularisation/regularisation.service.ts', 'data: { ecritureRepriseId: ecriture.id },', 'ecritureRepriseId: null'],
-    ['devises/devises.service.ts', 'data: { ecritureExtourneId: ecriture.id },', 'ecritureExtourneId: null'],
+    ['devises/devises.service.ts', 'ecritureExtourneId: ecriture.id,', 'ecritureExtourneId: null'],
     ['regularisation/regularisation.service.ts', 'await this.prisma.echeanceAbonnement.updateMany({', 'ecritureId: null'],
   ])('%s · %s', (fichier, ancre, condition) => {
     const source = lire(fichier);
