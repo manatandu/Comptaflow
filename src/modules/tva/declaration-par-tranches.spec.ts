@@ -128,10 +128,7 @@ function monter(stock: Objet[], referentiel = 'SYSCOHADA', bloc = false) {
         return Promise.resolve({ _sum: { credit: ids ? 1000 * ids.length : 0, debit: 0 } });
       }),
     },
-    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
-    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
-    liquidationTva: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return { service: new TauxTvaService(prisma, {} as EcritureService), appels };
 }

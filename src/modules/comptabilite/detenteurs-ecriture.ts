@@ -89,9 +89,6 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'CreanceDouteuse.ecritureReclassementId',
   'AjustementCreanceDouteuse.ecritureId',
   'MouvementCreanceDouteuse.ecritureId',
-  // La vente d'origine d'une créance douteuse (K3) · retirée seule, la
-  // créance perdrait la TVA facturée et le taux que sa perte récupère.
-  'OrigineCreanceDouteuse.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */

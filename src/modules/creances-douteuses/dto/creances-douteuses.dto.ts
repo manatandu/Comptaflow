@@ -70,17 +70,6 @@ export class ReclasserCreanceDto extends MotifEtPiecesDto {
 
   @IsNumber({ maxDecimalPlaces: 2 })
   montant!: number;
-
-  /**
-   * K3 · les écritures de VENTE dont la créance est issue, choisies parmi
-   * les ventes ouvertes du client (ou proposées sans ambiguïté). Absentes,
-   * la créance n'a pas de facture d'origine, et sa TVA ne se récupère pas.
-   */
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(200)
-  @IsUUID('4', { each: true })
-  ventesOrigineIds?: string[];
 }
 
 /** La revue de la dépréciation à la clôture d'un exercice (fiche du compte 49). */
@@ -96,47 +85,7 @@ export class RevoirDepreciationDto extends MotifEtPiecesDto {
   depreciationNecessaire!: number;
 }
 
-/** La TVA d'une créance irrécouvrable, récupérée sur duplicata (décret n° 011/42, art. 127). */
-export class RecuperationTvaDto {
-  @IsUUID('4')
-  compteTvaId!: string;
-
-  @IsNumber({ maxDecimalPlaces: 2 })
-  tvaRecuperee!: number;
-
-  /**
-   * La TVA facturée que l'écran a montrée · FACULTATIVE, le serveur la
-   * calcule sur les factures d'origine et refuse un écart de plus d'un
-   * centime (K2). Jamais figée depuis l'écran.
-   */
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  tvaFactureeCreance?: number;
-
-  @IsString()
-  @MaxLength(200)
-  duplicataReference!: string;
-
-  @IsDateString()
-  duplicataDateEnvoi!: string;
-}
-
-/**
- * La part de la TVA de la créance DÉJÀ DÉCLARÉE, déclarée par le cabinet quand
- * elle ne se lit que reconstituée (liquidation antérieure au figé), avec sa
- * source (quatrième relecture).
- */
-export class TvaDejaDeclareeDto {
-  @IsNumber({ maxDecimalPlaces: 2 })
-  montant!: number;
-
-  @IsString()
-  @MinLength(3)
-  @MaxLength(500)
-  source!: string;
-}
-
-/** La perte sur créance irrécouvrable (fiche du compte 65). */
+/** La perte sur créance irrécouvrable (fiche du compte 65) · D 651 / C 416, au TTC entier. */
 export class PerteCreanceDto extends MotifEtPiecesDto {
   @IsUUID('4')
   exerciceId!: string;
@@ -155,16 +104,6 @@ export class PerteCreanceDto extends MotifEtPiecesDto {
   @IsUUID('4')
   comptePerteId?: string;
 
-  /** E2 · la récupération de la TVA (O.-L. n° 10/001, art. 52) · absente, la perte passe au TTC entier. */
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => RecuperationTvaDto)
-  recuperationTva?: RecuperationTvaDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => TvaDejaDeclareeDto)
-  tvaDejaDeclaree?: TvaDejaDeclareeDto;
 }
 
 
@@ -233,15 +172,4 @@ export class DeclarerCreanceOuvertureDto {
   @ValidateNested({ each: true })
   @Type(() => PieceJustificativeDto)
   pieces?: PieceJustificativeDto[];
-
-  /**
-   * M-e · les ventes d'origine, quand elles sont tenues dans OmegaX
-   * (exercice antérieur gardé) · seules elles ouvrent la récupération de la
-   * TVA à la perte. Absentes, aucune TVA ne se récupère dans le module.
-   */
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(200)
-  @IsUUID('4', { each: true })
-  ventesOrigineIds?: string[];
 }

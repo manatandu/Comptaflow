@@ -778,26 +778,23 @@ model Tenant {
   lieuxBiens                       LieuBien[]
   modelesBulletin                  ModeleBulletin[]
 
-  contratsLocationAcquisition  ContratLocationAcquisition[]
-  cloturesLocationAcquisition  ClotureLocationAcquisition[]
-  reprisesSubvention           RepriseSubventionImmobilisation[]
-  subventionsImmobilisations   SubventionImmobilisation[]
-  reductionsSubvention         ReductionSubventionImmobilisation[]
-  revisionsPlanAmortissement   RevisionPlanAmortissement[]
-  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
-  reevaluationsBilan           ReevaluationBilan[]
-  lignesReevaluationBilan      LigneReevaluationBilan[]
-  reprisesProvisionReeval      RepriseProvisionReevaluation[]
-  mouvementsDemantelement      MouvementDemantelement[]
-  creancesDouteuses            CreanceDouteuse[]
+  contratsLocationAcquisition ContratLocationAcquisition[]
+  cloturesLocationAcquisition ClotureLocationAcquisition[]
+  reprisesSubvention          RepriseSubventionImmobilisation[]
+  subventionsImmobilisations  SubventionImmobilisation[]
+  reductionsSubvention        ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement  RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
+  reevaluationsBilan          ReevaluationBilan[]
+  lignesReevaluationBilan     LigneReevaluationBilan[]
+  reprisesProvisionReeval     RepriseProvisionReevaluation[]
+  mouvementsDemantelement     MouvementDemantelement[]
+  provisionsChangeOuverture   ProvisionChangeOuverture[]
+  verrouProvisionChange       VerrouProvisionChange?
+  creancesDouteuses           CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
-  mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
-  originesCreancesDouteuses    OrigineCreanceDouteuse[]
-  tvaVentesDeclarees           TvaVenteDeclaree[]
-  regularisationsTvaCreances   RegularisationTvaCreance[]
-  provisionsChangeOuverture    ProvisionChangeOuverture[]
-  verrouProvisionChange        VerrouProvisionChange?
-  verrouCreancesDouteuses      VerrouCreancesDouteuses?
+  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
+  verrouCreancesDouteuses     VerrouCreancesDouteuses?
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1178,11 +1175,9 @@ model Compte {
   rapprochements                RapprochementBancaire[]
   // Créances douteuses (ligne A7) · le compte client d'origine, le 416 qui
   // reçoit la créance et le 491 qui porte sa dépréciation.
-  creancesDouteusesSource       CreanceDouteuse[]            @relation("CreanceDouteuseSource")
-  creancesDouteuses416          CreanceDouteuse[]            @relation("CreanceDouteuse416")
-  creancesDouteuses491          CreanceDouteuse[]            @relation("CreanceDouteuse491")
-  mouvementsCreancesTva         MouvementCreanceDouteuse[]   @relation("MouvementCreanceDouteuseTva")
-  regularisationsTvaCreances    RegularisationTvaCreance[]   @relation("RegularisationTvaCreanceCompte")
+  creancesDouteusesSource       CreanceDouteuse[] @relation("CreanceDouteuseSource")
+  creancesDouteuses416          CreanceDouteuse[] @relation("CreanceDouteuse416")
+  creancesDouteuses491          CreanceDouteuse[] @relation("CreanceDouteuse491")
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
@@ -1431,29 +1426,29 @@ model Exercice {
   /// une date que personne n'a décidée.
   dateArreteComptes DateTime?
 
-  ecritures                    Ecriture[]
-  clotures                     Cloture[]
-  dotationsAmortissement       DotationAmortissement[]
-  reprisesSubvention           RepriseSubventionImmobilisation[]
-  reductionsSubvention         ReductionSubventionImmobilisation[]
-  revisionsPlanAmortissement   RevisionPlanAmortissement[]
-  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
-  reevaluationsBilan           ReevaluationBilan[]
-  reprisesProvisionReeval      RepriseProvisionReevaluation[]
-  mouvementsDemantelement      MouvementDemantelement[]
-  creancesDouteuses            CreanceDouteuse[]
+  ecritures                   Ecriture[]
+  clotures                    Cloture[]
+  dotationsAmortissement      DotationAmortissement[]
+  reprisesSubvention          RepriseSubventionImmobilisation[]
+  reductionsSubvention        ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement  RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
+  reevaluationsBilan          ReevaluationBilan[]
+  reprisesProvisionReeval     RepriseProvisionReevaluation[]
+  mouvementsDemantelement     MouvementDemantelement[]
+  creancesDouteuses           CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
-  mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
-  cloturesLocationAcquisition  ClotureLocationAcquisition[]
-  depreciationsImmo            DepreciationImmobilisation[]
-  reclassementsImmo            ReclassementImmobilisation[]
-  budgetsSection               BudgetSection[]
-  engagementsDepense           EngagementDepense[]
-  odAnalytiques                OdAnalytique[]
-  regularisations              Regularisation[]
-  reevaluations                Reevaluation[]
-  affectationResultat          AffectationResultat?
-  saisiesNotes                 SaisieNote[]
+  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
+  cloturesLocationAcquisition ClotureLocationAcquisition[]
+  depreciationsImmo           DepreciationImmobilisation[]
+  reclassementsImmo           ReclassementImmobilisation[]
+  budgetsSection              BudgetSection[]
+  engagementsDepense          EngagementDepense[]
+  odAnalytiques               OdAnalytique[]
+  regularisations             Regularisation[]
+  reevaluations               Reevaluation[]
+  affectationResultat         AffectationResultat?
+  saisiesNotes                SaisieNote[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -1526,10 +1521,9 @@ model Ecriture {
   reevaluationBilan           ReevaluationBilan?
   repriseProvisionReeval      RepriseProvisionReevaluation?
   mouvementDemantelement      MouvementDemantelement?
-  creanceDouteuseReclassement CreanceDouteuse?                   @relation("CreanceDouteuseReclassement")
+  creanceDouteuseReclassement CreanceDouteuse?           @relation("CreanceDouteuseReclassement")
   ajustementCreanceDouteuse   AjustementCreanceDouteuse?
   mouvementCreanceDouteuse    MouvementCreanceDouteuse?
-  originesCreancesDouteuses   OrigineCreanceDouteuse[]
   clotureLocationAcquisition  ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionEcriture")
   extourneLocationAcquisition ClotureLocationAcquisition?        @relation("ClotureLocationAcquisitionExtourne")
   tenantId                    String
@@ -1877,10 +1871,6 @@ model LigneEcriture {
 
   // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
   ventilations VentilationAnalytique[]
-
-  /// La TVA de cette ligne de TVA collectée que chaque liquidation a rendue
-  /// exigible, FIGÉE à la liquidation (ligne A7, quatrième relecture).
-  tvaVentesDeclarees TvaVenteDeclaree[]
 
   // Multidevise · `debit`/`credit` restent TOUJOURS exprimés dans la monnaie
   // de tenue du dossier, seule monnaie dans laquelle la comptabilité est
@@ -3409,7 +3399,7 @@ model Reevaluation {
   // l'écriture des écarts ne porte ni devise ni cours. Sans lui, un cours
   // corrigé après la réévaluation ne se distinguait pas d'un compte retouché.
   // Nul sur les réévaluations antérieures.
-  coursUtilises Json?
+  coursUtilises   Json?
 
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·
@@ -3439,38 +3429,38 @@ model Reevaluation {
 // toujours le DÉBUT d'un exercice du dossier (fiche du compte 77, « existant
 // au début de l'exercice »).
 model ProvisionChangeOuverture {
-  id                              String   @id @default(uuid())
-  tenantId                        String
-  tenant                          Tenant   @relation(fields: [tenantId], references: [id])
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
   // Racine du compte de provision · 194, 4991 ou 4997 au SYSCOHADA, 194 seul
   // au SYCEBNL (`motifRefusDeclarationOuverture`).
-  compteProvision                 String
-  montant                         Decimal  @db.Decimal(18, 2)
+  compteProvision String
+  montant         Decimal  @db.Decimal(18, 2)
   // Date à laquelle la provision existait · seules les réévaluations
   // POSTÉRIEURES s'y ajoutent.
-  dateReference                   DateTime @db.Date
+  dateReference   DateTime @db.Date
   // Pièce ou raisonnement qui fonde le montant · exigé, jamais vide.
-  source                          String
+  source          String
   // Motif de la nouvelle version · exigé dès qu'une version antérieure existe.
-  motif                           String?
+  motif           String?
   // CONTESTATION de la provision du module (huitième relecture) · seule elle
   // admet une version SOUS la provision que les réévaluations OmegaX ont
   // passée jusqu'à la clôture précédente. Déclaration explicite, distincte du
   // motif de correction, qui ne l'ouvre jamais (une correction exige déjà un
   // motif, et rouvrirait la double dotation).
-  provisionModuleContestee        Boolean  @default(false)
+  provisionModuleContestee Boolean @default(false)
   // Son motif · exigé, non vide, quand la contestation est déclarée ; nul sinon.
-  motifContestation               String?
+  motifContestation        String?
   // La provision du module CONTESTÉE, figée par le SERVEUR à la déclaration
   // (jamais reçue du client) · la contestation ne vaut que tant que la
   // provision du module à la clôture précédente lui reste égale. Une
   // réévaluation passée ensuite la change, et la contestation ne couvre pas
   // ce qu'elle n'a pas vu (neuvième relecture, Y9).
   provisionModuleContesteeMontant Decimal? @db.Decimal(18, 2)
-  createdAt                       DateTime @default(now())
-  createdBy                       String
-  updatedAt                       DateTime @updatedAt
-  modifiedBy                      String?
+  createdAt       DateTime @default(now())
+  createdBy       String
+  updatedAt       DateTime @updatedAt
+  modifiedBy      String?
 
   @@unique([tenantId, compteProvision, dateReference])
   @@map("provisions_change_ouverture")
@@ -3631,17 +3621,6 @@ model LiquidationTva {
 
   /// Prorata effectivement appliqué, pour retrouver la base d'une régularisation.
   prorataApplique Decimal @db.Decimal(5, 2)
-
-  /// Les pertes sur créances irrécouvrables dont CETTE liquidation impute la
-  /// récupération de TVA (ligne A7, K1) · une perte n'est récupérée qu'une fois.
-  recuperationsCreances MouvementCreanceDouteuse[]
-
-  /// FIGÉE · la liquidation a enregistré, vente par vente, la TVA collectée
-  /// qu'elle rendait exigible (`TvaVenteDeclaree`). Fausse pour une
-  /// liquidation antérieure à cette règle · sa TVA se lit alors RECONSTITUÉE.
-  tvaVentesFigee             Boolean                    @default(false)
-  tvaVentesDeclarees         TvaVenteDeclaree[]
-  regularisationsTvaCreances RegularisationTvaCreance[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -8888,7 +8867,6 @@ enum MotifRepriseDemantelement {
   ENGAGEMENT_COUTS
   CESSION_SOUS_JACENT
 }
-
 // ---------------------------------------------------------------------------
 // CRÉANCES DOUTEUSES OU LITIGIEUSES · dépréciation dossier par dossier (ligne
 // A7, relevé CPCC C3, décision de Manasse du 2026-10-02).
@@ -8910,7 +8888,7 @@ enum NatureCreanceDouteuse {
 }
 
 enum TypeMouvementCreanceDouteuse {
-  /// Créance irrécouvrable · D 651 / C 416 (fiche du compte 65).
+  /// Créance irrécouvrable · D 651 / C 416 au TTC entier (fiche du compte 65).
   PERTE
   /// Encaissement d'une créance reclassée · D trésorerie / C 416.
   RECOUVREMENT
@@ -8962,7 +8940,6 @@ model CreanceDouteuse {
 
   ajustements AjustementCreanceDouteuse[]
   mouvements  MouvementCreanceDouteuse[]
-  origines    OrigineCreanceDouteuse[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -9035,41 +9012,6 @@ model MouvementCreanceDouteuse {
   motif   String
   pieces  Json
 
-  /// PERTE AVEC RÉCUPÉRATION DE LA TVA (E2 · O.-L. n° 10/001, art. 52 ;
-  /// décret n° 011/42, art. 126 et 127) · la TVA récupérée au 443 choisi, la
-  /// TVA facturée que portait la créance (borne du prorata), et le duplicata
-  /// surchargé envoyé au client, exigé. Nuls sans récupération.
-  tvaRecuperee       Decimal?  @db.Decimal(18, 2)
-  tvaFactureeCreance Decimal?  @db.Decimal(18, 2)
-  compteTvaId        String?
-  compteTva          Compte?   @relation("MouvementCreanceDouteuseTva", fields: [compteTvaId], references: [id], onDelete: Restrict)
-  duplicataReference String?
-  duplicataDateEnvoi DateTime? @db.Date
-  /// La part de la TVA perdue que la déclaration n'a JAMAIS rendue exigible
-  /// (O.-L. n° 10/001, art. 25, 2°) · sortie d'office du 443 sur une ligne
-  /// SANS TAUX, hors de toute déclaration (troisième relecture, B-1).
-  tvaNonExigible     Decimal?  @db.Decimal(18, 2)
-
-  /// RECOUVREMENT · la TVA de la créance en dépend (vente d'origine dont la
-  /// TVA n'est exigible qu'à l'encaissement) · lu par la liquidation (BL-2).
-  tvaEnDepend           Boolean                    @default(false)
-  /// PERTE · la part de la TVA de la créance déjà déclarée que cette perte
-  /// consomme (le plafond de sa récupération), qu'elle soit récupérée ou non.
-  tvaDeclareePerte      Decimal?                   @db.Decimal(18, 2)
-  /// PERTE · part déjà déclarée DÉCLARÉE par le cabinet, quand la TVA de la
-  /// vente ne se lit que reconstituée (liquidation antérieure au figé), et sa
-  /// source.
-  tvaDejaDeclareeSource String?
-  regularisationsTva    RegularisationTvaCreance[]
-  tvaVentesDeclarees    TvaVenteDeclaree[]         @relation("TvaVenteDeclareeRecouvrement")
-
-  /// LA LIQUIDATION QUI IMPUTE LA RÉCUPÉRATION (K1) · posée par elle, remise à
-  /// null par son annulation. Nulle, la perte validée reste à récupérer par la
-  /// déclaration de toute période qui commence après elle (décret n° 011/42,
-  /// art. 126), une seule fois.
-  liquidationRecuperationId String?
-  liquidationRecuperation   LiquidationTva? @relation(fields: [liquidationRecuperationId], references: [id], onDelete: Restrict)
-
   /// Nulle quand l'écriture, restée au brouillard, est supprimée par
   /// l'annulation du mouvement (K4).
   ecritureId String?   @unique
@@ -9089,35 +9031,7 @@ model MouvementCreanceDouteuse {
   @@index([tenantId])
   @@index([creanceId])
   @@index([exerciceId])
-  @@index([liquidationRecuperationId])
   @@map("mouvements_creances_douteuses")
-}
-
-/// LA FACTURE D'ORIGINE D'UNE CRÉANCE DOUTEUSE (ligne A7, K3) · l'écriture de
-/// vente dont la créance reclassée (ou déclarée) reprend une part, et cette
-/// part. Choisie par le cabinet parmi les ventes ouvertes du client, ou
-/// proposée quand elle est sans ambiguïté · jamais lue sur le lettrage, qui
-/// confondait le reclassement avec un encaissement. Elle porte le compte et
-/// le taux de la TVA facturée, et la part qui se récupère à la perte.
-model OrigineCreanceDouteuse {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
-
-  creanceId  String
-  creance    CreanceDouteuse @relation(fields: [creanceId], references: [id], onDelete: Restrict)
-  ecritureId String
-  ecriture   Ecriture        @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
-
-  /// La part de la vente (TTC, au compte du client) que la créance reprend.
-  montant Decimal @db.Decimal(18, 2)
-
-  createdAt DateTime @default(now())
-
-  @@unique([creanceId, ecritureId])
-  @@index([tenantId])
-  @@index([ecritureId])
-  @@map("origines_creances_douteuses")
 }
 
 /// Le verrou des gestes sur les créances douteuses · une ligne par dossier,
@@ -9133,78 +9047,4 @@ model VerrouCreancesDouteuses {
   createdAt DateTime @default(now())
 
   @@map("verrous_creances_douteuses")
-}
-
-/// LA TVA D'UNE VENTE, FIGÉE À LA LIQUIDATION (ligne A7, quatrième relecture) ·
-/// pour chaque ligne de TVA collectée, ce que la liquidation a rendu exigible
-/// dans sa période (une ligne par tranche d'encaissement). « Déjà déclaré »
-/// se lit ici, jamais sur des lettrages qui ont pu bouger. Supprimée avec sa
-/// liquidation.
-model TvaVenteDeclaree {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
-
-  liquidationId   String
-  liquidation     LiquidationTva            @relation(fields: [liquidationId], references: [id], onDelete: Cascade)
-  /// La ligne de TVA collectée de la vente.
-  ligneEcritureId String
-  ligne           LigneEcriture             @relation(fields: [ligneEcritureId], references: [id], onDelete: Restrict)
-  /// L'écriture de la vente (lecture par vente, sans relation · la ligne la porte).
-  ecritureId      String
-  /// Le recouvrement du module qui a encaissé cette tranche, s'il y en a un.
-  recouvrementId  String?
-  recouvrement    MouvementCreanceDouteuse? @relation("TvaVenteDeclareeRecouvrement", fields: [recouvrementId], references: [id], onDelete: Restrict)
-
-  montant         Decimal  @db.Decimal(18, 2)
-  /// La date d'exigibilité de la tranche (sa date de valeur quand elle est reportée).
-  dateExigibilite DateTime @db.Date
-  reportee        Boolean  @default(false)
-
-  @@index([tenantId])
-  @@index([liquidationId])
-  @@index([ligneEcritureId])
-  @@index([ecritureId])
-  @@index([recouvrementId])
-  @@map("tva_ventes_declarees")
-}
-
-enum SensRegularisationTvaCreance {
-  /// Recouvrement annulé après liquidation · la TVA collectée revient en déduction.
-  DEDUCTION
-  /// Perte annulée après liquidation · la TVA récupérée se reverse.
-  REVERSEMENT
-}
-
-/// LA RÉGULARISATION DE TVA D'UN MOUVEMENT ANNULÉ APRÈS LIQUIDATION (BL-3) ·
-/// imputée dans la prochaine déclaration, une seule fois, sur le modèle de la
-/// récupération (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126).
-model RegularisationTvaCreance {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
-
-  mouvementId     String
-  mouvement       MouvementCreanceDouteuse     @relation(fields: [mouvementId], references: [id], onDelete: Restrict)
-  sens            SensRegularisationTvaCreance
-  /// La date de l'annulation · imputée dans une période qui commence après elle.
-  date            DateTime                     @db.Date
-  montant         Decimal                      @db.Decimal(18, 2)
-  compteId        String
-  compte          Compte                       @relation("RegularisationTvaCreanceCompte", fields: [compteId], references: [id], onDelete: Restrict)
-  tauxTvaId       String
-  /// La vente dont la TVA est régularisée (lecture par vente).
-  ecritureVenteId String?
-
-  /// La liquidation qui l'impute · nulle tant qu'aucune ne l'a fait.
-  liquidationImputationId String?
-  liquidationImputation   LiquidationTva? @relation(fields: [liquidationImputationId], references: [id], onDelete: Restrict)
-
-  createdAt DateTime @default(now())
-  createdBy String
-
-  @@index([tenantId])
-  @@index([mouvementId])
-  @@index([liquidationImputationId])
-  @@map("regularisations_tva_creances")
 }

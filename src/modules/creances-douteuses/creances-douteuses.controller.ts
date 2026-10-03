@@ -41,29 +41,6 @@ export class CreancesDouteusesController {
     return this.service.comptes(user.tenantId, exerciceId);
   }
 
-  /**
-   * K3 · les ventes du client qui peuvent être l'origine d'une créance, et la
-   * proposition sans ambiguïté · ouvertes à la date du reclassement, ou
-   * antérieures à l'exercice pour une déclaration d'ouverture (M-e).
-   */
-  @Get('ventes-origine')
-  ventesOrigine(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
-    @Query('compteCreanceId', ParseUUIDPipe) compteCreanceId: string,
-    @Query('montant') montant?: string,
-    @Query('date') date?: string,
-    @Query('ouverture') ouverture?: string,
-  ) {
-    return this.service.ventesOrigine(user.tenantId, { exerciceId, compteCreanceId, montant, date, ouverture });
-  }
-
-  /** E2 · la TVA facturée des ventes d'origine rattachées (K3), et les 443 de détail du plan. */
-  @Get(':id/tva-origine')
-  tvaOrigine(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.tvaOrigine(user.tenantId, id);
-  }
-
   @Get(':id/revue')
   propositionRevue(
     @CurrentUser() user: AuthenticatedUser,
@@ -96,7 +73,7 @@ export class CreancesDouteusesController {
 
   /**
    * La perte · réservée au comptable comme la revue (seconde relecture, M-d) ·
-   * elle peut écrire une récupération de TVA qui entre dans la déclaration.
+   * elle sort la créance du 416 en charge au 651, au TTC entier.
    */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @ReserveAuComptable()

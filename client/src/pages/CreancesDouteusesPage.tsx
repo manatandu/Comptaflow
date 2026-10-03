@@ -15,7 +15,6 @@ import {
   LIBELLE_NATURE,
   motifAnnulationValide,
   motifListe651Vide,
-  annonceTvaNonExigible,
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
   type NatureCreance,
@@ -69,7 +68,6 @@ interface CreanceDouteuse {
   mouvementsAnnules: { id: string; type: 'PERTE' | 'RECOUVREMENT'; date: string; montant: number; annuleeLe: string; motif: string | null }[];
   /** M-c · mouvements de l'exercice sans revue · une information. */
   mouvementsSansRevue: number;
-  ventesOrigine: { ecritureId: string; montant: number }[];
 }
 interface Mouvement {
   id: string;
@@ -77,16 +75,6 @@ interface Mouvement {
   date: string;
   montant: number;
   motif: string;
-  tvaRecuperee: number | null;
-  /** La part de TVA jamais rendue exigible, sortie sans taux (B-1). */
-  tvaNonExigible: number | null;
-  /** La liquidation de TVA qui impute la récupération (K1). */
-  liquidationRecuperation: { du: string; au: string } | null;
-}
-interface VentesOrigine {
-  ventes: { ecritureId: string; date: string; numeroPiece: number | null; libelle: string; ttc: number; ouvert: number }[];
-  proposees: string[];
-  tronque: boolean;
 }
 interface Liste {
   exercice: { id: string; dateDebut: string; dateFin: string; statut: string };
@@ -95,26 +83,6 @@ interface Liste {
   tronque: boolean;
   creances: CreanceDouteuse[];
   rapprochement: { provisoire: boolean; solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
-}
-interface TvaOrigine {
-  assujetti: boolean;
-  comptes443: { id: string; numero: string; intitule: string }[];
-  proposition: {
-    compteTvaId: string;
-    numero: string;
-    tauxTvaId: string | null;
-    raisonTaux: string | null;
-    tvaFactureeCreance: number;
-    /** Déjà rendue exigible par la déclaration · récupérable (B-1). */
-    tvaExigibleCreance: number;
-    /** Jamais rendue exigible · sortie d'office du 443, sans taux (B-1). */
-    tvaNonExigibleCreance: number;
-    /** La TVA du reste de la créance (base de la perte). */
-    tvaResteCreance: number;
-    /** Une liquidation antérieure au figé a pu lire un lettrage qui a bougé · le cabinet déclare la part. */
-    ambigu: boolean;
-  } | null;
-  raison: string | null;
 }
 interface PropositionRevue {
   depreciationEnPlace: number;
@@ -135,18 +103,6 @@ interface Formulaire {
   montant: string;
   depreciationOuverture: string;
   source: string;
-  // E2 · la récupération de la TVA d'une créance irrécouvrable, sur demande.
-  recupererTva: boolean;
-  compteTvaId: string;
-  tvaFacturee: string;
-  tvaRecuperee: string;
-  duplicataReference: string;
-  duplicataDate: string;
-  // Quatrième relecture · la part déjà déclarée, déclarée par le cabinet quand elle ne se lit que reconstituée.
-  tvaDejaDeclaree: string;
-  sourceTvaDejaDeclaree: string;
-  // K3 · les ventes dont la créance est issue.
-  ventesOrigineIds: string[];
   motif: string;
   pieces: PieceSaisie[];
 }
@@ -171,8 +127,6 @@ export function CreancesDouteusesPage() {
   const [journaux, setJournaux] = useState<Journal[] | null>(null);
   const [comptes, setComptes] = useState<ComptesFormulaire | null>(null);
   const [comptes651, setComptes651] = useState<Compte[] | null>(null);
-  const [tvaOrigine, setTvaOrigine] = useState<TvaOrigine | null>(null);
-  const [ventes, setVentes] = useState<VentesOrigine | null>(null);
   const [form, setForm] = useState<Formulaire | null>(null);
   const [proposition, setProposition] = useState<PropositionRevue | null>(null);
   const [erreurForm, setErreurForm] = useState<string | null>(null);
@@ -196,30 +150,6 @@ export function CreancesDouteusesPage() {
     api.get<Journal[]>('/journaux').then(setJournaux, (e) => setErreur(messageDe(e)));
   }, [peutValider]);
 
-  // K3 · LES VENTES D'ORIGINE du client choisi, et la proposition sans
-  // ambiguïté, présélectionnée · ouvertes à la date du reclassement, ou
-  // antérieures à l'exercice pour une déclaration d'ouverture.
-  const gesteVentes = form && (form.geste === 'reclasser' || form.geste === 'declarer') ? form.geste : null;
-  const clientVentes = form?.compteCreanceId ?? '';
-  const montantVentes = form?.montant ?? '';
-  const dateVentes = form?.date ?? '';
-  useEffect(() => {
-    setVentes(null);
-    if (!gesteVentes || !clientVentes || !exerciceId) return;
-    const valeur = montantSaisi(montantVentes);
-    const q = new URLSearchParams({ exerciceId, compteCreanceId: clientVentes });
-    if (valeur != null) q.set('montant', String(valeur));
-    if (gesteVentes === 'declarer') q.set('ouverture', 'true');
-    else if (dateVentes) q.set('date', dateVentes);
-    api.get<VentesOrigine>(`/creances-douteuses/ventes-origine?${q.toString()}`).then(
-      (v) => {
-        setVentes(v);
-        setForm((f) => (f ? { ...f, ventesOrigineIds: v.proposees } : f));
-      },
-      (e) => setErreurForm(messageDe(e)),
-    );
-  }, [gesteVentes, clientVentes, montantVentes, dateVentes, exerciceId]);
-
   function ouvrir(geste: Geste, creance: CreanceDouteuse | null) {
     setErreurForm(null);
     setProposition(null);
@@ -238,15 +168,6 @@ export function CreancesDouteusesPage() {
       montant: geste === 'perte' || geste === 'recouvrement' ? String(creance?.resteALaCloture ?? '') : '',
       depreciationOuverture: '',
       source: '',
-      recupererTva: false,
-      compteTvaId: '',
-      tvaFacturee: '',
-      tvaRecuperee: '',
-      duplicataReference: '',
-      duplicataDate: '',
-      ventesOrigineIds: [],
-      tvaDejaDeclaree: '',
-      sourceTvaDejaDeclaree: '',
       motif: '',
       pieces: [{ nature: '', reference: '', date: '' }],
     });
@@ -256,23 +177,6 @@ export function CreancesDouteusesPage() {
     }
     if (geste === 'revue' && creance) {
       api.get<PropositionRevue>(`/creances-douteuses/${creance.id}/revue?exerciceId=${encodeURIComponent(exerciceId)}`).then(setProposition, (e) => setErreurForm(messageDe(e)));
-    }
-    if (geste === 'perte' && creance) {
-      setTvaOrigine(null);
-      api.get<TvaOrigine>(`/creances-douteuses/${creance.id}/tva-origine`).then(
-        (t) => {
-          setTvaOrigine(t);
-          // La proposition lue sur les ventes d'origine préremplit, jamais elle ne coche.
-          setForm((f) =>
-            f && t.proposition
-              ? { ...f, compteTvaId: t.proposition.compteTvaId, tvaFacturee: String(t.proposition.tvaFactureeCreance) }
-              : f && t.comptes443.length === 1
-                ? { ...f, compteTvaId: t.comptes443[0].id }
-                : f,
-          );
-        },
-        (e) => setErreurForm(messageDe(e)),
-      );
     }
     if (geste === 'perte' && !creance?.comptePertePropose) {
       api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(
@@ -324,7 +228,6 @@ export function CreancesDouteusesPage() {
           source: form.source,
           motif: form.motif || undefined,
           pieces: piecesAEnvoyer(form.pieces),
-          ventesOrigineIds: form.ventesOrigineIds.length > 0 ? form.ventesOrigineIds : undefined,
         });
       } else if (form.geste === 'reclasser') {
         await api.post('/creances-douteuses', {
@@ -334,38 +237,16 @@ export function CreancesDouteusesPage() {
           compte416Id: form.compte416Id || undefined,
           nature: form.nature,
           montant: valeur,
-          ventesOrigineIds: form.ventesOrigineIds.length > 0 ? form.ventesOrigineIds : undefined,
         });
       } else if (form.geste === 'revue') {
         await api.post(`/creances-douteuses/${form.creance!.id}/revue`, { ...commun, depreciationNecessaire: necessaire });
       } else if (form.geste === 'perte') {
-        const tva = form.recupererTva ? montantSaisi(form.tvaRecuperee) : null;
-        // La TVA facturée est celle du SERVEUR (K2) · renvoyée telle qu'il l'a
-        // lue, pour qu'il refuse un écart, jamais saisie.
-        const facturee = tvaOrigine?.proposition?.tvaFactureeCreance;
-        if (form.recupererTva && tva == null) {
-          throw new Error('Saisissez la TVA récupérée · un champ vide n’est pas zéro.');
-        }
-        const ambigu = !!tvaOrigine?.proposition?.ambigu;
-        const declaree = ambigu ? montantSaisi(form.tvaDejaDeclaree) : null;
-        if (ambigu && declaree == null) {
-          throw new Error('Déclarez la part de la TVA de la créance déjà déclarée · un champ vide n’est pas zéro.');
-        }
+        // AU TTC ENTIER, D 651 / C 416 · aucune ligne de TVA (A7 scindée).
         await api.post(`/creances-douteuses/${form.creance!.id}/perte`, {
-          tvaDejaDeclaree: ambigu ? { montant: declaree, source: form.sourceTvaDejaDeclaree } : undefined,
           ...commun,
           date: form.date,
           montant: valeur,
           comptePerteId: form.comptePerteId || undefined,
-          recuperationTva: form.recupererTva
-            ? {
-                compteTvaId: form.compteTvaId,
-                tvaRecuperee: tva,
-                tvaFactureeCreance: facturee,
-                duplicataReference: form.duplicataReference,
-                duplicataDateEnvoi: form.duplicataDate,
-              }
-            : undefined,
         });
       } else {
         await api.post(`/creances-douteuses/${form.creance!.id}/recouvrement`, { ...commun, date: form.date, montant: valeur });
@@ -660,41 +541,19 @@ export function CreancesDouteusesPage() {
                           <span className="text-text-dim">Aucun compte 416 de détail au plan · ouvrez-le dans Plan comptable.</span>
                         </>
                       )}
-                      <span className="text-right self-start pt-0.5 flex items-center justify-end gap-1">
-                        Ventes d'origine :
-                        <Aide
-                          titre="Ventes d'origine"
-                          texte="Les ventes dont la créance est issue. Elles portent le compte, le taux et le montant de la TVA facturée que la perte pourra récupérer. Le montant se répartit sur elles de la plus ancienne à la plus récente, la dernière en partiel. Sans vente d'origine, la TVA de la créance ne se récupère pas dans le module. Le reclassement n'est jamais lu comme un encaissement."
-                          source="O.-L. n° 10/001, art. 25 et 52 ; décret n° 011/42, art. 57 et 126"
-                        />
-                      </span>
-                      <div className="space-y-0.5">
-                        {!form.compteCreanceId && <span className="text-text-dim">Choisissez d'abord le compte du client.</span>}
-                        {form.compteCreanceId && ventes === null && <span className="text-text-dim">Lecture…</span>}
-                        {ventes && ventes.ventes.length === 0 && (
-                          <span className="text-text-dim">
-                            {form.geste === 'declarer'
-                              ? "Aucune vente de ce client tenue dans OmegaX avant l'exercice · la TVA de la créance ne se récupérera pas dans le module."
-                              : "Aucune vente validée et non lettrée de ce client à cette date · validez la facture d'abord, ou reclassez sans vente d'origine."}
-                          </span>
-                        )}
-                        {ventes?.ventes.map((v) => (
-                          <label key={v.ecritureId} className="flex items-center gap-1.5">
-                            <input
-                              type="checkbox"
-                              checked={form.ventesOrigineIds.includes(v.ecritureId)}
-                              onChange={(e) =>
-                                champ(
-                                  'ventesOrigineIds',
-                                  e.target.checked ? [...form.ventesOrigineIds, v.ecritureId] : form.ventesOrigineIds.filter((x) => x !== v.ecritureId),
-                                )
-                              }
+                      {form.geste === 'reclasser' && (
+                        <>
+                          <span />
+                          <span className="flex items-center gap-1.5 text-text-dim">
+                            Ne lettrez pas la facture avec le reclassement
+                            <Aide
+                              titre="Reclassement et lettrage"
+                              texte="Le reclassement passe D 416 / C compte du client et ne lettre pas ce compte ; il n'exige aucun lettrage. Ne lettrez pas la facture avec la pièce du reclassement : le calcul de la TVA lirait ce lettrage comme un encaissement, et la TVA d'une prestation de services, exigible à l'encaissement du prix, deviendrait exigible sans qu'aucun prix ne soit perçu."
+                              source="O.-L. n° 10/001, art. 25, 2° ; décret n° 011/42, art. 57"
                             />
-                            {jour(v.date)} · n° {v.numeroPiece ?? '·'} · {v.libelle} · {montant(v.ouvert)}
-                          </label>
-                        ))}
-                        {ventes?.tronque && <span className="text-text-dim">Liste tronquée · les ventes les plus récentes ne sont pas montrées.</span>}
-                      </div>
+                          </span>
+                        </>
+                      )}
                     </>
                   )}
                   {form.geste === 'revue' && (
@@ -734,81 +593,17 @@ export function CreancesDouteusesPage() {
                       )}
                     </>
                   )}
-                  {form.geste === 'perte' && tvaOrigine?.proposition && tvaOrigine.proposition.tvaNonExigibleCreance > 0 && (
-                    <>
-                      <span />
-                      <span className="text-text-dim">
-                        {annonceTvaNonExigible(tvaOrigine.proposition.tvaNonExigibleCreance, montantSaisi(form.montant), form.creance?.resteALaCloture ?? 0)}
-                      </span>
-                    </>
-                  )}
-                  {form.geste === 'perte' && tvaOrigine?.proposition?.ambigu && (
-                    <>
-                      <span className="text-right">TVA déjà déclarée :</span>
-                      <input required inputMode="decimal" value={form.tvaDejaDeclaree} onChange={(e) => champ('tvaDejaDeclaree', e.target.value)} className="border border-border-dark px-2 py-1" />
-                      <span className="text-right">Source :</span>
-                      <input required maxLength={500} placeholder="Déclaration déposée, état de liquidation…" value={form.sourceTvaDejaDeclaree} onChange={(e) => champ('sourceTvaDejaDeclaree', e.target.value)} className="border border-border-dark px-2 py-1" />
-                    </>
-                  )}
                   {form.geste === 'perte' && (
                     <>
                       <span />
-                      <label className="flex items-center gap-1.5">
-                        <input type="checkbox" checked={form.recupererTva} onChange={(e) => champ('recupererTva', e.target.checked)} />
-                        Récupérer la TVA de la créance
+                      <span className="flex items-center gap-1.5 text-text-dim">
+                        Perte au TTC entier · D 651 / C 416
                         <Aide
                           titre="TVA d'une créance irrécouvrable"
-                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. Le compte, le taux et la TVA facturée se lisent sur les ventes d'origine rattachées à la créance (sans elles, la récupération est refusée ; une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module). Seule la part que la déclaration a déjà rendue exigible se récupère, chiffrée sur le reste de la créance avant la perte ; elle s'inscrit en déduction au plus tôt dans la déclaration du mois civil qui suit la constatation, une seule fois, jusqu'au 31 décembre de l'année suivante. Ce qui est déjà déclaré se lit sur la TVA que chaque liquidation a figée vente par vente, jamais sur des lettrages qui ont bougé ; pour une liquidation antérieure à cette règle, quand le lettrage a bougé depuis, le cabinet déclare la part avec sa source. La part jamais exigible (prestation dont le prix n'a pas été encaissé) n'a jamais été déclarée : elle sort d'office du 443, sans taux, hors de toute déclaration. Annulé après une liquidation validée, un mouvement porte une régularisation dans la prochaine déclaration."
-                          source="O.-L. n° 10/001, art. 25, 37 et 52 ; décret n° 011/42, art. 96, 126 et 127"
+                          texte="La perte sort du 416 le montant TTC entier, en charge au 651 ; ce geste n'écrit aucune ligne de TVA. Quand la créance est réellement et définitivement irrécouvrable, la TVA acquittée sur la vente peut être récupérée par imputation sur la taxe due pour les opérations ultérieures : elle s'inscrit dans les déductions de la déclaration du ou des mois qui suivent la constatation du non-paiement, après l'envoi au client d'un duplicata de la facture surchargé de la mention « facture demeurée impayée », la preuve de l'irrécouvrabilité incombant à l'assujetti. Pour l'instant, le cabinet la déclare lui-même."
+                          source="O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127"
                         />
-                      </label>
-                      {form.recupererTva && (
-                        <>
-                          {tvaOrigine && !tvaOrigine.assujetti && (
-                            <>
-                              <span />
-                              <span className="text-rouge">Le dossier n'est pas déclaré assujetti à la TVA · la récupération sera refusée.</span>
-                            </>
-                          )}
-                          {tvaOrigine?.raison && (
-                            <>
-                              <span />
-                              <span className="text-text-dim">{tvaOrigine.raison}</span>
-                            </>
-                          )}
-                          <label className="text-right">Compte 443 :</label>
-                          <select required value={form.compteTvaId} onChange={(e) => champ('compteTvaId', e.target.value)} className="border border-border-dark px-2 py-1">
-                            <option value="">Choisir</option>
-                            {(tvaOrigine?.comptes443 ?? []).map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.numero} · {c.intitule}
-                              </option>
-                            ))}
-                          </select>
-                          {tvaOrigine && tvaOrigine.comptes443.length === 0 && (
-                            <>
-                              <span />
-                              <span className="text-text-dim">Aucun compte 443 de détail au plan · ouvrez-le dans Plan comptable.</span>
-                            </>
-                          )}
-                          <span className="text-right">TVA facturée (créance) :</span>
-                          <span className="tabular-nums">{tvaOrigine?.proposition ? montant(tvaOrigine.proposition.tvaFactureeCreance) : '·'}</span>
-                          <span className="text-right">Dont déjà exigible :</span>
-                          <span className="tabular-nums">{tvaOrigine?.proposition ? montant(tvaOrigine.proposition.tvaExigibleCreance) : '·'}</span>
-                          {tvaOrigine?.proposition?.raisonTaux && (
-                            <>
-                              <span />
-                              <span className="text-text-dim">{tvaOrigine.proposition.raisonTaux}</span>
-                            </>
-                          )}
-                          <label className="text-right">TVA récupérée :</label>
-                          <input required inputMode="decimal" value={form.tvaRecuperee} onChange={(e) => champ('tvaRecuperee', e.target.value)} className="border border-border-dark px-2 py-1" />
-                          <label className="text-right">Duplicata, référence :</label>
-                          <input required maxLength={200} value={form.duplicataReference} onChange={(e) => champ('duplicataReference', e.target.value)} className="border border-border-dark px-2 py-1" />
-                          <label className="text-right">Duplicata, envoyé le :</label>
-                          <input type="date" required value={form.duplicataDate} onChange={(e) => champ('duplicataDate', e.target.value)} className="border border-border-dark px-2 py-1" />
-                        </>
-                      )}
+                      </span>
                     </>
                   )}
                   {form.geste !== 'revue' && form.geste !== 'declarer' && (
@@ -826,7 +621,7 @@ export function CreancesDouteusesPage() {
                         Base de la dépréciation · le montant TTC inscrit au 416
                         <Aide
                           titre="Base de la dépréciation"
-                          texte="La dépréciation se mesure sur la valeur comptable de la créance, celle inscrite au 41 puis au 416, taxe comprise. La TVA d'une créance irrécouvrable ne se reprend pas ici : elle se récupère au geste de perte, sur duplicata de la facture."
+                          texte="La dépréciation se mesure sur la valeur comptable de la créance, celle inscrite au 41 puis au 416, taxe comprise. La TVA d'une créance irrécouvrable ne se reprend pas ici : elle se récupère par imputation, sur duplicata de la facture, et le cabinet la déclare lui-même."
                           source="AUDCIF Titre VII, fiches des comptes 41 et 49 ; décision de Manasse du 2026-10-03"
                         />
                       </span>
@@ -920,7 +715,7 @@ export function CreancesDouteusesPage() {
                     titre={annulation.mouvementId ? "Annulation d'un mouvement" : "Annulation d'une revue"}
                     texte={
                       annulation.mouvementId
-                        ? "Au brouillard, l'écriture est supprimée ; validée, elle est inscrite en négatif. Le mouvement reste au dossier, marqué annulé avec son motif, et sort du reste de la créance et de la déclaration de TVA. Une revue qui l'a compté s'annule d'abord, et une perte dont une liquidation de TVA impute la récupération exige d'annuler cette liquidation. Passez ensuite le bon montant."
+                        ? "Au brouillard, l'écriture est supprimée ; validée, elle est inscrite en négatif. Le mouvement reste au dossier, marqué annulé avec son motif, et sort du reste de la créance. Une revue qui l'a compté s'annule d'abord. Passez ensuite le bon montant."
                         : "Au brouillard, l'écriture de la revue est supprimée ; validée, elle est inscrite en négatif. La revue reste au dossier, marquée annulée avec son motif. Passez ensuite le mouvement, puis refaites la revue."
                     }
                     source="AUDCIF art. 20, al. 2"
@@ -937,7 +732,6 @@ export function CreancesDouteusesPage() {
                       {annulation.creance.mouvements.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.type === 'PERTE' ? 'Perte' : 'Recouvrement'} du {jour(m.date)} · {montant(m.montant)}
-                          {m.liquidationRecuperation ? ` · TVA imputée par la liquidation du ${jour(m.liquidationRecuperation.du)} au ${jour(m.liquidationRecuperation.au)}` : ''}
                         </option>
                       ))}
                     </select>

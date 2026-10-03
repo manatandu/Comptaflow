@@ -59,10 +59,7 @@ function service(lignes: LigneFausse[], derniere: { dateDebut: Date; dateFin: Da
       }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
-    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
-    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
-    liquidationTva: { findMany: jest.fn().mockResolvedValue([]),
+    liquidationTva: {
       findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
         const dateFin = where.dateFin as { lt?: Date } | undefined;
         if (dateFin?.lt === undefined || !derniere) return Promise.resolve(null);

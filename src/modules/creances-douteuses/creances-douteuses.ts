@@ -36,7 +36,7 @@ import { NatureCreanceDouteuse, Referentiel, TypeMouvementCreanceDouteuse } from
  * créances, opérations d'affacturage et titrisation » · il ne fonde pas la
  * dépréciation, et n'est cité ici que pour l'abandon (règle 4).
  *
- * TROIS RÈGLES QUE CE MODULE NE DÉFAIT PAS.
+ * LES RÈGLES QUE CE MODULE NE DÉFAIT PAS.
  *  1. AUCUN POURCENTAGE PAR ÂGE. Le texte veut un élément individualisé et un
  *     motif justifié · la dépréciation se DÉCLARE créance par créance, avec
  *     son motif et ses pièces, et aucune fonction ici ne lit l'âge d'une
@@ -61,10 +61,19 @@ import { NatureCreanceDouteuse, Referentiel, TypeMouvementCreanceDouteuse } from
  *     récupérables) [...] ; par le crédit du compte 443 (État, TVA
  *     facturée) », donc TAXE COMPRISE. La seule mention « hors TVA » du corpus
  *     (Titre VIII ch. 15 § 1.3.1, « pour le montant hors TVA si l'abandon est
- *     passible de TVA ») vise l'ABANDON de créance, pas la dépréciation. La
- *     TVA d'une créance devenue irrécouvrable se récupère au geste de PERTE,
- *     sous ses conditions (O.-L. n° 10/001, art. 52), jamais par la
- *     dépréciation.
+ *     passible de TVA ») vise l'ABANDON de créance, pas la dépréciation.
+ *  5. LA PERTE PASSE AU TTC ENTIER, D 651 / C 416, TOUJOURS (A7 scindée,
+ *     décision de Manasse du 2026-10-03). La TVA d'une créance réellement et
+ *     définitivement irrécouvrable se récupère par imputation (O.-L.
+ *     n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127, duplicata
+ *     surchargé), mais ce module ne la chiffre pas · le cabinet la déclare
+ *     lui-même, et la ligne A7 bis du plan en garde le chantier. AUCUNE LIGNE
+ *     443 n'est écrite ici.
+ *  6. LE RECLASSEMENT NE LETTRE PAS LE COMPTE DU CLIENT, et n'exige aucun
+ *     lettrage. Lettré avec la facture, il serait lu par le moteur de la TVA
+ *     comme un ENCAISSEMENT (décret n° 011/42, art. 57) · la TVA d'une
+ *     prestation de services deviendrait exigible au reclassement (O.-L.
+ *     n° 10/001, art. 25, 2°) sans qu'aucun prix ne soit perçu.
  *
  * UN NUMÉRO, DEUX SENS · le 4161 et le 4162.
  *   SYSCOHADA · 4161 « Créances litigieuses », 4162 « Créances douteuses » ·
@@ -363,133 +372,6 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
 }
 
 /**
- * LA TVA D'UNE CRÉANCE IRRÉCOUVRABLE (E2, décision de Manasse du 2026-10-03,
- * « réfère-toi à la loi »).
- *  - O.-L. n° 10/001, art. 52 · la TVA « acquittée à l'occasion des ventes ou
- *    des services qui [...] restent impayés peut être récupérée par voie
- *    d'imputation sur l'impôt dû pour les opérations faites ultérieurement » ;
- *    « lorsque la créance est réellement et définitivement irrécouvrable, la
- *    rectification de la facture consiste en l'envoi d'un duplicata de la
- *    facture initiale ».
- *  - Décret n° 011/42, art. 126 · inscrite « dans les déductions afférentes à
- *    la déclaration du ou des mois suivants celui de la constatation [...] de
- *    non-paiement ».
- *  - Décret n° 011/42, art. 127 · duplicata surchargé de la mention « FACTURE
- *    DEMEUREE IMPAYEE POUR LA SOMME DE ... PRIX HORS TVA ET POUR LA SOMME DE
- *    ... TVA CORRESPONDANTE QUI NE PEUT FAIRE L'OBJET D'UNE DEDUCTION » ; « La
- *    preuve de la créance irrécouvrable incombe à l'assujetti ».
- *  - AUDCIF, fiche du compte 70 · « le compte 443 est débité des taxes
- *    facturées des retours sur ventes », par le crédit du 41.
- * D'où l'écriture · D 651 pour le hors taxe, D 443 pour la TVA récupérée, C 416
- * pour le TTC sorti. JAMAIS D'OFFICE · sans ces conditions, la perte reste
- * D 651 / C 416 pour le TTC entier.
- */
-export interface EntreeRecuperationTva {
-  assujetti: boolean;
-  /** Le montant TTC sorti du 416 par la perte. */
-  montantSorti: number;
-  /** Le montant de la créance reclassée ou déclarée. */
-  montantCreance: number;
-  tvaRecuperee: number;
-  /**
-   * La TVA facturée que portait la créance entière, CALCULÉE PAR LE SERVEUR
-   * sur les factures d'origine (K2) · jamais reçue de l'écran.
-   */
-  tvaFactureeCreance: number | null | undefined;
-  /** La valeur que l'écran a montrée, s'il en envoie une · refusée au-delà d'un centime d'écart. */
-  tvaFactureeSaisie?: number | null;
-  /**
-   * La part de cette TVA que la déclaration a DÉJÀ rendue exigible (B-1) · la
-   * seule qui se récupère. Absente, toute la TVA facturée est tenue pour
-   * exigible.
-   */
-  tvaExigibleCreance?: number | null;
-  /**
-   * Le plafond de la récupération, chiffré par le serveur sur le reste de la
-   * créance (`tvaDeLaPerte`, quatrième relecture) · prime sur le prorata.
-   */
-  plafond?: number | null;
-  numeroCompteTva: string | null;
-  compteTvaEstDetail: boolean;
-  duplicataReference: string | null | undefined;
-  duplicataDateEnvoi: string | null | undefined;
-  /** Date de la perte, AAAA-MM-JJ. */
-  datePerte: string;
-}
-
-/** La TVA récupérable au plus · le prorata de la TVA facturée sur la part sortie. */
-export function plafondTvaRecuperable(tvaFactureeCreance: number, montantSorti: number, montantCreance: number): number {
-  if (!(montantCreance > 0)) return 0;
-  return centimes((tvaFactureeCreance * montantSorti) / montantCreance);
-}
-
-/** La ventilation de la perte · hors taxe au 651 et TVA au 443, leur somme égale au TTC sorti au centime. */
-export function ventilationPerte(montantSorti: number, tvaRecuperee: number): { horsTaxe: number; tva: number } {
-  const tva = centimes(tvaRecuperee);
-  return { horsTaxe: centimes(centimes(montantSorti) - tva), tva };
-}
-
-export function motifRefusRecuperationTva(e: EntreeRecuperationTva): string | null {
-  if (!e.assujetti) {
-    return (
-      "Le dossier n'est pas déclaré assujetti à la TVA (Paramètres du dossier) · il n'a pas acquitté de TVA à récupérer " +
-      '(O.-L. n° 10/001, art. 52). La perte passe au TTC entier.'
-    );
-  }
-  if (!e.numeroCompteTva || !e.numeroCompteTva.startsWith('443') || !e.compteTvaEstDetail) {
-    return (
-      'Choisissez le compte de TVA facturée de la vente d’origine, un compte de détail du 443 · la fiche du compte 70 débite le ' +
-      '443 « des taxes facturées des retours sur ventes ».'
-    );
-  }
-  const facturee = e.tvaFactureeCreance;
-  if (facturee == null || !(facturee > 0) || facturee >= e.montantCreance) {
-    return 'Les factures d’origine ne portent aucune TVA facturée lisible pour cette créance · rien ne se récupère.';
-  }
-  // LA TVA FACTURÉE NE VIENT PAS DE L'ÉCRAN (seconde relecture, K2) · elle
-  // borne la récupération, et une valeur saisie plus haute ouvrait le
-  // prorata à une TVA que la vente n'a jamais portée. Le serveur la calcule
-  // sur les factures d'origine ; une valeur envoyée qui s'en écarte de plus
-  // d'un centime est refusée, et c'est la sienne qui est figée.
-  if (e.tvaFactureeSaisie != null && Math.abs(centimes(e.tvaFactureeSaisie) - centimes(facturee)) > 0.01 + 1e-9) {
-    return (
-      `La TVA facturée envoyée (${centimes(e.tvaFactureeSaisie).toFixed(2)}) n'est pas celle des factures d'origine ` +
-      `(${centimes(facturee).toFixed(2)}) · elle se lit sur les ventes rattachées à la créance, jamais à la saisie.`
-    );
-  }
-  const exigible = e.plafond ?? e.tvaExigibleCreance ?? facturee;
-  if (!(exigible > 0.005)) {
-    return (
-      'Aucune part de la TVA de cette créance n’a été rendue exigible par la déclaration · elle n’a jamais été acquittée, ' +
-      'il n’y a rien à récupérer (O.-L. n° 10/001, art. 25, 2° et 52). Elle sort d’office du 443 sans taux, avec la perte.'
-    );
-  }
-  if (!(e.tvaRecuperee > 0)) return 'La TVA récupérée doit être positive.';
-  const plafond = e.plafond ?? plafondTvaRecuperable(exigible, e.montantSorti, e.montantCreance);
-  if (centimes(e.tvaRecuperee) > plafond + 0.005) {
-    return (
-      `La TVA récupérée (${centimes(e.tvaRecuperee).toFixed(2)}) dépasse le prorata, sur la part perdue, de la TVA facturée ` +
-      `déjà exigible (${plafond.toFixed(2)}) · seule la taxe acquittée de la créance demeurée impayée se récupère (art. 52).`
-    );
-  }
-  if (!e.duplicataReference || e.duplicataReference.trim().length === 0 || !e.duplicataDateEnvoi) {
-    return (
-      'Le duplicata surchargé envoyé au client est exigé, avec sa référence et sa date d’envoi · « la rectification de la facture ' +
-      'consiste en l’envoi d’un duplicata de la facture initiale » (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127, mention ' +
-      '« FACTURE DEMEUREE IMPAYEE »).'
-    );
-  }
-  if (e.duplicataDateEnvoi.slice(0, 10) > e.datePerte.slice(0, 10)) {
-    return 'Le duplicata doit avoir été envoyé au plus tard le jour de la perte · c’est lui qui rectifie la facture.';
-  }
-  const v = ventilationPerte(e.montantSorti, e.tvaRecuperee);
-  if (!(v.horsTaxe > 0) || centimes(v.horsTaxe + v.tva) !== centimes(e.montantSorti)) {
-    return 'Le hors taxe et la TVA doivent faire, au centime, le montant TTC sorti du 416.';
-  }
-  return null;
-}
-
-/**
  * LA DÉPRÉCIATION EN PLACE D'UNE CRÉANCE avant une date · la dépréciation
  * DÉCLARÉE à l'ouverture d'un dossier repris (si la déclaration est datée au
  * plus tard ce jour) plus les écarts des revues antérieures du module.
@@ -651,21 +533,12 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
  * l'annulation d'une revue (AUDCIF art. 20, al. 2, « exclusivement par
  * inscription en négatif des éléments erronés ; l'enregistrement exact est
  * ensuite opéré »). Refus · déjà annulé, exercice clôturé, revue qui a compté
- * le mouvement et n'est pas annulée, récupération de TVA déjà imputée par une
- * liquidation non annulée (sa déduction est acquise · on annule la
- * liquidation d'abord), motif absent.
+ * le mouvement et n'est pas annulée, motif absent.
  */
 export function motifRefusAnnulationMouvement(p: {
   dejaAnnule: string | null;
   exerciceClos: boolean;
   revueNonAnnulee: string | null;
-  /**
-   * BL-3 · la liquidation qui a déclaré la TVA de ce mouvement (récupération
-   * d'une perte, encaissement d'un recouvrement) est encore AU BROUILLARD ·
-   * elle s'annule d'abord. Validée, l'annulation passe avec une
-   * régularisation imputée dans la prochaine déclaration.
-   */
-  liquidationAuBrouillard?: { du: string; au: string } | null;
   motif: string | null | undefined;
 }): string | null {
   if (p.dejaAnnule) return `Ce mouvement est déjà annulé, le ${p.dejaAnnule}.`;
@@ -678,138 +551,11 @@ export function motifRefusAnnulationMouvement(p: {
       'puis annulez le mouvement, puis refaites la revue.'
     );
   }
-  if (p.liquidationAuBrouillard) {
-    return (
-      `La liquidation du ${p.liquidationAuBrouillard.du} au ${p.liquidationAuBrouillard.au}, encore au brouillard, a déclaré la ` +
-      "TVA de ce mouvement · annulez d'abord la liquidation (Déclaration de TVA), puis annulez le mouvement. Une liquidation " +
-      'validée, elle, ne bloque pas · l’annulation passe avec une régularisation imputée dans la prochaine déclaration.'
-    );
-  }
   const m = (p.motif ?? '').trim();
   if (m.length < MOTIF_ANNULATION_MIN || m.length > MOTIF_ANNULATION_MAX) {
     return `Le motif de l'annulation est exigé, de ${MOTIF_ANNULATION_MIN} à ${MOTIF_ANNULATION_MAX} caractères (AUDCIF art. 20, al. 2).`;
   }
   return null;
-}
-
-/** Une vente du client candidate à l'origine d'une créance · son écriture, sa date, ce qui en reste à rattacher. */
-export interface VenteCandidate {
-  ecritureId: string;
-  date: Date;
-  /** TTC au compte du client, moins ce que d'autres créances en reprennent déjà. */
-  ouvert: number;
-}
-
-/**
- * LA FACTURE D'ORIGINE SE CHOISIT, ELLE NE SE DEVINE PAS (seconde relecture,
- * K3). Le lettrage du reclassement avec la facture ne la désigne pas · il la
- * faisait lire comme ENCAISSÉE (décret n° 011/42, art. 57), et une prestation
- * de services devenait exigible au reclassement. Le cabinet choisit les
- * ventes dont la créance est issue ; la répartition du montant sur elles suit
- * leur date, la plus ancienne d'abord, la dernière en partiel (convention
- * d'OmegaX, dite à l'écran). Les ventes choisies doivent couvrir le montant,
- * et chacune doit servir.
- */
-export function repartirSurLesOrigines(
-  montant: number,
-  choisies: readonly VenteCandidate[],
-): { parts: { ecritureId: string; montant: number }[]; refus: string | null } {
-  const ordre = [...choisies].sort((a, b) => a.date.getTime() - b.date.getTime() || a.ecritureId.localeCompare(b.ecritureId));
-  const couvert = centimes(ordre.reduce((s, v) => s + Math.max(0, v.ouvert), 0));
-  if (couvert + 0.005 < centimes(montant)) {
-    return {
-      parts: [],
-      refus:
-        `Les ventes choisies ne portent que ${couvert.toFixed(2)} au compte du client, hors ce que d'autres créances en reprennent · ` +
-        `la créance de ${centimes(montant).toFixed(2)} ne peut en être issue. Choisissez toutes les ventes dont elle provient.`,
-    };
-  }
-  const parts: { ecritureId: string; montant: number }[] = [];
-  let reste = centimes(montant);
-  for (const v of ordre) {
-    if (reste <= 0.005) break;
-    const part = centimes(Math.min(Math.max(0, v.ouvert), reste));
-    if (part <= 0.005) continue;
-    parts.push({ ecritureId: v.ecritureId, montant: part });
-    reste = centimes(reste - part);
-  }
-  const inutiles = ordre.length - parts.length;
-  if (inutiles > 0) {
-    return { parts: [], refus: `${inutiles} vente(s) choisie(s) ne servent pas · les plus anciennes couvrent déjà la créance. Retirez-les.` };
-  }
-  return { parts, refus: null };
-}
-
-/**
- * LA PROPOSITION SANS AMBIGUÏTÉ · une seule vente ouverte égale au montant,
- * ou toutes les ventes ouvertes du client dont la somme l'égale au centime.
- * Ailleurs, rien n'est proposé et le cabinet choisit.
- */
-export function origineProposee(montant: number, candidates: readonly VenteCandidate[]): string[] {
-  const m = centimes(montant);
-  const exactes = candidates.filter((v) => Math.abs(centimes(v.ouvert) - m) < 0.005);
-  if (exactes.length === 1) return [exactes[0].ecritureId];
-  if (exactes.length > 1) return [];
-  const total = centimes(candidates.reduce((s, v) => s + Math.max(0, v.ouvert), 0));
-  return candidates.length > 0 && Math.abs(total - m) < 0.005 ? candidates.map((v) => v.ecritureId) : [];
-}
-
-/**
- * LA TVA FACTURÉE DE LA CRÉANCE, ET SA PART DÉJÀ EXIGIBLE (K2, B-1) · sur
- * chaque vente d'origine, la TVA de la vente au prorata de la part que la
- * créance en reprend (TTC au compte du client). La part exigible est celle
- * que le moteur de la déclaration a rendue exigible (`fractionExigible`),
- * imputée d'abord sur ce qui n'est PAS dans la créance (la part réglée l'a
- * été la première) · le reste de la créance n'a jamais été déclaré. Un seul
- * compte de TVA ; le TAUX n'est exigé que pour la part exigible, qui seule
- * entre dans une déclaration.
- */
-export function tvaFactureeDesOrigines(
-  origines: readonly {
-    part: number;
-    ttcClient: number;
-    fractionExigible?: number;
-    tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[];
-  }[],
-):
-  | { compteId: string; numero: string; tauxTvaId: string | null; raisonTaux: string | null; tvaFacturee: number; tvaExigible: number }
-  | { raison: string } {
-  if (origines.length === 0) {
-    return { raison: 'Aucune facture d’origine n’est rattachée à cette créance · la TVA facturée et son taux ne se lisent pas.' };
-  }
-  const comptes = new Map<string, string>();
-  const taux = new Set<string | null>();
-  let facturee = 0;
-  let exigible = 0;
-  for (const o of origines) {
-    const tvaVente = o.tva.reduce((s, l) => s + l.montant, 0);
-    for (const l of o.tva) {
-      comptes.set(l.compteId, l.numero);
-      taux.add(l.tauxTvaId);
-    }
-    if (!(o.ttcClient > 0)) continue;
-    const tvaCreance = (tvaVente * o.part) / o.ttcClient;
-    const horsCreance = tvaVente - tvaCreance;
-    const declaree = tvaVente * Math.min(1, Math.max(0, o.fractionExigible ?? 1));
-    facturee += tvaCreance;
-    exigible += Math.min(tvaCreance, Math.max(0, declaree - horsCreance));
-  }
-  if (comptes.size === 0) return { raison: 'Les ventes d’origine ne portent aucune TVA facturée.' };
-  if (comptes.size > 1) return { raison: 'Les ventes d’origine portent plusieurs comptes de TVA · la récupération ne se répartit pas d’office.' };
-  const [[compteId, numero]] = [...comptes.entries()];
-  const raisonTaux = taux.has(null)
-    ? 'Une ligne de TVA des ventes d’origine ne porte aucun taux · le taux de la vente ne se lit pas.'
-    : taux.size !== 1
-      ? 'Les ventes d’origine portent plusieurs taux de TVA · le taux de la récupération serait deviné.'
-      : null;
-  return {
-    compteId,
-    numero,
-    tauxTvaId: raisonTaux ? null : [...taux][0]!,
-    raisonTaux,
-    tvaFacturee: centimes(facturee),
-    tvaExigible: centimes(exigible),
-  };
 }
 
 /**
@@ -820,107 +566,4 @@ export function tvaFactureeDesOrigines(
  */
 export function mouvementsSansRevue(p: { revueDeLExercice: boolean; mouvementsDeLExercice: number }): number {
   return p.revueDeLExercice ? 0 : p.mouvementsDeLExercice;
-}
-
-/** Une vente d'origine telle que le moteur de la TVA la rend (`tvaDesVentesOrigine`). */
-export interface VenteOrigineTva {
-  part: number;
-  ttcClient: number;
-  tva: { compteId: string; numero: string; tauxTvaId: string | null; montant: number }[];
-  fractionExigible?: number;
-  /** Ce que les déclarations à venir porteront encore (hors du figé). */
-  exigibleAVenir?: number;
-  declareeFigee?: number;
-  ambigu?: boolean;
-}
-
-/**
- * LA TVA D'UNE PERTE, CHIFFRÉE SUR LE RESTE DE LA CRÉANCE (quatrième relecture
- * d'A7). Sur chaque vente d'origine · ce qui est DÉJÀ DÉCLARÉ (le figé des
- * liquidations, plus ce qu'une période encore ouverte déclarera) s'impute
- * d'abord sur la part HORS créance,
- * puis sur la TVA des RECOUVREMENTS (qui rendent exigible leur propre part,
- * jamais celle du reste) · ce qui en reste est la part déclarée de la TVA du
- * reste, diminuée de ce que les pertes antérieures en ont consommé.
- *  · TVA du reste = TVA facturée × reste ÷ montant de la créance ;
- *  · la perte en prend le prorata ; sa part déclarée est le PLAFOND de la
- *    récupération (art. 52), le reste sort sans taux, d'office.
- * Jeux du relecteur · recouvrement de 580 000 puis perte de 580 000 · 80 000
- * non exigibles, plafond 0 (BL-1) ; groupe recréé après la liquidation · la
- * part impayée n'est pas déclarée, plafond 0 (BL-4).
- */
-export function tvaDeLaPerte(p: {
-  origines: readonly VenteOrigineTva[];
-  montantCreance: number;
-  recouvrements: number;
-  reste: number;
-  perte: number;
-  declareePertesAnterieures: number;
-  /** La part déjà déclarée DÉCLARÉE par le cabinet (TVA reconstituée ambiguë). */
-  declareeParLeCabinet?: number | null;
-}):
-  | {
-      compteId: string;
-      numero: string;
-      tauxTvaId: string | null;
-      raisonTaux: string | null;
-      tvaFacturee: number;
-      tvaReste: number;
-      declareeReste: number;
-      plafond: number;
-      nonExigible: number;
-      ambigu: boolean;
-    }
-  | { raison: string } {
-  const lue = tvaFactureeDesOrigines(p.origines.map((o) => ({ ...o, fractionExigible: 1 })));
-  if ('raison' in lue) return lue;
-  const M = p.montantCreance;
-  let declareeCreance = 0;
-  for (const o of p.origines) {
-    if (!(o.ttcClient > 0) || !(M > 0)) continue;
-    const T = o.tva.reduce((s, l) => s + l.montant, 0);
-    const tc = (T * o.part) / o.ttcClient;
-    const hors = T - tc;
-    const recouvre = (tc * p.recouvrements) / M;
-    // Déjà déclarée (figé) ou à déclarer par une période encore ouverte ·
-    // jamais une relecture des lettrages pour le passé figé.
-    const declaree = Math.min(T, Math.max(0, (o.declareeFigee ?? 0) + (o.exigibleAVenir ?? 0)));
-    declareeCreance += Math.min(Math.max(0, tc - recouvre), Math.max(0, declaree - hors - recouvre));
-  }
-  const ambigu = p.origines.some((o) => o.ambigu);
-  const tvaReste = M > 0 ? (lue.tvaFacturee * p.reste) / M : 0;
-  const declareeReste = Math.min(
-    tvaReste,
-    Math.max(0, p.declareeParLeCabinet != null ? p.declareeParLeCabinet : declareeCreance - p.declareePertesAnterieures),
-  );
-  const prorata = p.reste > 0 ? Math.min(1, p.perte / p.reste) : 0;
-  return {
-    compteId: lue.compteId,
-    numero: lue.numero,
-    tauxTvaId: lue.tauxTvaId,
-    raisonTaux: lue.raisonTaux,
-    tvaFacturee: lue.tvaFacturee,
-    tvaReste: centimes(tvaReste),
-    declareeReste: centimes(declareeReste),
-    plafond: centimes(declareeReste * prorata),
-    nonExigible: centimes((tvaReste - declareeReste) * prorata),
-    ambigu,
-  };
-}
-
-/**
- * LA TVA RECONSTITUÉE AMBIGUË SE DÉCLARE (quatrième relecture) · une
- * liquidation antérieure au figé a pu lire un lettrage qui a bougé depuis ·
- * la part déjà déclarée ne se lit plus, le cabinet la déclare avec sa source.
- */
-export function motifRefusTvaAmbigue(p: { ambigu: boolean; declaree: number | null | undefined; source: string | null | undefined }): string | null {
-  if (!p.ambigu) return null;
-  if (p.declaree == null || !(p.declaree >= 0) || !p.source || p.source.trim().length === 0) {
-    return (
-      'La TVA d’une vente d’origine a été déclarée par une liquidation antérieure à la règle du figé, et son lettrage a bougé ' +
-      'depuis · ce qu’elle a déclaré ne se lit plus. Déclarez la part de la TVA de la créance déjà déclarée, avec sa source ' +
-      '(déclaration déposée, état de liquidation), avant de passer la perte.'
-    );
-  }
-  return null;
 }

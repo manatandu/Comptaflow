@@ -91,9 +91,6 @@ function service(lignes: LigneTva[]) {
         });
       }),
     },
-    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
-    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     liquidationTva: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),

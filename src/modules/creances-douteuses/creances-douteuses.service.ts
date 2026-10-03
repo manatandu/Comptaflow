@@ -19,7 +19,6 @@ import {
   EcritureService,
 } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
-import { TauxTvaService } from '../tva/taux-tva.service';
 import {
   COMPTES_CREANCES_DOUTEUSES,
   RACINES_CREANCE_SOURCE,
@@ -32,14 +31,8 @@ import {
   motifRefusAnnulationMouvement,
   motifRefusAnnulationRevue,
   mouvementsSansRevue,
-  origineProposee,
-  repartirSurLesOrigines,
-  tvaDeLaPerte,
-  motifRefusTvaAmbigue,
-  VenteCandidate,
   motifRefusDeclaration,
   motifRefusMouvement,
-  motifRefusRecuperationTva,
   motifRefusReclassement,
   motifRefusRevue,
   piecesLisibles,
@@ -87,15 +80,12 @@ const INCLURE_CREANCE = {
     orderBy: { date: 'asc' as const },
   },
   // Seuls les mouvements NON ANNULÉS comptent (seconde relecture, K4) · le
-  // reste de la créance, les revues, la clôture et la déclaration de TVA les
-  // ignorent ; les annulés sont lus à part, pour l'écran.
+  // reste de la créance, les revues et la clôture les ignorent ; les annulés
+  // sont lus à part, pour l'écran.
   mouvements: {
     where: { annuleeLe: null },
-    include: { liquidationRecuperation: { select: { dateDebut: true, dateFin: true } } },
     orderBy: { date: 'asc' as const },
   },
-  // Les ventes d'origine (K3) · la TVA facturée se lit sur elles.
-  origines: { select: { ecritureId: true, montant: true }, orderBy: { createdAt: 'asc' as const } },
 } satisfies Prisma.CreanceDouteuseInclude;
 
 type Creance = Prisma.CreanceDouteuseGetPayload<{ include: typeof INCLURE_CREANCE }>;
@@ -117,7 +107,6 @@ export class CreancesDouteusesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
-    private readonly tva: TauxTvaService,
   ) {}
 
   /**
@@ -177,7 +166,7 @@ export class CreancesDouteusesService {
   private async regime(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true, assujettiTva: true },
+      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
     });
   }
 
@@ -429,7 +418,6 @@ export class CreancesDouteusesService {
         revueDeLExercice: !!revue,
         mouvementsDeLExercice: c.mouvements.filter((m) => m.date >= ex.dateDebut && m.date <= ex.dateFin).length,
       }),
-      ventesOrigine: c.origines.map((o) => ({ ecritureId: o.ecritureId, montant: n(o.montant) })),
       comptePertePropose: comptePertePropose(referentiel, c.compteCreance.numero),
       revue: revue
         ? {
@@ -460,133 +448,7 @@ export class CreancesDouteusesService {
         motif: m.motif,
         pieces: m.pieces,
         ecritureId: m.ecritureId,
-        tvaRecuperee: m.tvaRecuperee == null ? null : n(m.tvaRecuperee),
-        tvaNonExigible: m.tvaNonExigible == null ? null : n(m.tvaNonExigible),
-        // La liquidation qui impute la récupération (K1) · tant qu'elle tient,
-        // la perte ne s'annule pas.
-        liquidationRecuperation: m.liquidationRecuperation
-          ? { du: jour(m.liquidationRecuperation.dateDebut), au: jour(m.liquidationRecuperation.dateFin) }
-          : null,
       })),
-    };
-  }
-
-  /**
-   * LES VENTES DU CLIENT QUI PEUVENT ÊTRE L'ORIGINE D'UNE CRÉANCE (K3) · les
-   * écritures VALIDÉES qui débitent son compte jusqu'à la date, hors écritures
-   * du module, avec leur TTC au compte du client et ce qu'aucune autre
-   * créance n'en reprend déjà. Au reclassement, les seules lignes OUVERTES
-   * (sans lettre, donc hors d'un groupe soldé) ; à la déclaration d'ouverture
-   * (M-e), toutes les ventes antérieures à l'exercice, la créance ayant pu
-   * être reclassée à la main.
-   */
-  private async ventesCandidates(
-    tenantId: string,
-    compteCreanceId: string,
-    p: { auPlusTard?: Date; avant?: Date; ouvertes: boolean },
-  ): Promise<{ ventes: (VenteCandidate & { numeroPiece: number | null; libelle: string; ttc: number })[]; tronque: boolean }> {
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId: compteCreanceId,
-        debit: { gt: 0 },
-        ...(p.ouvertes ? { lettre: null } : {}),
-        ecriture: {
-          tenantId,
-          statut: StatutEcriture.VALIDEE,
-          date: p.avant ? { lt: p.avant } : { lte: p.auPlusTard },
-          creanceDouteuseReclassement: { is: null },
-          mouvementCreanceDouteuse: { is: null },
-        },
-      },
-      select: {
-        ecritureId: true,
-        debit: true,
-        ecriture: { select: { date: true, numeroPiece: true, libelle: true } },
-        // M4 · le lettrage PARTIEL d'une vente en a déjà soldé une part.
-        lettrage: { select: { solde: true, lignes: { select: { debit: true, credit: true } } } },
-      },
-      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
-      take: PLAFOND_COMPTES_CANDIDATS + 1,
-    });
-    const parEcriture = new Map<string, { date: Date; numeroPiece: number | null; libelle: string; ttc: number; reste: number }>();
-    for (const l of lignes) {
-      const v = parEcriture.get(l.ecritureId) ?? { date: l.ecriture.date, numeroPiece: l.ecriture.numeroPiece, libelle: l.ecriture.libelle, ttc: 0, reste: 0 };
-      v.ttc = centimes(v.ttc + n(l.debit));
-      // LE RESTE RÉEL, JAMAIS LE TTC ENTIER (troisième relecture, M4) · au
-      // reclassement, une vente dans un lettrage partiel ne porte plus que ce
-      // que le groupe laisse ouvert, réparti entre ses factures au prorata
-      // (leur imputation n'est pas connue). À l'ouverture, la vente a pu être
-      // soldée par un reclassement passé à la main · son TTC se lit entier.
-      if (p.ouvertes && l.lettrage) {
-        const factures = l.lettrage.lignes.reduce((t, g) => t + Math.max(0, n(g.debit) - n(g.credit)), 0);
-        const ouvert = Math.max(0, n(l.lettrage.solde));
-        v.reste = centimes(v.reste + (factures > 0 ? (n(l.debit) * Math.min(ouvert, factures)) / factures : 0));
-      } else {
-        v.reste = centimes(v.reste + n(l.debit));
-      }
-      parEcriture.set(l.ecritureId, v);
-    }
-    const ids = [...parEcriture.keys()];
-    const repris = ids.length
-      ? await this.prisma.origineCreanceDouteuse.groupBy({
-          by: ['ecritureId'],
-          where: { tenantId, ecritureId: { in: ids } },
-          _sum: { montant: true },
-          orderBy: { ecritureId: 'asc' },
-        })
-      : [];
-    const dejaRepris = new Map(repris.map((r) => [r.ecritureId, n(r._sum?.montant)]));
-    return {
-      ventes: ids.map((id) => {
-        const v = parEcriture.get(id)!;
-        return { ecritureId: id, date: v.date, numeroPiece: v.numeroPiece, libelle: v.libelle, ttc: v.ttc, ouvert: centimes(Math.max(0, v.reste - (dejaRepris.get(id) ?? 0))) };
-      }),
-      tronque: lignes.length > PLAFOND_COMPTES_CANDIDATS,
-    };
-  }
-
-  /** Les ventes d'origine choisies, vérifiées et réparties · un refus nommé sinon. */
-  private async originesChoisies(
-    tenantId: string,
-    compteCreanceId: string,
-    montant: number,
-    choisies: readonly string[] | undefined,
-    p: { auPlusTard?: Date; avant?: Date; ouvertes: boolean },
-  ): Promise<{ ecritureId: string; montant: number }[]> {
-    if (!choisies || choisies.length === 0) return [];
-    const { ventes } = await this.ventesCandidates(tenantId, compteCreanceId, p);
-    const parId = new Map(ventes.map((v) => [v.ecritureId, v]));
-    const inconnues = [...new Set(choisies)].filter((id) => !parId.has(id));
-    if (inconnues.length > 0) {
-      throw new BadRequestException(
-        `${inconnues.length} vente(s) choisie(s) ne sont pas des ventes validées ${p.ouvertes ? 'ouvertes ' : ''}de ce client ` +
-          `datées ${p.avant ? `avant le ${jour(p.avant)}` : `au plus tard le ${jour(p.auPlusTard!)}`} · la facture d'origine se choisit parmi elles.`,
-      );
-    }
-    const r = repartirSurLesOrigines(montant, [...new Set(choisies)].map((id) => parId.get(id)!));
-    if (r.refus) throw new BadRequestException(r.refus);
-    return r.parts;
-  }
-
-  /** L'écran · les ventes candidates et la proposition sans ambiguïté (K3, M-e). */
-  async ventesOrigine(
-    tenantId: string,
-    q: { exerciceId: string; compteCreanceId: string; montant?: string; date?: string; ouverture?: string },
-  ) {
-    const ex = await this.exercice(tenantId, q.exerciceId);
-    const compte = await this.compteParId(tenantId, q.compteCreanceId);
-    const ouverture = q.ouverture === 'true' || q.ouverture === '1';
-    const date = q.date ? new Date(q.date.slice(0, 10)) : ex.dateFin;
-    const { ventes, tronque } = await this.ventesCandidates(
-      tenantId,
-      compte.id,
-      ouverture ? { avant: ex.dateDebut, ouvertes: false } : { auPlusTard: date, ouvertes: true },
-    );
-    const montant = Number(q.montant);
-    return {
-      ventes: ventes.map((v) => ({ ecritureId: v.ecritureId, date: jour(v.date), numeroPiece: v.numeroPiece, libelle: v.libelle, ttc: v.ttc, ouvert: v.ouvert })),
-      proposees: Number.isFinite(montant) && montant > 0 ? origineProposee(montant, ventes.filter((v) => v.ouvert > 0.005)) : [],
-      tronque,
     };
   }
 
@@ -647,10 +509,15 @@ export class CreancesDouteusesService {
         "passez l'à-nouveau (ou le bilan d'ouverture), puis reprenez le reclassement.";
     }
     if (motif) throw new BadRequestException(motif);
-    // LES VENTES D'ORIGINE, vérifiées AVANT l'écriture (K3).
-    const origines = await this.originesChoisies(tenantId, source.id, dto.montant, dto.ventesOrigineIds, { auPlusTard: date, ouvertes: true });
 
     const nature = dto.nature === NatureCreanceDouteuse.LITIGIEUSE ? 'litigieuse' : 'douteuse';
+    // LE RECLASSEMENT NE LETTRE PAS LE COMPTE DU CLIENT, et n'exige aucun
+    // lettrage. Lettré avec la facture, il serait lu par le moteur de la TVA
+    // comme un ENCAISSEMENT (décret n° 011/42, art. 57) · la TVA d'une
+    // prestation de services deviendrait exigible au reclassement (O.-L.
+    // n° 10/001, art. 25, 2°), sans qu'aucun prix ne soit perçu. Le cabinet ne
+    // lettre pas la facture avec cette pièce ; la ligne A7 bis du plan garde le
+    // chantier de la TVA des créances douteuses.
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: ex.id,
       journalId: journal.id,
@@ -662,8 +529,8 @@ export class CreancesDouteusesService {
       ],
     });
     try {
-      const ligne = await transactionJournalisee(this.prisma, async (tx) => {
-        const creee = await tx.creanceDouteuse.create({
+      const ligne = await transactionJournalisee(this.prisma, (tx) =>
+        tx.creanceDouteuse.create({
           data: {
             tenantId,
             exerciceId: ex.id,
@@ -678,13 +545,9 @@ export class CreancesDouteusesService {
             ecritureReclassementId: ecriture.id,
             createdBy: userId,
           },
-        });
-        for (const o of origines) {
-          await tx.origineCreanceDouteuse.create({ data: { tenantId, creanceId: creee.id, ecritureId: o.ecritureId, montant: o.montant } });
-        }
-        return creee;
-      });
-      return { ...ligne, montant: n(ligne.montant), ventesOrigine: origines };
+        }),
+      );
+      return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
       // Une ligne refusée ne laisse pas son écriture au journal.
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
@@ -736,10 +599,8 @@ export class CreancesDouteusesService {
       dejaDeclare491: dejaPorte.sur491,
     });
     if (motif) throw new BadRequestException(motif);
-    // M-e · les ventes d'origine, si elles sont tenues dans OmegaX.
-    const origines = await this.originesChoisies(tenantId, source.id, dto.montant, dto.ventesOrigineIds, { avant: date, ouvertes: false });
-    const ligne = await transactionJournalisee(this.prisma, async (tx) => {
-      const creee = await tx.creanceDouteuse.create({
+    const ligne = await transactionJournalisee(this.prisma, (tx) =>
+      tx.creanceDouteuse.create({
         data: {
           tenantId,
           exerciceId: ex.id,
@@ -756,13 +617,9 @@ export class CreancesDouteusesService {
           depreciationOuverture: centimes(dto.depreciationOuverture),
           createdBy: userId,
         },
-      });
-      for (const o of origines) {
-        await tx.origineCreanceDouteuse.create({ data: { tenantId, creanceId: creee.id, ecritureId: o.ecritureId, montant: o.montant } });
-      }
-      return creee;
-    });
-    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture), ventesOrigine: origines };
+      }),
+    );
+    return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture) };
   }
 
   /**
@@ -1020,7 +877,7 @@ export class CreancesDouteusesService {
     type: TypeMouvementCreanceDouteuse,
     dto: PerteCreanceDto | RecouvrementCreanceDto,
   ) {
-    const [c, ex, journal, { referentiel, assujettiTva }] = await Promise.all([
+    const [c, ex, journal, { referentiel }] = await Promise.all([
       this.creance(tenantId, id),
       this.exercice(tenantId, dto.exerciceId),
       this.journal(tenantId, dto.journalId),
@@ -1066,111 +923,17 @@ export class CreancesDouteusesService {
     if (motif) throw new BadRequestException(motif);
 
     const montant = centimes(dto.montant);
-    // LA TVA D'UNE CRÉANCE PERDUE, EN DEUX PARTS (E2, troisième relecture B-1),
-    // chacune lue sur les ventes d'origine par le moteur de la déclaration.
-    //  · La part que la déclaration a DÉJÀ rendue exigible a été acquittée ·
-    //    elle se RÉCUPÈRE, sur demande, sous les conditions de l'art. 52 et de
-    //    l'art. 127 (`motifRefusRecuperationTva`), sur une ligne qui porte le
-    //    taux de la vente (décret n° 011/42, art. 126).
-    //  · La part JAMAIS rendue exigible (art. 25, 2° · prestation dont le
-    //    prix n'a pas été encaissé) n'a jamais été déclarée · elle sort du 443
-    //    D'OFFICE, en entier au prorata de la perte, sur une ligne SANS TAUX,
-    //    hors de toute déclaration, sans assujettissement ni duplicata (les
-    //    art. 52 et 127 sont sans objet pour une taxe jamais acquittée). Elle
-    //    ne se saisit pas.
-    const recup = type === TypeMouvementCreanceDouteuse.PERTE ? (dto as PerteCreanceDto).recuperationTva : undefined;
-    let compteTva: { id: string } | null = null;
-    let tauxTvaId: string | null = null;
-    let tvaRecuperee = 0;
-    let tvaNonExigible = 0;
-    let tvaDeclareePerte = 0;
-    let tvaFacturee: number | null = null;
-    // LA PERTE SE CHIFFRE SUR LE RESTE DE LA CRÉANCE AVANT ELLE (quatrième
-    // relecture) · ce qui est déjà déclaré se lit sur le FIGÉ des liquidations
-    // (`tvaDeLaPerte`), jamais reconstitué sur des lettrages qui ont bougé.
-    const declareeCabinet = type === TypeMouvementCreanceDouteuse.PERTE ? (dto as PerteCreanceDto).tvaDejaDeclaree : undefined;
-    const origine =
-      type === TypeMouvementCreanceDouteuse.PERTE
-        ? await this.origineTva(tenantId, c, { reste, perte: montant, declareeParLeCabinet: declareeCabinet?.montant ?? null })
-        : null;
-    if (origine?.proposition) {
-      const refusAmbigu = motifRefusTvaAmbigue({
-        ambigu: origine.proposition.ambigu,
-        declaree: declareeCabinet?.montant,
-        source: declareeCabinet?.source,
-      });
-      if (refusAmbigu) throw new BadRequestException(refusAmbigu);
-      tvaNonExigible = origine.proposition.nonExigiblePerte;
-      tvaDeclareePerte = origine.proposition.plafondPerte;
-      if (tvaNonExigible > 0.005) {
-        compteTva = { id: origine.proposition.compteTvaId };
-        tvaFacturee = origine.proposition.tvaFactureeCreance;
-      }
-    }
-    if (recup) {
-      const k = await this.compteParId(tenantId, recup.compteTvaId);
-      // LA VENTE D'ORIGINE DIT LE COMPTE, LE TAUX ET LA TVA FACTURÉE (K2, K3) ·
-      // lus sur les ventes rattachées à la créance, jamais devinés ni reçus de
-      // l'écran · absents ou ambigus, la récupération est refusée.
-      if (!origine?.proposition) {
-        throw new BadRequestException(
-          `${origine?.raison ?? ''} La ligne de récupération doit porter le compte et le taux de la vente d’origine (décret n° 011/42, ` +
-            'art. 126) · sans eux, la récupération est refusée ; la perte peut passer au TTC entier.',
-        );
-      }
-      const refusTva = motifRefusRecuperationTva({
-        assujetti: assujettiTva,
-        montantSorti: montant,
-        montantCreance: n(c.montant),
-        tvaRecuperee: recup.tvaRecuperee,
-        tvaFactureeCreance: origine.proposition.tvaFactureeCreance,
-        tvaExigibleCreance: origine.proposition.tvaExigibleCreance,
-        plafond: origine.proposition.plafondPerte,
-        tvaFactureeSaisie: recup.tvaFactureeCreance ?? null,
-        numeroCompteTva: k.numero,
-        compteTvaEstDetail: k.typeCompte === TypeCompteDetailTotal.DETAIL,
-        duplicataReference: recup.duplicataReference,
-        duplicataDateEnvoi: recup.duplicataDateEnvoi,
-        datePerte: jour(date),
-      });
-      if (refusTva) throw new BadRequestException(refusTva);
-      if (!origine.proposition.tauxTvaId) {
-        throw new BadRequestException(
-          `${origine.proposition.raisonTaux} La ligne de récupération doit porter le taux de la vente d’origine (décret n° 011/42, ` +
-            'art. 126) · sans lui, la récupération est refusée ; la perte peut passer sans elle.',
-        );
-      }
-      if (origine.proposition.compteTvaId !== k.id) {
-        throw new BadRequestException(
-          `La TVA de la vente d’origine est au ${origine.proposition.numero} · la récupération se débite sur ce compte, celui que la ` +
-            'liquidation a soldé (fiche du compte 70, « le compte 443 est débité des taxes facturées des retours »).',
-        );
-      }
-      tauxTvaId = origine.proposition.tauxTvaId;
-      tvaFacturee = origine.proposition.tvaFactureeCreance;
-      tvaRecuperee = centimes(recup.tvaRecuperee);
-      compteTva = { id: k.id };
-    }
-    // BL-2 · le recouvrement d'une créance dont la TVA n'est exigible qu'à
-    // l'encaissement le dit · la liquidation et la validation le relisent.
-    const tvaEnDepend = type === TypeMouvementCreanceDouteuse.RECOUVREMENT ? await this.tvaDependDeLEncaissement(tenantId, c) : false;
-    const horsTaxe = centimes(montant - tvaRecuperee - tvaNonExigible);
-    if (compteTva && !(horsTaxe > 0)) {
-      throw new BadRequestException('Le hors taxe de la perte doit rester positif · la TVA sortie dépasse le montant perdu.');
-    }
+    // LA PERTE PASSE AU TTC ENTIER, D 651 / C 416, TOUJOURS (A7 scindée,
+    // décision de Manasse du 2026-10-03) · aucune ligne 443. La TVA d'une
+    // créance réellement et définitivement irrécouvrable se récupère par
+    // imputation (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127,
+    // duplicata surchargé), mais ce module ne la chiffre pas · le cabinet la
+    // déclare lui-même, et la ligne A7 bis du plan en garde le chantier.
     const debit = type === TypeMouvementCreanceDouteuse.PERTE ? comptePerte!.id : journal.compteTresorerieId!;
-    const lignes = compteTva
-      ? [
-          { compteId: debit, debit: horsTaxe, credit: 0 },
-          ...(tvaRecuperee > 0.005 ? [{ compteId: compteTva.id, debit: tvaRecuperee, credit: 0, tauxTvaId: tauxTvaId ?? undefined }] : []),
-          // Sans taux · hors de toute déclaration (B-1).
-          ...(tvaNonExigible > 0.005 ? [{ compteId: compteTva.id, debit: tvaNonExigible, credit: 0 }] : []),
-          { compteId: c.compte416.id, debit: 0, credit: montant },
-        ]
-      : [
-          { compteId: debit, debit: montant, credit: 0 },
-          { compteId: c.compte416.id, debit: 0, credit: montant },
-        ];
+    const lignes = [
+      { compteId: debit, debit: montant, credit: 0 },
+      { compteId: c.compte416.id, debit: 0, credit: montant },
+    ];
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: ex.id,
       journalId: journal.id,
@@ -1191,158 +954,18 @@ export class CreancesDouteusesService {
             motif: dto.motif.trim(),
             pieces: pieces as unknown as Prisma.InputJsonValue,
             ecritureId: ecriture.id,
-            ...(type === TypeMouvementCreanceDouteuse.RECOUVREMENT ? { tvaEnDepend } : {}),
-            ...(compteTva
-              ? {
-                  tvaRecuperee: recup ? tvaRecuperee : null,
-                  // La valeur du SERVEUR, figée (K2).
-                  tvaFactureeCreance: centimes(tvaFacturee ?? 0),
-                  tvaNonExigible: tvaNonExigible > 0.005 ? tvaNonExigible : null,
-                  compteTvaId: compteTva.id,
-                  tvaDeclareePerte,
-                  tvaDejaDeclareeSource: declareeCabinet?.source.trim() ?? null,
-                  ...(recup
-                    ? {
-                        duplicataReference: recup.duplicataReference.trim(),
-                        duplicataDateEnvoi: new Date(recup.duplicataDateEnvoi.slice(0, 10)),
-                      }
-                    : {}),
-                }
-              : {}),
             createdBy: userId,
           },
         }),
       );
-      return {
-        ...ligne,
-        montant: n(ligne.montant),
-        tvaRecuperee: ligne.tvaRecuperee == null ? null : n(ligne.tvaRecuperee),
-        tvaFactureeCreance: ligne.tvaFactureeCreance == null ? null : n(ligne.tvaFactureeCreance),
-        tvaNonExigible: ligne.tvaNonExigible == null ? null : n(ligne.tvaNonExigible),
-      };
+      return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
       await this.ecritures.retirerCompensation(tenantId, ecriture.id);
       throw err;
     }
   }
 
-  /**
-   * LA TVA FACTURÉE DE LA VENTE D'ORIGINE, PROPOSÉE · jamais devinée (E2).
-   * Lue sur les VENTES D'ORIGINE rattachées à la créance (K3), avec la base
-   * d'exigibilité de leur TVA. La liste des 443 de détail du plan est servie
-   * à côté.
-   */
-  async tvaOrigine(tenantId: string, id: string) {
-    const c = await this.creance(tenantId, id);
-    const [regime, comptes443, origine] = await Promise.all([
-      this.regime(tenantId),
-      this.prisma.compte.findMany({
-        where: { tenantId, numero: { startsWith: '443' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
-        select: { id: true, numero: true, intitule: true },
-        orderBy: { numero: 'asc' },
-        take: 50,
-      }),
-      this.origineTva(tenantId, c),
-    ]);
-    return {
-      assujetti: regime.assujettiTva,
-      comptes443,
-      proposition: origine.proposition,
-      raison: origine.raison,
-    };
-  }
-
-  /**
-   * LA TVA DE LA VENTE D'ORIGINE, lue sur les VENTES RATTACHÉES à la créance
-   * (seconde relecture, K3) · jamais sur le lettrage du reclassement, qui
-   * faisait lire la facture comme encaissée. Sur chaque vente, la TVA au
-   * prorata de la part que la créance en reprend ; un seul compte et un seul
-   * taux, sinon rien n'est proposé et la raison est dite. Le TAUX est celui
-   * que la ligne de récupération portera (décret n° 011/42, art. 126), et la
-   * BASE dit si cette TVA a jamais été exigible (O.-L. n° 10/001, art. 25).
-   */
-  private async origineTva(
-    tenantId: string,
-    c: Creance,
-    perte?: { reste: number; perte: number; declareeParLeCabinet: number | null },
-  ): Promise<{
-    proposition: {
-      compteTvaId: string;
-      numero: string;
-      tauxTvaId: string | null;
-      raisonTaux: string | null;
-      tvaFactureeCreance: number;
-      /** La TVA du reste de la créance, et sa part déjà déclarée · récupérable (B-1). */
-      tvaResteCreance: number;
-      tvaExigibleCreance: number;
-      /** La part jamais déclarée du reste · sortie d'office, sans taux (B-1). */
-      tvaNonExigibleCreance: number;
-      /** Pour la perte demandée · son plafond de récupération et sa part sans taux. */
-      plafondPerte: number;
-      nonExigiblePerte: number;
-      /** Une liquidation sans figé a pu lire un lettrage qui a bougé (à déclarer par le cabinet). */
-      ambigu: boolean;
-    } | null;
-    raison: string | null;
-  }> {
-    const sans = (raison: string) => ({ proposition: null, raison });
-    if (c.origines.length === 0) {
-      return sans(
-        c.declareeOuverture
-          ? 'Créance déclarée à l’ouverture sans vente d’origine tenue dans OmegaX · sa TVA ne se récupère pas dans le module.'
-          : 'Aucune vente d’origine n’est rattachée à cette créance · la TVA facturée et son taux ne se lisent pas.',
-      );
-    }
-    const ventes = await this.tva.tvaDesVentesOrigine(
-      tenantId,
-      c.compteCreance.id,
-      c.origines.map((o) => ({ ecritureId: o.ecritureId, part: n(o.montant) })),
-    );
-    const recouvrements = c.mouvements.filter((m) => m.type === TypeMouvementCreanceDouteuse.RECOUVREMENT).reduce((t, m) => t + n(m.montant), 0);
-    const declareePertesAnterieures = c.mouvements
-      .filter((m) => m.type === TypeMouvementCreanceDouteuse.PERTE)
-      .reduce((t, m) => t + n(m.tvaDeclareePerte), 0);
-    const reste = perte?.reste ?? this.reste(c, new Date('9999-12-31'));
-    const lue = tvaDeLaPerte({
-      origines: ventes,
-      montantCreance: n(c.montant),
-      recouvrements,
-      reste,
-      perte: perte?.perte ?? reste,
-      declareePertesAnterieures,
-      declareeParLeCabinet: perte?.declareeParLeCabinet ?? null,
-    });
-    if ('raison' in lue) return sans(lue.raison);
-    return {
-      proposition: {
-        compteTvaId: lue.compteId,
-        numero: lue.numero,
-        tauxTvaId: lue.tauxTvaId,
-        raisonTaux: lue.raisonTaux,
-        tvaFactureeCreance: lue.tvaFacturee,
-        tvaResteCreance: lue.tvaReste,
-        tvaExigibleCreance: lue.declareeReste,
-        tvaNonExigibleCreance: centimes(lue.tvaReste - lue.declareeReste),
-        plafondPerte: lue.plafond,
-        nonExigiblePerte: lue.nonExigible,
-        ambigu: lue.ambigu,
-      },
-      raison: null,
-    };
-  }
-
-  /** BL-2 · la TVA d'une vente d'origine de la créance n'est exigible qu'à l'encaissement. */
-  private async tvaDependDeLEncaissement(tenantId: string, c: Creance): Promise<boolean> {
-    if (c.origines.length === 0) return false;
-    const ventes = await this.tva.tvaDesVentesOrigine(
-      tenantId,
-      c.compteCreance.id,
-      c.origines.map((o) => ({ ecritureId: o.ecritureId, part: n(o.montant) })),
-    );
-    return ventes.some((v) => v.aLEncaissement && v.tva.some((l) => Math.abs(l.montant) > 0.005));
-  }
-
-  /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable. */
+  /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable, au TTC entier. */
   perte(tenantId: string, userId: string, id: string, dto: PerteCreanceDto) {
     return this.sousVerrou(tenantId, 'PERTE', () => this.mouvement(tenantId, userId, id, TypeMouvementCreanceDouteuse.PERTE, dto));
   }
@@ -1374,9 +997,7 @@ export class CreancesDouteusesService {
       }
       const ex = await this.exercice(tenantId, c.exerciceId);
       if (ex.statut === StatutExercice.CLOTURE) throw new BadRequestException("L'exercice de cette créance est clôturé.");
-      // Les ventes d'origine partent avec la créance, dans la même transaction.
       const retirer = async (tx: Prisma.TransactionClient) => {
-        await tx.origineCreanceDouteuse.deleteMany({ where: { tenantId, creanceId: c.id } });
         await tx.creanceDouteuse.delete({ where: { id: c.id } });
       };
       if (!c.ecritureReclassementId) {
@@ -1418,10 +1039,10 @@ export class CreancesDouteusesService {
    * ligne lettrée ou pointée refuse (`motifLignesTenues`) ; le mouvement est
    * MARQUÉ annulé par un `update` unitaire (journal d'audit), jamais
    * supprimé. Refus · revue qui l'a compté et n'est pas annulée, exercice
-   * clôturé, perte dont une liquidation non annulée impute la récupération.
-   * Annulé, il sort du reste de la créance, des revues, de la clôture (B1),
-   * de la déclaration de TVA et du rapprochement ; l'enregistrement exact se
-   * repasse ensuite par le geste ordinaire.
+   * clôturé. Annulé, il sort du reste de la créance, des revues, de la
+   * clôture (B1) et du rapprochement ; l'enregistrement exact se repasse
+   * ensuite par le geste ordinaire. Aucune régularisation de TVA · le module
+   * n'en écrit aucune (ligne A7 bis).
    */
   annulerMouvement(tenantId: string, userId: string, id: string, mouvementId: string, dto: AnnulerMouvementDto) {
     return this.sousVerrou(tenantId, 'ANNULATION DE MOUVEMENT', () =>
@@ -1434,7 +1055,6 @@ export class CreancesDouteusesService {
       where: { id: mouvementId, creanceId: id, tenantId },
       include: {
         exercice: { select: { statut: true } },
-        liquidationRecuperation: { select: { dateDebut: true, dateFin: true } },
         ecriture: {
           select: { id: true, statut: true, numeroPiece: true, lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } } },
         },
@@ -1446,12 +1066,7 @@ export class CreancesDouteusesService {
       orderBy: { date: 'asc' },
       select: { date: true },
     });
-    // BL-3 · LA TVA QUE CE MOUVEMENT A FAIT DÉCLARER, lue sur le FIGÉ · une
-    // liquidation encore au brouillard s'annule d'abord ; validée, l'annulation
-    // passe AVEC une régularisation imputée dans la prochaine déclaration.
-    const tvaLiquidee = await this.tvaLiquideeDuMouvement(this.prisma, tenantId, mv);
     const refus = motifRefusAnnulationMouvement({
-      liquidationAuBrouillard: tvaLiquidee.liquidationAuBrouillard,
       dejaAnnule: mv.annuleeLe ? jour(mv.annuleeLe) : null,
       exerciceClos: mv.exercice.statut === StatutExercice.CLOTURE,
       revueNonAnnulee: revue ? jour(revue.date) : null,
@@ -1489,38 +1104,6 @@ export class CreancesDouteusesService {
           };
         }
       }
-      // LE CONTRÔLE SE RELIT DANS LA TRANSACTION (M-d) · une liquidation
-      // passée ou ramenée au brouillard entre-temps change l'issue.
-      const relu = await this.tvaLiquideeDuMouvement(tx, tenantId, mv);
-      if (relu.liquidationAuBrouillard) {
-        throw new BadRequestException(
-          motifRefusAnnulationMouvement({
-            liquidationAuBrouillard: relu.liquidationAuBrouillard,
-            dejaAnnule: null,
-            exerciceClos: false,
-            revueNonAnnulee: null,
-            motif,
-          })!,
-        );
-      }
-      for (const r of relu.regularisations) {
-        await tx.regularisationTvaCreance.create({
-          data: {
-            tenantId,
-            mouvementId: mv.id,
-            date: new Date(jour(new Date())),
-            createdBy: userId,
-            sens: r.sens,
-            montant: r.montant,
-            compteId: r.compteId,
-            tauxTvaId: r.tauxTvaId,
-            ecritureVenteId: r.ecritureVenteId,
-          },
-        });
-      }
-      if (relu.regularisations.length > 0) {
-        annulation = { ...annulation, regularisations: relu.regularisations.map((r) => ({ sens: r.sens, montant: r.montant })) };
-      }
       // Marqué AVANT la suppression du brouillard, sur une ligne encore non
       // annulée · le lien vers une écriture supprimée est effacé, l'écriture
       // inscrite en négatif reste nommée.
@@ -1547,73 +1130,5 @@ export class CreancesDouteusesService {
       }
       return { annule: true, annulation };
     });
-  }
-
-  /**
-   * LA TVA QU'UN MOUVEMENT A FAIT LIQUIDER (BL-3), lue sur le FIGÉ.
-   *  · RECOUVREMENT · les tranches que les liquidations ont figées à son nom
-   *    (`TvaVenteDeclaree.recouvrementId`) · annulé, elles reviennent en
-   *    DÉDUCTION, ligne de vente par ligne de vente, à leur taux.
-   *  · PERTE · la récupération imputée (`liquidationRecuperationId`) ·
-   *    annulée, elle se REVERSE, à son taux.
-   * Une liquidation encore au brouillard se supprime d'abord (refus nommé).
-   */
-  private async tvaLiquideeDuMouvement(
-    db: Prisma.TransactionClient | PrismaService,
-    tenantId: string,
-    mv: { id: string; type: TypeMouvementCreanceDouteuse; ecritureId: string | null; compteTvaId: string | null; tvaRecuperee: Prisma.Decimal | null; liquidationRecuperationId: string | null },
-  ): Promise<{
-    liquidationAuBrouillard: { du: string; au: string } | null;
-    regularisations: Array<{ sens: 'DEDUCTION' | 'REVERSEMENT'; montant: number; compteId: string; tauxTvaId: string; ecritureVenteId: string | null }>;
-  }> {
-    if (mv.type === TypeMouvementCreanceDouteuse.RECOUVREMENT) {
-      const figes = await db.tvaVenteDeclaree.findMany({
-        where: { tenantId, recouvrementId: mv.id },
-        select: {
-          montant: true,
-          ecritureId: true,
-          ligneEcritureId: true,
-          ligne: { select: { compteId: true, tauxTvaId: true } },
-          liquidation: { select: { dateDebut: true, dateFin: true, ecriture: { select: { statut: true } } } },
-        },
-      });
-      const brouillard = figes.find((f) => f.liquidation.ecriture.statut === StatutEcriture.BROUILLARD);
-      if (brouillard) {
-        return { liquidationAuBrouillard: { du: jour(brouillard.liquidation.dateDebut), au: jour(brouillard.liquidation.dateFin) }, regularisations: [] };
-      }
-      const parLigne = new Map<string, { montant: number; compteId: string; tauxTvaId: string; ecritureVenteId: string }>();
-      for (const f of figes) {
-        if (!f.ligne.tauxTvaId) continue;
-        const v = parLigne.get(f.ligneEcritureId) ?? { montant: 0, compteId: f.ligne.compteId, tauxTvaId: f.ligne.tauxTvaId, ecritureVenteId: f.ecritureId };
-        v.montant = centimes(v.montant + n(f.montant));
-        parLigne.set(f.ligneEcritureId, v);
-      }
-      return {
-        liquidationAuBrouillard: null,
-        regularisations: [...parLigne.values()].filter((v) => v.montant > 0.005).map((v) => ({ sens: 'DEDUCTION' as const, ...v })),
-      };
-    }
-    if (!mv.liquidationRecuperationId || !(n(mv.tvaRecuperee) > 0.005) || !mv.compteTvaId) {
-      return { liquidationAuBrouillard: null, regularisations: [] };
-    }
-    const liquidation = await db.liquidationTva.findFirst({
-      where: { id: mv.liquidationRecuperationId, tenantId },
-      select: { dateDebut: true, dateFin: true, ecriture: { select: { statut: true } } },
-    });
-    if (!liquidation) return { liquidationAuBrouillard: null, regularisations: [] };
-    if (liquidation.ecriture.statut === StatutEcriture.BROUILLARD) {
-      return { liquidationAuBrouillard: { du: jour(liquidation.dateDebut), au: jour(liquidation.dateFin) }, regularisations: [] };
-    }
-    const ligne = mv.ecritureId
-      ? await db.ligneEcriture.findFirst({
-          where: { ecritureId: mv.ecritureId, compteId: mv.compteTvaId, tauxTvaId: { not: null }, ecriture: { tenantId } },
-          select: { tauxTvaId: true },
-        })
-      : null;
-    if (!ligne?.tauxTvaId) return { liquidationAuBrouillard: null, regularisations: [] };
-    return {
-      liquidationAuBrouillard: null,
-      regularisations: [{ sens: 'REVERSEMENT', montant: n(mv.tvaRecuperee), compteId: mv.compteTvaId, tauxTvaId: ligne.tauxTvaId, ecritureVenteId: null }],
-    };
   }
 }

@@ -110,11 +110,6 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
       ),
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
-    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
-    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
-    // La TVA figée et la liquidation s'écrivent dans une transaction.
-    $transaction: (f: (tx: unknown) => unknown) => f(prisma),
     liquidationTva: { findFirst, create, findMany: jest.fn().mockResolvedValue([]) },
     ecriture: { delete: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;

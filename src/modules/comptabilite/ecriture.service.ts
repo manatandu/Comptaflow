@@ -303,7 +303,6 @@ export const DETENTEUR_PAIE_DU_MOIS: DetenteurEcriture = 'la paie du mois (bulle
 export const DETENTEUR_RECLASSEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (reclassement au 416)';
 export const DETENTEUR_REVUE_CREANCE: DetenteurEcriture = 'une créance douteuse (revue de la dépréciation)';
 export const DETENTEUR_MOUVEMENT_CREANCE: DetenteurEcriture = 'une créance douteuse (perte ou recouvrement)';
-export const DETENTEUR_ORIGINE_CREANCE: DetenteurEcriture = 'une créance douteuse (vente d’origine)';
 
 /**
  * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
@@ -1217,7 +1216,6 @@ export class EcritureService {
       // Un mouvement annulé (K4) ne retient plus · son écriture validée est
       // neutralisée par l'inscription en négatif, celle du brouillard est partie.
       [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
-      [DETENTEUR_ORIGINE_CREANCE, this.prisma.origineCreanceDouteuse.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La
@@ -1324,14 +1322,7 @@ export class EcritureService {
   ) {
     const ecritures = await this.prisma.ecriture.findMany({
       where: { id: { in: ecritureIds }, tenantId },
-      include: {
-        lignes: true,
-        exercice: { select: { statut: true } },
-        journal: { select: { code: true } },
-        // BL-2 (ligne A7) · le recouvrement d'une créance douteuse dont la TVA
-        // n'est exigible qu'à l'encaissement.
-        mouvementCreanceDouteuse: { select: { type: true, tvaEnDepend: true, annuleeLe: true } },
-      },
+      include: { lignes: true, exercice: { select: { statut: true } }, journal: { select: { code: true } } },
     });
     if (ecritures.length !== ecritureIds.length) {
       throw new NotFoundException('Une ou plusieurs écritures sont introuvables pour ce dossier.');
@@ -1357,27 +1348,6 @@ export class EcritureService {
           `L'écriture ${e.journal.code} n° ${e.numeroPiece ?? ''} est déséquilibrée (${debit} / ${credit}) : ` +
             'corrigez-la avant de la valider.',
         );
-      }
-      /*
-        BL-2 (ligne A7, quatrième relecture) · UN RECOUVREMENT DONT LA TVA DÉPEND,
-        DATÉ DANS UNE PÉRIODE DÉJÀ LIQUIDÉE · validé, il rendrait exigible une
-        taxe dans une période close, que sa liquidation n'a pas portée. Symétrie
-        du refus de la liquidation (F25).
-      */
-      const mv = e.mouvementCreanceDouteuse;
-      if (mv && mv.type === 'RECOUVREMENT' && mv.tvaEnDepend && !mv.annuleeLe) {
-        const liquidee = await this.prisma.liquidationTva.findFirst({
-          where: { tenantId, dateDebut: { lte: e.date }, dateFin: { gte: e.date } },
-          select: { dateDebut: true, dateFin: true },
-        });
-        if (liquidee) {
-          const j = (d: Date) => d.toISOString().slice(0, 10);
-          throw new BadRequestException(
-            `Le recouvrement n° ${e.numeroPiece ?? '·'} est daté dans la période du ${j(liquidee.dateDebut)} au ${j(liquidee.dateFin)}, ` +
-              'déjà liquidée, et la TVA de sa vente n’est exigible qu’à l’encaissement (O.-L. n° 10/001, art. 25, 2°) · annulez la ' +
-              'liquidation, ou datez le recouvrement au premier jour ouvert, sa date de valeur gardée (AUDCIF art. 22, 4°).',
-          );
-        }
       }
     }
 

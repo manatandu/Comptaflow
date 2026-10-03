@@ -291,27 +291,6 @@ export function DeclarationTvaPage() {
                   </span>
                 </div>
               )}
-              {/* LIGNE A7, E2 · la TVA d'une créance irrécouvrable, sur sa propre
-                  ligne · déduite le mois qui suit sa constatation (décret
-                  n° 011/42, art. 126), jamais retranchée de la collecte du mois
-                  de la perte. */}
-              {declaration.recuperationCreancesIrrecouvrables > 0 && (
-                <div title="O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127">
-                  Récupération sur créance irrécouvrable, art. 52 :{' '}
-                  <span className="font-semibold text-positive">
-                    {montant(declaration.recuperationCreancesIrrecouvrables)} CDF
-                  </span>
-                </div>
-              )}
-              {declaration.creancesIrrecouvrablesConstatees > 0 && (
-                <div>
-                  TVA de créances irrécouvrables constatée ce mois :{' '}
-                  <span className="font-semibold text-text">
-                    {montant(declaration.creancesIrrecouvrablesConstatees)} CDF
-                  </span>
-                  <span className="text-text-dim" title="Décret n° 011/42, art. 126"> · déduite sur la déclaration du mois suivant</span>
-                </div>
-              )}
               {declaration.avoirsCollecteConstates > 0 && (
                 <div>
                   Avoirs sur ventes constatés ce mois :{' '}
@@ -442,8 +421,7 @@ export function DeclarationTvaPage() {
             peutEcrire &&
             (declaration.totalCollecte > 0 ||
               Math.abs(declaration.totalDeductibleAdmise) > 0 ||
-              declaration.recuperationArt52 > 0 ||
-              declaration.recuperationCreancesIrrecouvrables > 0) && (
+              declaration.recuperationArt52 > 0) && (
               <button
                 onClick={comptabiliserLiquidation}
                 disabled={comptabilisation || !exerciceCourant}

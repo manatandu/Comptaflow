@@ -5,7 +5,6 @@ import {
   compte416Initial,
   motifAnnulationValide,
   motifListe651Vide,
-  annonceTvaNonExigible,
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
 } from './creances-douteuses';
@@ -67,42 +66,13 @@ describe('créances douteuses · écran (ligne A7)', () => {
   });
 });
 
-describe('créances douteuses · E2 à l’écran', () => {
-  it('la récupération de la TVA se demande (case décochée), proposée par le serveur, et le mois civil qui suit est dit', () => {
-    expect(page).toContain('recupererTva: false,');
-    expect(page).toContain('/tva-origine`');
-    expect(page).toContain('au plus tôt dans la déclaration du mois civil qui suit la constatation');
-    expect(page).toContain('décret n° 011/42, art. 96, 126 et 127');
-  });
-});
-
 describe('créances douteuses · E1 à l’écran', () => {
   it('la bulle d’aide de la revue dit que la base est le TTC inscrit au 416', () => {
     expect(page).toContain('Base de la dépréciation · le montant TTC inscrit au 416');
   });
 });
 
-describe('créances douteuses · E2 dans la déclaration de TVA', () => {
-  const declaration = readFileSync(join(__dirname, '../pages/DeclarationTvaPage.tsx'), 'utf8');
-  it('la récupération sur créance irrécouvrable a sa ligne propre, et ouvre la liquidation', () => {
-    expect(declaration).toContain('Récupération sur créance irrécouvrable, art. 52');
-    expect(declaration).toContain('declaration.recuperationCreancesIrrecouvrables > 0) && (');
-  });
-});
-
-describe('créances douteuses · seconde relecture à l’écran (K2, K3, K4, M-c, M-e)', () => {
-  it('K2 · la TVA facturée n’est plus saisie · elle s’affiche, lue sur les ventes d’origine, et se renvoie telle quelle', () => {
-    expect(page).not.toContain("champ('tvaFacturee'");
-    const corps = page.slice(page.indexOf('async function envoyer'));
-    expect(corps).toContain('const facturee = tvaOrigine?.proposition?.tvaFactureeCreance;');
-  });
-
-  it('K3 · le reclassement et la déclaration envoient les ventes d’origine, présélectionnées sur la proposition du serveur', () => {
-    expect(page).toContain('/creances-douteuses/ventes-origine?');
-    expect(page).toContain('ventesOrigineIds: v.proposees');
-    expect(page.match(/ventesOrigineIds: form\.ventesOrigineIds\.length > 0/g)).toHaveLength(2);
-  });
-
+describe('créances douteuses · seconde relecture à l’écran (K4, M-c)', () => {
   it('K4 · un mouvement s’annule dans sa modale, motif exigé · le plus récent est proposé', () => {
     expect(mouvementAAnnulerParDefaut([])).toBeNull();
     expect(mouvementAAnnulerParDefaut([{ id: 'b', date: '2026-12-20' }, { id: 'a', date: '2026-12-10' }])).toBe('b');
@@ -111,20 +81,22 @@ describe('créances douteuses · seconde relecture à l’écran (K2, K3, K4, M-
     expect(page).toContain('Annuler une perte ou un recouvrement');
   });
 
-  it('M-c et M-e · le mouvement sans revue se dit ; la créance déclarée sans vente tenue n’ouvre aucune récupération, et c’est dit', () => {
+  it('M-c · le mouvement sans revue se dit', () => {
     expect(page).toContain('mouvement(s) sans revue');
-    expect(page).toContain("une créance déclarée à l'ouverture sans vente tenue dans OmegaX n'ouvre donc aucune récupération dans le module");
   });
 });
 
-describe('créances douteuses · troisième relecture à l’écran (B-1)', () => {
-  it('la part jamais exigible s’annonce au prorata de la perte, sortie sans taux, et ne se saisit pas', () => {
-    expect(annonceTvaNonExigible(160_000, 580_000, 1_160_000)).toBe(
-      `TVA jamais exigible · ${montant(80_000)} sortent d'office du 443, sans taux, hors de toute déclaration.`,
-    );
-    expect(annonceTvaNonExigible(0, 580_000, 1_160_000)).toBeNull();
-    expect(annonceTvaNonExigible(160_000, null, 1_160_000)).toBeNull();
-    expect(page).toContain('Dont déjà exigible :');
-    expect(page).not.toContain("champ('tvaNonExigible'");
+describe('créances douteuses · A7 scindée à l’écran', () => {
+  it('la perte s’envoie sans aucun champ de TVA, au TTC entier, et la bulle dit la récupération par imputation avec ses articles', () => {
+    const corps = page.slice(page.indexOf('async function envoyer'), page.indexOf('async function annuler'));
+    expect(corps).toContain('comptePerteId: form.comptePerteId || undefined,');
+    expect(page).toContain('Perte au TTC entier · D 651 / C 416');
+    expect(page).toContain('source="O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127"');
+    expect(page).toContain('Pour l\'instant, le cabinet la déclare lui-même.');
+  });
+
+  it('le reclassement dit, dans sa bulle, de ne pas lettrer la facture avec lui', () => {
+    expect(page).toContain('Ne lettrez pas la facture avec le reclassement');
+    expect(page).toContain('Ne lettrez pas la facture avec la pièce du reclassement');
   });
 });

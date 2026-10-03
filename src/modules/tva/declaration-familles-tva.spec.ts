@@ -99,12 +99,7 @@ function service(lignes: LigneTva[]) {
       }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
-    regularisationTvaCreance: { findMany: jest.fn().mockResolvedValue([]) },
-    tvaVenteDeclaree: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-    mouvementCreanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
-    // La TVA figée et la liquidation s'écrivent dans une transaction.
-    $transaction: (f: (tx: unknown) => unknown) => f(prisma),
-    liquidationTva: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     compte: {
       findFirst: jest.fn(({ where }: { where: { numero: string } }) => Promise.resolve({ id: `c${where.numero.slice(0, 4)}`, numero: where.numero })),
     },
