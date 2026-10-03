@@ -115,7 +115,11 @@ export function motifAnnulationValide(motif: string): boolean {
  */
 export function mouvementAAnnulerParDefaut(mouvements: readonly { id: string; date: string }[]): string | null {
   if (mouvements.length === 0) return null;
-  return [...mouvements].sort((a, b) => a.date.localeCompare(b.date)).at(-1)!.id;
+  // Pas de `.at(-1)` · la cible du client (lib ES2020) ne le connaît pas, et
+  // le typage du déploiement l'a refusé (Hosting 634) quand un poste local le
+  // laissait passer.
+  const tries = [...mouvements].sort((a, b) => a.date.localeCompare(b.date));
+  return tries[tries.length - 1].id;
 }
 
 /**
