@@ -3401,6 +3401,15 @@ model Reevaluation {
   // Nul sur les réévaluations antérieures.
   coursUtilises   Json?
 
+  // L'ÉCART DE CHAQUE DISPONIBILITÉ, par compte et par devise (ligne A5 bis,
+  // 2026-10-03) · [{ compteId, deviseId, ecart }]. AUDCIF art. 57 · l'écart
+  // d'une disponibilité est RÉALISÉ et ne se contre-passe pas ; la banque
+  // garde donc en N+1 la valeur de clôture de N, que ses lignes en devise
+  // (au cours historique) ne disent pas, l'écart étant passé sans devise.
+  // La réévaluation suivante la lit ici. Nul sur les réévaluations
+  // antérieures, relues par leur écriture (`ecartsDeDisponibilitesDe`).
+  ecartsDisponibilites Json?
+
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·
   // l'index est créé NULLS NOT DISTINCT par la migration (deux `annuleeLe`

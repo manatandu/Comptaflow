@@ -93,6 +93,8 @@ function service(
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 32 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },

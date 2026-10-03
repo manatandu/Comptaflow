@@ -42,6 +42,7 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
+import { PLAFOND_REEVALUATIONS_EXAMINEES, contrePassationsDeDisponibilites } from '../devises/contre-passations-de-disponibilites';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -4129,6 +4130,57 @@ export class ControlesService {
             'de la facture (acompte antérieur à la facture, avoir, pièce sans ligne de trésorerie). Rien n’en est conclu.',
           action: 'Aucune, sauf à vérifier ces lettrages à la main si un règlement en devise y a soldé le tiers aux francs du jour.',
           occurrences: [],
+        });
+      }
+    }
+
+    // --- 32. Contre-passation qui a inversé une disponibilité (A5 bis) ------
+    //
+    // AUDCIF art. 57 · l'écart d'une disponibilité est inscrit « directement
+    // dans les produits et charges de l'exercice » · il est RÉALISÉ et ne se
+    // contre-passe pas (Titre VIII ch. 22, section 4 ; Application 86 du
+    // Guide). Avant A5 bis, la contre-passation inversait aussi la banque et
+    // la caisse. INFORMATION, jamais un retraitement · l'écriture est validée
+    // (art. 22, 2°) et tenue par la réévaluation, et la réévaluation de cet
+    // exercice-ci, qui mesure alors la banque depuis son coût historique
+    // (`ecartsReportesDesDisponibilites` ne reporte pas un écart déjà
+    // contre-passé), la réaligne · le résultat net en sort juste, ses 676 et
+    // 776 en sont gonflés de part et d'autre, et la trésorerie est fausse
+    // jusque-là.
+    {
+      const contrePassees = await contrePassationsDeDisponibilites(this.prisma, { tenantId, exerciceId });
+      if (contrePassees.elements.length > 0 || contrePassees.tronque) {
+        const annulable = contrePassees.elements.some((e) => !e.exerciceReevaluationClos);
+        anomalies.push({
+          code: 'CONTRE_PASSATION_DE_DISPONIBILITE',
+          gravite: 'INFORMATION',
+          libelle: "Contre-passation d'écarts qui a inversé une banque ou une caisse en devise",
+          consequence:
+            "L'écart d'une disponibilité en devise est réalisé et reste au résultat de l'exercice où il est constaté (AUDCIF art. 57) · " +
+            "contre-passé, il remet la trésorerie au cours historique jusqu'à la réévaluation de cet exercice et inscrit au 676 ou au 776 " +
+            "le contraire d'une perte ou d'un gain déjà supporté. La réévaluation de clôture repasse l'écart depuis le coût historique · " +
+            'le résultat net en sort juste, la présentation des pertes et gains de change ne l’est pas.',
+          action:
+            (annulable
+              ? "Réévaluation d'un exercice encore ouvert · annulez-la (Devises, AUDCIF art. 20, al. 2), repassez-la, puis contre-passez " +
+                'à nouveau · seuls le 478, le 479 et les comptes de tiers le seront. '
+              : '') +
+            "Réévaluation d'un exercice clôturé · la contre-passation ne s'annule plus ; toute régularisation est à décider par le cabinet. " +
+            'Ne repassez pas à la main la seule ligne de la banque · la réévaluation de clôture, qui mesure la banque depuis son coût ' +
+            'historique, passerait l’écart une seconde fois.',
+          occurrences: [
+            ...(contrePassees.tronque
+              ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_REEVALUATIONS_EXAMINEES} réévaluations lues · d'autres contre-passations peuvent exister.` }]
+              : []),
+            ...contrePassees.elements.map((e) => ({
+              reference: `${e.compteNumero} · contre-passation n° ${e.piece ?? '·'}`,
+              detail:
+                `Réévaluation du ${e.dateReevaluation.toISOString().slice(0, 10)}${e.exerciceReevaluationClos ? ' (exercice clôturé)' : ''} · ` +
+                `disponibilité ${e.montant > 0 ? 'débitée' : 'créditée'} de ${Math.abs(e.montant).toFixed(2)} à l'ouverture`,
+              date: e.date.toISOString().slice(0, 10),
+              montant: e.montant,
+            })),
+          ],
         });
       }
     }

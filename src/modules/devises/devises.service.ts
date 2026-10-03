@@ -5,6 +5,13 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
+import {
+  EcartDeDisponibilite,
+  RACINES_CHANGE_DISPONIBILITES,
+  ecartsDisponibilitesEnregistres,
+  estDisponibilite,
+  partagerLignesDEcarts,
+} from './ecarts-disponibilites';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
 /**
@@ -22,45 +29,9 @@ const RACINE = {
   ecartPassif: '479', // Écarts de conversion-Passif · gain probable
   provision: '194', // Provisions pour pertes de change
   dotationProvision: '6971', // Dotations aux provisions pour risques et charges (financières)
-  perteRealisee: '676', // Pertes de change financières
-  gainRealise: '776', // Gains de change financiers
+  perteRealisee: RACINES_CHANGE_DISPONIBILITES.perte, // Pertes de change financières
+  gainRealise: RACINES_CHANGE_DISPONIBILITES.gain, // Gains de change financiers
 } as const;
-
-/**
- * Une position en devise est-elle une DISPONIBILITÉ ?
- *
- * La question décide de tout : une disponibilité en devise donne un écart
- * RÉALISÉ, qui va droit au résultat financier (676 / 776) ; une créance ou
- * une dette donne un écart LATENT, qui passe par les écarts de conversion et
- * appelle une provision. L'AUDCIF le pose explicitement en excluant les
- * disponibilités de la position globale de change, « les écarts de change
- * étant comptabilisés immédiatement en résultat » (Titre VIII ch. 22 § 2.2).
- *
- * Le test portait sur la CLASSE ENTIÈRE (`numero.startsWith('5')`), ce qui
- * rangeait en disponibilités trois familles qui n'en sont pas :
- *
- *  · 50 « Titres de placement » · un placement, pas de la monnaie ;
- *  · 54 « Instruments de trésorerie » (SYSCOHADA seulement) ;
- *  · 56 « Banques, crédits de trésorerie et d'escompte » · une DETTE
- *    bancaire, dont l'alourdissement en devise est une perte PROBABLE à
- *    provisionner, pas une perte supportée.
- *
- * Un découvert bancaire en devise passait donc directement en 676, sans
- * écart de conversion et sans provision : le résultat financier de
- * l'exercice portait une perte que le texte veut latente.
- *
- * Les vraies disponibilités sont les mêmes dans les deux référentiels · 52
- * Banques, 53 Établissements financiers et assimilés, 55 Instruments de
- * monnaie électronique, 57 Caisse, 58 (régies d'avances et accréditifs en
- * SYSCOHADA, virements internes dans les deux, toujours soldés à la
- * clôture). Le SYCEBNL n'a pas de 54, et le 55 porte chez lui le même
- * intitulé qu'en SYSCOHADA : une seule liste suffit.
- */
-const RACINES_DISPONIBILITES = /^(52|53|55|57|58)/;
-
-function estDisponibilite(numero: string): boolean {
-  return RACINES_DISPONIBILITES.test(numero);
-}
 
 /**
  * Nature d'une position en devise au sens du SYSCOHADA · elle commande À LA
@@ -569,6 +540,13 @@ export interface RapportReevaluation {
    * devise ni cours.
    */
   coursUtilises: Record<string, number>;
+  /**
+   * Disponibilités dont l'écart passé à la clôture précédente ne se relit pas
+   * sans deviner (ligne A5 bis) · leur valeur comptable serait fausse de cet
+   * écart. Le calcul se montre, le PASSAGE est refusé tant que la cause n'est
+   * pas levée (à-nouveau à relancer, réévaluation à repasser).
+   */
+  reportsDisponibilitesNonEtablis: string[];
 }
 
 /**
@@ -807,6 +785,24 @@ export class DevisesService {
       positions.set(cle, acc);
     }
 
+    // UNE DISPONIBILITÉ PART DE SA VALEUR DE CLÔTURE PRÉCÉDENTE (ligne A5
+    // bis). Son écart de N est RÉALISÉ et ne se contre-passe pas (AUDCIF
+    // art. 57) · la banque ouvre N+1 à la valeur de clôture de N. Or l'écart
+    // a été passé sans devise, et l'à-nouveau le range dans le reste en
+    // francs, hors de la ligne de la devise · lue sur ses seules lignes en
+    // devise, la position repartait du coût historique et l'écart de N
+    // était passé une seconde fois. Les écarts reportés s'ajoutent donc à sa
+    // valeur comptable, compte par compte et devise par devise.
+    const clesDisponibilites = [...positions.values()].filter((p) => p.estTresorerie).map((p) => `${p.compteId}|${p.deviseId}`);
+    const reports =
+      clesDisponibilites.length > 0
+        ? await this.ecartsReportesDesDisponibilites(tenantId, exercice, clesDisponibilites)
+        : { parCle: new Map<string, number>(), reserves: [] as string[] };
+    for (const p of positions.values()) {
+      const report = reports.parCle.get(`${p.compteId}|${p.deviseId}`);
+      if (report !== undefined) p.valeurComptable = Math.round((p.valeurComptable + report) * 100) / 100;
+    }
+
     const coursManquants = new Set<string>();
     const coursUtilises: Record<string, number> = {};
     const resultat: PositionDevise[] = [];
@@ -949,7 +945,7 @@ export class DevisesService {
     // sans échéancier. Il ne peut donc pas la calculer, et il ne l'invente pas ·
     // il dote la totalité, ce qui est prudent mais dépasse ce que le texte
     // demande, et il le DIT, position par position, avec le montant à ventiler.
-    const avertissements: string[] = [...enPlace.avertissements];
+    const avertissements: string[] = [...enPlace.avertissements, ...reports.reserves];
     for (const p of resultat) {
       if (p.estTresorerie || p.ecart >= 0) continue;
       if (!RACINES_FINANCIERES_LONGUES.test(p.numero)) continue;
@@ -985,6 +981,7 @@ export class DevisesService {
       coursManquants: [...coursManquants],
       positionsNonReevaluees,
       coursUtilises,
+      reportsDisponibilitesNonEtablis: reports.reserves,
     };
   }
 
@@ -1187,6 +1184,13 @@ export class DevisesService {
           .join(' ; ')}) · mettez la déclaration à jour avant de passer les écritures.`,
       );
     }
+    // UN ÉCART REPORTÉ QUI NE SE RELIT PAS ARRÊTE LE PASSAGE (ligne A5 bis) ·
+    // la banque serait réévaluée depuis une valeur fausse de l'écart de la
+    // clôture précédente, écriture équilibrée et balance bouclée (CLAUDE.md
+    // § 10 bis). Le calcul reste affichable, la cause est nommée.
+    if (rapport.reportsDisponibilitesNonEtablis.length > 0) {
+      throw new BadRequestException(rapport.reportsDisponibilitesNonEtablis.join(' ; '));
+    }
     // Sans position, il reste à REPRENDRE la provision des positions dénouées
     // (ch. 22 § 2.3) · une créance encaissée dans l'exercice ne laisse aucun
     // écart, mais sa provision de l'an passé est toujours au passif. Refuser
@@ -1341,6 +1345,11 @@ export class DevisesService {
           ecritureEcartsId: ecritureEcarts?.id,
           ecritureProvisionId: ecritureProvision?.id,
           coursUtilises: rapport.coursUtilises,
+          // L'écart de chaque disponibilité, gardé pour la réévaluation
+          // suivante · il ne se contre-passe pas (AUDCIF art. 57, ligne A5 bis).
+          ecartsDisponibilites: rapport.positions
+            .filter((p) => p.estTresorerie)
+            .map((p) => ({ compteId: p.compteId, deviseId: p.deviseId, ecart: p.ecart })),
           createdBy,
         },
       });
@@ -1365,11 +1374,19 @@ export class DevisesService {
    * bien à l'OUVERTURE : il décrit une situation à une date d'arrêté, pas une
    * charge ou un produit rattaché à une période. Le laisser vivre fausserait
    * toutes les positions de l'exercice suivant.
+   *
+   * L'ÉCART DES DISPONIBILITÉS N'EN EST PAS (ligne A5 bis). Il est RÉALISÉ et
+   * inscrit « directement dans les produits et charges de l'exercice » (AUDCIF
+   * art. 57 ; ch. 22, section 4 ; Application 86 du Guide, aucune
+   * contre-passation) · seuls le 478, le 479 et le compte de tiers qu'ils
+   * ajustent se contre-passent (`partagerLignesDEcarts`). Contre-passer la
+   * banque la remettait au cours historique et rouvrait au 676 ou au 776 de
+   * N+1 une perte ou un gain déjà supporté.
    */
   async extourner(tenantId: string, createdBy: string, reevaluationId: string, exerciceSuivantId: string) {
     const reeval = await this.prisma.reevaluation.findFirst({
       where: { id: reevaluationId, tenantId },
-      include: { ecritureEcarts: { include: { lignes: true } } },
+      include: { ecritureEcarts: { include: { lignes: { include: { compte: { select: { numero: true } } } } } } },
     });
     if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
     if (reeval.annuleeLe) throw new ConflictException('Cette réévaluation est annulée · il n’y a rien à contre-passer.');
@@ -1389,6 +1406,28 @@ export class DevisesService {
       );
     }
 
+    // Partage par la RACINE du compte, jamais par le montant ni le libellé ·
+    // deux parts qui ne s'équilibrent pas chacune disent une écriture
+    // retouchée, et l'on refuse plutôt que de boucler sur un compte deviné.
+    const partage = partagerLignesDEcarts(
+      reeval.ecritureEcarts.lignes.map((l) => ({ ...l, compteNumero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
+    );
+    if (partage.motifRefus) throw new BadRequestException(partage.motifRefus);
+    if (partage.aContrePasser.length === 0) {
+      throw new BadRequestException(
+        "Cette réévaluation ne porte que des disponibilités · leur écart est réalisé et reste au résultat de l'exercice " +
+          '(AUDCIF art. 57) · il n’y a aucun écart de conversion à contre-passer.',
+      );
+    }
+    // UNE RÉÉVALUATION ANTÉRIEURE À A5 BIS n'a pas gardé l'écart de ses
+    // disponibilités · il est relu sur son écriture et gardé ici, tant que
+    // l'exercice de la réévaluation ne bouge plus sous lui. Ce qui ne se relit
+    // pas sans deviner reste nul, et la réévaluation suivante le dira.
+    const ecartsAGarder =
+      partage.realisees.length > 0 && ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites) === null
+        ? await this.ecartsDeDisponibilitesDe(tenantId, reeval)
+        : null;
+
     const journal = await this.journalGeneral(tenantId);
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
       exerciceId: suivant.id,
@@ -1396,11 +1435,11 @@ export class DevisesService {
       date: suivant.dateDebut.toISOString().slice(0, 10),
       libelle: `Contre-passation des écarts de conversion du ${reeval.dateReevaluation.toISOString().slice(0, 10)}`,
       reference: 'REEVAL',
-      lignes: reeval.ecritureEcarts.lignes.map((l) => ({
+      lignes: partage.aContrePasser.map((l) => ({
         compteId: l.compteId,
         // Sens inverse, ligne à ligne.
-        debit: Number(l.credit) || undefined,
-        credit: Number(l.debit) || undefined,
+        debit: l.credit || undefined,
+        credit: l.debit || undefined,
         libelle: l.libelle ?? undefined,
       })),
     });
@@ -1410,7 +1449,10 @@ export class DevisesService {
     // première restait au journal sans détenteur.
     const { count } = await this.prisma.reevaluation.updateMany({
       where: { id: reevaluationId, tenantId, ecritureExtourneId: null },
-      data: { ecritureExtourneId: ecriture.id },
+      data: {
+        ecritureExtourneId: ecriture.id,
+        ...(ecartsAGarder ? { ecartsDisponibilites: ecartsAGarder as unknown as Prisma.InputJsonValue } : {}),
+      },
     });
     if (count === 0) {
       await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
@@ -2342,6 +2384,200 @@ export class DevisesService {
     }
     await this.prisma.provisionChangeOuverture.delete({ where: { id: existante.id } });
     return { id: existante.id };
+  }
+
+  /**
+   * L'ÉCART QUE CHAQUE DISPONIBILITÉ A REÇU d'une réévaluation, par compte et
+   * par devise (ligne A5 bis) · celui qu'elle a gardé
+   * (`Reevaluation.ecartsDisponibilites`), sinon, pour une réévaluation
+   * antérieure, relu sur son écriture des écarts, où il est passé SANS devise.
+   *
+   * Deux lectures seulement, chacune exacte · (1) le compte ne portait
+   * qu'UNE devise dans l'exercice réévalué · la ligne lui revient ; (2) le
+   * cours retenu est gardé (`coursUtilises`, D5) · l'écart de chaque devise
+   * est recalculé comme la réévaluation l'a fait (montant en devise × cours,
+   * moins les francs de ses lignes) et la somme doit rendre, au centime, la
+   * ligne passée sur le compte. Sinon `null` · rien n'est deviné, et
+   * l'appelant le dit.
+   */
+  private async ecartsDeDisponibilitesDe(
+    tenantId: string,
+    reeval: {
+      exerciceId: string;
+      dateReevaluation: Date;
+      coursUtilises: Prisma.JsonValue;
+      ecartsDisponibilites: Prisma.JsonValue;
+      ecritureEcarts: { lignes: { compteId: string; debit: unknown; credit: unknown; compte: { numero: string } }[] } | null;
+    },
+  ): Promise<EcartDeDisponibilite[] | null> {
+    const enregistres = ecartsDisponibilitesEnregistres(reeval.ecartsDisponibilites);
+    if (enregistres) return enregistres;
+    const passeParCompte = new Map<string, number>();
+    for (const l of reeval.ecritureEcarts?.lignes ?? []) {
+      if (!estDisponibilite(l.compte.numero)) continue;
+      passeParCompte.set(l.compteId, (passeParCompte.get(l.compteId) ?? 0) + Number(l.debit) - Number(l.credit));
+    }
+    if (passeParCompte.size === 0) return [];
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compteId: { in: [...passeParCompte.keys()] },
+        deviseId: { not: null },
+        lettre: null,
+        ecriture: { tenantId, exerciceId: reeval.exerciceId, date: { lte: reeval.dateReevaluation } },
+      },
+      select: { compteId: true, deviseId: true, debit: true, credit: true, montantDevise: true },
+    });
+    const cours =
+      reeval.coursUtilises && typeof reeval.coursUtilises === 'object' && !Array.isArray(reeval.coursUtilises)
+        ? (reeval.coursUtilises as Record<string, unknown>)
+        : null;
+    const sortie: EcartDeDisponibilite[] = [];
+    for (const [compteId, passe] of passeParCompte) {
+      const parDevise = new Map<string, { devise: number; francs: number }>();
+      for (const l of lignes) {
+        if (l.compteId !== compteId || !l.deviseId) continue;
+        const d = parDevise.get(l.deviseId) ?? { devise: 0, francs: 0 };
+        const francs = Number(l.debit) - Number(l.credit);
+        d.devise += (francs >= 0 ? 1 : -1) * Number(l.montantDevise ?? 0);
+        d.francs += francs;
+        parDevise.set(l.deviseId, d);
+      }
+      if (parDevise.size === 1) {
+        sortie.push({ compteId, deviseId: [...parDevise.keys()][0], ecart: Math.round(passe * 100) / 100 });
+        continue;
+      }
+      if (!cours || parDevise.size === 0) return null;
+      const recalcules: EcartDeDisponibilite[] = [];
+      for (const [deviseId, d] of parDevise) {
+        const c = cours[deviseId];
+        if (typeof c !== 'number') return null;
+        recalcules.push({ compteId, deviseId, ecart: Math.round((Math.round(d.devise * c * 100) / 100 - d.francs) * 100) / 100 });
+      }
+      const somme = recalcules.reduce((t, e) => t + e.ecart, 0);
+      if (Math.abs(somme - passe) > 0.005) return null;
+      sortie.push(...recalcules.filter((e) => Math.abs(e.ecart) >= 0.005));
+    }
+    return sortie;
+  }
+
+  /**
+   * LES ÉCARTS DES DISPONIBILITÉS QUE L'À-NOUVEAU A REPORTÉS SANS DEVISE
+   * (ligne A5 bis) · pour chaque (compte, devise), la somme des écarts que
+   * les réévaluations des exercices précédents ont passés sur la banque ou la
+   * caisse, en remontant tant que l'ouverture est un report d'OmegaX.
+   *
+   * Pourquoi la chaîne · l'à-nouveau en SOLDE (`soldesParDevise`) reporte la
+   * ligne de la devise au total de ses lignes en devise, et l'écart, passé
+   * sans devise, tombe dans le reste en francs · chaque exercice ajoute le
+   * sien. Une ouverture qui n'est pas un report d'OmegaX (bilan d'ouverture
+   * saisi ou importé) porte la valeur que le cabinet y a mise · on s'y
+   * arrête, elle ne doit rien aux réévaluations d'avant. Une devise que le
+   * report n'a pas portée en devise (position soldée) a tout reporté dans le
+   * reste en francs · rien à lui ajouter.
+   *
+   * Ne compte pas · une réévaluation annulée (D6, ses écritures sont
+   * neutralisées) ; une réévaluation dont l'ancienne contre-passation a
+   * inversé la banque (avant A5 bis) · l'écart est déjà sorti, et la banque
+   * est revenue au coût historique.
+   *
+   * RÉSERVES · un à-nouveau provisoire passé AVANT que l'écart n'entre au
+   * livre-journal ne le porte pas (il ne lit que le validé) ; un écart qui
+   * ne se relit pas sans deviner (`ecartsDeDisponibilitesDe`). Dans les deux
+   * cas la valeur serait fausse · le passage est refusé, la cause nommée.
+   */
+  private async ecartsReportesDesDisponibilites(
+    tenantId: string,
+    exercice: { id: string; dateDebut: Date },
+    cles: string[],
+  ): Promise<{ parCle: Map<string, number>; reserves: string[] }> {
+    const parCle = new Map<string, number>();
+    const reserves: string[] = [];
+    const jour = (d: Date) => d.toISOString().slice(0, 10);
+    let actives = new Set(cles);
+    let courant = { id: exercice.id, dateDebut: exercice.dateDebut };
+    // Borne de sûreté · dix ans de conservation (AUDCIF art. 24), et au-delà.
+    for (let pas = 0; pas < 50 && actives.size > 0; pas++) {
+      const precedent = await this.prisma.exercice.findFirst({
+        where: { tenantId, dateFin: { lt: courant.dateDebut } },
+        orderBy: { dateFin: 'desc' },
+        select: { id: true, dateDebut: true, dateFin: true },
+      });
+      if (!precedent || precedent.id === courant.id || !(precedent.dateFin.getTime() < courant.dateDebut.getTime())) break;
+      const aNouveau = await this.prisma.ligneEcriture.findMany({
+        where: {
+          compteId: { in: [...new Set([...actives].map((k) => k.split('|')[0]))] },
+          deviseId: { not: null },
+          ecriture: {
+            tenantId,
+            exerciceId: courant.id,
+            date: courant.dateDebut,
+            estGenereeParCloture: true,
+            estSoldeDesComptesDeGestion: false,
+          },
+        },
+        select: { compteId: true, deviseId: true, ecriture: { select: { estANouveauProvisoire: true, createdAt: true } } },
+      });
+      const reportees = new Map<string, { provisoire: boolean; creeeLe: Date }>();
+      for (const l of aNouveau) {
+        if (!l.deviseId || !l.ecriture) continue;
+        reportees.set(`${l.compteId}|${l.deviseId}`, { provisoire: l.ecriture.estANouveauProvisoire, creeeLe: l.ecriture.createdAt });
+      }
+      actives = new Set([...actives].filter((k) => reportees.has(k)));
+      if (actives.size === 0) break;
+      const reeval = await this.prisma.reevaluation.findFirst({
+        where: { tenantId, exerciceId: precedent.id, annuleeLe: null },
+        select: {
+          exerciceId: true,
+          dateReevaluation: true,
+          coursUtilises: true,
+          ecartsDisponibilites: true,
+          ecritureEcarts: {
+            select: {
+              statut: true,
+              valideeAt: true,
+              lignes: { select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } } },
+            },
+          },
+          ecritureExtourne: { select: { lignes: { select: { compte: { select: { numero: true } } } } } },
+        },
+      });
+      const inverseeParLAncienneContrePassation =
+        reeval?.ecritureExtourne?.lignes.some((l) => estDisponibilite(l.compte.numero)) ?? false;
+      if (reeval?.ecritureEcarts && !inverseeParLAncienneContrePassation) {
+        const ecarts = await this.ecartsDeDisponibilitesDe(tenantId, reeval);
+        if (ecarts === null) {
+          reserves.push(
+            `L'écart passé sur les disponibilités par la réévaluation du ${jour(reeval.dateReevaluation)} ne se relit pas ` +
+              'devise par devise (compte en plusieurs devises, réévaluation antérieure sans cours gardé) · la banque ou la ' +
+              'caisse partirait du coût historique et cet écart, réalisé (AUDCIF art. 57), serait passé une seconde fois. ' +
+              "Annulez cette réévaluation et repassez-la pendant que son exercice est ouvert, elle gardera l'écart de chaque devise.",
+          );
+          break;
+        }
+        const ecritureEcarts = reeval.ecritureEcarts;
+        for (const e of ecarts) {
+          const cle = `${e.compteId}|${e.deviseId}`;
+          const an = reportees.get(cle);
+          if (!actives.has(cle) || !an) continue;
+          const dansLeReport =
+            !an.provisoire ||
+            (ecritureEcarts.statut === StatutEcriture.VALIDEE &&
+              ecritureEcarts.valideeAt !== null &&
+              ecritureEcarts.valideeAt.getTime() <= an.creeeLe.getTime());
+          if (!dansLeReport) {
+            reserves.push(
+              `L'à-nouveau provisoire du ${jour(courant.dateDebut)} a été passé avant que la réévaluation du ` +
+                `${jour(reeval.dateReevaluation)} n'entre au livre-journal · il ne porte pas l'écart de la banque ou de la ` +
+                "caisse. Validez l'écriture des écarts et relancez l'à-nouveau provisoire avant de réévaluer.",
+            );
+            continue;
+          }
+          parCle.set(cle, (parCle.get(cle) ?? 0) + e.ecart);
+        }
+      }
+      courant = { id: precedent.id, dateDebut: precedent.dateDebut };
+    }
+    return { parCle, reserves: [...new Set(reserves)] };
   }
 
   private async compteParRacine(tenantId: string, racine: string) {

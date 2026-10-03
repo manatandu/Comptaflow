@@ -57,6 +57,8 @@ function service(conventions: Conv[], referentiel: Referentiel = Referentiel.SYC
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    // Le contrôle 32 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
