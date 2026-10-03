@@ -15,11 +15,13 @@ Branche de sauvegarde `travail/a6ter`, partie de `main` 0dbc315.
   sa devise, le dénoué à cheval écarté et son écart admis) · plus
   d'avertissement « des lettrages ou des écritures ont changé » à tort.
 
+- (m-3) la borne M6 dit « lettrez-les d'abord avec leur facture » avant
+  « réglez au plus ».
+
 ## Reste
 
 - (m-2) faux avertissement « en francs, sans devise » sur la ligne reportée
   d'une réévaluation (`reglesEnFrancs`).
-- (m-3) ordre du message de la borne M6.
 - Ligne reportée d'une réévaluation dans les échéances fournisseurs.
 - Rejeu sur vraie base à travers la clôture (§ 10).
 

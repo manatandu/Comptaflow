@@ -884,7 +884,8 @@ describe('la facture de N payée en partie, reportée entière en N+1', () => {
       const enPlus = [factureReportee(aNouveau(drapeaux)), ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau(drapeaux))];
       const { service, creer } = monter('SYSCOHADA', enPlus);
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
-        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*Les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
+        // A6 ter, m-3 · « lettrez-les d'abord avec leur facture » AVANT « réglez au plus ».
+        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*lettrez-les d'abord avec leur facture[\s\S]*les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
       );
       // L'issue qui reste, nommée (second tour, m5).
       await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(

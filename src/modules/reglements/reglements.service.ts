@@ -635,9 +635,13 @@ export class ReglementsService {
         throw new BadRequestException(
           `${numero} · ${reglesAuReport.toFixed(2)} dans la devise des factures choisies sont déjà réglés au report à-nouveau de ce compte, ` +
             "hors de tout lettrage · le report Détail reprend ENTIÈRE une facture payée en partie l'exercice précédent, et son règlement à part. " +
-            `Les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · réglez au plus ${plafond.toFixed(2)}, puis complétez ` +
-            "le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage) ; si elles reviennent à une autre facture, " +
-            "lettrez-les d'abord avec elle. Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main " +
+            // L'ORDRE DES ISSUES (A6 ter, m-3) · le lettrage d'abord · un
+            // règlement reporté qui revient à une autre facture, lu avant
+            // « réglez au plus », ferait payer moins que le dû de la bonne.
+            "Si ces règlements reportés reviennent à une autre facture que celles choisies, lettrez-les d'abord avec leur facture " +
+            `(Interrogation et lettrage). Sinon, les lignes d'à-nouveau choisies ne doivent plus que ${resteReporte.toFixed(2)} · ` +
+            `réglez au plus ${plafond.toFixed(2)}, puis complétez le lettrage de la facture avec ces lignes d'à-nouveau (Interrogation et lettrage). ` +
+            "Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main " +
             "avec la facture qu'il solde (Interrogation et lettrage).",
         );
       }
