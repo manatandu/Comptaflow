@@ -57,6 +57,7 @@ import {
   type JournalEcrit,
 } from './banque-et-cloture-informatique';
 import { jourDeKinshasa } from '../../common/echeance';
+import { RACINE_TVA_FACTUREE } from '../lettrage/ligne-de-reclassement';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -363,9 +364,15 @@ const SELECT_ECRITURE_CONTROLEE = {
           numero: true,
           intitule: true,
           // B2 · le compte client d'ORIGINE d'une créance reclassée en
-          // vigueur · sa facture se nomme comme telle (elle ne se lettre pas
-          // avec le reclassement, `lettrage/ligne-de-reclassement.ts`).
-          creancesDouteusesSource: { where: { annuleeLe: null }, select: { id: true }, take: 1 },
+          // vigueur, et la date de son reclassement le plus récent · la
+          // facture TAXÉE qui le précède se nomme comme telle (elle ne se
+          // lettre pas avec le reclassement, `lettrage/ligne-de-reclassement.ts`).
+          creancesDouteusesSource: {
+            where: { annuleeLe: null },
+            select: { dateReclassement: true },
+            orderBy: { dateReclassement: 'desc' },
+            take: 1,
+          },
         },
       },
     },
@@ -411,14 +418,29 @@ function estTenueParUneCreanceDouteuse(e: EcritureControlee): boolean {
   return vivant(e.creanceDouteuseReclassement) || vivant(e.mouvementCreanceDouteuse) || vivant(e.ajustementCreanceDouteuse);
 }
 
-/** Une ligne de tiers ouverte sur le compte d'origine d'une créance reclassée en vigueur (B2). */
-function surLeCompteDUneCreanceReclassee(e: EcritureControlee): boolean {
-  return e.lignes.some(
-    (l) =>
+/**
+ * LA FACTURE D'UNE CRÉANCE RECLASSÉE (B2 ; relecture adverse, mineur 9) ·
+ * une ligne ouverte d'un compte client d'ORIGINE d'une créance en vigueur,
+ * dans une écriture qui porte de la TVA facturée (443, la seule que le
+ * lettrage refuse avec le reclassement, mineur 6) et datée AU PLUS TARD du
+ * reclassement le plus récent. Toutes les anciennes factures du compte
+ * étaient annotées · une vente postérieure, ou sans TVA, est une créance
+ * ordinaire, à laquelle « Lettrez ce qui est réglé » s'applique. Nommer le
+ * compte une seule fois perdait la pièce que le cabinet doit retrouver ;
+ * restreindre garde la pièce et ne nomme qu'elle.
+ */
+function estFactureDUneCreanceReclassee(e: EcritureControlee): boolean {
+  if (!e.lignes.some((l) => l.compte.numero.startsWith(RACINE_TVA_FACTUREE))) return false;
+  return e.lignes.some((l) => {
+    const derniere = l.compte.creancesDouteusesSource?.[0]?.dateReclassement;
+    return (
       !l.lettre &&
-      (l.compte.numero.startsWith('40') || l.compte.numero.startsWith('41')) &&
-      (l.compte.creancesDouteusesSource?.length ?? 0) > 0,
-  );
+      l.compte.numero.startsWith('41') &&
+      Number(l.debit) - Number(l.credit) > 0.005 &&
+      derniere != null &&
+      e.date.getTime() <= derniere.getTime()
+    );
+  });
 }
 
 /** Plafond des occurrences montrées par contrôle · le nombre trouvé est dit à côté. */
@@ -1708,12 +1730,13 @@ export class ControlesService {
         action:
           'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire. Les pièces d’une créance ' +
           'reclassée au 416 dans « Créances douteuses ou litigieuses » ne sont pas listées, le module les suit ; la facture ' +
-          'd’une telle créance est nommée comme telle et ne se lettre pas avec le reclassement (la TVA deviendrait exigible).',
+          'taxée d’une telle créance, antérieure à son reclassement, est nommée comme telle et ne se lettre pas avec le ' +
+          'reclassement (la TVA deviendrait exigible).',
         occurrences: anciennes.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
           // B2 · la facture d'une créance reclassée se nomme, au lieu d'un
           // « lettrez ce qui est réglé » qui pousserait au lettrage refusé.
-          detail: surLeCompteDUneCreanceReclassee(e)
+          detail: estFactureDUneCreanceReclassee(e)
             ? `${e.libelle} · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement`
             : e.libelle,
           date: e.date.toISOString().slice(0, 10),

@@ -15,6 +15,9 @@ import { PrismaService } from '../../common/prisma.service';
  */
 
 let idLigne = 0;
+/** Le reclassement en vigueur du compte d'origine, le plus récent (mineur 9). */
+const RECLASSE_LE = new Date('2026-01-10');
+
 function ligne(numero: string, debit: number, credit = 0, creanceReclassee = false) {
   idLigne += 1;
   return {
@@ -22,14 +25,19 @@ function ligne(numero: string, debit: number, credit = 0, creanceReclassee = fal
     debit,
     credit,
     lettre: null,
-    compte: { id: `c-${numero}`, numero, intitule: `Compte ${numero}`, ...(creanceReclassee ? { creancesDouteusesSource: [{ id: 'cd-1' }] } : {}) },
+    compte: {
+      id: `c-${numero}`,
+      numero,
+      intitule: `Compte ${numero}`,
+      ...(creanceReclassee ? { creancesDouteusesSource: [{ dateReclassement: RECLASSE_LE }] } : {}),
+    },
   };
 }
 
-function ecriture(libelle: string, lignes: ReturnType<typeof ligne>[], liaisons: Record<string, unknown> = {}) {
+function ecriture(libelle: string, lignes: ReturnType<typeof ligne>[], liaisons: Record<string, unknown> = {}, date = new Date('2026-01-05')) {
   return {
     id: `e-${libelle}`,
-    date: new Date('2026-01-05'),
+    date,
     libelle,
     reference: 'PJ-1',
     numeroPiece: 1,
@@ -102,6 +110,25 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
     expect(a!.occurrences).toHaveLength(3);
   });
 
+  // MINEUR 9 · seule la facture TAXÉE antérieure au reclassement est nommée ·
+  // une vente postérieure, ou sans TVA facturée, du même client est une
+  // créance ordinaire, à lettrer avec son règlement.
+  it('mineur 9 · une vente postérieure au reclassement, ou sans TVA facturée, n’est pas annotée', async () => {
+    const posterieure = ecriture(
+      'Facture F-130',
+      [ligne('41110001', 580_000, 0, true), ligne('70100000', 0, 500_000), ligne('44310000', 0, 80_000)],
+      {},
+      new Date('2026-01-20'),
+    );
+    const sansTva = ecriture('Facture F-119', [ligne('41110001', 300_000, 0, true), ligne('70100000', 0, 300_000)]);
+    const a = await anciennes([facture(), posterieure, sansTva]);
+    expect(a!.occurrences.map((o) => o.detail)).toEqual([
+      "Facture F-118 · compte d'une créance reclassée au 416, à ne pas lettrer avec le reclassement",
+      'Facture F-130',
+      'Facture F-119',
+    ]);
+  });
+
   it('sans liaison servie, rien ne passe pour tenu · une facture ordinaire reste listée telle quelle', async () => {
     const a = await anciennes([ecriture('Facture ordinaire', [ligne('41110009', 300_000), ligne('70100000', 0, 300_000)])]);
     expect(a!.occurrences.map((o) => o.detail)).toEqual(['Facture ordinaire']);
@@ -113,6 +140,6 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
     expect(select).toContain('creanceDouteuseReclassement: { select: { annuleeLe: true } }');
     expect(select).toContain('mouvementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } }');
     expect(select).toContain('ajustementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } }');
-    expect(select).toContain('creancesDouteusesSource: { where: { annuleeLe: null }, select: { id: true }, take: 1 }');
+    expect(select).toMatch(/creancesDouteusesSource: \{\s*where: \{ annuleeLe: null \},\s*select: \{ dateReclassement: true \},\s*orderBy: \{ dateReclassement: 'desc' \},\s*take: 1,/);
   });
 });
