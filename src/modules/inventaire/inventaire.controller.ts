@@ -193,6 +193,20 @@ export class InventaireController {
    * Les mouvements de caisse entre la clôture et le comptage, ligne à ligne,
    * tels que le PV les a lus (ligne A10) · lecture seule, tranche bornée.
    */
+  /**
+   * L'aperçu avant de figer (seconde passe A10, a) · ce que le PV figera pour
+   * cette caisse à cette date, ou le motif du refus · lecture seule.
+   */
+  @Get(':id/pv-caisse/apercu')
+  apercuPvCaisse(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('compteId') compteId: string,
+    @Query('dateComptage') dateComptage: string,
+  ) {
+    return this.inventaire.apercuPvCaisse(user.tenantId, id, compteId ?? '', dateComptage ?? '');
+  }
+
   @Get('pv-caisse/:pvId/mouvements')
   mouvementsReconstitution(@CurrentUser() user: AuthenticatedUser, @Param('pvId') pvId: string) {
     return this.inventaire.mouvementsReconstitution(user.tenantId, pvId);

@@ -39,6 +39,19 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    `--runInBand` · toutes vertes. Client · `tsc`, 204 fichiers et 1 661
    tests verts, `npm run build` vert.
 
+## Seconde passe (corrections du premier tour, 2026-10-03)
+
+4. Serveur · B1 caisse en devises (unité DEVISE si toutes les lignes lues
+   portent une seule devise, écarts de réévaluation A5 écartés ; sinon
+   FRANCS_COURS_HISTORIQUES, sans refus, mention sur le PV), migration
+   réécrite (enum ModeComparaisonCaisse, deviseId, mouvementsValeurAvantCloture),
+   (a) aperçu GET :id/pv-caisse/apercu, (b) lecture et création dans une
+   transaction, P2002 en 409 nommé, (c) concordance du solde à la clôture
+   relu et saisies depuis le PV, (d) opérations de N+1 à date de valeur
+   antérieure à la clôture isolées, (e) date AAAA-MM-JJ (@Matches et
+   lireDateComptage), (f) bilan importé dans N+1 prouvé écarté, (g) mentions
+   servies par le serveur (mentionsDuPv).
+
 ## Reste
 
 - Rien côté construction · relecture adverse et intégration.
@@ -86,8 +99,15 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
 
 - La forme de la reconstitution sur le PV (ligne à ligne ou total) · aucun
   texte lu ne la fixe ; totaux figés, lignes servies.
-- Une caisse en devises (5712, 572) se compare en francs, comme avant · non
-  traité ici.
+- Une caisse en devises (5712 au SYSCOHADA, 572 au SYCEBNL) · le corpus ne
+  dit pas dans quelle monnaie se compare un comptage ; la fiche du compte 57
+  exige l'égalité avec « la somme disponible réellement », comptée dans sa
+  monnaie, et le Titre VIII ch. 22, section 4 ne régit que la conversion au
+  cours de clôture (réévaluation, A5). Tranché · comparaison dans la devise
+  quand toutes les lignes la portent, francs au cours historique sinon, dit.
+  Le ch. 22 § 4 rattache cette conversion à « l'article 58 », que l'AUDCIF
+  lu consacre à la position globale de change · anomalie de renvoi, écrite
+  dans le code.
 
 ## Vérification
 

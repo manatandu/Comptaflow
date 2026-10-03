@@ -72,12 +72,16 @@ function service(etat: Etat = {}) {
       findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []),
       count: jest.fn().mockResolvedValue(0),
       aggregate: jest.fn().mockResolvedValue({ _sum: { debit: etat.soldeLivre ?? 1_250_000, credit: 0 }, _count: { _all: 1 } }),
+      // Une caisse en francs · aucune ligne ne porte de devise (seconde passe A10).
+      groupBy: jest.fn().mockResolvedValue([{ deviseId: null }]),
     },
     procesVerbalComptageCaisse: {
       findMany: jest.fn().mockResolvedValue(etat.pvCaisse ?? []),
       create: creerPv,
     },
     ecartInventaire: { count: jest.fn().mockResolvedValue(etat.ecartsSansDecision ?? 0) },
+    // Lecture du solde et création du PV dans UNE transaction (seconde passe A10).
+    $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   } as unknown as PrismaService;
   return { svc: new InventaireService(prisma, {} as unknown as EcritureService), creerPv };
 }

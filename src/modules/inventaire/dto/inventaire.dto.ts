@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  Matches,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -180,7 +181,9 @@ export class EtablirPvCaisseDto {
   @IsUUID()
   sousCommissionId!: string;
 
-  @IsDateString()
+  // Une date CIVILE, sans heure ni fuseau (seconde passe A10, e) · une heure
+  // avec décalage déplaçait le jour du comptage d'un côté de minuit.
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La date du comptage s’écrit AAAA-MM-JJ, sans heure ni fuseau.' })
   dateComptage!: string;
 
   /** Ajout de l'éditeur · une caisse bouge dans la journée. */

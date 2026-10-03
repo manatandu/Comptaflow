@@ -20,7 +20,9 @@ function monter(statut: StatutCampagneInventaire) {
   const campagne = { id: 'camp1', tenantId: 't1', exerciceId: 'ex1', statut };
   const fiches = [{ id: 'f1', tenantId: 't1', campagneId: 'camp1', compteId: 'c1', valeurInventaire: null }];
   // Les doublures HONORENT leur filtre · dossier, identifiant et statut.
-  const prisma = {
+  const prisma: Record<string, unknown> = {
+    // Lecture du solde et création du PV dans UNE transaction (seconde passe A10).
+    $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
     campagneInventaire: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string } }) =>
         where.id === campagne.id && where.tenantId === campagne.tenantId ? { ...campagne } : null,
@@ -55,6 +57,7 @@ function monter(statut: StatutCampagneInventaire) {
     ligneEcriture: {
       count: jest.fn(async () => 0),
       aggregate: jest.fn(async () => ({ _sum: { debit: 100, credit: 0 }, _count: { _all: 1 } })),
+      groupBy: jest.fn(async () => [{ deviseId: null }]),
     },
     sousCommissionInventaire: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string; campagneId: string } }) =>
