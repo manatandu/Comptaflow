@@ -3367,9 +3367,24 @@ model Reevaluation {
   createdAt DateTime @default(now())
   createdBy String
 
-  // Une seule réévaluation passée par exercice (audit final F54) · une
-  // seconde repasserait l'écart entier. Posé en base contre deux clics.
-  @@unique([tenantId, exerciceId])
+  // ANNULATION (ligne A6, décision D6 du 2026-10-03) · AUDCIF art. 20, al. 2,
+  // « exclusivement par inscription en négatif des éléments erronés ;
+  // l'enregistrement exact est ensuite opéré ». Une réévaluation annulée
+  // n'est JAMAIS supprimée · elle garde sa date, son auteur et son motif, et
+  // ce que l'annulation a fait de chacune de ses écritures (`annulation` ·
+  // supprimée au brouillard, inscrite en négatif si validée). Toutes les
+  // lectures « la réévaluation de l'exercice » l'écartent.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
+  // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
+  // une seconde repasserait l'écart entier. Posé en base contre deux clics ·
+  // l'index est créé NULLS NOT DISTINCT par la migration (deux `annuleeLe`
+  // nuls sont égaux), comme `budgets_section` (F38) ; Prisma ne sait pas le
+  // dire au schéma.
+  @@unique([tenantId, exerciceId, annuleeLe])
   @@map("reevaluations")
 }
 

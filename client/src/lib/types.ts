@@ -2117,6 +2117,9 @@ export interface Reevaluation {
   ecritureExtourne: { id: string; numeroPiece: number | null; date: string } | null;
   /** Motif quand la réévaluation n'est pas datée de la clôture (décision D1), sinon `null`. */
   horsCloture?: string | null;
+  /** Annulée (décision D6) · date et motif ; jamais supprimée. */
+  annuleeLe?: string | null;
+  motifAnnulation?: string | null;
 }
 
 // ---------------------------------------------------------------------------

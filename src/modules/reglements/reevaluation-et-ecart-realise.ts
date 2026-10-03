@@ -92,7 +92,8 @@ async function lireLaReevaluation(
   p: { tenantId: string; exerciceId: string; compteId: string; cible: string | null },
 ): Promise<LectureDeLaReevaluation | null> {
   const reeval = await prisma.reevaluation.findFirst({
-    where: { tenantId: p.tenantId, exerciceId: p.exerciceId },
+    // Une réévaluation ANNULÉE (D6) n'a plus rien porté au 478.
+    where: { tenantId: p.tenantId, exerciceId: p.exerciceId, annuleeLe: null },
     select: {
       dateReevaluation: true,
       createdAt: true,
@@ -183,17 +184,17 @@ async function lireLaReevaluation(
 
 /**
  * LA PHRASE DU REFUS, une seule · elle dit ce qui serait compté deux fois, et
- * qu'AUCUN GESTE D'OMEGAX NE RETIRE AUJOURD'HUI UNE RÉÉVALUATION PASSÉE · la
- * décision attendue de Manasse est de dire si ce retrait doit exister. Aucun
- * contournement n'est proposé · tout chemin qui passerait le réalisé en
- * laissant le 478 et sa provision recompterait la perte.
+ * NOMME LE GESTE (décision D6) · annuler la réévaluation (inscription en
+ * négatif, AUDCIF art. 20, al. 2), passer l'écart, réévaluer. Aucun autre
+ * chemin · passer le réalisé en laissant le 478 et sa provision recompterait
+ * la perte.
  */
 export function motifDejaReevalue(p: { date: Date; creeeLe: Date; compteNumero: string; objet: string }): string {
   return (
     `La réévaluation des devises du ${jour(p.date)}, passée le ${jour(p.creeeLe)}, a lu ${p.objet} du ${p.compteNumero} et ` +
     'porté son écart au 478 ou au 479, avec sa provision pour pertes de change · passer maintenant le réalisé au 656 ou au 676 ' +
-    'compterait la perte deux fois (AUDCIF art. 54 et 55). Rien n’est passé. Aucun geste d’OmegaX ne retire aujourd’hui une ' +
-    'réévaluation passée · la décision attendue de Manasse est de dire si ce retrait doit exister, et comment.'
+    'compterait la perte deux fois (AUDCIF art. 54 et 55). Rien n’est passé. Issue · annulez cette réévaluation (Devises, ' +
+    '« Annuler la réévaluation », motif exigé · AUDCIF art. 20, al. 2), passez l’écart réalisé, puis réévaluez l’exercice.'
   );
 }
 
@@ -318,7 +319,7 @@ export async function avertissementExtourneManquante(
   });
   if (!precedent) return null;
   const reeval = await prisma.reevaluation.findFirst({
-    where: { tenantId: p.tenantId, exerciceId: precedent.id },
+    where: { tenantId: p.tenantId, exerciceId: precedent.id, annuleeLe: null },
     select: { ecritureExtourneId: true },
   });
   if (!reeval || reeval.ecritureExtourneId !== null) return null;

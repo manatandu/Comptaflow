@@ -449,7 +449,14 @@ exercice (index unique), écarts passés sans devise.
 **La provision pour pertes de change S'AJUSTE (A5, 2026-10-02).** D1 (2026-10-03) · la réévaluation se
 fait à la date de CLÔTURE et à elle seule (art. 54, ch. 22 § 2.2) · `reevaluer` refuse
 toute autre date (400), l'écran ne la laisse pas changer, une réévaluation passée
-ailleurs est signalée (`horsCloture`), jamais retouchée. Titre VIII
+ailleurs est signalée (`horsCloture`), jamais retouchée. D6 · une réévaluation S'ANNULE (`POST
+/devises/reevaluations/:id/annuler`, motif, journal d'audit, verrou du dossier) · au
+brouillard ses écritures sont supprimées, validées elles sont inscrites en NÉGATIF
+(`lignesEnNegatif`, validées, art. 22, 4° pour une période close), l'enregistrement est
+MARQUÉ annulé, jamais supprimé, et l'index unique ne compte que les non annulées (NULLS
+NOT DISTINCT) ; refus · exercice clos, contre-passation dans un exercice clos,
+postérieure non annulée, version d'ouverture postérieure ; toutes les lectures de « la
+réévaluation de l'exercice » l'écartent. Titre VIII
 ch. 22 § 2.3 (« ajustée pour tenir compte des opérations dénouées ») et fiche
 du compte 19 des deux plans · seul l'ÉCART avec la provision en place se
 passe, dotation de la hausse ou reprise de la baisse au compte de SA famille
@@ -592,8 +599,7 @@ facture refuse aussi. Le RÈGLEMENT en devise d'une facture qu'elle a lue est re
 passé AVERTISSENT, sans refuser (`avertissementExtourneManquante`), quand une ligne
 choisie ou du groupe vient d'une écriture d'À-NOUVEAU, que la réévaluation de
 l'exercice qui PRÉCÈDE IMMÉDIATEMENT n'a pas été contre-passée, et qu'elle a réellement
-porté cette devise sur le compte. Aucun geste ne retire une réévaluation passée · le refus le dit et nomme la
-décision attendue de Manasse. D4 · un
+porté cette devise sur le compte. Le refus nomme l'issue · annuler la réévaluation (D6), passer l'écart, réévaluer. D4 · un
 ancien règlement partiel qui a soldé le tiers AU PAYÉ, sans ligne d'écart, est signalé
 en INFORMATION (`REGLEMENT_DEVISE_SANS_ECART`, exercice ouvert, reconnaissable dans un
 lettrage partiel seulement), jamais retraité · art. 20, al. 2 et 3. Des

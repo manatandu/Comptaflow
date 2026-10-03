@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
@@ -1074,7 +1075,7 @@ export class DevisesService {
       select: { id: true, dateDebut: true, dateFin: true },
     });
     for (const e of anterieurs) {
-      const passee = await this.prisma.reevaluation.findFirst({ where: { tenantId, exerciceId: e.id }, select: { id: true } });
+      const passee = await this.prisma.reevaluation.findFirst({ where: { tenantId, exerciceId: e.id, annuleeLe: null }, select: { id: true } });
       if (passee) continue;
       const r = await this.calculer(tenantId, { exerciceId: e.id });
       const sansObjet =
@@ -1189,7 +1190,8 @@ export class DevisesService {
     // base porte la même règle (index unique sur l'exercice), contre deux
     // clics simultanés.
     const dejaFaite = await this.prisma.reevaluation.findFirst({
-      where: { tenantId, exerciceId: dto.exerciceId },
+      // Une réévaluation ANNULÉE ne compte plus (D6) · la réévaluation exacte suit.
+      where: { tenantId, exerciceId: dto.exerciceId, annuleeLe: null },
       select: { dateReevaluation: true },
     });
     if (dejaFaite) {
@@ -1343,6 +1345,7 @@ export class DevisesService {
       include: { ecritureEcarts: { include: { lignes: true } } },
     });
     if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+    if (reeval.annuleeLe) throw new ConflictException('Cette réévaluation est annulée · il n’y a rien à contre-passer.');
     if (reeval.ecritureExtourneId) throw new ConflictException('Cette réévaluation a déjà été extournée.');
     if (!reeval.ecritureEcarts) throw new BadRequestException("Aucune écriture d'écarts à extourner.");
 
@@ -1387,6 +1390,117 @@ export class DevisesService {
       throw new ConflictException('Cette réévaluation a déjà été extournée.');
     }
     return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reevaluationId, tenantId } });
+  }
+
+  /**
+   * ANNULER UNE RÉÉVALUATION (ligne A6, décision D6 du 2026-10-03, Manasse,
+   * « réfère-toi à la loi »). AUDCIF art. 20, al. 2 · la correction d'une
+   * erreur de l'exercice en cours « s'effectue EXCLUSIVEMENT par inscription
+   * en négatif des éléments erronés ; l'enregistrement exact est ensuite
+   * opéré » · art. 22, 2° · une écriture VALIDÉE est irréversible ; 4° · dans
+   * une période close, au premier jour de la période non clôturée, date de
+   * valeur distincte ; art. 20, al. 3 · l'exercice antérieur clos relève du
+   * report à nouveau, hors de ce geste.
+   *
+   *  · écriture au BROUILLARD (écarts, provision, contre-passation) ·
+   *    supprimée, elle n'est pas entrée au livre-journal ;
+   *  · écriture VALIDÉE · une inscription en négatif, même compte, même sens,
+   *    montants négatifs (`EcritureService.inscrireEnNegatifPourAnnulation`) ;
+   *  · l'enregistrement est MARQUÉ annulé (date, auteur, motif, et ce qui a
+   *    été fait de chaque écriture), jamais supprimé ;
+   *  · l'enregistrement exact suit · une nouvelle réévaluation de l'exercice,
+   *    l'index unique ne comptant que les non annulées.
+   * REFUS NOMMÉS · déjà annulée ; exercice clôturé ; contre-passation passée
+   * dans un exercice clôturé ; une réévaluation POSTÉRIEURE non annulée (on
+   * annule de la plus récente à la plus ancienne, l'ordre d'A5) ; une version
+   * de provision d'ouverture d'un exercice suivant, qui s'appuie sur la
+   * provision que celle-ci a passée. Sous le verrou du dossier.
+   */
+  async annulerReevaluation(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const raison = (motif ?? '').trim();
+    if (!raison) throw new BadRequestException("Le motif de l'annulation est obligatoire (AUDCIF art. 20).");
+    return this.sousVerrouDuDossier(tenantId, 'ANNULATION', () => this.annulerSousVerrou(tenantId, userId, reevaluationId, raison));
+  }
+
+  private async annulerSousVerrou(tenantId: string, userId: string, reevaluationId: string, motif: string) {
+    const ecriture = { select: { id: true, statut: true, numeroPiece: true, exercice: { select: { statut: true } } } };
+    const reeval = await this.prisma.reevaluation.findFirst({
+      where: { id: reevaluationId, tenantId },
+      include: {
+        exercice: { select: { statut: true, dateDebut: true, dateFin: true } },
+        ecritureEcarts: ecriture,
+        ecritureProvision: ecriture,
+        ecritureExtourne: ecriture,
+      },
+    });
+    if (!reeval) throw new NotFoundException('Réévaluation introuvable pour ce dossier');
+    const jour = (d: Date) => d.toISOString().slice(0, 10);
+    if (reeval.annuleeLe) {
+      throw new ConflictException(`Cette réévaluation est déjà annulée, le ${jour(reeval.annuleeLe)}.`);
+    }
+    if (reeval.exercice.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException(
+        "L'exercice de cette réévaluation est clôturé · son erreur se corrige par le report à nouveau (AUDCIF art. 20, al. 3), hors de ce geste.",
+      );
+    }
+    if (reeval.ecritureExtourne && reeval.ecritureExtourne.exercice.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException(
+        "La contre-passation de cette réévaluation est passée dans un exercice clôturé · elle ne s'annule plus (AUDCIF art. 20, al. 3).",
+      );
+    }
+    const posterieure = await this.prisma.reevaluation.findFirst({
+      where: { tenantId, annuleeLe: null, dateReevaluation: { gt: reeval.dateReevaluation } },
+      orderBy: { dateReevaluation: 'asc' },
+      select: { dateReevaluation: true },
+    });
+    if (posterieure) {
+      throw new BadRequestException(
+        `La réévaluation du ${jour(posterieure.dateReevaluation)}, postérieure, n'est pas annulée · elle part de la provision que ` +
+          "celle-ci a passée. On annule de la plus récente à la plus ancienne.",
+      );
+    }
+    const version = await this.prisma.provisionChangeOuverture.findFirst({
+      where: { tenantId, dateReference: { gt: reeval.dateReevaluation } },
+      orderBy: { dateReference: 'asc' },
+      select: { compteProvision: true, dateReference: true },
+    });
+    if (version) {
+      throw new BadRequestException(
+        `La provision d'ouverture déclarée au ${jour(version.dateReference)} (compte ${version.compteProvision}) s'appuie sur la ` +
+          'provision que cette réévaluation a passée · retirez-la ou corrigez-la par une nouvelle version avant d’annuler.',
+      );
+    }
+
+    const ecritures = [
+      ['ECARTS', reeval.ecritureEcarts],
+      ['PROVISION', reeval.ecritureProvision],
+      ['CONTRE_PASSATION', reeval.ecritureExtourne],
+    ] as const;
+    return transactionJournalisee(this.prisma, async (tx) => {
+      const fait: Array<{ role: string; ecritureId: string; numeroPiece: number | null; traitement: 'SUPPRIMEE' | 'INSCRITE_EN_NEGATIF'; negatifId?: string; negatifNumeroPiece?: number | null }> = [];
+      for (const [role, e] of ecritures) {
+        if (!e) continue;
+        if (e.statut === StatutEcriture.BROUILLARD) {
+          fait.push({ role, ecritureId: e.id, numeroPiece: e.numeroPiece, traitement: 'SUPPRIMEE' });
+        } else {
+          const negatif = await this.ecritureService.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
+          fait.push({ role, ecritureId: e.id, numeroPiece: e.numeroPiece, traitement: 'INSCRITE_EN_NEGATIF', negatifId: negatif.id, negatifNumeroPiece: negatif.numeroPiece });
+        }
+      }
+      // Marquée AVANT la suppression des brouillards · sur une ligne encore
+      // non annulée, sans quoi deux gestes simultanés passeraient tous deux.
+      const { count } = await tx.reevaluation.updateMany({
+        where: { id: reeval.id, tenantId, annuleeLe: null },
+        data: { annuleeLe: new Date(), annuleePar: userId, motifAnnulation: motif, annulation: fait as unknown as Prisma.InputJsonValue },
+      });
+      if (count === 0) throw new ConflictException('Cette réévaluation est déjà annulée.');
+      for (const f of fait) {
+        if (f.traitement !== 'SUPPRIMEE') continue;
+        await tx.ligneEcriture.deleteMany({ where: { ecritureId: f.ecritureId } });
+        await tx.ecriture.deleteMany({ where: { id: f.ecritureId, tenantId } });
+      }
+      return tx.reevaluation.findFirstOrThrow({ where: { id: reeval.id, tenantId } });
+    });
   }
 
   async listerReevaluations(tenantId: string, exerciceId: string) {
@@ -1745,7 +1859,9 @@ export class DevisesService {
     });
     // Une réévaluation par exercice (index unique) · bornée par le nombre d'exercices.
     const reevaluations = await this.prisma.reevaluation.findMany({
-      where: { tenantId, ecritureProvisionId: { not: null } },
+      // Les ANNULÉES sortent (D6) · leur provision et son inscription en
+      // négatif s'annulent au journal, et le module ne la compte plus.
+      where: { tenantId, ecritureProvisionId: { not: null }, annuleeLe: null },
       select: {
         dateReevaluation: true,
         ecritureProvisionId: true,
@@ -1923,6 +2039,7 @@ export class DevisesService {
     return this.prisma.reevaluation.findFirst({
       where: {
         tenantId,
+        annuleeLe: null,
         dateReevaluation: { gte: v.dateReference, ...(suivante ? { lt: suivante.dateReference } : {}) },
       },
       select: { dateReevaluation: true },
@@ -2111,6 +2228,7 @@ export class DevisesService {
     const dejaPassee = await this.prisma.reevaluation.findFirst({
       where: {
         tenantId,
+        annuleeLe: null,
         dateReevaluation: { gte: dateReference, ...(suivante ? { lt: suivante.dateReference } : {}) },
       },
       select: { dateReevaluation: true },

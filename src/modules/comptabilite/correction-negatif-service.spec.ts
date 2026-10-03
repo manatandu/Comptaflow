@@ -117,3 +117,64 @@ describe('une écriture de la clôture · le refus nomme le chemin qui existe (a
     );
   });
 });
+
+/**
+ * L'ANNULATION D'UNE RÉÉVALUATION DES DEVISES (ligne A6, D6) · la même
+ * inscription en négatif (`lignesEnNegatif`), VALIDÉE (art. 22, 2°), datée
+ * de l'écriture annulée ou du premier jour non clôturé avec sa date de valeur
+ * (art. 22, 4°), jamais dans un exercice clos (art. 20, al. 3), et sans le
+ * refus du détenteur · c'est lui qui annule.
+ */
+describe('inscription en négatif pour l’annulation d’une réévaluation', () => {
+  function annulation(premierJour: Date, surcharge: Record<string, unknown> = {}) {
+    const origine = {
+      id: 'e1',
+      tenantId: 't1',
+      statut: StatutEcriture.VALIDEE,
+      exerciceId: 'ex',
+      journalId: 'j',
+      journal: { id: 'j', code: 'OD' },
+      exercice: { statut: StatutExercice.OUVERT, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') },
+      date: new Date('2026-12-31'),
+      libelle: 'Réévaluation des créances et dettes en devises au 2026-12-31',
+      reference: 'REEVAL',
+      numeroPiece: 40,
+      correction: null,
+      lignes: [
+        { compteId: 'c401', libelle: 'R', debit: D(0), credit: D(198_200), tauxTvaId: null, dateEcheance: null, dateVersement: null, deviseId: null, montantDevise: null, coursApplique: null, ventilations: [] },
+        { compteId: 'c478', libelle: 'R', debit: D(198_200), credit: D(0), tauxTvaId: null, dateEcheance: null, dateVersement: null, deviseId: null, montantDevise: null, coursApplique: null, ventilations: [] },
+      ],
+      ...surcharge,
+    };
+    const create = jest.fn().mockResolvedValue({ id: 'neg', numeroPiece: 41, date: premierJour });
+    const prisma = { ecriture: { findFirst: jest.fn().mockResolvedValue(origine), create } };
+    const journal = { prochainNumeroPiece: jest.fn().mockResolvedValue(41) };
+    const exercice = { premierJourOuvert: jest.fn().mockResolvedValue(premierJour) };
+    return { s: new EcritureService(prisma as never, journal as never, exercice as never, {} as never), create };
+  }
+
+  it('validée, mêmes comptes, mêmes sens, montants négatifs, à la date de l’écriture annulée', async () => {
+    const { s, create } = annulation(new Date('2026-12-31'));
+    await s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'Cours corrigé');
+    const data = create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ statut: StatutEcriture.VALIDEE, valideeBy: 'u1', corrigeEcritureId: 'e1', motifCorrection: 'Cours corrigé', dateValeur: null });
+    expect(data.lignes.create.map((l: { compteId: string; debit: { toNumber(): number }; credit: { toNumber(): number } }) => [l.compteId, l.debit.toNumber(), l.credit.toNumber()])).toEqual([
+      ['c401', -0, -198_200],
+      ['c478', -198_200, -0],
+    ]);
+  });
+
+  it('période close · au premier jour non clôturé, la date réelle en date de valeur', async () => {
+    const { s, create } = annulation(new Date('2027-01-01'), { exercice: { statut: StatutExercice.OUVERT, dateDebut: new Date('2026-01-01'), dateFin: new Date('2027-03-31') } });
+    await s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm');
+    expect(create.mock.calls[0][0].data).toMatchObject({ date: new Date('2027-01-01'), dateValeur: new Date('2026-12-31') });
+  });
+
+  it('refus · premier jour ouvert hors de l’exercice, exercice clôturé, déjà corrigée', async () => {
+    await expect(annulation(new Date('2027-01-01')).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.toThrow(/hors de l'exercice/);
+    await expect(
+      annulation(new Date('2026-12-31'), { exercice: { statut: StatutExercice.CLOTURE, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } }).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm'),
+    ).rejects.toThrow(/exercice clôturé.*art\. 20, al\. 3/);
+    await expect(annulation(new Date('2026-12-31'), { correction: { id: 'x' } }).s.inscrireEnNegatifPourAnnulation('t1', 'u1', 'e1', 'm')).rejects.toThrow(/déjà corrigée/);
+  });
+});

@@ -105,7 +105,7 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
   it('la réévaluation a lu le groupe (198 200) · refus nommé, honnête sur le retrait', async () => {
     const r = await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -198_200 }), params);
     expect(r).toEqual({ refus: expect.stringMatching(/a lu ce dénouement du 40110000.*compterait la perte deux fois/) });
-    expect((r as { refus: string }).refus).toMatch(/Aucun geste d’OmegaX ne retire aujourd’hui une réévaluation passée · la décision attendue de Manasse/);
+    expect((r as { refus: string }).refus).toMatch(/Issue · annulez cette réévaluation \(Devises, « Annuler la réévaluation », motif exigé · AUDCIF art\. 20, al\. 2\)/);
   });
 
   it('la réévaluation a écarté le groupe (75 000) · rien ne s’oppose', async () => {
@@ -203,7 +203,7 @@ describe('un règlement en devise d’une facture déjà réévaluée', () => {
     const b = factureB();
     const motif = await motifReglementDejaReevalue(monter({ lignes: [b], passe: -75_000 }), { ...params, ligneIds: [b.id] });
     expect(motif).toMatch(/a lu une facture choisie du 40110000.*compterait la perte deux fois.*Rien n’est passé/);
-    expect(motif).toMatch(/Aucun geste d’OmegaX ne retire aujourd’hui/);
+    expect(motif).toMatch(/annulez cette réévaluation.*puis réévaluez/);
   });
 
   // M1 · seules les devises RÉELLEMENT réévaluées · l'EUR porte 10 000.

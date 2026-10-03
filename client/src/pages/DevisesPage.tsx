@@ -52,7 +52,7 @@ function jour(iso: string): string {
 
 
 export function DevisesPage() {
-  const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  const { estAdmin, peutEcrire, peutValider, utilisateur } = useAuth();
   // Au SMT, la réévaluation se masque, les cours restent (audit final F178) ·
   // une réévaluation déjà passée reste lisible et contre-passable.
   const reevaluationServie = sousFonctionServie('reevaluation', utilisateur?.tenant);
@@ -189,6 +189,29 @@ export function DevisesPage() {
       setErreur(e instanceof ApiError ? e.message : 'Réévaluation impossible');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  /**
+   * ANNULER UNE RÉÉVALUATION (ligne A6, décision D6) · inscription en négatif
+   * des écritures validées, suppression de celles au brouillard (AUDCIF
+   * art. 20, al. 2) ; la réévaluation exacte suit. Motif obligatoire, réservé
+   * à qui valide (`peutValider`) · le serveur refuse le reste.
+   */
+  const annulerReevaluation = async (r: Reevaluation) => {
+    const motif = window.prompt(`Annuler la réévaluation du ${jour(r.dateReevaluation)} · motif (obligatoire)`, '');
+    if (motif === null) return;
+    if (!motif.trim()) {
+      setErreur("Le motif de l'annulation est obligatoire.");
+      return;
+    }
+    setErreur(null);
+    try {
+      await api.post(`/devises/reevaluations/${r.id}/annuler`, { motif: motif.trim() });
+      setInfo('Réévaluation annulée · ses écritures validées sont inscrites en négatif. Réévaluez l’exercice.');
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Annulation impossible');
     }
   };
 
@@ -676,11 +699,25 @@ export function DevisesPage() {
                       {r.horsCloture && <span className="text-warning"> · hors clôture</span>}
                     </span>
                     <span className="text-text-dim">
-                      {r.ecritureEcarts ? `Écarts pièce ${r.ecritureEcarts.numeroPiece ?? '·'}` : 'Aucun écart'}
-                      {r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
+                      {r.annuleeLe
+                        ? `Annulée le ${jour(r.annuleeLe)} · ${r.motifAnnulation ?? ''}`
+                        : r.ecritureEcarts
+                          ? `Écarts pièce ${r.ecritureEcarts.numeroPiece ?? '·'}`
+                          : 'Aucun écart'}
+                      {!r.annuleeLe && r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
+                      {peutValider && !r.annuleeLe && (
+                        <button
+                          type="button"
+                          onClick={() => void annulerReevaluation(r)}
+                          className="ml-2 text-danger hover:underline"
+                          title="Inscription en négatif des écritures validées, suppression de celles au brouillard (AUDCIF art. 20, al. 2)"
+                        >
+                          Annuler la réévaluation
+                        </button>
+                      )}
                     </span>
                     <span>
-                      {!r.ecritureEcarts ? null : r.ecritureExtourne ? (
+                      {r.annuleeLe || !r.ecritureEcarts ? null : r.ecritureExtourne ? (
                         <span className="text-[11.5px] text-positive font-semibold">
                           Contre-passée le {jour(r.ecritureExtourne.date)}
                         </span>

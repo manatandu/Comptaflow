@@ -839,3 +839,77 @@ test('SYSCOHADA · Y9b · la contestation visait les 50 000 de N-1, N dote 100 0
   expect(soldes.reduce((t, x) => t + x, 0)).toBe(-70_000);
   expect(pannes).toEqual([]);
 });
+
+/**
+ * DÉCISION D6 (2026-10-03) · RÉÉVALUER, ANNULER, RÉÉVALUER, SUR LA BASE
+ * RÉELLE. AUDCIF art. 20, al. 2 · « exclusivement par inscription en négatif
+ * des éléments erronés ; l'enregistrement exact est ensuite opéré ». Sur le
+ * 401 · facture A de 1 000 USD à 1 700, réglée au cours de 1 800 (100 000 au
+ * 656) ; facture B de 500 USD à 1 700, ouverte. Réévaluée au cours de 1 900
+ * coté par erreur (100 000 au 478 et au 4991), validée ; le cours corrigé à
+ * 1 850, la réévaluation est ANNULÉE (inscription en négatif) puis refaite ·
+ * 75 000 au 478 et au 4991, le 401 à 925 000, le 656 intact à 100 000.
+ */
+test('SYSCOHADA · D6 · réévaluer, annuler, réévaluer · 478, 4991, 656 et 401 au bon solde', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Devises e2e D6', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const comptes = await appelApi<Compte[]>(page, 'GET', '/comptes?typeCompte=DETAIL');
+  const parNumero = (numero: string) => comptes.find((c) => c.numero === numero)!;
+  const detail = (racine: string) => comptes.find((c) => c.typeCompte === 'DETAIL' && c.numero.startsWith(racine))!;
+  const journaux = await appelApi<(Journal & { estActif: boolean; compteTresorerieId: string | null })[]>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux.find((j) => j.type === 'GENERAL')!;
+  const tresorerie = journaux.find((j) => j.type === 'TRESORERIE' && j.estActif && j.compteTresorerieId)!;
+  const fournisseur = parNumero('40110000');
+  const debut = Date.parse(exercice.dateDebut);
+  const date = (jours: number) => new Date(debut + jours * 86_400_000).toISOString().slice(0, 10);
+
+  const usd = await appelApi<{ id: string }>(page, 'POST', '/devises', { code: 'USD', intitule: 'Dollar américain' });
+  await appelApi(page, 'POST', `/devises/${usd.id}/cours`, { date: date(60), cours: 1700, source: 'e2e' });
+  await appelApi(page, 'POST', `/devises/${usd.id}/cours`, { date: date(150), cours: 1800, source: 'e2e' });
+  await appelApi(page, 'POST', `/devises/${usd.id}/cours`, { date: jour(exercice.dateFin), cours: 1900, source: 'e2e, erroné' });
+  const facture = (libelle: string, usdMontant: number) =>
+    appelApi<{ lignes: Array<{ id: string; compteId: string }> }>(page, 'POST', '/ecritures', {
+      exerciceId: exercice.id,
+      journalId: od.id,
+      date: date(60),
+      libelle,
+      lignes: [
+        { compteId: detail('601').id, libelle, debit: usdMontant * 1700, credit: 0 },
+        { compteId: fournisseur.id, libelle, debit: 0, credit: usdMontant * 1700, deviseId: usd.id, montantDevise: usdMontant, coursApplique: 1700 },
+      ],
+    });
+  const a = await facture('Facture A', 1000);
+  await facture('Facture B', 500);
+  await appelApi(page, 'POST', '/reglements', {
+    sens: 'FOURNISSEUR',
+    exerciceId: exercice.id,
+    journalId: tresorerie.id,
+    date: date(150),
+    reglements: [{ compteId: fournisseur.id, ligneIds: [a.lignes.find((l) => l.compteId === fournisseur.id)!.id], coursReglement: 1800 }],
+  });
+
+  // Réévaluée au cours erroné, puis VALIDÉE · l'annulation passera par l'inscription en négatif.
+  const passee = await appelApi<{ ecritures: string[] }>(page, 'POST', '/devises/reevaluation', { exerciceId: exercice.id });
+  await appelApi(page, 'POST', '/ecritures/valider', { ecritureIds: passee.ecritures });
+  // Le comptable corrige le cours coté (`poserCours`, qui remplace celui de la date).
+  await appelApi(page, 'POST', `/devises/${usd.id}/cours`, { date: jour(exercice.dateFin), cours: 1850, source: 'e2e, corrigé' });
+  const [reeval] = await appelApi<{ id: string }[]>(page, 'GET', `/devises/reevaluation/liste?exerciceId=${exercice.id}`);
+  await expect(appelApi(page, 'POST', `/devises/reevaluations/${reeval.id}/annuler`, { motif: '' })).rejects.toThrow(/400/);
+  await appelApi(page, 'POST', `/devises/reevaluations/${reeval.id}/annuler`, { motif: 'Cours du 31 décembre corrigé' });
+  await appelApi(page, 'POST', '/devises/reevaluation', { exerciceId: exercice.id });
+
+  const liste = await appelApi<{ annuleeLe: string | null }[]>(page, 'GET', `/devises/reevaluation/liste?exerciceId=${exercice.id}`);
+  expect(liste.map((r) => r.annuleeLe !== null).sort()).toEqual([false, true]);
+  const { lignes } = await appelApi<{ lignes: LigneBalance[] }>(page, 'GET', `/ecritures/balance?exerciceId=${exercice.id}`);
+  const solde = (numero: string) =>
+    lignes.filter((l) => l.numero.startsWith(numero)).reduce((t, l) => t + Number(l.mouvementDebit) - Number(l.mouvementCredit), 0);
+  expect({ e478: solde('478'), e4991: solde('4991'), e656: solde('656'), e401: solde('4011') }).toEqual({
+    e478: 75_000,
+    e4991: -75_000,
+    e656: 100_000,
+    e401: -925_000,
+  });
+  expect(pannes).toEqual([]);
+});

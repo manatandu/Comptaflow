@@ -76,6 +76,17 @@ export class ExtournerReevaluationDto {
 }
 
 /**
+ * ANNULER UNE RÉÉVALUATION (ligne A6, décision D6) · le motif est
+ * obligatoire, comme celui de toute correction (AUDCIF art. 20), et va au
+ * journal d'audit avec l'enregistrement marqué annulé.
+ */
+export class AnnulerReevaluationDto {
+  @IsString()
+  @Length(3, 500)
+  motif!: string;
+}
+
+/**
  * Provision pour pertes de change existant à l'ouverture, déclarée par le
  * cabinet (ligne A5, décision de Manasse du 2026-10-02). Le compte, le
  * montant, la date et la SOURCE · la règle complète vit dans

@@ -577,7 +577,7 @@ describe('le règlement d’une facture déjà réévaluée', () => {
     (prisma.ligneEcriture.findMany as jest.Mock).mockImplementation(async (a: { where: { id?: unknown } }) => (a.where.id ? parId(a) : lues));
     await expect(
       service.enregistrer('t', 'u', { ...base, date: '2026-12-28', sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1860 }] }),
-    ).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/a lu une facture choisie du 40110000.*Aucun geste d’OmegaX ne retire/) });
+    ).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/a lu une facture choisie du 40110000.*annulez cette réévaluation/) });
     expect(creer).not.toHaveBeenCalled();
   });
 });

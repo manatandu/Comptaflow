@@ -1160,8 +1160,10 @@ export class EcritureService {
       // la base levait une erreur brute après que la garde avait laissé passer
       // (audit du serveur I1, voir detenteurs-ecriture.ts).
       ["un reclassement d'immobilisation", this.prisma.reclassementImmobilisation.count({ where: parLEcriture })],
+      // Une réévaluation ANNULÉE ne retient plus ses écritures (D6) · validées,
+      // elles sont neutralisées par leur inscription en négatif.
       ['une réévaluation de devise', this.prisma.reevaluation.count({
-        where: { tenantId, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }] },
+        where: { tenantId, annuleeLe: null, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }] },
       })],
       ['une régularisation', this.prisma.regularisation.count({
         where: { tenantId, OR: [{ ecritureConstatationId: ecritureId }, { ecritureRepriseId: ecritureId }] },
@@ -1974,42 +1976,10 @@ export class EcritureService {
             corrigeEcritureId: origine.id,
             motifCorrection: dto.motifCorrection.trim(),
             lignes: {
-              // Les MÊMES comptes, dans les MÊMES sens, au signe près : c'est
-              // la définition de l'« inscription en négatif des éléments
-              // erronés ». Ni lettre ni pointage ne sont repris · ils
-              // appartiennent à la ligne d'origine, pas à sa correction.
-              create: origine.lignes.map((l) => ({
-                compteId: l.compteId,
-                libelle: l.libelle,
-                debit: l.debit.negated(),
-                credit: l.credit.negated(),
-                tauxTvaId: l.tauxTvaId,
-                dateEcheance: l.dateEcheance,
-                // La contre-passation reprend les deux dates de l'origine · une
-                // inscription en négatif annule une opération, elle ne la
-                // redate pas. La retenue contre-passée doit sortir du registre
-                // par le MÊME mois qu'elle y est entrée, sans quoi elle
-                // creuserait un mois et en gonflerait un autre.
-                dateVersement: l.dateVersement,
-                // LA DEVISE ET L'ANALYTIQUE SUIVENT (audit final F1). Sans
-                // elles, le grand livre revenait à zéro pendant que le réalisé
-                // par section et la position en devise gardaient l'opération
-                // annulée. Le montant en devise se recopie SANS SIGNE, comme
-                // il est stocké : c'est le sens de la ligne qui le donne
-                // (lettrage, réévaluation). Les ventilations, elles, portent
-                // leur propre débit et crédit, et passent en négatif.
-                deviseId: l.deviseId,
-                montantDevise: l.montantDevise,
-                coursApplique: l.coursApplique,
-                ventilations: {
-                  create: l.ventilations.map((v) => ({
-                    sectionId: v.sectionId,
-                    planId: v.planId,
-                    debit: v.debit.negated(),
-                    credit: v.credit.negated(),
-                  })),
-                },
-              })),
+              // Les MÊMES comptes, dans les MÊMES sens, au signe près · voir
+              // `lignesEnNegatif`, partagée avec l'annulation d'une
+              // réévaluation des devises (ligne A6, D6).
+              create: lignesEnNegatif(origine.lignes),
             },
           },
           include: { lignes: true, journal: true },
@@ -2017,6 +1987,81 @@ export class EcritureService {
       },
       `Trop d'écritures enregistrées au même instant sur le journal ${origine.journal.code} · veuillez réessayer.`,
     );
+  }
+
+  /**
+   * L'INSCRIPTION EN NÉGATIF D'UNE ÉCRITURE QU'UN MODULE ANNULE LUI-MÊME
+   * (annulation d'une réévaluation des devises, ligne A6, décision D6) · AUDCIF
+   * art. 20, al. 2. Elle diffère de `corrigerParInscriptionEnNegatif` en trois
+   * points, et pour la même raison · c'est le MODULE qui tient l'écriture qui
+   * l'annule, avec son motif, au journal d'audit.
+   *  · le détenteur ne refuse pas · c'est lui qui demande ;
+   *  · l'écriture d'annulation entre VALIDÉE (art. 22, 2°) · au brouillard,
+   *    elle pourrait se supprimer seule, et l'écriture annulée reprendrait
+   *    effet pendant que le module la dit annulée ;
+   *  · elle est datée du jour de l'écriture annulée, ou du PREMIER JOUR DE LA
+   *    PÉRIODE NON CLÔTURÉE avec sa date de valeur (art. 22, 4°,
+   *    `premierJourOuvert`), jamais hors de l'exercice.
+   * Refus · exercice clôturé (art. 20, al. 3 · le report à nouveau, hors du
+   * geste), écriture déjà corrigée.
+   */
+  async inscrireEnNegatifPourAnnulation(
+    tenantId: string,
+    userId: string,
+    ecritureId: string,
+    motif: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+    const origine = await db.ecriture.findFirst({
+      where: { id: ecritureId, tenantId },
+      include: { lignes: { include: { ventilations: true } }, journal: true, exercice: true, correction: { select: { id: true } } },
+    });
+    if (!origine) throw new NotFoundException('Écriture introuvable pour ce dossier.');
+    if (origine.exercice.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException(
+        `L'écriture n° ${origine.numeroPiece ?? '·'} appartient à un exercice clôturé · son erreur se corrige par le report à nouveau ` +
+          "(AUDCIF art. 20, al. 3), hors de ce geste.",
+      );
+    }
+    if (origine.correction) {
+      throw new BadRequestException(`L'écriture n° ${origine.numeroPiece ?? '·'} est déjà corrigée par inscription en négatif.`);
+    }
+    let date = origine.date;
+    let dateValeur: Date | null = null;
+    const premier = await this.exerciceService.premierJourOuvert(tenantId, origine.journalId, date);
+    if (premier.getTime() !== date.getTime()) {
+      if (premier > origine.exercice.dateFin) {
+        throw new BadRequestException(
+          `Le premier jour non clôturé du journal ${origine.journal.code} (${premier.toISOString().slice(0, 10)}) tombe hors de l'exercice · ` +
+            "rouvrez la période pour inscrire l'annulation (AUDCIF art. 22, 4°).",
+        );
+      }
+      dateValeur = date;
+      date = premier;
+    }
+    const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, origine.journal, origine.exerciceId, date, tx);
+    const maintenant = new Date();
+    return db.ecriture.create({
+      data: {
+        tenantId,
+        exerciceId: origine.exerciceId,
+        journalId: origine.journalId,
+        numeroPiece,
+        date,
+        dateValeur,
+        libelle: `Annulation (inscription en négatif) · ${origine.libelle}`.slice(0, 250),
+        reference: origine.reference,
+        createdBy: userId,
+        corrigeEcritureId: origine.id,
+        motifCorrection: motif.trim(),
+        statut: StatutEcriture.VALIDEE,
+        valideeBy: userId,
+        valideeAt: maintenant,
+        lignes: { create: lignesEnNegatif(origine.lignes) },
+      },
+      select: { id: true, numeroPiece: true, date: true },
+    });
   }
 
   /**
@@ -3500,4 +3545,46 @@ export class EcritureService {
       },
     };
   }
+}
+
+/**
+ * LES LIGNES D'UNE INSCRIPTION EN NÉGATIF · AUDCIF art. 20, al. 2. Les MÊMES
+ * comptes, dans les MÊMES sens, au signe près ; ni lettre ni pointage, qui
+ * appartiennent à la ligne d'origine. Une seule écriture de la règle, servie
+ * à la correction d'une écriture et à l'annulation d'une réévaluation des
+ * devises (ligne A6, D6).
+ */
+export function lignesEnNegatif(lignes: Array<Prisma.LigneEcritureGetPayload<{ include: { ventilations: true } }>>) {
+  return lignes.map((l) => ({
+    compteId: l.compteId,
+    libelle: l.libelle,
+    debit: l.debit.negated(),
+    credit: l.credit.negated(),
+    tauxTvaId: l.tauxTvaId,
+    dateEcheance: l.dateEcheance,
+    // La contre-passation reprend les deux dates de l'origine · une
+    // inscription en négatif annule une opération, elle ne la
+    // redate pas. La retenue contre-passée doit sortir du registre
+    // par le MÊME mois qu'elle y est entrée, sans quoi elle
+    // creuserait un mois et en gonflerait un autre.
+    dateVersement: l.dateVersement,
+    // LA DEVISE ET L'ANALYTIQUE SUIVENT (audit final F1). Sans
+    // elles, le grand livre revenait à zéro pendant que le réalisé
+    // par section et la position en devise gardaient l'opération
+    // annulée. Le montant en devise se recopie SANS SIGNE, comme
+    // il est stocké : c'est le sens de la ligne qui le donne
+    // (lettrage, réévaluation). Les ventilations, elles, portent
+    // leur propre débit et crédit, et passent en négatif.
+    deviseId: l.deviseId,
+    montantDevise: l.montantDevise,
+    coursApplique: l.coursApplique,
+    ventilations: {
+      create: l.ventilations.map((v) => ({
+        sectionId: v.sectionId,
+        planId: v.planId,
+        debit: v.debit.negated(),
+        credit: v.credit.negated(),
+      })),
+    },
+  }));
 }

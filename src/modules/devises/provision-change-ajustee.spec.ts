@@ -1832,7 +1832,7 @@ describe('A5 · la déclaration d’ouverture, ses refus', () => {
     // « Utilisée » · une réévaluation EXISTE dans sa période, constat lu sous le verrou.
     expect(s.prisma.reevaluation.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tenantId: 't', dateReevaluation: { gte: V2026.dateReference } },
+        where: { tenantId: 't', annuleeLe: null, dateReevaluation: { gte: V2026.dateReference } },
       }),
     );
   });
@@ -1876,7 +1876,7 @@ describe('A5 · la déclaration d’ouverture, ses refus', () => {
     });
     // La période cherchée s'arrête au début de la version de N+1.
     expect(s.prisma.reevaluation.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tenantId: 't', dateReevaluation: { gte: new Date('2026-01-01'), lt: new Date('2027-01-01') } } }),
+      expect.objectContaining({ where: { tenantId: 't', annuleeLe: null, dateReevaluation: { gte: new Date('2026-01-01'), lt: new Date('2027-01-01') } } }),
     );
   });
 

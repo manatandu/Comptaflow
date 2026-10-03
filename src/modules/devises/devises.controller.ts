@@ -3,10 +3,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
+import { AccesRolesCantonnes, ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
-import { CreerDeviseDto, DeclarerProvisionOuvertureDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import { AnnulerReevaluationDto, CreerDeviseDto, DeclarerProvisionOuvertureDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -123,5 +123,17 @@ export class DevisesController {
     @Body() body: ExtournerReevaluationDto,
   ) {
     return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId);
+  }
+
+  /**
+   * ANNULER UNE RÉÉVALUATION (ligne A6, décision D6) · inscription en négatif
+   * des écritures validées, suppression de celles au brouillard, motif au
+   * journal d'audit ; une décision de validation, réservée au comptable.
+   */
+  @Post('reevaluations/:id/annuler')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async annulerReevaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
+    return this.devises.annulerReevaluation(user.tenantId, user.userId, id, body.motif);
   }
 }
