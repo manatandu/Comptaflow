@@ -7,6 +7,7 @@ import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'
 import {
   ClasseCompte,
   FormeJuridiqueSyscohada,
+  GranulariteCloture,
   Prisma,
   JeuEtatsFinanciersSycebnl,
   Referentiel,
@@ -42,6 +43,19 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
+import {
+  comptesBancairesSansRapprochement,
+  estCompteBancaireARapprocher,
+  journauxEnRetardDeClotureInformatique,
+  premiereEcheanceDepassee,
+  sourceClotureInformatique,
+  sourceFicheCompte52,
+  texteEnVigueurPourLExercice,
+  type CompteBancaireMouvemente,
+  type EtatRapprochementCompte,
+  type JournalEcrit,
+} from './banque-et-cloture-informatique';
+import { jourDeKinshasa } from '../../common/echeance';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -320,8 +334,13 @@ const SELECT_ECRITURE_CONTROLEE = {
   secondRegardNom: true,
   estGenereeParCloture: true,
   estANouveauProvisoire: true,
+  // Ligne A13 · le journal écrit (clôture informatique) et le compte de
+  // banque mouvementé (rapprochement) se relèvent dans la même lecture.
+  journalId: true,
   journal: { select: { code: true } },
-  lignes: { select: { debit: true, credit: true, lettre: true, compte: { select: { numero: true } } } },
+  lignes: {
+    select: { debit: true, credit: true, lettre: true, compte: { select: { id: true, numero: true, intitule: true } } },
+  },
 } satisfies Prisma.EcritureSelect;
 
 type EcritureControlee = Prisma.EcritureGetPayload<{ select: typeof SELECT_ECRITURE_CONTROLEE }>;
@@ -1046,6 +1065,114 @@ export class ControlesService {
   }
 
   /**
+   * LIGNE A13 · deux contrôles, jamais deux refus (relevé CPCC C9 et C10).
+   * Chacun ne lit la base que s'il peut avoir quelque chose à dire · un
+   * exercice hors du texte, une clôture pas encore passée, aucun compte de
+   * banque mouvementé ou aucun journal écrit ne coûtent aucune requête.
+   */
+  private async controlesBanqueEtClotureInformatique(
+    tenantId: string,
+    ex: { statut: StatutExercice; dateDebut: Date; dateFin: Date },
+    referentiel: Referentiel,
+    parcours: { journauxEcrits: Map<string, JournalEcrit>; comptesBancaires: Map<string, CompteBancaireMouvemente> },
+    maintenant: number,
+  ): Promise<AnomalieControle[]> {
+    const anomalies: AnomalieControle[] = [];
+    if (!texteEnVigueurPourLExercice(referentiel, ex.dateDebut)) return anomalies;
+    const aujourdhui = jourDeKinshasa(new Date(maintenant));
+
+    // --- 32. Banque sans rapprochement clos qui couvre la clôture ------------
+    const comptes = [...parcours.comptesBancaires.values()];
+    if (comptes.length > 0 && comptesBancairesSansRapprochement(comptes, new Map(), ex.dateFin, aujourdhui).length > 0) {
+      const ids = comptes.map((c) => c.compteId);
+      // Le DERNIER clos de chaque compte (un par compte, `distinct` sur le
+      // tri descendant) et l'en cours (un au plus par compte, règle du module).
+      const [clos, enCours] = await Promise.all([
+        this.prisma.rapprochementBancaire.findMany({
+          where: { tenantId, compteId: { in: ids }, statut: 'CLOTURE' },
+          orderBy: { dateReleve: 'desc' },
+          distinct: ['compteId'],
+          select: { compteId: true, dateReleve: true },
+        }),
+        this.prisma.rapprochementBancaire.findMany({
+          where: { tenantId, compteId: { in: ids }, statut: 'EN_COURS' },
+          select: { compteId: true, dateReleve: true },
+        }),
+      ]);
+      const etats = new Map<string, EtatRapprochementCompte>();
+      const etat = (id: string) => {
+        const e = etats.get(id) ?? { dernierClos: null, enCours: null };
+        etats.set(id, e);
+        return e;
+      };
+      for (const r of clos) {
+        const e = etat(r.compteId);
+        if (e.dernierClos === null || r.dateReleve.getTime() > e.dernierClos.getTime()) e.dernierClos = r.dateReleve;
+      }
+      for (const r of enCours) etat(r.compteId).enCours = r.dateReleve;
+      const sans = comptesBancairesSansRapprochement(comptes, etats, ex.dateFin, aujourdhui);
+      if (sans.length > 0) {
+        anomalies.push({
+          code: 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Compte de banque sans rapprochement clos qui couvre la clôture',
+          consequence:
+            '« Le solde qui ressort des livres comptables doit être rapproché du solde du compte tenu par la banque » (' +
+            sourceFicheCompte52(referentiel) +
+            `). Sans rapprochement clos qui atteigne le ${ex.dateFin.toISOString().slice(0, 10)}, le solde porté au bilan ` +
+            "n'est pas confronté au relevé, et une différence qui ne tient pas à un chevauchement de dates reste sans écriture de redressement.",
+          action:
+            'Ouvrez puis clôturez, dans Traitement > Tiers et trésorerie > Rapprochement bancaire, le rapprochement d’un relevé ' +
+            "daté au plus tôt de la clôture, puis passez les écritures de redressement des différences qui ne tiennent pas aux dates.",
+          occurrences: sans,
+        });
+      }
+    }
+
+    // --- 33. Période restée ouverte au-delà de la clôture informatique ------
+    if (
+      ex.statut !== StatutExercice.CLOTURE &&
+      parcours.journauxEcrits.size > 0 &&
+      premiereEcheanceDepassee(ex.dateDebut, ex.dateFin, aujourdhui)
+    ) {
+      const clotures = await this.prisma.cloture.findMany({
+        where: {
+          tenantId,
+          annuleeAt: null,
+          // La PARTIELLE est réversible · elle n'écarte aucune insertion.
+          granularite: { in: [GranulariteCloture.PERIODE, GranulariteCloture.TOTALE] },
+          dateLimite: { gte: ex.dateDebut, lte: ex.dateFin },
+        },
+        select: { granularite: true, journalId: true, dateLimite: true },
+      });
+      const enRetard = journauxEnRetardDeClotureInformatique(
+        [...parcours.journauxEcrits.values()],
+        clotures,
+        ex.dateDebut,
+        ex.dateFin,
+        aujourdhui,
+      );
+      if (enRetard.length > 0) {
+        anomalies.push({
+          code: 'CLOTURE_INFORMATIQUE_EN_RETARD',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Période restée ouverte au-delà de la clôture informatique',
+          consequence:
+            '« Une procédure périodique dite « clôture informatique » au moins trimestrielle est prévue, mise en œuvre au plus tard ' +
+            'à la fin du trimestre qui suit la fin de chaque période » (' +
+            sourceClotureInformatique(referentiel) +
+            "). Tant qu'elle n'est pas posée, une écriture peut encore s'insérer dans une période qui aurait dû être figée.",
+          action:
+            "Posez une clôture de période, tous journaux, dans Traitement > Clôture > Fin d'exercice…, jusqu'au dernier jour " +
+            'que vous tenez pour arrêté. Une clôture partielle, réversible, ne fige pas la chronologie.',
+          occurrences: enRetard,
+        });
+      }
+    }
+    return anomalies;
+  }
+
+  /**
    * LE PARCOURS DES ÉCRITURES DE L'EXERCICE, PAR TRANCHES (audit final F185).
    *
    * Chaque prédicat est celui que le contrôle appliquait à la liste entière ·
@@ -1079,6 +1206,9 @@ export class ControlesService {
     // Les pièces entrées avant le refus d'entrée (classe-9-equilibree.ts) ·
     // la saisie les refuse désormais, les données anciennes restent.
     const classe9HorsEquilibre = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    // Ligne A13 · relevés au passage, sans seconde lecture des écritures.
+    const journauxEcrits = new Map<string, JournalEcrit>();
+    const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1098,10 +1228,14 @@ export class ControlesService {
       (e) => {
         let debit = 0;
         let credit = 0;
+        if (!journauxEcrits.has(e.journalId)) journauxEcrits.set(e.journalId, { journalId: e.journalId, code: e.journal.code });
         for (const l of e.lignes) {
           debit += Number(l.debit);
           credit += Number(l.credit);
           const n = l.compte.numero;
+          if (estCompteBancaireARapprocher(n) && !comptesBancaires.has(l.compte.id)) {
+            comptesBancaires.set(l.compte.id, { compteId: l.compte.id, numero: n, intitule: l.compte.intitule });
+          }
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
           }
@@ -1205,6 +1339,8 @@ export class ControlesService {
       soldesTiers,
       comptesClasse9,
       classe9HorsEquilibre,
+      journauxEcrits,
+      comptesBancaires,
     };
   }
 
@@ -4132,6 +4268,12 @@ export class ControlesService {
         });
       }
     }
+
+    // --- 32 et 33. Ligne A13 · banque et clôture informatique ---------------
+    //
+    // Les règles, leurs textes et leurs bornes vivent dans
+    // `banque-et-cloture-informatique.ts` · ici, la lecture et le message.
+    anomalies.push(...(await this.controlesBanqueEtClotureInformatique(tenantId, ex, tenant.referentiel, parcours, maintenant)));
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);

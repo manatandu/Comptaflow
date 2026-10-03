@@ -71,6 +71,8 @@ function service(
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
+    // Ligne A13 · les clôtures de période et totales que lit le contrôle 33.
+    cloture: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);
 }
