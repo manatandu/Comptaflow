@@ -2,12 +2,19 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '../../common/prisma.service';
 import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { comptesPrescrits, ecartDuGroupe, natureDuCompte } from '../reglements/ecart-change-realise';
 import { referentielDuDossier } from '../reglements/compte-ecart-change';
-import { lignesReclasseesDuCompte, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
+import { lignesMisesDeCote, lignesReclasseesDuCompte, messageMiseDeCote, refuserLignesDuCompteClientReclasse } from './ligne-de-reclassement';
 
 const EPSILON = 0.005;
+
+/** A7 quater, m5 · le refus nommé du délettrage d'un groupe posé par un module, avec son issue. */
+export const MOTIF_DELETTRAGE_MODULE = (code: string) =>
+  `Le lettrage ${code} a été posé par le module « Créances douteuses ou litigieuses » sur les lignes d'une créance éteinte · ` +
+  "il ne se défait pas d'ici. Annulez ou retirez le mouvement de la créance (recouvrement, perte) dans ce module · il défait " +
+  'lui-même ce lettrage.';
 
 /** Convertit un rang (1, 2, 3, ...) en lettre façon Sage/Excel : A, B, ..., Z, AA, AB, ... */
 function indexVersLettre(n: number): string {
@@ -714,14 +721,26 @@ export class LettrageService {
           `Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de le défaire.`,
         );
       }
-      const duGroupe = await this.prisma.ligneEcriture.findMany({ where: { lettrageId: groupe.id }, select: { id: true } });
-      await refuserSiLignesFigees(this.prisma, tenantId, duGroupe.map((l) => l.id), 'délettrer');
-      const { count } = await this.prisma.ligneEcriture.updateMany({
-        where: { lettrageId: groupe.id },
-        data: { lettre: null, lettrageId: null },
+      // A7 QUATER, m5 · UN GROUPE POSÉ PAR UN MODULE NE SE DÉFAIT QUE PAR LUI
+      // (A7 ter, B2). Les lignes 416 d'une créance éteinte, délettrées ici,
+      // laissaient la créance dite éteinte avec un 416 ouvert, et
+      // « Lettrer au 416 » ne les retrouvait plus comme le module les avait
+      // posées · le geste qui défait est l'annulation du mouvement, qui
+      // défait le groupe dans sa propre transaction.
+      if (groupe.origine === OrigineLettrage.MODULE) {
+        throw new BadRequestException(MOTIF_DELETTRAGE_MODULE(groupe.code));
+      }
+      return transactionJournalisee(this.prisma, async (tx) => {
+        // Relu DANS la transaction (m1) · une clôture posée entre-temps fige.
+        const duGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId: groupe.id }, select: { id: true } });
+        await refuserSiLignesFigees(tx, tenantId, duGroupe.map((l) => l.id), 'délettrer');
+        const { count } = await tx.ligneEcriture.updateMany({
+          where: { lettrageId: groupe.id },
+          data: { lettre: null, lettrageId: null },
+        });
+        await tx.lettrage.delete({ where: { id: groupe.id } });
+        return { lettre: groupe.code, nombreLignes: count };
       });
-      await this.prisma.lettrage.delete({ where: { id: groupe.id } });
-      return { lettre: groupe.code, nombreLignes: count };
     }
 
     // Aucun groupe : dossier dont un lettrage n'aurait pas été repris par la
@@ -914,44 +933,59 @@ export class LettrageService {
    * un groupe qui ne l'est pas, sans avoir à faire confiance à ce que le client
    * lui renvoie.
    */
-  private async calculerPropositions(tenantId: string, compteId: string) {
+  private async calculerPropositions(tenantId: string, compteId: string, db: Prisma.TransactionClient | PrismaService = this.prisma) {
 
     // `lettrageId: null` et non `lettre: null` : une ligne déjà rattachée à un
     // groupe PARTIEL ne porte pas de lettre mais ne doit pas être réappariée
     // ailleurs. Elle se solde en complétant son groupe (voir `completer`).
-    const candidates = await this.prisma.ligneEcriture.findMany({
+    const candidates = await db.ligneEcriture.findMany({
       where: { compteId, lettrageId: null, ecriture: { tenantId } },
       // La DATE et le LIBELLÉ sont chargés pour le pré-lettrage, qui doit
       // montrer à l'humain ce qu'il confirme · une liste d'identifiants ne se
       // confirme pas, et proposer sans donner à lire reviendrait à demander un
       // acquiescement plutôt qu'un examen.
-      include: { ecriture: { select: { reference: true, date: true } } },
+      include: { ecriture: { select: { reference: true, date: true, estGenereeParCloture: true, estANouveauProvisoire: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
     // Une ligne figée par une clôture (exercice/gel-cloture.ts) n'est pas
     // proposée · le lettrage automatique la poserait, et le pré-lettrage
     // proposerait un groupe que sa confirmation refuserait.
-    const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
+    const figees = await lignesFigees(db, tenantId, candidates.map((l) => l.id));
     // A7 ter, B3 (règle d'A7 rétablie au second tour, B-2) · la ligne du
     // compte client d'un reclassement en créance douteuse n'est JAMAIS
     // proposée · la paire facture-reclassement, de même montant, rendait la
-    // TVA exigible (`ligne-de-reclassement.ts`). L'appariement se fait AVEC
-    // elle, comme avant A7 ter, puis tout groupe qui la contient est ÉCARTÉ ·
-    // la facture qu'elle aurait prise (la facture reclassée, d'ordinaire)
-    // reste ouverte, sans jamais être donnée au règlement d'une AUTRE facture.
-    // L'écarter des candidates AVANT l'appariement (troisième passage) laissait
-    // la facture reclassée prendre ce règlement · U du 10/02 lettrée avec le
-    // règlement P du 20/07 de la facture T, la TVA de T déclarée en mai au lieu
-    // de juillet, celle de U lue comme encaissée, et T dite impayée par le
-    // contrôle d'ancienneté (vérification sur base réelle, cas e4 et N pour 1).
-    const reclassees = await lignesReclasseesDuCompte(this.prisma, tenantId, compteId);
+    // TVA exigible (`ligne-de-reclassement.ts`).
+    //
+    // A7 QUATER, (B) · et la facture reclassée n'est jamais donnée au
+    // règlement d'une AUTRE facture. Apparier AVEC R puis écarter les groupes
+    // qui la portent (A7 ter) laissait U prendre le règlement P de T dès que P
+    // précédait R (U 10/02, T 01/05, P 20/05, R 15/06 · [U,P] posé, T ouverte,
+    // sa TVA datée à tort). Les passes par montant mettent de côté la paire
+    // certaine, ou s'abstiennent (`lignesMisesDeCote`) ; la passe par pièce
+    // reste, et un groupe qu'elle formerait avec R reste écarté.
+    const reclassees = await lignesReclasseesDuCompte(db, tenantId, compteId);
+    const miseDeCote = lignesMisesDeCote(
+      candidates.map((l) => ({
+        id: l.id,
+        net: Number(l.debit) - Number(l.credit),
+        date: l.ecriture.date,
+        // `=== true` · une doublure qui ne sert pas le drapeau ne fait jamais
+        // passer une ligne pour un report.
+        aNouveau: l.ecriture.estGenereeParCloture === true || l.ecriture.estANouveauProvisoire === true,
+      })),
+      reclassees,
+    );
     const nonLettrees = candidates.filter((l) => !figees.has(l.id));
-    const { parPiece, parMontant } = this.apparier(nonLettrees);
+    const { parPiece, parMontant, ecarteesDesMontants } = this.apparier(nonLettrees, miseDeCote);
     const sansReclassement = (g: string[]) => !g.some((id) => reclassees.has(id));
     return {
       parPiece: parPiece.filter(sansReclassement),
       parMontant: parMontant.filter(sansReclassement),
       lignes: nonLettrees.filter((l) => !reclassees.has(l.id)),
+      // m7 · ce que la règle laisse ouvert, compté sur les lignes lettrables
+      // (une ligne figée ne l'aurait pas été de toute façon).
+      ecarteesReclassement: ecarteesDesMontants,
+      passesParMontantSuspendues: miseDeCote.passesParMontantSuspendues,
     };
   }
 
@@ -959,9 +993,14 @@ export class LettrageService {
    * LES QUATRE PASSES sur un jeu de lignes non lettrées · référence de pièce,
    * paires exactes, N pour 1, N pour M. Tout groupe rendu est soldé.
    */
-  private apparier(nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null } }>): {
+  private apparier(
+    nonLettrees: Array<{ id: string; debit: Prisma.Decimal; credit: Prisma.Decimal; ecriture: { reference: string | null } }>,
+    miseDeCote: { ecartees: ReadonlySet<string>; passesParMontantSuspendues: boolean },
+  ): {
     parPiece: string[][];
     parMontant: string[][];
+    /** Lignes laissées hors des passes par montant par un reclassement ouvert (A7 quater). */
+    ecarteesDesMontants: number;
   } {
     const LIMITE_LIGNES_SUBSET_SUM = 25;
     const LIMITE_LIGNES_PARTITION = 16;
@@ -992,6 +1031,16 @@ export class LettrageService {
     const parPiece = this.apparierParReference(toutesNonNulles);
     debitsRestants = debitsRestants.filter((d) => parPiece.restantes.has(d.id));
     creditsRestants = creditsRestants.filter((c) => parPiece.restantes.has(c.id));
+
+    // A7 quater, (B) · un reclassement ouvert sur le compte · la paire
+    // certaine est mise de côté, ou les passes par montant s'abstiennent.
+    const avant = debitsRestants.length + creditsRestants.length;
+    if (miseDeCote.passesParMontantSuspendues) {
+      return { parPiece: parPiece.groupes, parMontant: [], ecarteesDesMontants: avant };
+    }
+    debitsRestants = debitsRestants.filter((d) => !miseDeCote.ecartees.has(d.id));
+    creditsRestants = creditsRestants.filter((c) => !miseDeCote.ecartees.has(c.id));
+    const ecarteesDesMontants = avant - debitsRestants.length - creditsRestants.length;
 
     const groupes: string[][] = [];
 
@@ -1044,7 +1093,7 @@ export class LettrageService {
       creditsRestants = creditsRestants.filter((c) => !partition.credits.includes(c.id));
     }
 
-    return { parPiece: parPiece.groupes, parMontant: groupes };
+    return { parPiece: parPiece.groupes, parMontant: groupes, ecarteesDesMontants };
   }
 
   /**
@@ -1080,7 +1129,7 @@ export class LettrageService {
    */
   async preLettrage(tenantId: string, compteId: string) {
     await this.trouverCompteLettrable(tenantId, compteId);
-    const { parPiece, parMontant, lignes } = await this.calculerPropositions(tenantId, compteId);
+    const { parPiece, parMontant, lignes, ecarteesReclassement, passesParMontantSuspendues } = await this.calculerPropositions(tenantId, compteId);
 
     const parId = new Map(lignes.map((l) => [l.id, l]));
     const decrire = (ligneIds: string[], origine: OrigineLettrage) => {
@@ -1118,6 +1167,11 @@ export class LettrageService {
       nonProposees: lignes.filter(
         (l) => ![...parPiece, ...parMontant].flat().includes(l.id),
       ).length,
+      // A7 quater, m7 · ce qu'un reclassement ouvert a laissé hors des passes
+      // par montant, compté et dit · même règle que le lettrage automatique.
+      ecarteesReclassement,
+      passesParMontantSuspendues,
+      miseDeCote: messageMiseDeCote(ecarteesReclassement, passesParMontantSuspendues),
       avertissement:
         "Un rapprochement par MONTANT est une présomption du logiciel : deux sommes égales ne prouvent pas qu'elles se soldent l'une l'autre. Un rapprochement par RÉFÉRENCE DE PIÈCE s'appuie sur une donnée saisie par un humain. Rien n'est écrit tant que vous n'avez pas confirmé.",
     };
@@ -1209,17 +1263,26 @@ export class LettrageService {
 
   async lettrageAutomatique(tenantId: string, compteId: string, userId: string) {
     await this.trouverCompteLettrable(tenantId, compteId);
-    const { parPiece, parMontant } = await this.calculerPropositions(tenantId, compteId);
-    const parPieceGroupes = parPiece;
-    const groupes = parMontant;
-
-    if (groupes.length === 0 && parPieceGroupes.length === 0) {
-      return { groupes: 0, parPiece: 0, parMontant: 0, lettres: [] };
-    }
-
+    // A7 QUATER, m1 · LE CALCUL SE FAIT DANS LA TRANSACTION QUI POSE. Calculé
+    // avant elle, un reclassement passé ou une clôture posée entre-temps
+    // n'était relu par rien · `creerGroupe` ne revérifie que la liberté des
+    // lignes, et le groupe facture-reclassement, ou une ligne figée, partait.
+    const ouvertes = await this.prisma.ligneEcriture.count({ where: { compteId, lettrageId: null, ecriture: { tenantId } } });
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
+        const { parPiece, parMontant, ecarteesReclassement, passesParMontantSuspendues } = await this.calculerPropositions(tenantId, compteId, tx);
+        const parPieceGroupes = parPiece;
+        const groupes = parMontant;
+        // m7 · ce que la règle des reclassements laisse ouvert se dit.
+        const miseDeCote = {
+          ecarteesReclassement,
+          passesParMontantSuspendues,
+          miseDeCote: messageMiseDeCote(ecarteesReclassement, passesParMontantSuspendues),
+        };
+        if (groupes.length === 0 && parPieceGroupes.length === 0) {
+          return { groupes: 0, parPiece: 0, parMontant: 0, lettres: [] as string[], ...miseDeCote };
+        }
         const lettres: string[] = [];
         const prochaine = await this.lettresDuLot(tx, tenantId, compteId);
         // L'origine est tracée par passe : un groupe issu de la référence de
@@ -1240,10 +1303,13 @@ export class LettrageService {
           parPiece: parPieceGroupes.length,
           parMontant: groupes.length,
           lettres,
+          ...miseDeCote,
         };
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
-      { operations: parPieceGroupes.length + groupes.length },
+      // Le nombre de groupes n'est connu que dans la transaction · le délai se
+      // règle sur les lignes ouvertes du compte, qui le bornent.
+      { operations: ouvertes },
     );
   }
 
@@ -1273,12 +1339,15 @@ export class LettrageService {
     if (!compte.lettrable) {
       return { motif: `Le compte ${compte.numero} n'est pas déclaré lettrable · ses lignes ne sont pas lettrées.` };
     }
-    const figees = await lignesFigees(this.prisma, tenantId, ligneIds);
-    const figee = [...figees.values()][0];
-    if (figee) return { motif: `La ligne du ${figee.date.toISOString().slice(0, 10)} est figée, ${figee.motif} · rien n'est lettré.` };
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
+        // A7 quater, m1 · le gel se relit DANS la transaction qui pose · une
+        // clôture de période posée entre la lecture et la pose figeait sinon
+        // une ligne que le groupe prenait quand même.
+        const figees = await lignesFigees(tx, tenantId, ligneIds);
+        const figee = [...figees.values()][0];
+        if (figee) return { motif: `La ligne du ${figee.date.toISOString().slice(0, 10)} est figée, ${figee.motif} · rien n'est lettré.` };
         const lignes = await tx.ligneEcriture.findMany({ where: { id: { in: ligneIds } }, include: { ecriture: true } });
         const prise = lignes.find((l) => l.lettrageId !== null);
         if (prise) return { motif: `Une des lignes est déjà lettrée (${prise.lettre ?? 'groupe partiel'}) · rien n'est lettré.` };

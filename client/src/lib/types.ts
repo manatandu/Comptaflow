@@ -351,6 +351,14 @@ export interface EtatPreLettrage {
   propositions: PropositionPreLettrage[];
   /** Ce que le logiciel n'a PAS su rapprocher · la moitié utile de l'état. */
   nonProposees: number;
+  /**
+   * A7 quater, m7 · les lignes qu'un reclassement en créance douteuse ouvert
+   * sur le compte laisse hors des rapprochements par montant, et ce que le
+   * serveur en dit (null quand rien n'est mis de côté).
+   */
+  ecarteesReclassement: number;
+  passesParMontantSuspendues: boolean;
+  miseDeCote: string | null;
   avertissement: string;
 }
 

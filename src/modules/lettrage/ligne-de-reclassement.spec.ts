@@ -1,5 +1,5 @@
 import { OrigineLettrage } from '@prisma/client';
-import { LettrageService } from './lettrage.service';
+import { LettrageService, MOTIF_DELETTRAGE_MODULE } from './lettrage.service';
 import { PrismaService } from '../../common/prisma.service';
 import { MOTIF_LETTRAGE_RECLASSEMENT, lignesDuCompteClientReclasse } from './ligne-de-reclassement';
 
@@ -28,7 +28,9 @@ interface Ligne {
     reference: string | null;
     journalId: string;
     journal: { code: string };
-    exercice: { statut: 'OUVERT' };
+    exercice: { statut: 'OUVERT' | 'CLOTURE' };
+    /** Une écriture de report à-nouveau (A7 quater, (B)). */
+    estGenereeParCloture?: boolean;
     creanceDouteuseReclassement: { compteCreanceId: string; annuleeLe: Date | null } | null;
     /** Mineur 6 · les comptes des lignes de l'écriture (une TVA facturée au 443). */
     lignes: Array<{ compte: { numero: string } }>;
@@ -42,6 +44,8 @@ const ligne = (
   credit: number,
   reclassement: Ligne['ecriture']['creanceDouteuseReclassement'] = null,
   comptesDeLaPiece: string[] = [],
+  date = '2026-11-15',
+  statut: 'OUVERT' | 'CLOTURE' = 'OUVERT',
 ): Ligne => ({
   id,
   compteId,
@@ -54,11 +58,11 @@ const ligne = (
   libelle: null,
   ecriture: {
     tenantId: 't1',
-    date: new Date('2026-11-15'),
+    date: new Date(date),
     reference: null,
     journalId: 'jOD',
     journal: { code: 'OD' },
-    exercice: { statut: 'OUVERT' },
+    exercice: { statut },
     creanceDouteuseReclassement: reclassement,
     lignes: comptesDeLaPiece.map((numero) => ({ compte: { numero } })),
   },
@@ -94,6 +98,7 @@ function monter(lignes: Ligne[]) {
     compte: { findFirst: jest.fn().mockResolvedValue({ id: '411', tenantId: 't1', numero: '41110001', intitule: 'Client Kasa', lettrable: true }) },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where))),
+      count: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where).length)),
       updateMany: jest.fn().mockImplementation(({ where, data }: any) => {
         const cibles = filtrer(where);
         for (const l of cibles) Object.assign(l, data);
@@ -145,12 +150,13 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(r.groupes).toBe(0);
     expect(groupes).toHaveLength(0);
     expect(lignes.every((l) => l.lettrageId === null)).toBe(true);
-    // Un règlement ANTÉRIEUR au reclassement reste apparié à sa facture, comme avant A7 ter.
+    // A7 QUATER, (B) · un règlement du même jour ne change rien · la facture,
+    // seule candidate du reclassement, est mise de côté avec lui, et le
+    // règlement reste ouvert (le logiciel ne devine pas qu'il la solde).
     const avant = monter([facture(), ligne('reg', '411', 0, 1_160_000), reclassement()]);
-    await avant.service.lettrageAutomatique('t1', '411', 'u1');
-    expect(avant.groupes).toHaveLength(1);
-    expect(avant.groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_MONTANT);
-    expect(avant.lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort()).toEqual(['fac', 'reg']);
+    const r2 = await avant.service.lettrageAutomatique('t1', '411', 'u1');
+    expect(avant.groupes).toHaveLength(0);
+    expect(r2).toMatchObject({ ecarteesReclassement: 2, passesParMontantSuspendues: false });
   });
 
   it('le lettrage MANUEL, le complément et la confirmation d’un pré-lettrage sont refusés par le motif nommé', async () => {
@@ -184,32 +190,99 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(groupes).toHaveLength(0);
   });
 
-  // VÉRIFICATION SUR BASE RÉELLE (troisième passage), cas e4 · U (la facture
-  // reclassée, 10/02), T (service taxé, 01/05), R (le reclassement de U,
-  // 15/06), P (le règlement de T, 20/07), tous de 1 160 000, dans l'ordre des
-  // dates. Écartée des candidates AVANT l'appariement, R laissait U prendre P ·
-  // la TVA de T déclarée en mai au lieu de juillet, celle de U lue comme
-  // encaissée. Appariée AVEC R puis écartée · [U,R] tombe, [T,P] reste, comme
-  // avant A7 ter ; U et R restent ouverts.
-  const lignesE4 = () => [
-    ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
-    ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000', '44320000']),
-    ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }),
-    ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001']),
+  // LIGNE A7 QUATER, (B) · relecture d'intégration d'A7 ter. U (la facture
+  // reclassée, 10/02), T (service taxé, 01/05), P (le règlement de T, 20/05),
+  // R (le reclassement de U, 15/06), tous de 1 160 000. Appariée AVEC R puis
+  // écartée (A7 ter), la facture U prenait P, antérieur à R · [U,P] posé, T
+  // laissée ouverte, la TVA de T datée au mauvais encaissement. U et T sont
+  // toutes deux antérieures à R et de même montant · rien ne dit laquelle R a
+  // reclassée, les passes par montant s'abstiennent.
+  const lignesB = () => [
+    ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000'], '2026-02-10'),
+    ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000', '44320000'], '2026-05-01'),
+    ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001'], '2026-05-20'),
+    ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
   ];
+  const aNouveau = (l: Ligne): Ligne => ({ ...l, ecriture: { ...l.ecriture, estGenereeParCloture: true } });
   const lettrees = (lignes: Array<{ id: string; lettrageId: string | null }>) => lignes.filter((l) => l.lettrageId !== null).map((l) => l.id).sort();
 
-  it('e4 · le règlement P reste à sa facture T · la facture reclassée U n’est jamais lettrée avec lui', async () => {
-    const { service, groupes, lignes } = monter(lignesE4());
+  it('(B) · U, T, P, R · aucune paire par montant, ni [U,P] ni [T,P], et le nombre de lignes laissées ouvertes est dit', async () => {
+    const { service, groupes, lignes } = monter(lignesB());
     const r = await service.lettrageAutomatique('t1', '411', 'u1');
-    expect(r.groupes).toBe(1);
-    expect(groupes).toHaveLength(1);
-    expect(lettrees(lignes)).toEqual(['P', 'T']);
-    expect(lignes.find((l) => l.id === 'U')!.lettrageId).toBeNull();
-    expect(lignes.find((l) => l.id === 'R')!.lettrageId).toBeNull();
+    expect(r.groupes).toBe(0);
+    expect(groupes).toHaveLength(0);
+    expect(lettrees(lignes)).toEqual([]);
+    // U, T, P et R laissées hors des passes par montant, toutes ouvertes.
+    expect(r).toMatchObject({ passesParMontantSuspendues: true, ecarteesReclassement: 4 });
+    expect(r.miseDeCote).toMatch(/aucun rapprochement par montant n'est fait \(4 ligne\(s\)/);
   });
 
-  it('N pour 1 · U et R écartés, le règlement P de T et V (700 000 + 460 000) leur reste', async () => {
+  it('(B) · le pré-lettrage, qui partage le calcul, ne propose rien non plus et le dit', async () => {
+    const { service } = monter(lignesB());
+    const p = await service.preLettrage('t1', '411');
+    expect(p.propositions).toHaveLength(0);
+    expect(p).toMatchObject({ passesParMontantSuspendues: true, ecarteesReclassement: 4 });
+  });
+
+  it('(B) · la passe par référence de pièce, saisie par un humain, joue encore', async () => {
+    const lignes = lignesB();
+    lignes[1].ecriture.reference = 'FV-0042';
+    lignes[2].ecriture.reference = 'FV-0042';
+    const { service, groupes } = monter(lignes);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(r).toMatchObject({ parPiece: 1, parMontant: 0 });
+    expect(groupes[0].origine).toBe(OrigineLettrage.AUTOMATIQUE_PIECE);
+    expect(lettrees(lignes)).toEqual(['P', 'T']);
+  });
+
+  it('(B) · candidate UNIQUE · U seule antérieure à R, mise de côté avec lui · T (01/07) et son règlement P (20/07) se lettrent', async () => {
+    const { service, groupes, lignes } = monter([
+      ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000'], '2026-02-10'),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
+      ligne('T', '411', 1_160_000, 0, null, ['41110001', '70610000'], '2026-07-01'),
+      ligne('P', '411', 0, 1_160_000, null, ['52110000', '41110001'], '2026-07-20'),
+    ]);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(1);
+    expect(lettrees(lignes)).toEqual(['P', 'T']);
+    expect(r).toMatchObject({ passesParMontantSuspendues: false, ecarteesReclassement: 2 });
+    expect(r.miseDeCote).toMatch(/2 ligne\(s\) mise\(s\) de côté/);
+  });
+
+  it('(B) · une candidate figée par une clôture compte · U figée et T antérieures à R, abstention', async () => {
+    const { service, groupes } = monter([
+      ligne('U', '411', 1_160_000, 0, null, [], '2025-02-10', 'CLOTURE'),
+      ligne('T', '411', 1_160_000, 0, null, [], '2026-05-01'),
+      ligne('P', '411', 0, 1_160_000, null, [], '2026-05-20'),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
+    ]);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(0);
+    expect(r.passesParMontantSuspendues).toBe(true);
+  });
+
+  it('(B) · N+1 · les à-nouveaux de U et de R, sans liaison, ne s’apparient pas · R de N reste ouverte et les suspend', async () => {
+    // N clôturé · U, R de N figées. L'à-nouveau en détail reporte U et R
+    // (non lettrées) au 01/01/2027, la ligne de R sans liaison au reclassement.
+    const { service, groupes } = monter([
+      ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10', 'CLOTURE'),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15', 'CLOTURE'),
+      aNouveau(ligne('U-AN', '411', 1_160_000, 0, null, [], '2027-01-01')),
+      aNouveau(ligne('R-AN', '411', 0, 1_160_000, null, [], '2027-01-01')),
+    ]);
+    const r = await service.lettrageAutomatique('t1', '411', 'u1');
+    expect(groupes).toHaveLength(0);
+    expect(r).toMatchObject({ passesParMontantSuspendues: true, ecarteesReclassement: 2 });
+    const { service: pre } = monter([
+      ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10', 'CLOTURE'),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15', 'CLOTURE'),
+      aNouveau(ligne('U-AN', '411', 1_160_000, 0, null, [], '2027-01-01')),
+      aNouveau(ligne('R-AN', '411', 0, 1_160_000, null, [], '2027-01-01')),
+    ]);
+    expect((await pre.preLettrage('t1', '411')).propositions).toHaveLength(0);
+  });
+
+  it('N pour 1 · U seule candidate de R, écartée avec lui, le règlement P de T et V (700 000 + 460 000) leur reste', async () => {
     const { service, groupes, lignes } = monter([
       ligne('U', '411', 1_160_000, 0, null, ['41110001', '70110000']),
       ligne('T', '411', 700_000, 0, null, ['41110001', '70610000']),
@@ -222,10 +295,18 @@ describe('A7 ter, B3 · la ligne du compte client d’un reclassement hors du le
     expect(lettrees(lignes)).toEqual(['P', 'T', 'V']);
   });
 
-  it('e4 · le pré-lettrage, qui partage le calcul, propose de même [T,P] et rien avec U ni R', async () => {
-    const { service } = monter(lignesE4());
-    const p = await service.preLettrage('t1', '411');
-    expect(p.propositions.map((x: { ligneIds: string[] }) => [...x.ligneIds].sort())).toEqual([['P', 'T']]);
+  it('le pré-lettrage et le lettrage automatique rendent les mêmes groupes, candidate unique comprise', async () => {
+    const scene = () => [
+      ligne('U', '411', 1_160_000, 0, null, [], '2026-02-10'),
+      ligne('R', '411', 0, 1_160_000, { compteCreanceId: '411', annuleeLe: null }, [], '2026-06-15'),
+      ligne('T', '411', 1_160_000, 0, null, [], '2026-07-01'),
+      ligne('P', '411', 0, 1_160_000, null, [], '2026-07-20'),
+    ];
+    const propose = monter(scene());
+    const pose = monter(scene());
+    const p = await propose.service.preLettrage('t1', '411');
+    await pose.service.lettrageAutomatique('t1', '411', 'u1');
+    expect(p.propositions.map((x: { ligneIds: string[] }) => [...x.ligneIds].sort())).toEqual([lettrees(pose.lignes)]);
   });
 
   it('un reclassement ANNULÉ ne retient plus rien · sa ligne se lettre comme une autre', async () => {
@@ -286,5 +367,21 @@ describe('A7 ter, B2 (b) · le lettrage qu’un module pose sur ses propres lign
     manuel.groupes[0].origine = OrigineLettrage.MANUEL;
     await expect(manuel.service.defaireLettrageDuModule(manuel.prisma, 't1', manuel.groupes[0].id)).rejects.toThrow(/n'a pas été posé par le module/);
     expect(manuel.groupes).toHaveLength(1);
+  });
+
+  // A7 QUATER, m5 · le schéma disait « lui seul le défait » et `delettrer`
+  // défaisait le groupe · désormais refusé, avec l'issue nommée.
+  it('m5 · le délettrage refuse un groupe d’origine MODULE, et nomme l’issue · les lignes restent lettrées', async () => {
+    const { service, groupes, lignes, prisma } = monter(lignes416());
+    prisma.lettrage.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(groupes.find((g) => g.id === where.id || g.code === where.code) ?? null),
+    );
+    await service.lettrerLignesDuModule('t1', '416', ['r', 'm1', 'm2'], 'u1');
+    await expect(service.delettrer('t1', '416', 'A')).rejects.toThrow(MOTIF_DELETTRAGE_MODULE('A'));
+    expect(groupes).toHaveLength(1);
+    expect(lignes.every((l) => l.lettre === 'A')).toBe(true);
+    // Un groupe d'une autre origine se délettre comme avant.
+    groupes[0].origine = OrigineLettrage.MANUEL;
+    await expect(service.delettrer('t1', '416', 'A')).resolves.toEqual({ lettre: 'A', nombreLignes: 3 });
   });
 });
