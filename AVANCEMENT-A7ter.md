@@ -17,7 +17,7 @@ Fiche retirée à l'intégration.
 - [x] m8 · rapprochement du 491 · part hors module nommée
 - [x] m9 · SYCEBNL, méthode des cotisations à l'encaissement · reclassement d'adhérent refusé
 - [x] m10 · rapprochement par exercice, jamais `null` pour toujours
-- [ ] Écran · rapprochement (report provisoire, hors module), `retirable`, `listes416491`, cotisations,
+- [x] Écran · rapprochement (report provisoire, hors module), `retirable`, `listes416491`, cotisations,
   `lettrage416`, retrait d'un mouvement sous `peutValider`
 - [ ] Bloc du § 3 des deux côtés, `npx jest --maxWorkers=2` en fin
 
@@ -45,6 +45,10 @@ Fiche retirée à l'intégration.
   `listes416491` (plafond 200, totaux) ; m6 `motifNonRetirable` + `retirable` servi ; m7 `@ReserveAuComptable` sur
   `DELETE :id/mouvements/:mouvementId` ; m8 `horsModule491` ; m9 refus ENCAISSEMENT (reclassement et déclaration),
   avertissement si non déclarée ; m10 `rapprochementDuModule` par agrégat. Écran à aligner (reste à faire).
+
+- Écran · `ecartsRapprochement`, `libelleSoldesProvisoires`, `messageLettrage416` (lib) ; bandeau d'information
+  après le geste (lettrage du 416, avertissement des cotisations) ; `retirable` servi ; retrait d'un mouvement sous
+  `peutValider` ; listes 416 et 491 tronquées dites ; refus et avertissement des cotisations sous le compte choisi.
 
 ## Décisions prises, avec leur source
 

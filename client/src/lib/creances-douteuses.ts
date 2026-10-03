@@ -144,3 +144,48 @@ export const LIBELLE_NATURE: Record<NatureCreance, string> = {
   LITIGIEUSE: 'Litigieuse (le client conteste)',
   DOUTEUSE: 'Douteuse (le client se dérobe)',
 };
+
+/** Le rapprochement servi par le serveur (A7 ter, m10 · toujours calculé, par agrégat). */
+export interface RapprochementCreances {
+  provisoire: boolean;
+  /** B1 · l'exercice n'a qu'un report à-nouveau PROVISOIRE, qui ne fait pas foi. */
+  reportProvisoire?: boolean;
+  solde416: number;
+  resteModule: number;
+  solde491: number;
+  depreciationModule: number;
+  /** m8 · la part du 491 passée hors du module dans la chaîne, en positif. */
+  horsModule491?: number;
+}
+
+const auCentime = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * LES ÉCARTS DU RAPPROCHEMENT (A7 ter, m8) · l'écart du 491 se DÉCOMPOSE ·
+ * la part passée hors du module (servie), et le reste, qui vient de
+ * l'à-nouveau ou d'une écriture du module retouchée. Un écart nu laissait
+ * croire que le module se trompait quand un 4912 porte aussi des
+ * dépréciations passées à la main.
+ */
+export function ecartsRapprochement(r: RapprochementCreances) {
+  const ecart416 = auCentime(r.solde416 - r.resteModule);
+  const ecart491 = auCentime(r.solde491 - r.depreciationModule);
+  const horsModule491 = auCentime(r.horsModule491 ?? 0);
+  return { ecart416, ecart491, horsModule491, reste491: auCentime(ecart491 - horsModule491) };
+}
+
+/** B1 · pourquoi les soldes du rapprochement sont provisoires. */
+export function libelleSoldesProvisoires(r: RapprochementCreances): string | null {
+  if (!r.provisoire) return null;
+  return r.reportProvisoire
+    ? 'Soldes du 416 et du 491 provisoires · report à-nouveau provisoire, à relancer après validation du brouillard'
+    : 'Soldes du 416 et du 491 provisoires · à-nouveau non passé';
+}
+
+/** L'issue du lettrage d'une créance éteinte (A7 ter, B2), servie avec le geste. */
+export type IssueLettrage416 = { pose: true; code: string } | { pose: false; motif: string } | null | undefined;
+
+export function messageLettrage416(issue: IssueLettrage416): string | null {
+  if (!issue) return null;
+  return issue.pose ? `Créance éteinte · ses lignes du 416 sont lettrées (${issue.code}).` : issue.motif;
+}

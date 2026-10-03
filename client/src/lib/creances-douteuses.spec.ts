@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import {
   annonceRevue,
   bornesExercice,
+  ecartsRapprochement,
   etatRapprochement,
+  libelleSoldesProvisoires,
+  messageLettrage416,
   montantPourChamp,
   compte491Initial,
   comptes491DeLaNature,
@@ -125,8 +128,17 @@ describe('créances douteuses · écran (ligne A7)', () => {
     for (const libelle of ['Retirer le dernier mouvement', '>\n                                Retirer\n']) {
       const i = page.indexOf(libelle);
       expect(i).toBeGreaterThan(-1);
-      expect(page.slice(page.lastIndexOf('{ouvert &&', i), i)).toMatch(/^\{ouvert && c\./);
+      expect(page.slice(page.lastIndexOf('ouvert &&', i), i)).toMatch(/^ouvert && c\./);
     }
+  });
+
+  it('A7 ter, m6 et m7 · le retrait d’une créance suit le verdict SERVI ; le retrait d’un mouvement est au comptable', () => {
+    const creance = page.indexOf('>\n                                Retirer\n');
+    expect(page.slice(page.lastIndexOf('{', page.lastIndexOf('&& (', creance)), creance)).toContain('{ouvert && c.retirable && (');
+    const mouvement = page.indexOf('Retirer le dernier mouvement');
+    expect(page.slice(page.lastIndexOf('{', page.lastIndexOf('&& (', mouvement)), mouvement)).toContain('{peutValider && ouvert && c.mouvements.length > 0 && (');
+    // Plus aucune règle de retrait recalculée à l'écran.
+    expect(page).not.toContain('c.revuesAnnulees.length === 0 && c.mouvements.length === 0');
   });
 
   it('1, 6 · modales en dialogue, Échap par la couche, envoi unique et fermeture tenue pendant l’envoi', () => {
@@ -222,5 +234,31 @@ describe('créances douteuses · cinquième relecture à l’écran (m2, m3, m5)
     expect(corps).toContain('`/creances-douteuses/${annulation.creance.id}/annuler`');
     expect(page).toContain('Annuler le reclassement');
     expect(page).toContain('les plus anciennes ne sont pas montrées');
+  });
+});
+
+describe('A7 ter · le rapprochement et le lettrage de la créance éteinte, dits à l’écran', () => {
+  const r = { provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 550_000, depreciationModule: 400_000 };
+
+  it('m8 · l’écart du 491 se décompose · la part hors module, et le reste', () => {
+    expect(ecartsRapprochement({ ...r, horsModule491: 150_000 })).toEqual({ ecart416: 0, ecart491: 150_000, horsModule491: 150_000, reste491: 0 });
+    expect(ecartsRapprochement({ ...r, horsModule491: 100_000 })).toMatchObject({ horsModule491: 100_000, reste491: 50_000 });
+    // Sans la part servie, tout l'écart reste à expliquer, jamais zéro.
+    expect(ecartsRapprochement(r)).toMatchObject({ ecart491: 150_000, horsModule491: 0, reste491: 150_000 });
+  });
+
+  it('B1 · les soldes provisoires disent pourquoi · à-nouveau absent, ou report provisoire', () => {
+    expect(libelleSoldesProvisoires(r)).toBeNull();
+    expect(libelleSoldesProvisoires({ ...r, provisoire: true })).toMatch(/à-nouveau non passé/);
+    expect(libelleSoldesProvisoires({ ...r, provisoire: true, reportProvisoire: true })).toMatch(/report à-nouveau provisoire, à relancer/);
+  });
+
+  it('B2 · l’issue du lettrage du 416 se dit, posée ou non, et l’écran l’affiche après le geste', () => {
+    expect(messageLettrage416(null)).toBeNull();
+    expect(messageLettrage416({ pose: true, code: 'C' })).toBe('Créance éteinte · ses lignes du 416 sont lettrées (C).');
+    expect(messageLettrage416({ pose: false, motif: 'Créance éteinte · deux exercices.' })).toBe('Créance éteinte · deux exercices.');
+    const envoyer = page.slice(page.indexOf('async function envoyer'), page.indexOf('async function annuler'));
+    expect(envoyer.match(/setInfo\(messageLettrage416\(r\?\.lettrage416\)\)/g)).toHaveLength(2);
+    expect(envoyer).toContain('setInfo(r?.avertissement ?? null)');
   });
 });

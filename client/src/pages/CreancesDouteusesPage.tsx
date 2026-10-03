@@ -16,7 +16,10 @@ import {
   compte416Initial,
   compte491Initial,
   comptes491DeLaNature,
+  ecartsRapprochement,
   etatRapprochement,
+  libelleSoldesProvisoires,
+  messageLettrage416,
   racine491,
   LIBELLE_NATURE,
   montantPourChamp,
@@ -25,8 +28,10 @@ import {
   mouvementAAnnulerParDefaut,
   piecesAEnvoyer,
   type ComptesRevue,
+  type IssueLettrage416,
   type NatureCreance,
   type PieceSaisie,
+  type RapprochementCreances,
 } from '../lib/creances-douteuses';
 
 /**
@@ -53,6 +58,9 @@ interface CreanceCandidate {
   tiers: string | null;
   solde: number;
   propose416: Record<NatureCreance, string | null>;
+  /** m9 · servis · le refus que le geste opposera (cotisations à l'encaissement), ou l'avertissement. */
+  refusCotisations?: string | null;
+  avertissementCotisations?: string | null;
 }
 interface ComptesFormulaire {
   creances: CreanceCandidate[];
@@ -61,6 +69,8 @@ interface ComptesFormulaire {
   filtreNumero: string | null;
   comptes416: { id: string; numero: string; intitule: string }[];
   comptes491: { id: string; numero: string; intitule: string }[];
+  /** m5 · les listes de 416 et 491 bornées disent leur total. */
+  listes416491?: { plafond: number; total416: number; tronque416: boolean; total491: number; tronque491: boolean };
 }
 interface CreanceDouteuse {
   id: string;
@@ -85,6 +95,8 @@ interface CreanceDouteuse {
   mouvementsAnnules: { id: string; type: 'PERTE' | 'RECOUVREMENT'; date: string; montant: number; annuleeLe: string; motif: string | null }[];
   /** M-c · mouvements de l'exercice sans revue · une information. */
   mouvementsSansRevue: number;
+  /** m6 · la règle du retrait, servie par le serveur, jamais recalculée ici. */
+  retirable: boolean;
 }
 interface Mouvement {
   id: string;
@@ -101,7 +113,7 @@ interface Liste {
   creances: CreanceDouteuse[];
   /** M5 · les annulations de l'exercice, bornées · leur total le dit. */
   annulations?: { revues: { total: number; tronque: boolean }; mouvements: { total: number; tronque: boolean } };
-  rapprochement: { provisoire: boolean; solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
+  rapprochement: RapprochementCreances | null;
 }
 interface PropositionRevue {
   depreciationEnPlace: number;
@@ -147,6 +159,8 @@ export function CreancesDouteusesPage() {
   const exerciceId = exerciceCourant?.id ?? '';
   const [liste, setListe] = useState<Liste | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // A7 ter · ce qu'un geste réussi a à dire (lettrage du 416, cotisations) · jamais tu.
+  const [info, setInfo] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [journaux, setJournaux] = useState<Journal[] | null>(null);
   const [erreurJournaux, setErreurJournaux] = useState<string | null>(null);
@@ -203,6 +217,7 @@ export function CreancesDouteusesPage() {
     jeton.current++;
     setForm(null);
     setAnnulation(null);
+    setInfo(null);
   }, [exerciceId]);
 
   // L'ÉCHEC DE LECTURE DES JOURNAUX SE DIT DANS LA MODALE (relecture
@@ -368,7 +383,7 @@ export function CreancesDouteusesPage() {
           pieces: piecesAEnvoyer(form.pieces),
         });
       } else if (form.geste === 'reclasser') {
-        await api.post('/creances-douteuses', {
+        const r = await api.post<{ avertissement?: string | null }>('/creances-douteuses', {
           ...commun,
           date: form.date,
           compteCreanceId: form.compteCreanceId,
@@ -377,18 +392,25 @@ export function CreancesDouteusesPage() {
           nature: form.nature,
           montant: valeur,
         });
+        setInfo(r?.avertissement ?? null);
       } else if (form.geste === 'revue') {
         await api.post(`/creances-douteuses/${form.creance!.id}/revue`, { ...commun, depreciationNecessaire: necessaire });
       } else if (form.geste === 'perte') {
         // AU TTC ENTIER, D 651 / C 416 · aucune ligne de TVA (A7 scindée).
-        await api.post(`/creances-douteuses/${form.creance!.id}/perte`, {
+        const r = await api.post<{ lettrage416?: IssueLettrage416 }>(`/creances-douteuses/${form.creance!.id}/perte`, {
           ...commun,
           date: form.date,
           montant: valeur,
           comptePerteId: form.comptePerteId || undefined,
         });
+        setInfo(messageLettrage416(r?.lettrage416));
       } else {
-        await api.post(`/creances-douteuses/${form.creance!.id}/recouvrement`, { ...commun, date: form.date, montant: valeur });
+        const r = await api.post<{ lettrage416?: IssueLettrage416 }>(`/creances-douteuses/${form.creance!.id}/recouvrement`, {
+          ...commun,
+          date: form.date,
+          montant: valeur,
+        });
+        setInfo(messageLettrage416(r?.lettrage416));
       }
       jeton.current++;
       setForm(null);
@@ -440,8 +462,10 @@ export function CreancesDouteusesPage() {
   }
 
   const r = liste?.rapprochement;
-  const ecart416 = r ? Math.round((r.solde416 - r.resteModule) * 100) / 100 : 0;
-  const ecart491 = r ? Math.round((r.solde491 - r.depreciationModule) * 100) / 100 : 0;
+  const ecarts = r ? ecartsRapprochement(r) : null;
+  const ecart416 = ecarts?.ecart416 ?? 0;
+  const ecart491 = ecarts?.ecart491 ?? 0;
+  const creanceChoisie = form ? comptes?.creances.find((c) => c.id === form.compteCreanceId) ?? null : null;
   const journauxDuGeste = (journaux ?? []).filter((j) =>
     form?.geste === 'recouvrement' ? j.type === 'TRESORERIE' && j.compteTresorerieId : j.type === 'GENERAL',
   );
@@ -481,6 +505,14 @@ export function CreancesDouteusesPage() {
       </div>
 
       {erreur && <div className="mb-1.5 max-w-[1240px] border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 text-[11.5px]">{erreur}</div>}
+      {info && (
+        <div className="mb-1.5 max-w-[1240px] border border-bord rounded-[3px] px-2 py-1 text-[11.5px] flex items-start justify-between gap-2">
+          <span>{info}</span>
+          <button type="button" className="text-sel hover:underline" onClick={() => setInfo(null)}>
+            Fermer
+          </button>
+        </div>
+      )}
       {!exerciceId && <div className="text-[11.5px] text-text-dim">Aucun exercice choisi · choisissez-le, ou créez-le dans Exercices.</div>}
       {exerciceId && liste === null && !erreur && <div className="text-[11.5px] text-text-dim">Chargement…</div>}
 
@@ -498,18 +530,27 @@ export function CreancesDouteusesPage() {
           )}
           {r?.provisoire && (
             <div className="text-[11.5px] text-text-dim flex items-center gap-1.5">
-              Soldes du 416 et du 491 provisoires · à-nouveau non passé
+              {libelleSoldesProvisoires(r)}
               <Aide
                 titre="Soldes provisoires"
-                texte="Les soldes du 416 et du 491 sont lus sur le report reconstitué de l'exercice précédent, tant que l'à-nouveau de cet exercice n'est pas passé."
+                texte="Les soldes du 416 et du 491 sont lus sur l'exercice précédent, brouillard compris, tant que l'à-nouveau de cet exercice n'est pas passé. Un report à-nouveau provisoire, calculé sur les seules écritures validées, n'en tient pas lieu : relancez-le une fois le brouillard de l'exercice précédent validé, ou clôturez cet exercice."
                 source="Convention d'OmegaX"
               />
             </div>
           )}
-          {r && (Math.abs(ecart416) >= 0.01 || Math.abs(ecart491) >= 0.01) && (
+          {r && ecarts && (Math.abs(ecart416) >= 0.01 || Math.abs(ecart491) >= 0.01) && (
             <div className="border border-rouge/40 bg-rouge/5 rounded-[3px] px-2 py-1 text-[11.5px] text-rouge">
               {Math.abs(ecart416) >= 0.01 && <div>Le solde du 416 ({montant(r.solde416)}) diffère des créances suivies ici ({montant(r.resteModule)}).</div>}
-              {Math.abs(ecart491) >= 0.01 && <div>Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)}).</div>}
+              {Math.abs(ecart491) >= 0.01 && (
+                <div>
+                  Le solde du 491 ({montant(r.solde491)}) diffère des dépréciations suivies ici ({montant(r.depreciationModule)})
+                  {Math.abs(ecarts.horsModule491) >= 0.01 && <> · dont {montant(ecarts.horsModule491)} passés hors de ce module</>}
+                  {Math.abs(ecarts.horsModule491) >= 0.01 && Math.abs(ecarts.reste491) >= 0.01 && (
+                    <> · le reste ({montant(ecarts.reste491)}) vient de l'à-nouveau ou d'une écriture du module retouchée</>
+                  )}
+                  .
+                </div>
+              )}
             </div>
           )}
           {etatRapprochement(liste) === 'non-calcule-tronque' && (
@@ -620,7 +661,7 @@ export function CreancesDouteusesPage() {
                                 Annuler le reclassement
                               </button>
                             )}
-                            {ouvert && c.mouvements.length > 0 && (
+                            {peutValider && ouvert && c.mouvements.length > 0 && (
                               <button
                                 type="button"
                                 className="text-rouge hover:underline"
@@ -633,7 +674,7 @@ export function CreancesDouteusesPage() {
                                 Retirer le dernier mouvement
                               </button>
                             )}
-                            {ouvert && c.revues.length === 0 && c.revuesAnnulees.length === 0 && c.mouvements.length === 0 && (
+                            {ouvert && c.retirable && (
                               <button
                                 type="button"
                                 className="text-rouge hover:underline"
@@ -814,6 +855,14 @@ export function CreancesDouteusesPage() {
                           <span className="text-text-dim">Aucun compte 416 de détail au plan · ouvrez-le dans Plan comptable.</span>
                         </>
                       )}
+                      {comptes?.listes416491?.tronque416 && (
+                        <>
+                          <span />
+                          <span className="text-rouge">
+                            Liste limitée aux {comptes.listes416491.plafond} premiers comptes 416 sur {comptes.listes416491.total416}.
+                          </span>
+                        </>
+                      )}
                       <label htmlFor={id('compte-491')} className="text-right">
                         Compte 491 :
                       </label>
@@ -829,6 +878,26 @@ export function CreancesDouteusesPage() {
                         <>
                           <span />
                           <span className="text-text-dim">Aucun compte {racine491(form.nature)} de détail au plan · ouvrez-le dans Plan comptable.</span>
+                        </>
+                      )}
+                      {comptes?.listes416491?.tronque491 && (
+                        <>
+                          <span />
+                          <span className="text-rouge">
+                            Liste limitée aux {comptes.listes416491.plafond} premiers comptes 491 sur {comptes.listes416491.total491}.
+                          </span>
+                        </>
+                      )}
+                      {creanceChoisie?.refusCotisations && (
+                        <>
+                          <span />
+                          <span className="text-rouge">{creanceChoisie.refusCotisations}</span>
+                        </>
+                      )}
+                      {creanceChoisie?.avertissementCotisations && (
+                        <>
+                          <span />
+                          <span className="text-warning">{creanceChoisie.avertissementCotisations}</span>
                         </>
                       )}
                       {form.geste === 'reclasser' && (
