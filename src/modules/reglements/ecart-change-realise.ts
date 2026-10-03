@@ -264,8 +264,15 @@ export function coursEtFrancsDuReglement(p: {
  * case cochée sans devise de trésorerie déclarée, lot à plusieurs devises ou
  * portant des factures en francs, devise déclarée autre que celle des
  * factures, RIB du journal tenu dans une autre devise ; et, case décochée, un
- * RIB tenu dans la devise des factures (le 52 recevrait des francs seuls).
- * `null` si admis.
+ * RIB tenu dans une devise étrangère, QUEL QUE SOIT LE LOT (A6 bis, B3) · le
+ * 52 recevrait des francs sans leur devise, et la conversion des
+ * disponibilités à la clôture (AUDCIF art. 57 ; fiche du compte 52 des deux
+ * plans, « les avoirs en monnaies étrangères sont évalués au dernier cours
+ * officiel de change connu ») porterait une position fausse. Le refus valait
+ * jusque-là pour un lot EN DEVISE seulement · une banque en USD qui payait
+ * des factures en francs passait C 52 sans devise. Payer une facture en
+ * francs PAR une trésorerie en devise n'est pas ouvert ici (relevé de la
+ * ligne) · le refus le dit et nomme l'issue. `null` si admis.
  */
 export function motifRefusTresorerieEnDevise(p: {
   tresorerieEnDevise: boolean;
@@ -279,13 +286,21 @@ export function motifRefusTresorerieEnDevise(p: {
 }): string | null {
   const enDevise = p.devisesDuLot.filter((d): d is { id: string; code: string } => d !== null);
   const codesLot = [...new Set(enDevise.map((d) => d.code))];
-  const rib = p.deviseRib ? p.deviseRib.trim().toUpperCase() : null;
+  const rib = p.deviseRib && p.deviseRib.trim() !== '' ? p.deviseRib.trim().toUpperCase() : null;
   const ribEtranger = rib !== null && rib !== p.monnaieDeTenue ? rib : null;
   if (!p.tresorerieEnDevise) {
     if (ribEtranger && enDevise.length > 0) {
       return (
         `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} · cochez « Moyen de paiement en devise », sans quoi le ` +
         'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57).'
+      );
+    }
+    if (ribEtranger) {
+      return (
+        `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} et les factures choisies sont en francs · le compte de trésorerie ` +
+        `recevrait des francs sans leur devise et la conversion des disponibilités à la clôture le fausserait (AUDCIF art. 57). ` +
+        'Réglez ces factures depuis le journal d’un compte tenu en francs ; le paiement d’une facture en francs par une trésorerie en ' +
+        'devise ne passe pas par le règlement des tiers, il se saisit au journal avec sa devise et son cours.'
       );
     }
     return null;

@@ -211,9 +211,10 @@ export class ReglementsService {
 
     // LA DEVISE DU MOYEN DE PAIEMENT (ligne A6) · déclarée, jamais prise sur
     // la facture, et confrontée au lot et au RIB du journal avant la
-    // première pièce (`motifRefusTresorerieEnDevise`).
-    const lotEnDevise = prepares.some((x) => x.enDevise !== null);
-    if (dto.tresorerieEnDevise === true || dto.deviseTresorerieId !== undefined || lotEnDevise) {
+    // première pièce (`motifRefusTresorerieEnDevise`). TOUJOURS confrontée
+    // (A6 bis, B3) · un lot tout en francs n'y échappait pas moins à la
+    // règle quand le RIB du journal est tenu en devise.
+    {
       const idsDevises = [
         ...new Set([...prepares.flatMap((x) => (x.enDevise ? [x.enDevise.deviseId] : [])), ...(dto.deviseTresorerieId ? [dto.deviseTresorerieId] : [])]),
       ];

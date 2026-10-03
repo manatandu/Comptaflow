@@ -704,6 +704,25 @@ describe('la trésorerie en devise', () => {
     expect(creer).not.toHaveBeenCalled();
   });
 
+  // A6 bis, B3 · reproduit par la relecture adverse. Le RIB n'était lu que
+  // si le lot portait une facture en devise · une banque en USD qui payait
+  // des factures en francs passait C 52 sans devise, et la conversion des
+  // disponibilités à la clôture (art. 57) partait d'une position fausse.
+  it('le RIB du journal tenu en USD, des factures en francs, case décochée · refus avant toute pièce', async () => {
+    const { service, prisma, creer } = monter();
+    (prisma.ribBanque.findFirst as jest.Mock).mockResolvedValueOnce({ devise: 'USD' });
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c402', ligneIds: ['ff'] }] }),
+    ).rejects.toThrow(/RIB du journal CA est tenu en USD et les factures choisies sont en francs/);
+    expect(creer).not.toHaveBeenCalled();
+    // Un RIB en francs, ou sans devise renseignée (le franc), ne s'oppose à rien.
+    for (const devise of ['cdf', null, '']) {
+      (prisma.ribBanque.findFirst as jest.Mock).mockResolvedValueOnce({ devise });
+      await service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c402', ligneIds: ['ff'] }] });
+    }
+    expect(creer).toHaveBeenCalledTimes(3);
+  });
+
   it('un lot USD et EUR · la règle pure refuse un moyen de paiement à deux devises', () => {
     expect(
       motifRefusTresorerieEnDevise({
@@ -718,6 +737,17 @@ describe('la trésorerie en devise', () => {
         journalCode: 'BQ',
       }),
     ).toMatch(/plusieurs devises \(USD, EUR\)/);
+    // Un lot en francs sur un RIB en USD, case décochée · refus (B3).
+    expect(
+      motifRefusTresorerieEnDevise({
+        tresorerieEnDevise: false,
+        devisesDuLot: [null, null],
+        deviseTresorerie: null,
+        deviseRib: ' usd ',
+        monnaieDeTenue: 'CDF',
+        journalCode: 'BQ',
+      }),
+    ).toMatch(/tenu en USD et les factures choisies sont en francs/);
     // Un RIB en francs ne s'oppose à rien.
     expect(
       motifRefusTresorerieEnDevise({

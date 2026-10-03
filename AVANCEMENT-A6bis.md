@@ -24,11 +24,16 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   la pièce porterait ; DTO `montant` en `@FacultatifNonNul` + `@IsPositive` ;
   service · `undefined` seul vaut « le dû entier ». Tests · règle pure, porte
   (class-validator), service (six cas, aucune pièce).
+- B3 · le RIB du journal se lit à CHAQUE règlement ; case « Moyen de paiement
+  en devise » décochée et RIB tenu dans une devise étrangère · refus, que le
+  lot soit en devise ou en francs (art. 57 ; fiche du compte 52 des deux
+  plans). La trésorerie en devise sur facture en francs n'est PAS ouverte
+  (relevé), le refus nomme l'issue (journal d'un compte en francs, ou saisie
+  au journal avec devise et cours).
 
 ## Reste
 
 - B2 · groupe de lettrage à cheval sur deux exercices.
-- B3 · banque en devise qui paie des factures en francs.
 - M1 à M7.
 
 ## Décisions prises

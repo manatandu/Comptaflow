@@ -71,6 +71,8 @@ function monter(clotures: { granularite: string; journalId: string | null; dateL
       findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => lignes.filter((l) => where.id.in.includes(l.id))),
     },
     cloture: { findMany: jest.fn(async () => clotures) },
+    // Le RIB du journal se lit à chaque règlement (A6 bis, B3) · aucun ici.
+    ribBanque: { findFirst: jest.fn(async () => null) },
   } as unknown as PrismaService;
   let n = 0;
   type Piece = { id: string; lignes: { compteId: string; id: string }[] };
