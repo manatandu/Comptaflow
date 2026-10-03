@@ -43,7 +43,7 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
-import { lettragesACheval, nommerLettrageACheval, PLAFOND_LETTRAGES_A_CHEVAL } from '../lettrage/lettrages-a-cheval';
+import { issueEcartACheval, issueLettrageACheval, lettragesACheval, PLAFOND_LETTRAGES_A_CHEVAL } from '../lettrage/lettrages-a-cheval';
 import {
   comptesBancairesSansRapprochement,
   estCompteBancaireARapprocher,
@@ -4380,54 +4380,56 @@ export class ControlesService {
     // `banque-et-cloture-informatique.ts` · ici, la lecture et le message.
     anomalies.push(...(await this.controlesBanqueEtClotureInformatique(tenantId, ex, tenant.referentiel, parcours, maintenant)));
 
-    // --- 34. Lettrage à cheval de deux exercices (ligne A6 bis, B2) ---------
+    // --- 35. Lettrage à cheval de deux exercices (ligne A6 bis) ------------
     //
-    // Les groupes DÉJÀ en base ne sont jamais réécrits (AUDCIF art. 20) ; le
-    // contrôle les nomme. BLOQUANT ceux que la clôture refuse · toutes leurs
-    // lignes dans des exercices ouverts (ils se délettrent, c'est l'issue), ou
-    // soldés au Détail avec une part non nulle dans cet exercice (leurs
-    // lignes sortiraient du report à-nouveau sans s'y solder). INFORMATION
-    // les autres, figés par un exercice clôturé · ils ne faussent aucun
-    // total, mais leurs lignes ne se lettreront plus avec la ligne
-    // d'à-nouveau, et aucun geste d'OmegaX ne les défait. Sans ligne lettrée
-    // dans l'exercice (relevé au parcours), aucun groupe n'y touche · la
-    // lecture des lettrages n'a pas lieu d'être.
+    // Rien ne BLOQUE (premier tour de relecture) · le report lit chaque
+    // exercice pour lui-même (règle 1 de `lettrages-a-cheval.ts`), et la
+    // clôture passe, figé ou non. Restent deux effets réels, nommés avec leur
+    // issue. INFORMATION · au Détail, la ligne d'à-nouveau de la facture
+    // reste ouverte dans l'exercice suivant pendant que son règlement est
+    // lettré avec la ligne d'origine (balance âgée, relances, lettrage la
+    // montrent due) ; un compte au SOLDE n'en garde aucun. AVERTISSEMENT · un
+    // groupe soldé dans sa devise et non en francs, dénoué dans cet exercice,
+    // dont l'écart réalisé n'est pas passé (AUDCIF art. 55) · la clôture ne le
+    // refuse pas (D3 ne lit pas les groupes à cheval), le contrôle le dit.
+    // Sans ligne lettrée dans l'exercice (relevé au parcours), aucun groupe
+    // n'y touche · la lecture des lettrages n'a pas lieu d'être.
     if (parcours.lettrageVu) {
       const aCheval = await lettragesACheval(this.prisma, { tenantId, exerciceId });
-      const bloquants = [...aCheval.adelettrer, ...aCheval.figes.filter((g) => g.faussentLeReport)];
-      const borne = (tronque: boolean) =>
-        tronque ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LETTRAGES_A_CHEVAL} groupes lus · d'autres lettrages à cheval peuvent exister.` }] : [];
-      if (bloquants.length > 0) {
+      const borne = aCheval.tronque
+        ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LETTRAGES_A_CHEVAL} groupes lus · d'autres lettrages à cheval peuvent exister.` }]
+        : [];
+      const auDetail = aCheval.groupes.filter((g) => g.auDetail);
+      if (auDetail.length > 0) {
         anomalies.push({
           code: 'LETTRAGE_A_CHEVAL_D_EXERCICES',
-          gravite: 'BLOQUANT',
-          libelle: 'Lettrage qui mêle deux exercices',
+          gravite: 'INFORMATION',
+          libelle: 'Lettrage qui mêle deux exercices sur un compte au Détail',
           consequence:
-            "Un lettrage ne mêle pas deux exercices · soldé, il retire du report à-nouveau des lignes de cet exercice qui ne s'y soldent pas, " +
-            'et la clôture comme l’à-nouveau provisoire sont refusés ; partiel, il ne se délettrerait plus une fois l’exercice clôturé.',
+            "Le report à-nouveau lit chaque exercice pour lui-même · ces lignes y passent comme ouvertes, et la ligne d'à-nouveau de la facture " +
+            "reste due dans l'exercice suivant pendant que son règlement est lettré avec la ligne d'origine. Le solde du compte est juste ; " +
+            'son détail ouvert (balance âgée, relances, lettrage) ne l’est pas.',
           action:
-            "Délettrez le groupe depuis Interrogation et lettrage tant que ses exercices sont ouverts, lettrez entre elles les lignes de chaque " +
-            "exercice, puis, après la clôture, les lignes de l'exercice suivant avec les lignes d'à-nouveau. Un groupe déjà figé par un " +
-            "exercice clôturé ne se délettre plus · aucun geste d'OmegaX ne lève encore ce refus.",
-          occurrences: [
-            ...borne(aCheval.tronqueADelettrer),
-            ...bloquants.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: nommerLettrageACheval(g) })),
-          ],
+            "Groupe non figé · délettrez-le, lettrez entre elles les lignes de chaque exercice, puis le règlement avec la ligne d'à-nouveau " +
+            'définitif une fois l’exercice antérieur clôturé. Groupe figé · relevez-le au dossier de travail.',
+          occurrences: [...borne, ...auDetail.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueLettrageACheval(g) }))],
         });
       }
-      const figes = aCheval.figes.filter((g) => !g.faussentLeReport);
-      if (figes.length > 0) {
+      const ecarts = aCheval.groupes.filter((g) => g.ecartNonPasse !== null);
+      if (ecarts.length > 0) {
         anomalies.push({
-          code: 'LETTRAGE_A_CHEVAL_FIGE',
-          gravite: 'INFORMATION',
-          libelle: 'Lettrage partiel figé à cheval de deux exercices',
+          code: 'ECART_CHANGE_A_CHEVAL_NON_CONSTATE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Écart de change réalisé non passé sur un lettrage à cheval de deux exercices',
           consequence:
-            "Le groupe mêle une ligne d'un exercice clôturé · il ne se complète ni ne se délettre plus, et ses lignes de cet exercice ne se " +
-            "lettreront pas avec la ligne d'à-nouveau. Aucun total n'en est faussé.",
-          action: "Aucune dans OmegaX · le relever au dossier de travail si le détail du compte de tiers doit le justifier.",
+            "Le groupe est soldé dans sa devise et pas en francs · l'écart de change réalisé « est constaté » à la date du règlement " +
+            '(AUDCIF art. 55) ; non passé, il reste au compte du tiers comme un reste qui n’est plus une créance ni une dette, et manque au résultat.',
+          action:
+            "Groupe non figé · passez l'écart proposé, ou, au Détail, refaites le lettrage contre la ligne d'à-nouveau. Groupe figé · " +
+            "écriture manuelle au compte de change prescrit, datée dans l'exercice du dénouement.",
           occurrences: [
-            ...borne(aCheval.tronqueFiges),
-            ...figes.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: nommerLettrageACheval(g) })),
+            ...borne,
+            ...ecarts.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueEcartACheval(g, tenant.referentiel), montant: g.ecartNonPasse! })),
           ],
         });
       }

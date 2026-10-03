@@ -31,11 +31,12 @@ interface Cumul {
  * réalisé que rien n'a passé · la réévaluation l'écarte déjà (art. 54) ;
  * c'est la CLÔTURE qui le refuse, jamais la réévaluation.
  *
- * UN GROUPE À CHEVAL DE DEUX EXERCICES N'EST PAS LU ICI (A6 bis, B2) · ses
- * lignes de l'exercice ne disent pas son dénouement, et l'issue que ce refus
- * nommerait (passer l'écart) lui est refusée (`propositionEcartChange`) · la
- * clôture le nomme AVANT, par `lettragesACheval`, avec SA seule issue,
- * délettrer.
+ * UN GROUPE À CHEVAL DE DEUX EXERCICES N'EST PAS LU ICI (A6 bis) · ses
+ * lignes de l'exercice ne disent pas son dénouement, et la clôture ne refuse
+ * rien pour lui (premier tour de relecture · le refus enfermait un dossier
+ * dont le groupe était figé). Son écart réalisé non passé est nommé par le
+ * contrôle des comptes (`ECART_CHANGE_A_CHEVAL_NON_CONSTATE`), avec son
+ * issue (`issueEcartACheval`).
  *
  * LU PAR TRANCHES, SANS BORNE (§ 8 bis, relecture adverse M4) · un exercice
  * aux lettrages partiels nombreux n'est jamais refusé pour son volume ; seuls
@@ -54,7 +55,7 @@ export async function ecartsRealisesNonConstates(
           lettrageId: { not: null },
           lettre: null,
           // Toutes les lignes du groupe dans l'exercice · un groupe à cheval
-          // relève de `lettragesACheval` (A6 bis, B2).
+          // relève du contrôle des comptes (`lettragesACheval`, A6 bis).
           lettrage: { statut: 'PARTIEL', lignes: { every: { ecriture: { exerciceId: p.exerciceId } } } },
           ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId },
         },
@@ -117,6 +118,6 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }
     's’il a DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser ; si le geste est refusé ' +
     '(réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l\'écart, ' +
     'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez. ' +
-    'Un lettrage qui mêle deux exercices n\'est pas compté ici · la clôture le nomme à part, et lui seul se délettre.'
+    'Un lettrage qui mêle deux exercices n\'est pas compté ici · le contrôle des comptes nomme son écart, avec son issue.'
   );
 }

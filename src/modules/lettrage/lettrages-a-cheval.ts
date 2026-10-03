@@ -1,52 +1,64 @@
 import type { PrismaService } from '../../common/prisma.service';
 import { lireParLots, LOT_LECTURE, pageApres } from '../../common/lecture-par-lots';
+import { type ClotureActive, motifLigneFigee } from '../exercice/gel-cloture';
+import { comptesPrescrits, natureDuCompte, type Referentiel } from '../reglements/ecart-change-realise';
 
 /**
- * UN LETTRAGE NE MÊLE PAS DEUX EXERCICES (ligne A6 bis, B2, reproduit par la
- * relecture adverse).
+ * LES LETTRAGES À CHEVAL DE DEUX EXERCICES (ligne A6 bis, B2, refait au
+ * premier tour de relecture).
  *
- * LA DOCTRINE est en tête de `lettrage.service.ts` · un règlement de mars qui
- * solde une facture de décembre se lettre contre la ligne de REPORT
- * À-NOUVEAU de l'exercice ouvert (mode Détail des comptes de tiers), jamais
- * contre la ligne de l'exercice précédent. Rien ne la faisait tenir · tant
- * que les deux exercices étaient ouverts, la facture de N se lettrait avec le
- * règlement de N+1, et l'écart de change passé en N+1 complétait le groupe.
+ * LA DOCTRINE est en tête de `lettrage.service.ts` et au § 3 de
+ * `docs/organisation-comptable-cpcc.md` · « un règlement de mars qui solde
+ * une facture de décembre se lettre contre la ligne de REPORT À-NOUVEAU de
+ * l'exercice ouvert (MODE DÉTAIL des comptes de tiers), jamais contre la
+ * ligne de l'exercice clos ». Elle vise les comptes au DÉTAIL, dont le report
+ * reprend un à un les mouvements ouverts ; un compte au SOLDE ne reporte que
+ * son solde, et un salaire de décembre payé en janvier se lettre librement.
  *
- * CE QUI CASSAIT. Soldé, le groupe pose sa `lettre` sur les lignes de N, qui
- * sortent du report à-nouveau Détail (`report-a-nouveau.ts`, « seuls les
- * mouvements NON lettrés ») alors qu'elles ne se soldent pas DANS N · le
- * report tombe déséquilibré, et la clôture de N comme l'à-nouveau provisoire
- * répondaient « anomalie interne » (500). Partiel, le groupe passe la
- * clôture, puis ne se complète ni ne se délettre plus (les lignes de N sont
- * figées, `gel-cloture.ts`) · le règlement de N+1 ne se lettre jamais avec
- * la ligne d'à-nouveau. Dossier enfermé dans les deux cas. Et la garde de la
- * clôture sur l'écart réalisé (`ecartsRealisesNonConstates`, D3), qui lit
- * les lignes de l'exercice, ne voyait pas un groupe dont l'autre moitié est
- * dans l'exercice voisin.
+ * TROIS RÈGLES.
  *
- * DEUX RÈGLES. (1) Le lettrage (manuel, complément, pré-lettrage confirmé,
- * automatique) REFUSE tout groupe qui mêlerait deux exercices
- * (`motifLettrageADeuxExercices`). (2) Les groupes DÉJÀ en base ne sont pas
- * réécrits (AUDCIF art. 20 · on ne corrige pas en silence) · la clôture et
- * l'à-nouveau provisoire les REFUSENT par un message nommé (groupe, compte,
- * exercices, issue), et le contrôle les nomme. Tant que toutes leurs lignes
- * sont dans des exercices ouverts, ils se DÉLETTRENT (seule issue, et elle
- * ne perd rien · un écart de change déjà passé reste au journal et se
- * relettre avec les lignes de son exercice). Une ligne dans un exercice déjà
- * clôturé les fige · ils ne bloquent alors la clôture que s'ils fausseraient
- * le report (soldés, compte au Détail, part de l'exercice non nulle), et le
- * refus dit qu'aucun geste d'OmegaX ne le lève encore.
+ * (1) LE REPORT LIT CHAQUE EXERCICE POUR LUI-MÊME (`lireComptesDuReport`,
+ * exercice.service.ts) · une ligne lettrée par un groupe qui touche un AUTRE
+ * exercice se lit comme NON lettrée pour le report de son exercice. Soldé,
+ * un tel groupe posait sa lettre sur des lignes de N qui ne se soldent pas
+ * dans N · elles sortaient du report Détail, le report tombait déséquilibré
+ * et la clôture répondait « anomalie interne » (500) ; le premier tour
+ * d'A6 bis la REFUSAIT, ce qui ENFERMAIT le dossier dès qu'une clôture de
+ * période ou d'exercice figeait le groupe (relecture adverse, B-1). Lu ainsi,
+ * le report est équilibré par construction, figé ou non, et rien n'est à
+ * délettrer pour clôturer. Les groupes déjà en base ne sont pas réécrits
+ * (AUDCIF art. 20).
+ *
+ * (2) UN NOUVEAU GROUPE ENTRE EXERCICES N'EST REFUSÉ QU'AU DÉTAIL
+ * (`motifLettrageADeuxExercices`) · au lettrage manuel, au complément, au
+ * pré-lettrage confirmé ; le lettrage automatique n'y apparie qu'à
+ * l'intérieur d'un exercice. Le refus nomme l'issue · lettrer contre la
+ * ligne d'à-nouveau DÉFINITIF une fois l'exercice antérieur clôturé, sinon
+ * attendre sa clôture.
+ *
+ * (3) CE QUI RESTE D'UN GROUPE DÉJÀ À CHEVAL se dit au contrôle des comptes
+ * (`lettragesACheval`), jamais à la clôture · au DÉTAIL, la ligne d'à-nouveau
+ * de la facture reste ouverte dans l'exercice suivant pendant que son
+ * règlement est lettré avec la ligne d'origine (INFORMATION) ; en devise, un
+ * groupe soldé dans sa devise et non en francs dont l'écart réalisé n'est
+ * pas passé (AVERTISSEMENT, AUDCIF art. 55), avec son issue, l'écriture à la
+ * main dans l'exercice du dénouement quand le groupe est figé.
  */
 
-type Lecteur = Pick<PrismaService, 'lettrage' | 'ligneEcriture'>;
+type Lecteur = Pick<PrismaService, 'lettrage' | 'ligneEcriture' | 'cloture'>;
 
 const jour = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * Le refus du lettrage · `null` quand toutes les lignes sont d'un même
+ * Le refus d'un NOUVEAU groupe entre exercices · `null` quand le compte
+ * n'est pas reporté au Détail, ou quand toutes les lignes sont d'un même
  * exercice. Nomme une ligne de chaque exercice et dit l'issue.
  */
-export function motifLettrageADeuxExercices(lignes: Array<{ ecriture: { exerciceId: string; date: Date } }>): string | null {
+export function motifLettrageADeuxExercices(
+  lignes: Array<{ ecriture: { exerciceId: string; date: Date } }>,
+  compte: { numero: string; modeReportANouveau: string },
+): string | null {
+  if (compte.modeReportANouveau !== 'DETAIL') return null;
   const premiereParExercice = new Map<string, Date>();
   for (const l of lignes) {
     const vue = premiereParExercice.get(l.ecriture.exerciceId);
@@ -55,9 +67,11 @@ export function motifLettrageADeuxExercices(lignes: Array<{ ecriture: { exercice
   if (premiereParExercice.size <= 1) return null;
   const dates = [...premiereParExercice.values()].sort((a, b) => a.getTime() - b.getTime()).map(jour);
   return (
-    `Ces lignes appartiennent à ${premiereParExercice.size} exercices (lignes du ${dates.join(', du ')}) · un lettrage ne mêle pas deux exercices. ` +
-    "La facture d'un exercice antérieur se lettre, dans l'exercice ouvert, contre la ligne d'à-nouveau qui la reporte (report en mode Détail) · " +
-    "lettrez dans chaque exercice ses propres lignes, clôturez l'exercice antérieur, puis lettrez le règlement avec la ligne d'à-nouveau."
+    `Le compte ${compte.numero} est reporté en mode Détail, et ces lignes appartiennent à ${premiereParExercice.size} exercices ` +
+    `(lignes du ${dates.join(', du ')}) · la facture d'un exercice antérieur passe dans l'exercice suivant par la ligne d'à-nouveau ` +
+    "qui la reporte, et c'est cette ligne qui se lettre avec le règlement. Lettrez le règlement contre la ligne d'à-nouveau DÉFINITIF " +
+    "une fois l'exercice antérieur clôturé ; tant qu'il ne l'est pas, attendez sa clôture (un lettrage posé sur l'à-nouveau provisoire " +
+    "empêcherait de le remplacer à la clôture)."
   );
 }
 
@@ -68,118 +82,145 @@ export interface LettrageACheval {
   code: string;
   statut: 'PARTIEL' | 'SOLDE';
   compteNumero: string;
+  /** Le compte est reporté au Détail · c'est là que le groupe laisse une ligne ouverte. */
+  auDetail: boolean;
   /** Les AUTRES exercices du groupe, par leurs bornes. */
   autresExercices: Array<{ dateDebut: Date; dateFin: Date; clos: boolean }>;
+  /** Une de ses lignes est figée (exercice, journal ou période clôturés, `gel-cloture.ts`) · il ne se complète ni ne se délettre. */
+  fige: boolean;
+  /**
+   * L'écart de change réalisé NON PASSÉ · groupe partiel soldé dans sa seule
+   * devise sur l'ensemble de ses lignes et pas en francs, dont la dernière
+   * ligne (le dénouement) est dans l'exercice lu. Signé, positif pour une
+   * perte ; `null` sinon.
+   */
+  ecartNonPasse: number | null;
+  /** La date de sa dernière ligne · celle du dénouement. */
+  denouement: Date;
 }
 
-/** Plafond de groupes nommés, par liste · au-delà, le dépassement est dit. */
+/** Plafond de groupes lus · au-delà, le dépassement est dit. */
 export const PLAFOND_LETTRAGES_A_CHEVAL = 200;
 
-/** Ce que rend la lecture · deux listes, chacune bornée et qui dit si elle l'est. */
+/** Ce que rend la lecture · bornée, et qui dit si elle l'est. */
 export interface LettragesACheval {
-  /** Toutes leurs lignes dans des exercices ouverts · ils bloquent, et se délettrent. */
-  adelettrer: LettrageACheval[];
-  /**
-   * Une de leurs lignes dans un exercice clôturé · ils ne se délettrent plus.
-   * `faussentLeReport` · soldés, compte au Détail, part de cet exercice non
-   * nulle · leurs lignes sortiraient du report sans s'y solder, ils bloquent.
-   */
-  figes: Array<LettrageACheval & { faussentLeReport: boolean }>;
-  tronqueADelettrer: boolean;
-  tronqueFiges: boolean;
+  groupes: LettrageACheval[];
+  tronque: boolean;
+}
+
+/** Ce qu'un groupe accumule, tranche après tranche. */
+interface Cumul {
+  autres: Map<string, { dateDebut: Date; dateFin: Date; clos: boolean }>;
+  fige: boolean;
+  centimes: number;
+  devises: Set<string>;
+  soldeDevise: number;
+  enDevise: number;
+  derniere: { date: Date; exerciceId: string } | null;
 }
 
 /**
  * LES GROUPES À CHEVAL D'UN EXERCICE · ceux qui ont une ligne dans l'exercice
- * lu et une ligne dans un autre. Deux lectures bornées, l'une pour ceux dont
- * TOUTES les lignes sont dans des exercices ouverts (ce sont eux qui
- * bloquent), l'autre pour ceux qu'un exercice clôturé fige ; puis leurs
- * lignes, par tranches (§ 8 bis), pour nommer les exercices et solder la
- * part de l'exercice lu.
+ * lu et une ligne dans un autre. Une lecture bornée des groupes, puis de
+ * TOUTES leurs lignes, par tranches (§ 8 bis) · leurs autres exercices, s'ils
+ * sont figés (même règle que le lettrage, lue une fois sur les clôtures
+ * actives), et leur solde en devise et en francs sur l'ensemble, la règle
+ * d'`ecartDuGroupe` appliquée en flux.
  */
 export async function lettragesACheval(prisma: Lecteur, p: { tenantId: string; exerciceId: string }): Promise<LettragesACheval> {
-  const aCheval = [
-    { lignes: { some: { ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId } } } },
-    { lignes: { some: { ecriture: { tenantId: p.tenantId, exerciceId: { not: p.exerciceId } } } } },
-  ];
-  const select = { id: true, code: true, statut: true, compte: { select: { numero: true, modeReportANouveau: true } } } as const;
-  const [ouverts, clos] = await Promise.all([
+  const [lus, clotures] = await Promise.all([
     prisma.lettrage.findMany({
-      where: { tenantId: p.tenantId, AND: [...aCheval, { lignes: { every: { ecriture: { exercice: { statut: { not: 'CLOTURE' } } } } } }] },
-      select,
+      where: {
+        tenantId: p.tenantId,
+        AND: [
+          { lignes: { some: { ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId } } } },
+          { lignes: { some: { ecriture: { tenantId: p.tenantId, exerciceId: { not: p.exerciceId } } } } },
+        ],
+      },
+      select: { id: true, code: true, statut: true, compte: { select: { numero: true, modeReportANouveau: true } } },
       orderBy: { id: 'asc' },
       take: PLAFOND_LETTRAGES_A_CHEVAL + 1,
     }),
-    prisma.lettrage.findMany({
-      where: { tenantId: p.tenantId, AND: [...aCheval, { lignes: { some: { ecriture: { exercice: { statut: 'CLOTURE' } } } } }] },
-      select,
-      orderBy: { id: 'asc' },
-      take: PLAFOND_LETTRAGES_A_CHEVAL + 1,
-    }),
+    prisma.cloture.findMany({
+      where: { tenantId: p.tenantId, annuleeAt: null, granularite: { not: 'PARTIELLE' } },
+      select: { granularite: true, journalId: true, dateLimite: true },
+    }) as Promise<ClotureActive[]>,
   ]);
-  const retenusOuverts = ouverts.slice(0, PLAFOND_LETTRAGES_A_CHEVAL);
-  const retenusClos = clos.slice(0, PLAFOND_LETTRAGES_A_CHEVAL);
-  const resultat: LettragesACheval = {
-    adelettrer: [],
-    figes: [],
-    tronqueADelettrer: ouverts.length > PLAFOND_LETTRAGES_A_CHEVAL,
-    tronqueFiges: clos.length > PLAFOND_LETTRAGES_A_CHEVAL,
-  };
-  const tous = [...retenusOuverts, ...retenusClos];
-  if (tous.length === 0) return resultat;
+  const retenus = lus.slice(0, PLAFOND_LETTRAGES_A_CHEVAL);
+  const resultat: LettragesACheval = { groupes: [], tronque: lus.length > PLAFOND_LETTRAGES_A_CHEVAL };
+  if (retenus.length === 0) return resultat;
 
-  // Ce que chaque groupe porte · ses autres exercices, et le solde de sa part
-  // dans l'exercice lu (au centime).
-  const parGroupe = new Map<string, { autres: Map<string, { dateDebut: Date; dateFin: Date; clos: boolean }>; centimes: number }>();
-  for (const g of tous) parGroupe.set(g.id, { autres: new Map(), centimes: 0 });
+  const cumuls = new Map<string, Cumul>();
+  for (const g of retenus) {
+    cumuls.set(g.id, { autres: new Map(), fige: false, centimes: 0, devises: new Set(), soldeDevise: 0, enDevise: 0, derniere: null });
+  }
   await lireParLots(
     (curseur) =>
       prisma.ligneEcriture.findMany({
-        where: { lettrageId: { in: tous.map((g) => g.id) }, ecriture: { tenantId: p.tenantId } },
+        where: { lettrageId: { in: retenus.map((g) => g.id) }, ecriture: { tenantId: p.tenantId } },
         select: {
           id: true,
           lettrageId: true,
           debit: true,
           credit: true,
-          ecriture: { select: { exerciceId: true, exercice: { select: { statut: true, dateDebut: true, dateFin: true } } } },
+          deviseId: true,
+          montantDevise: true,
+          ecriture: {
+            select: {
+              date: true,
+              journalId: true,
+              journal: { select: { code: true } },
+              exerciceId: true,
+              exercice: { select: { statut: true, dateDebut: true, dateFin: true } },
+            },
+          },
         },
         ...pageApres(curseur, LOT_LECTURE),
       }),
     (l) => {
-      const g = l.lettrageId ? parGroupe.get(l.lettrageId) : undefined;
-      if (!g) return;
-      if (l.ecriture.exerciceId === p.exerciceId) {
-        g.centimes += Math.round(Number(l.debit) * 100) - Math.round(Number(l.credit) * 100);
-      } else {
-        g.autres.set(l.ecriture.exerciceId, {
-          dateDebut: l.ecriture.exercice.dateDebut,
-          dateFin: l.ecriture.exercice.dateFin,
-          clos: l.ecriture.exercice.statut === 'CLOTURE',
-        });
+      const c = l.lettrageId ? cumuls.get(l.lettrageId) : undefined;
+      if (!c) return;
+      const debit = Number(l.debit);
+      const credit = Number(l.credit);
+      const clos = l.ecriture.exercice.statut === 'CLOTURE';
+      if (l.ecriture.exerciceId !== p.exerciceId) {
+        c.autres.set(l.ecriture.exerciceId, { dateDebut: l.ecriture.exercice.dateDebut, dateFin: l.ecriture.exercice.dateFin, clos });
       }
+      if (
+        !c.fige &&
+        motifLigneFigee({ journalId: l.ecriture.journalId, journalCode: l.ecriture.journal.code, date: l.ecriture.date, exerciceClos: clos }, clotures)
+      ) {
+        c.fige = true;
+      }
+      c.centimes += Math.round(debit * 100) - Math.round(credit * 100);
+      if (l.deviseId !== null && l.montantDevise !== null) {
+        c.devises.add(l.deviseId);
+        c.enDevise += 1;
+        c.soldeDevise += (debit - credit >= 0 ? 1 : -1) * Number(l.montantDevise);
+      }
+      if (!c.derniere || l.ecriture.date > c.derniere.date) c.derniere = { date: l.ecriture.date, exerciceId: l.ecriture.exerciceId };
     },
   );
 
-  const decrire = (g: (typeof tous)[number]) => {
-    const lu = parGroupe.get(g.id)!;
-    const statut: LettrageACheval['statut'] = g.statut === 'SOLDE' ? 'SOLDE' : 'PARTIEL';
-    const groupe: LettrageACheval = {
-      lettrageId: g.id,
-      code: statut === 'SOLDE' ? g.code : g.code.toLowerCase(),
-      statut,
-      compteNumero: g.compte.numero,
-      autresExercices: [...lu.autres.values()].sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()),
-    };
-    return { groupe, centimes: lu.centimes };
-  };
-  const tri = (a: LettrageACheval, b: LettrageACheval) => a.compteNumero.localeCompare(b.compteNumero) || a.code.localeCompare(b.code);
-  resultat.adelettrer = retenusOuverts.map((g) => decrire(g).groupe).sort(tri);
-  resultat.figes = retenusClos
+  resultat.groupes = retenus
     .map((g) => {
-      const { groupe, centimes } = decrire(g);
-      return { ...groupe, faussentLeReport: groupe.statut === 'SOLDE' && g.compte.modeReportANouveau === 'DETAIL' && centimes !== 0 };
+      const c = cumuls.get(g.id)!;
+      const statut: LettrageACheval['statut'] = g.statut === 'SOLDE' ? 'SOLDE' : 'PARTIEL';
+      const soldeEnDevise = c.enDevise > 0 && c.devises.size === 1 && Math.abs(c.soldeDevise) <= 0.005;
+      const denoueIci = c.derniere !== null && c.derniere.exerciceId === p.exerciceId;
+      return {
+        lettrageId: g.id,
+        code: statut === 'SOLDE' ? g.code : g.code.toLowerCase(),
+        statut,
+        compteNumero: g.compte.numero,
+        auDetail: g.compte.modeReportANouveau === 'DETAIL',
+        autresExercices: [...c.autres.values()].sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()),
+        fige: c.fige,
+        ecartNonPasse: statut === 'PARTIEL' && soldeEnDevise && denoueIci && c.centimes !== 0 ? c.centimes / 100 : null,
+        denouement: c.derniere?.date ?? new Date(0),
+      } satisfies LettrageACheval;
     })
-    .sort(tri);
+    .sort((a, b) => a.compteNumero.localeCompare(b.compteNumero) || a.code.localeCompare(b.code));
   return resultat;
 }
 
@@ -191,33 +232,51 @@ export function nommerLettrageACheval(g: LettrageACheval): string {
 }
 
 /**
- * Le refus de la clôture et de l'à-nouveau provisoire, nommé · groupes,
- * comptes, exercices et issue, au lieu du « report à-nouveau déséquilibré »
- * (500) qu'ils produisaient. `null` si rien ne bloque.
+ * L'issue d'un groupe à cheval d'un compte au DÉTAIL · ce qui reste de lui
+ * après la règle (1) est une ligne d'à-nouveau ouverte d'un côté, un
+ * règlement lettré de l'autre.
  */
-export function motifClotureLettragesACheval(r: LettragesACheval): string | null {
-  const figes = r.figes.filter((g) => g.faussentLeReport);
-  if (r.adelettrer.length === 0 && figes.length === 0) return null;
-  const morceaux: string[] = [];
-  if (r.adelettrer.length > 0) {
-    const liste = r.adelettrer.slice(0, 10).map(nommerLettrageACheval).join(' ; ');
-    const plus = r.adelettrer.length - 10;
-    const reste = r.tronqueADelettrer ? ', et d’autres encore' : plus > 0 ? `, et ${plus} autre(s)` : '';
-    const nombre = r.tronqueADelettrer ? `Plus de ${PLAFOND_LETTRAGES_A_CHEVAL}` : String(r.adelettrer.length);
-    morceaux.push(
-      `${nombre} lettrage(s) mêlent des lignes de cet exercice et d'un autre exercice ouvert · ${liste}${reste}. ` +
-        "Un lettrage ne mêle pas deux exercices · le règlement d'un exercice suivant se lettre contre la ligne d'à-nouveau qui reporte la facture " +
-        "(report en mode Détail). Issue · délettrez ces groupes depuis Interrogation et lettrage tant que les deux exercices sont ouverts, " +
-        "lettrez entre elles les lignes de cet exercice, clôturez, puis lettrez dans l'exercice suivant ses lignes avec les lignes d'à-nouveau. " +
-        "Ici, et ici seulement, délettrer est l'issue · un écart de change déjà passé reste au journal et se lettre avec les lignes de son exercice, sans être repassé.",
+export function issueLettrageACheval(g: LettrageACheval): string {
+  if (!g.fige) {
+    return (
+      `${nommerLettrageACheval(g)} · délettrez-le (Interrogation et lettrage), lettrez entre elles les lignes de chaque exercice, ` +
+      "puis, l'exercice antérieur clôturé, le règlement avec la ligne d'à-nouveau définitif."
     );
   }
-  if (figes.length > 0) {
-    morceaux.push(
-      `${figes.length} lettrage(s) soldé(s) mêlent des lignes de cet exercice et d'un exercice déjà clôturé · ${figes.slice(0, 10).map(nommerLettrageACheval).join(' ; ')}. ` +
-        "Leurs lignes de cet exercice sortiraient du report à-nouveau sans s'y solder. Ils ne se délettrent plus (exercice clôturé) · " +
-        "aucun geste d'OmegaX ne lève encore ce refus ; signalez-le au support avec ces références.",
+  return (
+    `${nommerLettrageACheval(g)} · figé (une de ses lignes est dans un exercice, un journal ou une période clôturés), il ne se délettre plus, ` +
+    "et aucun geste d'OmegaX ne le défait · il s'est formé avant que le lettrage entre exercices ne soit refusé au Détail, ou sur un compte " +
+    "passé au mode de report Détail après coup. Relevez-le au dossier de travail pour justifier le détail du compte."
+  );
+}
+
+/**
+ * L'issue d'un écart de change réalisé resté sur un groupe à cheval
+ * (AUDCIF art. 55 ; Titre VIII ch. 22 § 2.3) · le compte de change PRESCRIT
+ * par la nature du compte et le référentiel (`comptesPrescrits`, D2 au
+ * SYCEBNL), jamais un numéro écrit ici.
+ */
+export function issueEcartACheval(g: LettrageACheval, referentiel: Referentiel): string {
+  const ecart = g.ecartNonPasse ?? 0;
+  const sens = ecart > 0 ? 'perte' : 'gain';
+  const prescrits = comptesPrescrits(referentiel, natureDuCompte(g.compteNumero, referentiel));
+  const compte =
+    prescrits.perte === null
+      ? "au compte de change que le cabinet choisit (la nature du compte, commerciale ou financière, ne se lit pas sur son numéro)"
+      : `au ${sens === 'perte' ? prescrits.perte : prescrits.gain}`;
+  const montant = `${sens} de change réalisée de ${Math.abs(ecart).toFixed(2)}`;
+  if (g.fige) {
+    return (
+      `${nommerLettrageACheval(g)} · ${montant} non passée, et le groupe, figé, ne se complète plus · passez-la par une écriture ` +
+      `manuelle ${compte}, contre le compte ${g.compteNumero}, datée dans l'exercice du dénouement (au plus tôt le ${jour(g.denouement)}), ` +
+      "si elle ne l'est pas déjà."
     );
   }
-  return morceaux.join(' ');
+  if (g.auDetail) {
+    return (
+      `${nommerLettrageACheval(g)} · ${montant} non passée · délettrez le groupe, lettrez le règlement avec la ligne d'à-nouveau définitif ` +
+      `une fois l'exercice antérieur clôturé, et l'écart se proposera sur ce groupe ; à défaut, écriture manuelle ${compte} datée au plus tôt le ${jour(g.denouement)}.`
+    );
+  }
+  return `${nommerLettrageACheval(g)} · ${montant} non passée · passez l'écart proposé sur le groupe (Interrogation et lettrage, « Écart de change »).`;
 }

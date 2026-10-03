@@ -73,8 +73,8 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     expect(motif).toContain(
       "si le geste est refusé (réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l'écart, puis réévaluez. Ne délettrez pas le groupe, sans quoi l'écart ne serait plus constaté.",
     );
-    // A6 bis, B2 · le cas précis où délettrer EST l'issue est dit, à part.
-    expect(motif).toContain('Un lettrage qui mêle deux exercices n\'est pas compté ici · la clôture le nomme à part, et lui seul se délettre.');
+    // A6 bis · un groupe à cheval n'est pas compté ici, et le motif dit où il se lit.
+    expect(motif).toContain('Un lettrage qui mêle deux exercices n\'est pas compté ici · le contrôle des comptes nomme son écart, avec son issue.');
     expect(motifClotureEcartsNonConstates({ ecarts: [] })).toBeNull();
   });
 });
@@ -87,8 +87,6 @@ describe('la clôture refuse un écart réalisé non passé', () => {
         findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => Promise.resolve(where.dateFin || where.dateDebut ? null : N)),
       },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
-      // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
-      lettrage: { findMany: jest.fn().mockResolvedValue([]) },
       ecriture: { count: jest.fn().mockResolvedValue(0) },
       ligneEcriture: { findMany: jest.fn().mockResolvedValueOnce(lignes).mockResolvedValue([]) },
       $transaction: jest.fn(),

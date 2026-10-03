@@ -126,6 +126,9 @@ type Lgn = {
   deviseId: string | null;
   montantDevise: number | null;
   coursApplique: number | null;
+  lettrageId?: string | null;
+  /** Le groupe de la ligne, relié par `relierLesGroupes` · ses lignes, pour le filtre de relation. */
+  lettrage?: { lignes: Lgn[] } | null;
 };
 const estReference = (x: unknown): x is { name: string } =>
   !!x && typeof x === 'object' && 'modelName' in (x as object) && 'name' in (x as object);
@@ -161,6 +164,17 @@ function correspond(r: Record<string, unknown>, where: unknown): boolean {
     if (cle === 'OR') return (f as unknown[]).some((w) => correspond(r, w));
     if (cle === 'NOT') return ([] as unknown[]).concat(f).every((w) => !correspond(r, w));
     if (cle === 'ecriture' || cle === 'compte') return correspond(r[cle] as Record<string, unknown>, f);
+    // Le groupe de lettrage et ses lignes (A6 bis, règle 1) · `some` seul,
+    // le seul que la lecture pose ; tout autre filtre de relation lève.
+    if (cle === 'lettrage') {
+      const groupe = r.lettrage as { lignes: Record<string, unknown>[] } | null | undefined;
+      if (!groupe) return false;
+      return Object.entries(f as Record<string, unknown>).every(([k, v]) => {
+        const relation = v as { some?: unknown };
+        if (k !== 'lignes' || relation.some === undefined) throw new Error(`doublure : filtre de groupe « ${k} » non honoré`);
+        return groupe.lignes.some((x) => correspond(x, relation.some));
+      });
+    }
     return champ(r, r[cle], f);
   });
 }
@@ -233,8 +247,6 @@ function base(comptes: Cpt[], lignes: Lgn[]) {
       findFirst: jest.fn(({ where }: { where: Record<string, unknown> }) => Promise.resolve(where.dateFin || where.dateDebut ? null : N)),
     },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
-    // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
-    lettrage: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
@@ -284,7 +296,13 @@ function ligne(
     deviseId: x.deviseId ?? null,
     montantDevise: x.montantDevise ?? null,
     coursApplique: x.coursApplique ?? null,
+    lettrageId: x.lettrageId ?? null,
   };
+}
+/** Relie chaque ligne lettrée à son groupe · le filtre `lettrage.lignes.some` en a besoin. */
+function relierLesGroupes(lignes: Lgn[]): Lgn[] {
+  for (const l of lignes) l.lettrage = l.lettrageId ? { lignes: lignes.filter((x) => x.lettrageId === l.lettrageId) } : null;
+  return lignes;
 }
 const usd = { deviseId: 'usd' };
 const eur = { deviseId: 'eur' };
@@ -436,5 +454,77 @@ describe('F185 · le report se lit en sommes, et rend le report de la lecture li
     const tranches = tx.ligneEcriture.findMany.mock.calls.map((c) => c[0]);
     expect(tranches).toHaveLength(2);
     expect(tranches[1].cursor).toEqual({ id: [...factures].sort((a, b) => (a.id < b.id ? -1 : 1))[LOT_LECTURE - 1].id });
+  });
+});
+
+/**
+ * A6 BIS, PREMIER TOUR, RÈGLE 1 · LE REPORT LIT CHAQUE EXERCICE POUR LUI-MÊME.
+ * Une ligne lettrée par un groupe qui touche un AUTRE exercice se lit comme
+ * non lettrée pour le report de son exercice. Soldé, un tel groupe sortait
+ * les lignes de N du report Détail sans qu'elles s'y soldent · la clôture
+ * tombait en « report à-nouveau déséquilibré » (500) ; le refus nommé qui
+ * l'avait remplacé ENFERMAIT le dossier quand une clôture de période figeait
+ * le groupe (B-1 · facture du 15/12/2026, acompte du 10/01/2027, période
+ * close au 31/12/2026). Ni la clôture ni le provisoire ne lisent plus les
+ * clôtures de période ni les groupes · rien n'est à délettrer, figé ou non.
+ */
+describe('A6 bis · un groupe à cheval de deux exercices se lit non lettré pour le report de son exercice', () => {
+  const n1 = { exerciceId: 'n1' };
+  const jeu = () =>
+    relierLesGroupes([
+      // B-1 · partiel au DÉTAIL · facture de N, acompte de N+1.
+      ligne('601', 1000, 0),
+      ligne('401', 0, 1000, { libelle: 'Facture du 15/12/2026', lettrageId: 'g1' }),
+      ligne('401', 600, 0, { lettrageId: 'g1', ecriture: n1 }),
+      // Soldé au DÉTAIL · sa lettre est sur la ligne de N, qui ne se solde pas dans N.
+      ligne('601', 700, 0),
+      ligne('401', 0, 700, { libelle: 'Facture soldée en N+1', lettre: 'A', lettrageId: 'g2' }),
+      ligne('401', 700, 0, { lettre: 'A', lettrageId: 'g2', ecriture: n1 }),
+      // Soldé au SOLDE · le report n'y lit que des sommes, la lettre n'y fait rien.
+      ligne('601', 500, 0),
+      ligne('162', 0, 500, { lettre: 'B', lettrageId: 'g3' }),
+      ligne('162', 500, 0, { lettre: 'B', lettrageId: 'g3', ecriture: n1 }),
+      // Un groupe soldé DANS N · il reste écarté, comme toujours.
+      ligne('401', 50, 0, { lettre: 'C', lettrageId: 'g4' }),
+      ligne('401', 0, 50, { lettre: 'C', lettrageId: 'g4' }),
+    ]);
+  const resume = (lignes: Array<{ compteId: string; debit: number; credit: number; libelle: string }>) =>
+    lignes.filter((l) => l.compteId === '401' || l.compteId === '162' || l.compteId === '139').map((l) => [l.compteId, Number(l.debit), Number(l.credit)]);
+  const equilibre = (lignes: Array<{ debit: number; credit: number }>) =>
+    Math.round(lignes.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0) * 100);
+
+  it('la CLÔTURE passe · les lignes de N des groupes à cheval, partiel ou soldé, sont reportées, le report boucle', async () => {
+    const { service, tx } = base(COMPTES, jeu());
+    await service.cloturer('t', 'n', 'u');
+    const ran = tx.ecriture.create.mock.calls[1][0].data.lignes.create as Array<{ compteId: string; debit: number; credit: number; libelle: string }>;
+    expect(equilibre(ran)).toBe(0);
+    expect(resume(ran).sort()).toEqual(
+      [
+        ['139', 2200, 0],
+        ['162', 0, 500],
+        ['401', 0, 1000],
+        ['401', 0, 700],
+      ].sort(),
+    );
+    // La facture soldée en N+1 est reportée sous son libellé · elle se lit ouverte pour N.
+    expect(ran.some((l) => l.libelle === 'RAN détail 40110000 · Facture soldée en N+1')).toBe(true);
+  });
+
+  it('l’À-NOUVEAU PROVISOIRE de même · rien n’est refusé, le report boucle', async () => {
+    const { service, tx } = base(COMPTES, jeu());
+    await service.genererANouveauxProvisoires('t', 'n', 'u');
+    const ran = tx.ecriture.create.mock.calls[0][0].data.lignes.create as Array<{ compteId: string; debit: number; credit: number; libelle: string }>;
+    expect(equilibre(ran)).toBe(0);
+    expect(resume(ran).filter((l) => l[0] === '401').sort()).toEqual([
+      ['401', 0, 1000],
+      ['401', 0, 700],
+    ]);
+  });
+
+  it('la lecture du DÉTAIL nomme l’exercice lu · un groupe se dit « à cheval » contre lui, borné au dossier', async () => {
+    const { service, tx } = base(COMPTES, jeu());
+    await service.genererANouveauxProvisoires('t', 'n', 'u');
+    const ou = (tx.ligneEcriture.findMany.mock.calls[0][0] as { where: { OR: unknown[] } }).where.OR;
+    expect(ou).toContainEqual({ lettrage: { lignes: { some: { ecriture: { tenantId: 't', exerciceId: { not: 'n' } } } } } });
   });
 });

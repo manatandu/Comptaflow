@@ -135,8 +135,6 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
       ),
     },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
-    // Aucun lettrage à cheval de deux exercices (A6 bis, B2).
-    lettrage: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
