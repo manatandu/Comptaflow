@@ -70,9 +70,25 @@ Branche de sauvegarde · `travail/a11`. Relevé CPCC C7, décision de Manasse du
   895 repose sur l'art. 45 et l'intitulé du plan, contre le commentaire du 891
   (« montant total de l'impôt dû »).
 
+- Inscrit aux listes fermées · `MODELES_CLOISONNES`, `MODELES_AUDITES`,
+  libellé du journal d'audit, décompte de `lecture-bornee.spec.ts` (145),
+  doublures Prisma des specs qui comptent les détenteurs.
+- Tests du câblage · `src/modules/fiscalite/constat-impot.service.spec.ts`.
+
+## Résultat des suites (2026-10-03)
+
+- Serveur, `npx jest --maxWorkers=2` · 701 suites, 9533 tests ; 17 suites
+  tombées au premier passage · 5 réelles (doublures sans
+  `constatImpotResultat`, listes fermées), corrigées ; 12 par processus tué
+  (SIGKILL, mémoire partagée), toutes relancées seules et vertes (26 suites,
+  695 tests, puis `personnel-audit-final` 26 tests).
+- Client · `npx tsc --noEmit`, `npm test` (203 fichiers, 1657 tests),
+  `npm run build` verts. Serveur · `tsc` et `nest build` verts.
+
 ## Reste
 
-- Suites complètes serveur et client (bloc du § 3), commit final.
+- Relectures (adverse, échecs silencieux, TypeScript, écran) à l'intégration.
+- Contrôle de dérive de la migration par l'intégrateur.
 
 ## Vérification
 

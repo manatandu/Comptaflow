@@ -59,6 +59,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'CreanceDouteuse',
   'AjustementCreanceDouteuse',
   'MouvementCreanceDouteuse',
+  'ConstatImpotResultat',
   'ProcesVerbalComptageCaisse',
   'CoupureComptee',
   'FamilleImmobilisation',
