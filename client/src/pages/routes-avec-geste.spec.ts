@@ -17,6 +17,20 @@ const serveur = (f: string) => readFileSync(join(__dirname, '../../../src/module
 
 const GESTES: Array<{ route: string; controleur: string; decorateur: string; page: string; appel: string }> = [
   {
+    route: 'POST /devises/reevaluations/:id/contre-passation-manuelle',
+    controleur: 'devises/devises.controller.ts',
+    decorateur: "@Post('reevaluations/:id/contre-passation-manuelle')",
+    page: 'DevisesPage.tsx',
+    appel: 'api.post(`/devises/reevaluations/${aDeclarer.reevaluation.id}/contre-passation-manuelle`, {',
+  },
+  {
+    route: 'DELETE /devises/reevaluations/:id/contre-passation-manuelle',
+    controleur: 'devises/devises.controller.ts',
+    decorateur: "@Delete('reevaluations/:id/contre-passation-manuelle')",
+    page: 'DevisesPage.tsx',
+    appel: 'api.delete(`/devises/reevaluations/${r.id}/contre-passation-manuelle`)',
+  },
+  {
     route: 'DELETE /facturation/:id',
     controleur: 'facturation/facturation.controller.ts',
     decorateur: "@Delete(':id')",

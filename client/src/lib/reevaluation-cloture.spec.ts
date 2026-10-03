@@ -75,6 +75,51 @@ describe('écran Devises · annuler une réévaluation', () => {
   });
 });
 
+/**
+ * A5 BIS, TROISIÈME TOUR · UNE CONTRE-PASSATION FAITE À LA MAIN SE DÉCLARE
+ * depuis la ligne de la réévaluation, sous `peutValider` · le serveur propose
+ * les écritures, le cabinet en désigne une avec un motif ; la déclarée se dit
+ * et se retire. Le champ vide de la ventilation n'est plus un zéro (mineur 2).
+ */
+describe('écran Devises · la contre-passation manuelle déclarée', () => {
+  const source = readFileSync(join(__dirname, '../pages/DevisesPage.tsx'), 'utf8');
+  const colonne = source.slice(source.indexOf('function ColonneContrePassation('));
+
+  it('les gestes sont réservés à qui valide · déclarer à côté de « Contre-passer », retirer sur la déclarée', () => {
+    // Le geste est DANS le bloc gardé · aucun bloc refermé entre la garde et lui.
+    const geste = colonne.indexOf('onClick={p.onDeclarer}');
+    const garde = colonne.lastIndexOf('{p.peutValider && (', geste);
+    expect(garde).toBeGreaterThan(-1);
+    expect(colonne.slice(garde, geste)).not.toContain(')}');
+    expect(colonne).toContain('Déclarer une contre-passation manuelle');
+    expect(colonne).toMatch(/if \(r\.contrePassationDeclaree\) \{[\s\S]*Contre-passée à la main[\s\S]*\{p\.peutValider && \(\s*<button type="button" onClick=\{p\.onRetirerDeclaration\}/);
+  });
+
+  it('les routes · candidates lues, déclaration avec l’écriture et le motif, retrait', () => {
+    expect(source).toContain('`/devises/reevaluations/${r.id}/contre-passation-manuelle/candidates`');
+    const debut = source.indexOf('const declarerContrePassation = async');
+    const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
+    expect(corps).toContain('`/devises/reevaluations/${aDeclarer.reevaluation.id}/contre-passation-manuelle`');
+    expect(corps).toContain('ecritureId: aDeclarer.ecritureId');
+    expect(corps).toContain('motif: aDeclarer.motif.trim()');
+    expect(source).toContain('api.delete(`/devises/reevaluations/${r.id}/contre-passation-manuelle`)');
+  });
+
+  it('une liste vide dit pourquoi et ce qu’il faut faire ; une seule candidate se présélectionne ; l’erreur reste dans la modale', () => {
+    const modale = source.slice(source.indexOf('{aDeclarer && ('));
+    const corps = modale.slice(0, modale.indexOf('</PortailModale>'));
+    expect(corps).toContain("Aucune écriture de ce dossier n'inverse exactement ces montants");
+    expect(corps).toContain('{erreurDeclaration}');
+    expect(source).toContain('lues.candidates.length === 1 ? lues.candidates[0].id');
+  });
+
+  it('mineur 2 · la ventilation passe par `lireVentilationSaisie`, qui refuse le champ vide', () => {
+    const debut = source.indexOf('const declarerVentilation = async');
+    const corps = source.slice(debut, source.indexOf('\n  };\n', debut));
+    expect(corps).toContain('lireVentilationSaisie(aVentiler.reevaluation.ventilationAExiger ?? [], aVentiler.ecarts)');
+  });
+});
+
 describe('le motif d’annulation · la règle du DTO', () => {
   it('3 à 500 caractères, espaces retirés', () => {
     expect(motifRefusMotifAnnulation('  ab ')).toMatch(/3 caractères au moins/);

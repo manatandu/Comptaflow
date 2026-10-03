@@ -2138,6 +2138,29 @@ export interface Reevaluation {
   /** La ventilation déclarée, sa source. */
   ventilationDisponibilites?: { compteId: string; deviseId: string; ecart: number }[] | null;
   ventilationDisponibilitesSource?: string | null;
+  /**
+   * La contre-passation faite À LA MAIN et déclarée (A5 bis, troisième tour) ·
+   * l'écriture du cabinet, son motif, la date de la déclaration.
+   */
+  contrePassationDeclaree?: { id: string; numeroPiece: number | null; date: string } | null;
+  motifContrePassationDeclaree?: string | null;
+  contrePassationDeclareeLe?: string | null;
+}
+
+/** Les écritures qui peuvent être la contre-passation manuelle d'une réévaluation (proposition du serveur). */
+export interface CandidatesContrePassationManuelle {
+  /** Ce que la contre-passation doit inverser, compte par compte. */
+  montants: string;
+  candidates: {
+    id: string;
+    numeroPiece: number | null;
+    date: string;
+    libelle: string;
+    statut: string;
+    journal: { code: string };
+    exercice: { dateDebut: string; dateFin: string; statut: string };
+  }[];
+  tronque: boolean;
 }
 
 /** Une banque ou caisse dont l'écart passé sans devise ne se relit pas (relecture adverse d'A5 bis, B1). */

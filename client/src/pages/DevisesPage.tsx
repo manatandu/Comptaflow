@@ -5,7 +5,8 @@ import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
+import type { CandidatesContrePassationManuelle, Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
+import { lireVentilationSaisie } from '../lib/ventilation-disponibilites';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { sousFonctionServie } from '../lib/profil-dossier';
 import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
@@ -269,11 +270,11 @@ export function DevisesPage() {
   const [envoiVentilation, setEnvoiVentilation] = useState(false);
   const declarerVentilation = async () => {
     if (!aVentiler) return;
-    const ventilation = (aVentiler.reevaluation.ventilationAExiger ?? []).flatMap((c) =>
-      c.devises.map((d) => ({ compteId: c.compteId, deviseId: d.deviseId, ecart: Number((aVentiler.ecarts[`${c.compteId}|${d.deviseId}`] ?? '').replace(',', '.')) })),
-    );
-    if (ventilation.some((v) => !Number.isFinite(v.ecart))) {
-      setErreurVentilation("Chaque écart se saisit en francs, signé (perte en négatif) · zéro pour une devise qui n'en a pas reçu.");
+    // Un champ VIDE n'est pas un zéro (troisième tour, mineur 2) · refusé ici,
+    // avant l'envoi, avec la devise et le compte nommés.
+    const { ventilation, refus } = lireVentilationSaisie(aVentiler.reevaluation.ventilationAExiger ?? [], aVentiler.ecarts);
+    if (refus !== null) {
+      setErreurVentilation(refus);
       return;
     }
     setErreurVentilation(null);
@@ -290,6 +291,70 @@ export function DevisesPage() {
       setErreurVentilation(e instanceof ApiError ? e.message : 'Déclaration impossible');
     } finally {
       setEnvoiVentilation(false);
+    }
+  };
+
+  /**
+   * DÉCLARER UNE CONTRE-PASSATION FAITE À LA MAIN (A5 bis, troisième tour) ·
+   * le serveur propose les écritures qui inversent exactement l'écart de
+   * conversion, à sa place ; le cabinet en désigne une, avec un motif, et le
+   * serveur rejoue toutes les vérifications. Réservé à qui valide
+   * (`peutValider`) · la déclaration lève le portillon de la réévaluation
+   * suivante et retient l'écriture.
+   */
+  const [aDeclarer, setADeclarer] = useState<{
+    reevaluation: Reevaluation;
+    lues: CandidatesContrePassationManuelle | null;
+    ecritureId: string;
+    motif: string;
+  } | null>(null);
+  const [erreurDeclaration, setErreurDeclaration] = useState<string | null>(null);
+  const [envoiDeclaration, setEnvoiDeclaration] = useState(false);
+  const ouvrirDeclaration = async (r: Reevaluation) => {
+    setErreurDeclaration(null);
+    setADeclarer({ reevaluation: r, lues: null, ecritureId: '', motif: '' });
+    try {
+      const lues = await api.get<CandidatesContrePassationManuelle>(`/devises/reevaluations/${r.id}/contre-passation-manuelle/candidates`);
+      // Une seule candidate se présélectionne ; aucune se dit, avec l'issue.
+      setADeclarer((d) =>
+        d && d.reevaluation.id === r.id ? { ...d, lues, ecritureId: lues.candidates.length === 1 ? lues.candidates[0].id : '' } : d,
+      );
+    } catch (e) {
+      setErreurDeclaration(e instanceof ApiError ? e.message : 'Lecture des écritures impossible');
+    }
+  };
+  const declarerContrePassation = async () => {
+    if (!aDeclarer || !aDeclarer.ecritureId) return;
+    // La règle du DTO (3 à 500 caractères), vérifiée avant l'envoi.
+    if (motifRefusMotifAnnulation(aDeclarer.motif) !== null) {
+      setErreurDeclaration(`Le motif de la déclaration est obligatoire · de 3 à ${MOTIF_ANNULATION_MAX} caractères.`);
+      return;
+    }
+    setErreurDeclaration(null);
+    setEnvoiDeclaration(true);
+    try {
+      await api.post(`/devises/reevaluations/${aDeclarer.reevaluation.id}/contre-passation-manuelle`, {
+        ecritureId: aDeclarer.ecritureId,
+        motif: aDeclarer.motif.trim(),
+      });
+      setADeclarer(null);
+      setInfo('Contre-passation manuelle déclarée · la réévaluation est tenue pour contre-passée, l’écriture est retenue.');
+      await charger();
+    } catch (e) {
+      setErreurDeclaration(e instanceof ApiError ? e.message : 'Déclaration impossible');
+    } finally {
+      setEnvoiDeclaration(false);
+    }
+  };
+  const retirerDeclaration = async (r: Reevaluation) => {
+    if (!window.confirm(`Retirer la déclaration de la contre-passation manuelle de la réévaluation du ${jour(r.dateReevaluation)} ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/devises/reevaluations/${r.id}/contre-passation-manuelle`);
+      setInfo('Déclaration retirée · la réévaluation redevient à contre-passer ; l’écriture manuelle reste au journal.');
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Retrait impossible');
     }
   };
 
@@ -820,6 +885,8 @@ export function DevisesPage() {
                           setErreurAnnulation(null);
                           setAAnnuler({ reevaluation: r, motif: '', geste: 'CONTRE_PASSATION' });
                         }}
+                        onDeclarer={() => void ouvrirDeclaration(r)}
+                        onRetirerDeclaration={() => void retirerDeclaration(r)}
                       />
                     </span>
                   </div>
@@ -886,6 +953,106 @@ export function DevisesPage() {
                     {aAnnuler.geste === 'CONTRE_PASSATION' ? 'Annuler la contre-passation' : 'Annuler la réévaluation'}
                   </button>
                   <button type="button" onClick={() => setAAnnuler(null)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+      {aDeclarer && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!envoiDeclaration) void declarerContrePassation();
+              }}
+              className="anim-modale w-full max-w-[560px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  Déclarer une contre-passation manuelle · réévaluation du {jour(aDeclarer.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Contre-passation faite à la main"
+                    texte="L'écart de conversion de cette réévaluation a déjà été contre-passé par une écriture du cabinet, hors du module. Désignez-la : elle doit inverser exactement, au centime, chaque compte de l'écart (le tiers et son 478 ou 479), dans l'exercice qui suit la réévaluation ou le premier ouvert après des exercices clôturés ; d'autres lignes, sur d'autres comptes, sont admises. Déclarée, la réévaluation est tenue pour contre-passée et l'écriture ne se modifie, ni ne se supprime plus. Contre-passer par le module l'inverserait une seconde fois."
+                    source="Guide SYSCOHADA, Partie 2 ch. 22, Applications 84 et 85 ; AUDCIF art. 54"
+                  />
+                </span>
+                <button
+                  type="button"
+                  disabled={envoiDeclaration}
+                  onClick={() => setADeclarer(null)}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                {erreurDeclaration && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurDeclaration}
+                  </div>
+                )}
+                {aDeclarer.lues === null ? (
+                  !erreurDeclaration && <p className="text-[11.5px] text-text-dim">Lecture des écritures…</p>
+                ) : (
+                  <>
+                    <p className="text-[11.5px] mb-2">À contre-passer · {aDeclarer.lues.montants}</p>
+                    {aDeclarer.lues.candidates.length === 0 ? (
+                      <p className="text-[11.5px] text-warning mb-2">
+                        Aucune écriture de ce dossier n'inverse exactement ces montants là où la contre-passation se passe · contre-passez
+                        par le module (« Contre-passer »).
+                      </p>
+                    ) : (
+                      <fieldset className="mb-3 border border-border px-3 py-2">
+                        <legend className="text-[11.5px] font-semibold px-1">Écriture du cabinet</legend>
+                        {aDeclarer.lues.candidates.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 text-[11.5px] mt-1">
+                            <input
+                              type="radio"
+                              name="ecriture-contre-passation"
+                              checked={aDeclarer.ecritureId === c.id}
+                              onChange={() => setADeclarer({ ...aDeclarer, ecritureId: c.id })}
+                            />
+                            <span>
+                              {c.journal.code} · pièce {c.numeroPiece ?? '·'} du {jour(c.date)} · {c.libelle}
+                              {c.statut === 'BROUILLARD' ? ' · au brouillard' : ''}
+                            </span>
+                          </label>
+                        ))}
+                        {aDeclarer.lues.tronque && (
+                          <p className="text-[11px] text-text-dim mt-1">Liste bornée · d'autres écritures peuvent convenir.</p>
+                        )}
+                      </fieldset>
+                    )}
+                  </>
+                )}
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={aDeclarer.motif}
+                    onChange={(e) => setADeclarer({ ...aDeclarer, motif: e.target.value })}
+                    maxLength={MOTIF_ANNULATION_MAX}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[60px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={envoiDeclaration || !aDeclarer.ecritureId || motifRefusMotifAnnulation(aDeclarer.motif) !== null}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    Déclarer
+                  </button>
+                  <button
+                    type="button"
+                    disabled={envoiDeclaration}
+                    onClick={() => setADeclarer(null)}
+                    className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5"
+                  >
                     Fermer
                   </button>
                 </div>
@@ -1028,9 +1195,27 @@ function ColonneContrePassation(p: {
   jour: (d: string) => string;
   onContrePasser: (cible: Exercice, integrale: boolean) => void;
   onAnnuler: () => void;
+  onDeclarer: () => void;
+  onRetirerDeclaration: () => void;
 }) {
   const { r } = p;
   if (r.annuleeLe || !r.ecritureEcarts) return null;
+  // Contre-passée À LA MAIN, déclarée (troisième tour) · la pièce du cabinet,
+  // le motif en infobulle ; le retrait est un geste de validation.
+  if (r.contrePassationDeclaree) {
+    return (
+      <span className="text-[11.5px]">
+        <span className="text-positive font-semibold" title={r.motifContrePassationDeclaree ?? undefined}>
+          Contre-passée à la main · pièce {r.contrePassationDeclaree.numeroPiece ?? '·'} du {p.jour(r.contrePassationDeclaree.date)}
+        </span>
+        {p.peutValider && (
+          <button type="button" onClick={p.onRetirerDeclaration} className="ml-2 text-danger hover:underline">
+            Retirer la déclaration
+          </button>
+        )}
+      </span>
+    );
+  }
   if (r.ecritureExtourne) {
     return (
       <span className="text-[11.5px]">
@@ -1064,17 +1249,29 @@ function ColonneContrePassation(p: {
     return <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>;
   }
   return (
-    <button
-      type="button"
-      onClick={() => {
-        // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CLIC (audit final F79, comme les régularisations).
-        if (window.confirm(`${libelle} du ${p.jour(r.dateReevaluation)} à l'ouverture de l'exercice ${libelleExercice(cible)} ?`)) {
-          p.onContrePasser(cible, r.contrePassationAPasser === 'INTEGRALE_SUR_DEMANDE');
-        }
-      }}
-      className="text-[11.5px] text-sel hover:underline text-left"
-    >
-      {libelle} · exercice {libelleExercice(cible)}
-    </button>
+    <span className="flex flex-col items-start">
+      <button
+        type="button"
+        onClick={() => {
+          // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CLIC (audit final F79, comme les régularisations).
+          if (window.confirm(`${libelle} du ${p.jour(r.dateReevaluation)} à l'ouverture de l'exercice ${libelleExercice(cible)} ?`)) {
+            p.onContrePasser(cible, r.contrePassationAPasser === 'INTEGRALE_SUR_DEMANDE');
+          }
+        }}
+        className="text-[11.5px] text-sel hover:underline text-left"
+      >
+        {libelle} · exercice {libelleExercice(cible)}
+      </button>
+      {p.peutValider && (
+        <button
+          type="button"
+          onClick={p.onDeclarer}
+          className="text-[11.5px] text-text-dim hover:underline text-left"
+          title="Déjà contre-passée par une écriture du cabinet · la désigner, sans repasser l'écart"
+        >
+          Déclarer une contre-passation manuelle
+        </button>
+      )}
+    </span>
   );
 }
