@@ -60,6 +60,11 @@ import type { RubriqueDecompte, VerdictDecompteFinal } from './decompte-final';
 export const NATURE_DES_RUBRIQUES: Readonly<Record<string, NatureElementPaie>> = {
   // Art. 63, al. 3 (préavis non observé) et art. 61 bis (somme convenue).
   preavis: 'INDEMNITE_DE_FIN_DE_CONTRAT',
+  // A9 · art. 66, al. 2 · la rémunération du préavis restant à courir après un
+  // départ à mi-préavis. La fiche du compte 66 range au 6614 les « indemnités
+  // de préavis » · c'est la part du préavis payée sans travail. Sa réserve
+  // n'est pas celle de l'indemnité (`RESERVE_REMUNERATION_ARTICLE_66`).
+  'remuneration-preavis-restant': 'INDEMNITE_DE_FIN_DE_CONTRAT',
   // Art. 70 · dommages-intérêts de la rupture d'un CDD par l'employeur.
   'dommages-interets-art-70': 'INDEMNITE_DE_FIN_DE_CONTRAT',
   // Art. 144 · l'indemnité compensatoire de congé, élément de la rémunération
@@ -107,6 +112,26 @@ export const RESERVE_ASSIETTE_SOCIALE_INDEMNITE =
   "par l'art. 7, point 8 du Code du travail (liste d'exclusion fermée), et la mention 20 du modèle de livre de paie " +
   "de 2008 ne la range pas dans le brut. Elle reste dans l'assiette sociale ; ses avantages en logement ou en " +
   "transport, eux, sont ventilés sous leur nature, que l'art. 7 exclut.";
+
+/**
+ * A9 (M4) · LA SOMME DE L'ART. 66 EST UNE RÉMUNÉRATION. L'alinéa 2 dit
+ * « l'employeur doit la rémunération », et l'art. 7, point 8 du Code du
+ * travail la range dans la rémunération, donc dans l'assiette sociale, par le
+ * texte et sans réserve. Imposable par la loi n° 23/053, art. 68, alinéa 1er
+ * et 1° (« traitements, salaires, émoluments, indemnités [...] et toutes
+ * autres rétributions fixes ou variables, quelle que soit leur
+ * qualification ») ; le 6° (« les sommes payées par l'employeur [...] par
+ * suite de cessation de travail ») y mène aussi, sans autre traitement.
+ */
+export const RESERVE_REMUNERATION_ARTICLE_66 =
+  "RÉMUNÉRATION DU TEMPS RESTANT (Code du travail, art. 66, al. 2, « l'employeur doit la rémunération ») · élément de la " +
+  "rémunération au sens de l'art. 7, point 8, dans l'assiette sociale par le texte ; imposable (loi n° 23/053, art. 68, " +
+  "al. 1er et 1°). Passée au 6614 avec les indemnités de préavis (fiche du compte 66), part du préavis payée sans travail.";
+
+/** La réserve que porte chaque rubrique de fin de contrat à l'émission. */
+const RESERVE_EMISSION_PAR_RUBRIQUE: Readonly<Record<string, string>> = {
+  'remuneration-preavis-restant': RESERVE_REMUNERATION_ARTICLE_66,
+};
 
 export const AVERTISSEMENT_SANS_COMPTE =
   "CE DOCUMENT NE PASSERA PAS AU JOURNAL tant que le compte de cette nature n'est pas tranché · aucune fiche du compte " +
@@ -193,7 +218,10 @@ export function elementsDuDecompte(
     }
     const montant = auCentime(r.montantFc);
     if (montant === 0) continue;
-    const reserve = nature === 'INDEMNITE_DE_FIN_DE_CONTRAT' ? RESERVE_ASSIETTE_SOCIALE_INDEMNITE : null;
+    const reserve =
+      nature === 'INDEMNITE_DE_FIN_DE_CONTRAT'
+        ? (RESERVE_EMISSION_PAR_RUBRIQUE[r.cle] ?? RESERVE_ASSIETTE_SOCIALE_INDEMNITE)
+        : null;
     const avantages = auCentime(r.avantagesInclusFc ?? 0);
     if (avantages <= 0) {
       elements.push({ nature, libelle: r.libelle, montantFc: montant, cleRubrique: r.cle, reserve });
@@ -225,7 +253,16 @@ export function elementsDuDecompte(
   }
   for (const v of ventilation) {
     if (!ventilees.has(v.rubrique)) {
-      refus.push(`« ${v.libelle} » · la rubrique ${v.rubrique} ne comprend aucun avantage à ventiler.`);
+      // A9 (M2) · le refus NOMME le champ d'où vient la ventilation · sous un
+      // départ à mi-préavis ou un préavis non observé par le travailleur, la
+      // rubrique du préavis ne porte aucun avantage, et « Avantages pendant le
+      // préavis » ne s'y ajoute pas.
+      refus.push(
+        `« ${v.libelle} » · la rubrique ${v.rubrique} ne comprend aucun avantage à ventiler · ` +
+          (v.rubrique === 'preavis'
+            ? "les « Avantages pendant le préavis » ne s'ajoutent qu'à un préavis non observé à la charge de l'employeur ou dispensé par lui (art. 63, al. 3) ; videz ce champ ou la ventilation."
+            : "les « Avantages jusqu'au terme » ne s'ajoutent qu'aux dommages-intérêts d'une rupture de contrat à durée déterminée par l'employeur (art. 70, al. 2) ; videz ce champ ou la ventilation."),
+      );
     }
   }
   if (refus.length === 0 && (verdict.totalBrutFc === null || verdict.totalDuAuTravailleurFc === null)) {

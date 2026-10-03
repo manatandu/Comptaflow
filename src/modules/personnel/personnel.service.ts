@@ -1423,7 +1423,8 @@ export class PersonnelService {
     const initiative = dto.initiative as InitiativeRupture;
     const motif = dto.motif as MotifRupture;
     const typeContrat = dto.typeContrat as TypeContratDecompte;
-    const refus = motifRefusDecompte({ initiative, motif, typeContrat });
+    const executionPreavis = (dto.executionPreavis as ExecutionPreavis | undefined) ?? null;
+    const refus = motifRefusDecompte({ initiative, motif, typeContrat, executionPreavis });
     if (refus) throw new BadRequestException(refus);
 
     let allocationFamilialeParEnfantFc: number | null = null;
@@ -1452,8 +1453,11 @@ export class PersonnelService {
       preavisRetenuJours: dto.preavisRetenuJours ?? null,
       forceMajeureConstateeParInspecteur: dto.forceMajeureConstateeParInspecteur ?? false,
       deuxMoisDeSuspension: dto.deuxMoisDeSuspension ?? false,
-      executionPreavis: (dto.executionPreavis as ExecutionPreavis | undefined) ?? null,
+      executionPreavis,
       joursPreavisNonObserves: dto.joursPreavisNonObserves ?? null,
+      avantagesEnNatureRestantsFc: dto.avantagesEnNatureRestantsFc ?? null,
+      nouvelEmploiJustifie: dto.nouvelEmploiJustifie ?? null,
+      delaiDepartNouvelEmploiJours: dto.delaiDepartNouvelEmploiJours ?? null,
       partieResponsable: (dto.partieResponsable as InitiativeRupture | undefined) ?? null,
       remunerationJournaliereFc: dto.remunerationJournaliereFc ?? null,
       moyenneMensuelleArticle66Fc: dto.moyenneMensuelleArticle66Fc ?? null,

@@ -1328,6 +1328,23 @@ sous leur nature (Code du travail art. 7, point 8), sinon refus ; sommes dues pa
 le travailleur ni retenues ni comptées (art. 112, liste fermée). Allocations
 familiales du décompte · émises avec AVERTISSEMENT, leur passation refusée tant
 qu'aucune fiche ne leur donne de compte.
+(4) **DÉPART PENDANT UN PRÉAVIS REÇU** (ligne A9, 2026-10-03) · deux
+exécutions déclarées, refusées à l'initiative du travailleur (« le travailleur
+qui REÇOIT le préavis ») et hors préavis de licenciement. Art. 66 · départ à
+la moitié ou après, « la rémunération et les allocations familiales pendant le
+temps restant à courir » (art. 7, point 8 · avantages en nature NON fournis
+jusqu'au terme, hors la liste qu'il exclut) au 66140000 sous sa propre clé et
+sa réserve ; avant la moitié, `null` et renvoi aux art. 63 et 67. Art. 67 ·
+nouvel emploi justifié, délai convenu en jours de CALENDRIER, reste du préavis
+perdu (zéro, une RÉPONSE) · SEULEMENT avant la moitié · le « délai moindre »
+se lit contre la moitié de l'art. 66, lecture protectrice (P5) faute de texte
+exprès ; après, `null` et renvoi à l'art. 66. Préavis de l'employeur non
+observé par le travailleur · parti à la moitié ou après, rien n'est dû par lui
+(renvoi à l'art. 66) ; avant, seuls les jours d'avant la moitié lui sont
+imputés, art. 65 al. 3 cité. Moitié lue sur la durée RETENUE si elle dépasse le
+plancher. Tout fait non déclaré vaut `null`. Points remontés à Manasse (suivi)
+· départ avant la moitié (trois lectures), avantages en nature du temps
+restant, date de fin du contrat sous l'art. 66.
 
 **P9 · PAIE DU MOIS AU JOURNAL** (`comptabilisation-paie.ts`, trois temps, compte
 par compte). (1) Rejouée sur les CHIFFRES FIGÉS, jamais sur les lignes stockées.
