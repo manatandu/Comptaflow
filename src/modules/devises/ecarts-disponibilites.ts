@@ -261,12 +261,28 @@ export function ventilerEcartPasse(
  * de l'écriture couvert, sa somme égale AU CENTIME à la ligne passée sur lui,
  * une devise du dossier, une seule fois par compte et devise. `null` si
  * recevable.
+ *
+ * LES DEVISES QUE LA RÉÉVALUATION A LUES, ET ELLES SEULES (second tour, m1) ·
+ * avec `sommesLues` (les sommes du compte tel qu'il était), une devise que
+ * la réévaluation n'a pas lue sur le compte est refusée (une livre déclarée
+ * sur une banque en dollars et en euros faussait la valeur de la banque de
+ * N+1), et chaque devise lue se déclare, zéro compris. CHAQUE MONTANT EST
+ * BORNÉ PAR CE QUE LE CALCUL PERMET, et par cela seul · la réévaluation a
+ * porté la devise à montant × cours, le cours d'une monnaie étant positif ·
+ * l'écart déclaré doit rendre une valeur du MÊME SIGNE que le montant en
+ * devise (francs + écart > 0 pour un solde débiteur, < 0 pour un solde
+ * créditeur) ; une devise soldée en devise, mais non en francs, valait zéro ·
+ * son écart est exactement l'opposé de ses francs. Au-delà, rien ne borne ·
+ * le cours qu'elle a retenu n'a pas été gardé (avant D5), celui de la table
+ * a pu être corrigé depuis, et aucun texte ne fixe d'écart admissible entre
+ * deux cours ; le cours que chaque montant implique est montré à l'écran.
  */
 export function motifRefusVentilationDeclaree(
   passeParCompte: Map<string, number>,
   ventilation: { compteId: string; deviseId: string; ecart: number }[],
   devisesDuDossier: Set<string>,
   source: string | null | undefined,
+  sommesLues?: Map<string, SommeDeviseDuCompte[]>,
 ): string | null {
   if (!source || source.trim().length < 3) return 'La source de la ventilation est obligatoire (pièce, relevé, calcul du cabinet).';
   if (passeParCompte.size === 0) return "Cette réévaluation n'a passé aucun écart sur une banque ou une caisse · il n'y a rien à ventiler.";
@@ -279,7 +295,22 @@ export function motifRefusVentilationDeclaree(
     const cle = `${v.compteId}|${v.deviseId}`;
     if (vues.has(cle)) return 'Une même devise est déclarée deux fois sur le même compte.';
     vues.add(cle);
+    if (sommesLues) {
+      const lue = vivantes(sommesLues.get(v.compteId) ?? []).find((x) => x.deviseId === v.deviseId);
+      if (!lue) return "Une devise de la ventilation n'a pas été lue par la réévaluation sur ce compte · elle n'a reçu aucun écart.";
+      const motif = motifMontantHorsBornes(lue, v.ecart);
+      if (motif) return motif;
+    }
     parCompte.set(v.compteId, (parCompte.get(v.compteId) ?? 0) + v.ecart);
+  }
+  if (sommesLues) {
+    for (const compteId of passeParCompte.keys()) {
+      for (const lue of vivantes(sommesLues.get(compteId) ?? [])) {
+        if (!vues.has(`${compteId}|${lue.deviseId}`)) {
+          return 'Chaque devise lue par la réévaluation sur la banque ou la caisse se déclare, zéro compris.';
+        }
+      }
+    }
   }
   for (const [compteId, passe] of passeParCompte) {
     const declare = parCompte.get(compteId);
@@ -289,4 +320,25 @@ export function motifRefusVentilationDeclaree(
     }
   }
   return null;
+}
+
+/** Les devises que la réévaluation a lues · non nulles en devise OU en francs (B1, a). */
+function vivantes(sommes: SommeDeviseDuCompte[]): SommeDeviseDuCompte[] {
+  return sommes.filter((s) => Math.abs(s.devise) >= EPSILON || Math.abs(s.francs) >= EPSILON);
+}
+
+/** Les bornes que le calcul impose à l'écart déclaré d'une devise (voir `motifRefusVentilationDeclaree`). */
+function motifMontantHorsBornes(lue: SommeDeviseDuCompte, ecart: number): string | null {
+  const valeur = centimes(lue.francs + ecart);
+  if (Math.abs(lue.devise) < EPSILON) {
+    return Math.abs(valeur) > EPSILON
+      ? "Une devise soldée en devise valait zéro à la réévaluation · son écart est l'opposé de ses francs " +
+          `(${centimes(-lue.francs).toFixed(2)}).`
+      : null;
+  }
+  const memeSigne = lue.devise > 0 ? valeur > EPSILON : valeur < -EPSILON;
+  return memeSigne
+    ? null
+    : "Un écart déclaré rendrait à une devise une valeur de signe contraire à son montant en devise · le cours d'une " +
+        'monnaie est positif.';
 }

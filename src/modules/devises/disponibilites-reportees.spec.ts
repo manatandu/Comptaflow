@@ -266,7 +266,13 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
       create,
       update,
     },
-    devise: { findMany: jest.fn().mockResolvedValue([{ id: 'usd', code: 'USD' }, { id: 'eur', code: 'EUR' }]) },
+    devise: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'usd', code: 'USD' },
+        { id: 'eur', code: 'EUR' },
+        { id: 'gbp', code: 'GBP' },
+      ]),
+    },
     provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
     verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
     ecriture: { count: jest.fn().mockResolvedValue(1), findFirst: jest.fn().mockResolvedValue(null) },
@@ -459,6 +465,63 @@ describe('A5 bis · la caisse en devise part de sa valeur de clôture précéden
       const r = await svc.calculer('t', { exerciceId: 'e27' });
       expect(r.reportsDisponibilitesNonEtablis).toEqual([]);
       expect(r.positions.find((x) => x.deviseCode === 'USD')).toMatchObject({ valeurComptable: 2_500_000, ecart: -100_000 });
+    });
+
+    it('m1 · seules les devises que la réévaluation a lues sur le compte, toutes déclarées, chacune dans ses bornes', async () => {
+      const reeval: Reeval = { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -290_000 };
+      const source = 'Relevés au 31/12/2026';
+      for (const [ventilation, motif] of [
+        // Une livre que la caisse ne tenait pas · la banque de N+1 en serait faussée.
+        [
+          [
+            { compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 },
+            { compteId: 'c-5712', deviseId: 'eur', ecart: 0 },
+            { compteId: 'c-5712', deviseId: 'gbp', ecart: 10_000 },
+          ],
+          /n'a pas été lue par la réévaluation sur ce compte/,
+        ],
+        // L'euro, lu, omis · chaque devise lue se déclare, zéro compris.
+        [[{ compteId: 'c-5712', deviseId: 'usd', ecart: -290_000 }], /Chaque devise lue/],
+        // 1 000 USD portés à une valeur négative · aucun cours positif ne le rend.
+        [
+          [
+            { compteId: 'c-5712', deviseId: 'usd', ecart: -3_000_000 },
+            { compteId: 'c-5712', deviseId: 'eur', ecart: 2_710_000 },
+          ],
+          /signe contraire à son montant en devise/,
+        ],
+      ] as const) {
+        const { svc, update } = monter({ lignes, reeval });
+        await expect(svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', { ventilation: [...ventilation], source })).rejects.toThrow(motif);
+        expect(update).not.toHaveBeenCalled();
+      }
+    });
+
+    it('m1 · une devise soldée en devise mais non en francs valait zéro · son écart est l’opposé de ses francs', async () => {
+      // EUR entrés pour 300 000 et ressortis pour 290 000 · 0 en devise, 10 000 en francs, perte de 10 000.
+      const sortieEur: Ligne = { ...caisseN, deviseId: 'eur', debit: 0, credit: 290_000, montantDevise: 100, date: new Date('2026-07-01') };
+      const reeval: Reeval = { exerciceId: 'e26', coursUtilises: null, passeSurLaCaisse: -310_000 };
+      const avecSortie = [...lignes, sortieEur];
+      const source = 'Relevés au 31/12/2026';
+      const faux = monter({ lignes: avecSortie, reeval });
+      await expect(
+        faux.svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', {
+          ventilation: [
+            { compteId: 'c-5712', deviseId: 'usd', ecart: -305_000 },
+            { compteId: 'c-5712', deviseId: 'eur', ecart: -5_000 },
+          ],
+          source,
+        }),
+      ).rejects.toThrow(/l'opposé de ses francs \(-10000\.00\)/);
+      const juste = monter({ lignes: avecSortie, reeval });
+      await juste.svc.declarerVentilationDisponibilites('t', 'u', 'r-e26', {
+        ventilation: [
+          { compteId: 'c-5712', deviseId: 'usd', ecart: -300_000 },
+          { compteId: 'c-5712', deviseId: 'eur', ecart: -10_000 },
+        ],
+        source,
+      });
+      expect(juste.update).toHaveBeenCalled();
     });
 
     it('(c) une ligne qui se relit n’admet pas de déclaration · rien à déclarer', async () => {

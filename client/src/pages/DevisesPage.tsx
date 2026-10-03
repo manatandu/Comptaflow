@@ -951,6 +951,9 @@ export function DevisesPage() {
                             }
                             className="flex-1 border border-border-dark px-2 py-1 text-[12px] text-right"
                           />
+                          <span className="w-[110px] text-text-dim" title="Cours que l'écart saisi implique · (francs + écart) ÷ montant en devise">
+                            {coursImplique(d, aVentiler.ecarts[`${c.compteId}|${d.deviseId}`])}
+                          </span>
                         </label>
                       ))}
                       <div className={`text-[11px] mt-1 ${Math.abs(somme - c.passe) < 0.005 ? 'text-positive' : 'text-warning'}`}>
@@ -993,6 +996,20 @@ export function DevisesPage() {
       )}
     </div>
   );
+}
+
+/**
+ * LE COURS QU'UN ÉCART DÉCLARÉ IMPLIQUE (second tour, m1) · (francs + écart)
+ * ÷ montant en devise, la seule borne que le calcul donne étant un cours
+ * positif, que le serveur vérifie ; montré pour que le cabinet le confronte à
+ * sa source. Un cours n'est pas un montant · six décimales, jamais
+ * `lib/montants.ts`. Une devise soldée en devise n'a pas de cours.
+ */
+function coursImplique(d: { montantDevise: number; francs: number }, saisi: string | undefined): string {
+  const ecart = Number((saisi ?? '').replace(',', '.'));
+  if (!saisi || !Number.isFinite(ecart) || Math.abs(d.montantDevise) < 0.005) return '';
+  const cours = (d.francs + ecart) / d.montantDevise;
+  return cours > 0 ? `cours ${cours.toFixed(6)}` : 'cours négatif';
 }
 
 /**

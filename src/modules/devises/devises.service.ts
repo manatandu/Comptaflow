@@ -3039,7 +3039,10 @@ export class DevisesService {
       deviseId: v.deviseId,
       ecart: Math.round(Number(v.ecart) * 100) / 100,
     }));
-    const motif = motifRefusVentilationDeclaree(passeParCompte, ventilation, new Set(devises.map((d) => d.id)), dto.source);
+    // Les devises que la réévaluation a lues sur chaque compte, et leurs
+    // bornes (second tour, m1).
+    const sommes = await this.sommesDesDisponibilitesALaReevaluation(tenantId, reeval, [...passeParCompte.keys()]);
+    const motif = motifRefusVentilationDeclaree(passeParCompte, ventilation, new Set(devises.map((d) => d.id)), dto.source, sommes);
     if (motif) throw new BadRequestException(motif);
     // Un `update` UNITAIRE · le journal d'audit garde l'avant et l'après.
     await this.prisma.reevaluation.update({
