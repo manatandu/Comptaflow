@@ -34,6 +34,8 @@ interface GroupeTiers {
   numero: string;
   intitule: string;
   tiers: string | null;
+  /** A7 ter, mineur 1 · le compte porte une créance reclassée au 416 en vigueur · son encaissement passe par le module. */
+  creanceReclassee?: { compte416: string; date: string } | null;
   lignes: LigneEcheance[];
 }
 
@@ -642,6 +644,14 @@ export function ReglementsPage() {
                       ) : null}
                     </td>
                   </tr>
+                  {g.creanceReclassee && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-[11.5px] text-warning">
+                        Créance reclassée au {g.creanceReclassee.compte416} le {g.creanceReclassee.date} · son encaissement se passe par
+                        « Recouvrement » dans « Créances douteuses ou litigieuses »
+                      </td>
+                    </tr>
+                  )}
                   {g.lignes.map((l) => (
                     <tr key={l.id}>
                       <td className="px-2 py-1">

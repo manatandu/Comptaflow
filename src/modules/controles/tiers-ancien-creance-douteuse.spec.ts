@@ -134,6 +134,21 @@ describe('A7 ter, B2 (a) · le contrôle d’ancienneté laisse au module ce qu�
     expect(a!.occurrences.map((o) => o.detail)).toEqual(['Facture ordinaire']);
   });
 
+  // A7 TER, MINEUR 1 · le règlement de la créance passé sur le compte du
+  // client (Règlement des tiers) après le reclassement le rend CRÉDITEUR · le
+  // chemin juste n'est pas le 4191 de TIERS_SOLDE_INVERSE, c'est le
+  // recouvrement du module · constat propre, en information.
+  it('mineur 1 · le compte d’origine d’une créance reclassée devenu créditeur a son constat, hors du solde inversé', async () => {
+    const reglement = ecriture('Règlement client', [ligne('52110000', 400_000), ligne('41110001', 0, 400_000, true)]);
+    const r = await service([facture(), reclassement(), reglement]).analyser('t', 'ex');
+    const constat = r.anomalies.find((a) => a.code === 'COMPTE_CREANCE_RECLASSEE_CREDITEUR');
+    expect(constat).toMatchObject({ gravite: 'INFORMATION' });
+    expect(constat!.occurrences).toEqual([expect.objectContaining({ reference: '41110001', montant: -400_000 })]);
+    expect(constat!.action).toMatch(/passez l’encaissement par « Recouvrement » dans « Créances douteuses ou litigieuses »/);
+    const inverse = r.anomalies.find((a) => a.code === 'TIERS_SOLDE_INVERSE');
+    expect(inverse?.occurrences.map((o) => o.reference) ?? []).not.toContain('41110001');
+  });
+
   it('la lecture porte les trois liaisons et le compte d’origine en vigueur (une seule lecture des écritures)', () => {
     const source = readFileSync(join(__dirname, 'controles.service.ts'), 'utf8');
     const select = source.slice(source.indexOf('const SELECT_ECRITURE_CONTROLEE'), source.indexOf('satisfies Prisma.EcritureSelect'));

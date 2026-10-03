@@ -1334,6 +1334,8 @@ export class ControlesService {
     const cotisationsMouvementees = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
     const validesParLeurAuteur = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
     const soldesTiers = new Map<string, number>();
+    // A7 ter, mineur 1 · les comptes clients d'ORIGINE d'une créance reclassée en vigueur.
+    const comptesCreanceReclassee = new Set<string>();
     const comptesClasse9 = new Set<string>();
     // Les pièces entrées avant le refus d'entrée (classe-9-equilibree.ts) ·
     // la saisie les refuse désormais, les données anciennes restent.
@@ -1402,6 +1404,7 @@ export class ControlesService {
           }
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
+            if ((l.compte.creancesDouteusesSource?.length ?? 0) > 0) comptesCreanceReclassee.add(n);
           }
           // Le report à-nouveau n'est pas un mouvement (passe R5-C2) · les 90
           // et 91 sont semés en report SOLDE, et le signalement se rallumait à
@@ -1503,6 +1506,7 @@ export class ControlesService {
       cotisationsMouvementees,
       validesParLeurAuteur,
       soldesTiers,
+      comptesCreanceReclassee,
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
@@ -1670,11 +1674,36 @@ export class ControlesService {
     // l'aurait rendue invisible. Ce défaut-là n'est propre à aucun
     // référentiel · les deux plans portent les mêmes racines, il se corrige
     // une seule fois, sans branche.
-    const inverses = [...soldesTiers.entries()].filter(([numero, solde]) => {
+    const inversesTous = [...soldesTiers.entries()].filter(([numero, solde]) => {
       if (numero.startsWith('409')) return solde < -0.005; // débiteur par nature
       if (numero.startsWith('419')) return solde > 0.005; // créditeur par nature
       return (numero.startsWith('41') && solde < -0.005) || (numero.startsWith('40') && solde > 0.005);
     });
+    // A7 ter, mineur 1 · le compte d'ORIGINE d'une créance reclassée en vigueur
+    // devenu créditeur a son propre constat · le chemin juste n'est pas le 4191
+    // (une avance), c'est le recouvrement du module.
+    const origineCreditrice = inversesTous.filter(([numero]) => parcours.comptesCreanceReclassee.has(numero) && !numero.startsWith('419'));
+    const inverses = inversesTous.filter(([numero]) => !origineCreditrice.some(([n]) => n === numero));
+    if (origineCreditrice.length > 0) {
+      anomalies.push({
+        code: 'COMPTE_CREANCE_RECLASSEE_CREDITEUR',
+        gravite: 'INFORMATION',
+        libelle: 'Compte d’une créance reclassée au 416 devenu créditeur',
+        consequence:
+          'Le compte du client porte une créance reclassée au 416 (« Créances douteuses ou litigieuses »), et il est créditeur · ' +
+          'le plus souvent l’encaissement de cette créance passé sur ce compte (Règlement des tiers ou saisie) au lieu du ' +
+          '« Recouvrement » du module. Le 416 garde alors une créance déjà encaissée, et le module la revoit et la déprécie.',
+        action:
+          'Supprimez ce règlement s’il est au brouillard, ou annulez-le par inscription en négatif s’il est validé, puis passez ' +
+          'l’encaissement par « Recouvrement » dans « Créances douteuses ou litigieuses ». S’il s’agit d’une avance sans rapport ' +
+          'avec la créance, reclassez-la au 4191 à l’arrêté.',
+        occurrences: origineCreditrice.map(([numero, solde]) => ({
+          reference: numero,
+          detail: `${qualite41Capitale} créditeur, compte d’une créance reclassée au 416`,
+          montant: solde,
+        })),
+      });
+    }
     if (inverses.length > 0) {
       anomalies.push({
         code: 'TIERS_SOLDE_INVERSE',
