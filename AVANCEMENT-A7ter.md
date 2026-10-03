@@ -55,6 +55,30 @@ Troisième passage (2026-10-03), après la vérification ciblée du second tour 
   rattaché à sa fonction
 - [x] m2 · « Lettrer au 416 » exige au moins une ligne de la créance elle-même (deux à-nouveaux seuls refusés)
 - [x] relevés sans code · m1 au suivi ; défaut (1) du moteur de TVA confirmé à la ligne A7 bis
+- [x] `origin/main` sans nouveauté (e66231e déjà fusionné) · bloc du § 3 des deux côtés · serveur `tsc` vert,
+  `npx jest --maxWorkers=2` 714 suites, 10 008 tests, `npm run build` vert ; client `tsc` vert, 208 fichiers,
+  1 699 tests, construction verte ; e2e typé · puis les deux scénarios réels rejoués sur la construction,
+  clôture de 2026 comprise, tous verts
+
+## Troisième passage · scénarios réels et soldes
+
+Grappe jetable remontée (`scratchpad/a7ter-pg.py`, port 55445, la vérification l'avait retirée), serveur
+jetable 8195, scénarios `scratchpad/a7ter-r4/r4-e4-tva.mjs` et `r4-m3.mjs`, sorties à côté.
+
+- e4, dossier SYSCOHADA ASSUJETTI (16 %) · U vente sans TVA 10/02, T prestation 1 000 000 + 160 000 le
+  01/05, R reclassement de U 15/06, P règlement 1 160 000 le 20/07 · pré-lettrage [T,P], lettrage
+  automatique [T,P] (AUTOMATIQUE_MONTANT), U et R ouverts · collecte par mois · février 0, mai 0, juin 0,
+  juillet 160 000 · client 0, 416 = 1 160 000, 4432 = -160 000, banque 1 160 000 · clôture de 2026 passée,
+  à-nouveau 2027 identique, collecte de 2026 relue inchangée.
+- N pour 1, même dossier type · T 696 000 et V 464 000 (TVA 96 000 et 64 000) · [P,T,V] posé et proposé,
+  U et R ouverts · juillet 160 000, rien ailleurs · mêmes soldes, clôture passée.
+- Observé en 2027, rien codé · le lettrage automatique apparie l'à-nouveau de U et celui de R (l'à-nouveau
+  n'a aucune liaison avec la créance) · sans effet sur la TVA (collecte de 2026 relue inchangée), et
+  l'annulation du reclassement de 2026 est refusée de toute façon, exercice clos. Écrit au suivi.
+- m3, cas e2 · A 1 160 000 reclassée, B 500 000, 200 000 non affectés · règlement de B à 500 000 refusé
+  (« solde net n'est que de 300000.00 … Réglez ici au plus 300000.00 … « Recouvrement » … pièce au
+  journal »), 300 000 passent, avertissement sans « devient créditeur » · client 0, 416 = 1 160 000,
+  banque 500 000 · clôture de 2026 passée, à-nouveau 2027 identique.
 
 ## Second tour · scénarios réels et soldes
 
