@@ -27,3 +27,15 @@ CREATE UNIQUE INDEX "reevaluations_contrePassationDeclareeId_key" ON "reevaluati
 ALTER TABLE "reevaluations" ADD CONSTRAINT "reevaluations_contrePassationDeclareeId_fkey" FOREIGN KEY ("contrePassationDeclareeId") REFERENCES "ecritures"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 -- Quatrième tour · la trace des déclarations retirées, avec le motif du retrait.
 ALTER TABLE "reevaluations" ADD COLUMN "retraitsContrePassationDeclaree" JSONB;
+
+-- Vérification finale d'A5 bis · l'ÉTAT DE L'ÉCART ATTESTÉ par le cabinet.
+-- La règle d'état refuse ce qu'elle ne sait pas lire (écart antérieur traité
+-- hors du module, ouverture reprise d'un autre logiciel) · l'attestation,
+-- motivée, datée, signée par le serveur, fait de ces refus des
+-- avertissements pour cette réévaluation, et la sort de l'enfermement. La
+-- trace des attestations retirées n'est jamais effacée.
+ALTER TABLE "reevaluations" ADD COLUMN "etatAtteste" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "reevaluations" ADD COLUMN "motifAttestation" TEXT;
+ALTER TABLE "reevaluations" ADD COLUMN "etatAttesteLe" TIMESTAMP(3);
+ALTER TABLE "reevaluations" ADD COLUMN "etatAttestePar" TEXT;
+ALTER TABLE "reevaluations" ADD COLUMN "retraitsAttestation" JSONB;
