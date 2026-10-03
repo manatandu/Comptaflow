@@ -155,6 +155,10 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
   adaptées. Tests · période de N+1 au 31/03 · rien sur N ; totale de N+1 sur
   un journal · seul l'autre journal signalé.
 - **m4** écrit dans l'en-tête (limite des trois faits).
+- Bloc du § 3 après le second tour · serveur `tsc`, `nest build`,
+  `npx jest --maxWorkers=2` · 700 suites, 9 723 tests, tous verts, aucune
+  suite tuée ; client `tsc`, `vitest` (203 fichiers, 1 656 tests),
+  `vite build` propres.
 
 ## Relevés en attente (second tour, non corrigés)
 
