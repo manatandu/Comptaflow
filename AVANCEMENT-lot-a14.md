@@ -39,9 +39,40 @@ concorde des deux côtés.
 
 Reste · rien pour A14.
 
-## A12 · intérêts courus sur emprunts
+## A12 · intérêts courus sur emprunts (relevé CPCC C8)
 
-À faire.
+Fait
+- Réemploi du module des régularisations · nature du tiers `PRETEURS` de la
+  charge à payer, `compteEmpruntId` exigé ; `regularisation/interets-courus.ts`
+  résout le compte d'intérêts courus sur l'emprunt et juge la charge.
+  Constatation au dernier jour (D 671x ou 674x / C 166x ou 186x), reprise
+  existante à l'ouverture de N+1 (ligne à ligne). Aucune migration.
+- Écran · nature « Prêteurs », liste des emprunts admis, charge proposée
+  (`client/src/lib/interets-courus.ts`, miroir rejoué par son spec).
+
+Décisions et textes
+- AUDCIF Titre VII, fiche du compte 16 · « crédité, à la clôture […] des
+  intérêts courus jusqu'au jour de la clôture, par le débit du compte 671 » ;
+  « débité, à l'ouverture […] par le crédit du 671 ». SYCEBNL Partie 2 ch. 3,
+  fiche du compte 18, même phrase ; son 16 est un fonds.
+- Un numéro, deux plans · 16x vers 166x (1661 à 1665, 1667, 1668) ; 18x vers
+  186x (1861, 1862, 1863, 1865, 1868).
+- Refus · SYCEBNL 184 (la fiche n'ouvre aucun 1864, anomalie non comblée,
+  écriture à la main) ; 1681 (Titre VIII ch. 11, aucune distinction intérêts
+  et capital) ; 17, 18 SYSCOHADA et 187 SYCEBNL (hors compte 16).
+- Charge · 6711 et 6712 (fiche du 16, « 671 ») ; 6741, 6742, 6748 (fiche du
+  67, avances, dépôts, comptes courants, dettes diverses). Refusés 6713,
+  6714, 6743 à 6745. Proposée seulement si l'intitulé nomme la même dette.
+- Montant DÉCLARÉ (aucun taux) ; période close au plus tard à la clôture.
+
+Rejeu sur vraie base, SYSCOHADA et SYCEBNL · prêt 10 000 000 au 162 / 182,
+intérêts payés 300 000 en juin 2025, 150 000 courus rattachés à la clôture ·
+N : 6712 = 450 000, 1662 / 1862 créditeur de 150 000 ; clôture ; N+1 :
+reprise au 01/01/2026, intérêts courus soldés, 6712 = 450 000 D / 150 000 C,
+net 300 000 ; refus charge 6744, période au-delà de la clôture, sans
+emprunt, et au SYCEBNL le 16 pris pour emprunt. Tout concorde.
+
+Reste · rien pour A12.
 
 ## A16 · registre des provisions, moins d'un an et conditions propres
 
