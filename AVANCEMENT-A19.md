@@ -35,11 +35,27 @@ C16. Branche de sauvegarde `travail/a19`, partie de `main` c7a73b4.
    `GET /inventaire/pv-caisse/:pvId/edition`. Spec
    `editions-inventaire.spec.ts`.
 
+3. Écran · boutons « Fiches de comptage », « Procès-verbal d'inventaire »
+   (en-tête de la campagne), « Ses fiches de comptage » (chaque
+   sous-commission), « Imprimer le procès-verbal » (chaque PV de caisse) ·
+   lectures ouvertes à tous. L'édition lue est seule imprimée (`avec-edition`
+   tant qu'elle existe, retirée après la boîte d'impression), sous
+   `EnteteImpression` portant l'exercice DE LA CAMPAGNE (prop `exercice`
+   ajoutée). Cellules construites par `client/src/lib/editions-inventaire.ts`
+   (spec sans React), posées par `components/EditionsInventaire.tsx`.
+4. Rejeu sur vraie base (`a19_1`, serveur compilé, port 8097), SYSCOHADA et
+   SYCEBNL · exercice 2025 avec caisse, banque et une armoire rangée au lieu
+   « B2 · Bureau de la direction » ; campagne 2025, fiche du parc engendrée
+   avec le lieu, fiches vierges relues, comptage, rapprochement (écart
+   -50 000 figé), arbitrage, PV ; clôture de 2025 ; mouvements de caisse
+   2026 (+30 000, -10 000) ; PV de caisse compté le 10/01/2026 (519 000
+   comptés, solde 520 000, écart -1 000, reconstitution 500 000 / 499 000) ;
+   campagne close ; les trois éditions relues contre ces données, mentions du
+   PV de caisse identiques à l'écran. Tout concorde aux deux référentiels.
+
 ## Reste
 
-- Écran (impression par `avec-edition`, `EnteteImpression`), spec client.
-- Rejeu sur vraie base à travers une clôture.
-- Bloc du § 3.
+- Intégration sur `main` (fiche retirée, suivi à jour).
 
 ## Décisions
 
@@ -53,4 +69,6 @@ C16. Branche de sauvegarde `travail/a19`, partie de `main` c7a73b4.
 
 ```bash
 npx tsc --noEmit && npx jest src/modules/inventaire
+cd client && npx tsc --noEmit && npx vitest run src/lib/editions-inventaire.spec.ts
+node <scratchpad>/rejeu-a19.mjs SYSCOHADA   # serveur compilé sur une base jetable
 ```
