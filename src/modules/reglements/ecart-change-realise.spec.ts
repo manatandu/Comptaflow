@@ -1109,6 +1109,10 @@ function reevaluationDuCasMixte(prisma: PrismaService, perte: number) {
     montantDevise,
     lettrageId,
     lettrage: lettrageId ? { createdAt: new Date('2026-05-15') } : null,
+    // Les lignes du groupe, lues sur tous leurs exercices (A6 ter, m-4) ·
+    // toutes de l'exercice, avant la réévaluation.
+    compteId: 'c401',
+    ecriture: { exerciceId: 'ex', date: new Date('2026-06-01') },
   });
   const groupe = [l(0, 1_948_800, 1160, 'L'), l(1_008_000, 0, 600, 'L'), l(1_064_000, 0, 560, 'L')];
   (prisma.ligneEcriture.findMany as jest.Mock)
