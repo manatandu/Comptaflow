@@ -77,6 +77,8 @@ describe('réévaluation · le périmètre du ch. 22', () => {
       const r = await service(ref, '27100000').calculer('t1', { exerciceId: 'ex1' });
       expect(r.positions[0].ecart).toBe(-300_000);
       expect(r.positionsNonReevaluees).toEqual([]);
+      // D5 · le cours retenu est rendu, devise par devise, pour être gardé.
+      expect(r.coursUtilises).toEqual({ d1: 2500 });
     }
   });
 

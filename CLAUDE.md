@@ -591,7 +591,11 @@ le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL 
 toutes devises, avec et sans le groupe · écritures datées et SAISIES avant elle, sauf
 l'à-nouveau du début d'exercice, qui se recrée ; lignes lettrées après elle ouvertes ;
 un groupe CRÉÉ après elle n'existait pas) ; sans concordance, avertissement et l'écart
-passe, jamais « déjà porté ». La concordance avec le groupe ne refuse que si la devise
+passe, jamais « déjà porté ». D5 · la réévaluation GARDE son cours par devise
+(`coursUtilises`, `poserCours` ne gardant aucune trace et l'écriture des écarts aucune
+devise) ; la reconstitution le reprend, et un cours de sa date corrigé depuis, dans la
+devise du groupe, REFUSE (409, issue · annuler, réévaluer, passer l'écart) ; une
+réévaluation antérieure sans cours gardé reste à l'avertissement. La concordance avec le groupe ne refuse que si la devise
 du GROUPE a une position ET un écart reconstitués non nuls, sinon rien ne s'oppose.
 Aucune dispense par la date · une réévaluation datée avant le dénouement qui a lu la
 facture refuse aussi. Le RÈGLEMENT en devise d'une facture qu'elle a lue est refusé (409,

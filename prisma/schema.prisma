@@ -3379,6 +3379,13 @@ model Reevaluation {
   motifAnnulation String?
   annulation      Json?
 
+  // LE COURS RETENU PAR DEVISE (identifiant → cours), décision D5 du
+  // 2026-10-03 · `poserCours` remplace le cours d'une date sans trace, et
+  // l'écriture des écarts ne porte ni devise ni cours. Sans lui, un cours
+  // corrigé après la réévaluation ne se distinguait pas d'un compte retouché.
+  // Nul sur les réévaluations antérieures.
+  coursUtilises   Json?
+
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·
   // l'index est créé NULLS NOT DISTINCT par la migration (deux `annuleeLe`

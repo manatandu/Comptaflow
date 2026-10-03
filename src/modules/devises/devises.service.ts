@@ -561,6 +561,13 @@ export interface RapportReevaluation {
    * (`perimetre-reevaluation.ts`).
    */
   positionsNonReevaluees: { numero: string; intitule: string; deviseCode: string; montantDevise: number; motif: string }[];
+  /**
+   * LE COURS RETENU, devise par devise (identifiant → cours) · gardé sur
+   * l'enregistrement de la réévaluation (décision D5) · `poserCours` remplace
+   * le cours d'une date sans trace, et l'écriture des écarts ne porte ni
+   * devise ni cours.
+   */
+  coursUtilises: Record<string, number>;
 }
 
 /**
@@ -785,6 +792,7 @@ export class DevisesService {
     }
 
     const coursManquants = new Set<string>();
+    const coursUtilises: Record<string, number> = {};
     const resultat: PositionDevise[] = [];
     for (const p of positions.values()) {
       if (Math.abs(p.montantDevise) < 0.005 && Math.abs(p.valeurComptable) < 0.005) continue;
@@ -819,6 +827,7 @@ export class DevisesService {
         continue;
       }
       p.coursCloture = cours;
+      coursUtilises[p.deviseId] = cours;
       p.valeurReevaluee = Math.round(p.montantDevise * cours * 100) / 100;
       p.ecart = Math.round((p.valeurReevaluee - p.valeurComptable) * 100) / 100;
       if (Math.abs(p.ecart) >= 0.005) resultat.push(p);
@@ -959,6 +968,7 @@ export class DevisesService {
       avertissements,
       coursManquants: [...coursManquants],
       positionsNonReevaluees,
+      coursUtilises,
     };
   }
 
@@ -1314,6 +1324,7 @@ export class DevisesService {
           dateReevaluation: new Date(rapport.dateReevaluation),
           ecritureEcartsId: ecritureEcarts?.id,
           ecritureProvisionId: ecritureProvision?.id,
+          coursUtilises: rapport.coursUtilises,
           createdBy,
         },
       });

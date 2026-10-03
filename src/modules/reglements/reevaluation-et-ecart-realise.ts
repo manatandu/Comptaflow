@@ -67,7 +67,10 @@ interface LectureDeLaReevaluation {
   passe: number;
   lignes: LigneAReconstituer[];
   denoues: Set<string>;
+  /** Le cours qu'elle a RETENU (enregistré, D5), sinon celui en vigueur à sa date. */
   cours: Map<string, number | null>;
+  /** Les devises du compte dont le cours de sa date a été CORRIGÉ depuis (D5). */
+  coursCorriges: Array<{ deviseId: string; retenu: number; aujourdhui: number | null }>;
 }
 
 /**
@@ -85,7 +88,10 @@ interface LectureDeLaReevaluation {
  *  · LES GROUPES D'ALORS (relecture adverse B2) · un groupe créé après elle
  *    (`Lettrage.createdAt`) n'existait pas · ses lignes se lisent NON
  *    LETTRÉES, sauf le groupe `cible`, que l'appelant bascule lui-même.
- *  · Le cours en vigueur à sa date · l'enregistrement ne garde pas le cours.
+ *  · Le cours qu'elle a RETENU, gardé sur son enregistrement depuis la
+ *    décision D5 (`coursUtilises`) ; à défaut (réévaluation antérieure), le
+ *    cours en vigueur à sa date. Un cours de sa date corrigé depuis est
+ *    rendu à part (`coursCorriges`).
  */
 async function lireLaReevaluation(
   prisma: Lecteur,
@@ -97,10 +103,12 @@ async function lireLaReevaluation(
     select: {
       dateReevaluation: true,
       createdAt: true,
+      coursUtilises: true,
       ecritureEcarts: { select: { lignes: { where: { compteId: p.compteId }, select: { debit: true, credit: true } } } },
     },
   });
   if (!reeval || !reeval.ecritureEcarts || reeval.ecritureEcarts.lignes.length === 0) return null;
+  const retenus = (reeval.coursUtilises ?? null) as Record<string, number> | null;
   const passe = centimes(reeval.ecritureEcarts.lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0));
   const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
 
@@ -171,15 +179,34 @@ async function lireLaReevaluation(
       : [],
   );
   const cours = new Map<string, number | null>();
+  const coursCorriges: LectureDeLaReevaluation['coursCorriges'] = [];
   for (const deviseId of new Set(lignes.map((l) => l.deviseId))) {
     const cote = await prisma.coursDevise.findFirst({
       where: { deviseId, date: { lte: reeval.dateReevaluation } },
       orderBy: { date: 'desc' },
       select: { cours: true },
     });
-    cours.set(deviseId, cote ? Number(cote.cours) : null);
+    const aujourdhui = cote ? Number(cote.cours) : null;
+    const retenu = retenus && typeof retenus[deviseId] === 'number' ? retenus[deviseId]! : null;
+    cours.set(deviseId, retenu ?? aujourdhui);
+    if (retenu !== null && (aujourdhui === null || Math.abs(aujourdhui - retenu) > 1e-9)) coursCorriges.push({ deviseId, retenu, aujourdhui });
   }
-  return { date: reeval.dateReevaluation, creeeLe: reeval.createdAt, passe, lignes, denoues, cours };
+  return { date: reeval.dateReevaluation, creeeLe: reeval.createdAt, passe, lignes, denoues, cours, coursCorriges };
+}
+
+/**
+ * LE REFUS D5 · un cours de la date de la réévaluation corrigé depuis. Il
+ * nomme les cours, avant et maintenant, et l'issue.
+ */
+function motifCoursCorrige(lu: Pick<LectureDeLaReevaluation, 'date' | 'coursCorriges'>, compteNumero: string): string {
+  const cours = lu.coursCorriges
+    .map((c) => `${c.retenu} retenu, ${c.aujourdhui === null ? 'aucun' : c.aujourdhui} coté aujourd’hui`)
+    .join(' ; ');
+  return (
+    `Le cours du ${jour(lu.date)} a été corrigé depuis la réévaluation des devises qui l'a retenu (${cours}) · elle est une erreur ` +
+    `de l'exercice en cours, et le ${compteNumero} en porte l'écart. Issue · annulez cette réévaluation (Devises, « Annuler la ` +
+    'réévaluation », AUDCIF art. 20, al. 2), réévaluez au cours exact (art. 54), puis passez l’écart réalisé.'
+  );
 }
 
 /**
@@ -229,6 +256,16 @@ export async function issueReevaluationDejaPassee(
   // n'y est pas, et (a) concorde.
   const lu = await lireLaReevaluation(prisma, { ...p, cible: p.lettrageId });
   if (!lu) return null;
+  // UN COURS CORRIGÉ APRÈS LA RÉÉVALUATION (décision D5 · art. 54, le dernier
+  // cours à la date de clôture ; art. 20, al. 2) · la réévaluation est une
+  // erreur de l'exercice en cours, qui se corrige en l'ANNULANT puis en
+  // réévaluant, jamais en passant l'écart à côté.
+  // Seule la devise DU GROUPE compte · un cours d'EUR corrigé ne dit rien
+  // de l'écart d'un groupe en USD. La reconstitution, elle, se fait au cours
+  // RETENU · la correction n'y fabrique plus une fausse non-concordance.
+  const devisesDuGroupe = new Set(lu.lignes.filter((l) => l.lettrageId === p.lettrageId).map((l) => l.deviseId));
+  const corriges = lu.coursCorriges.filter((c) => devisesDuGroupe.has(c.deviseId));
+  if (corriges.length > 0) return { refus: motifCoursCorrige({ date: lu.date, coursCorriges: corriges }, p.compteNumero) };
   const tolerance = 0.01 * Math.max(1, lu.cours.size);
   // La cible se bascule · écartée en (a), lue en (b), qu'elle ait existé ou non.
   const avecCible = new Set([...lu.denoues, p.lettrageId]);

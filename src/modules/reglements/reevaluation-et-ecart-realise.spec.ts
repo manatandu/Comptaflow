@@ -77,13 +77,14 @@ const groupeL = () => [ligne('usd', 0, 1_948_800, 1160, L), ligne('usd', 1_008_0
 const factureB = (ecriture: Objet = {}, groupe: { id: string; creeLe: Date; soldeLe?: Date } | null = null) =>
   ligne('usd', 0, 850_000, 500, groupe, ecriture);
 
-function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, number>; dateReevaluation?: string }) {
+function monter(p: { lignes: Ligne[]; passe: number; cours?: Record<string, number>; dateReevaluation?: string; coursUtilises?: Record<string, number> }) {
   const creeeLe = new Date('2027-01-05T09:00:00Z');
   return {
     reevaluation: {
       findFirst: jest.fn(async () => ({
         dateReevaluation: new Date(p.dateReevaluation ?? '2026-12-31'),
         createdAt: creeeLe,
+        coursUtilises: p.coursUtilises ?? null,
         // L'écriture des écarts sur le 401, SANS devise · une perte au crédit du tiers.
         ecritureEcarts: { lignes: [{ debit: p.passe > 0 ? p.passe : 0, credit: p.passe < 0 ? -p.passe : 0 }] },
       })),
@@ -166,6 +167,32 @@ describe('l’écart proposé et la réévaluation de l’exercice', () => {
     const r = await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -75_000, cours: { usd: 1900 } }), params);
     expect(r).toEqual({ avertissement: expect.stringMatching(/^Des lettrages ou des écritures ont changé depuis la réévaluation des devises du 2026-12-31/) });
     expect((r as { avertissement: string }).avertissement).not.toMatch(/déjà porté/);
+  });
+
+  // DÉCISION D5 · la réévaluation garde son cours (`coursUtilises`) · un
+  // cours de sa date corrigé ensuite en fait une erreur de l'exercice en
+  // cours, qui s'annule (D6) puis se refait · REFUS, jamais l'écart à côté.
+  it('D5 · le cours USD retenu 1 850, corrigé à 1 900 depuis · refus nommé, issue « annuler puis réévaluer »', async () => {
+    const r = await issueReevaluationDejaPassee(
+      monter({ lignes: [...groupeL(), factureB()], passe: -75_000, cours: { usd: 1900 }, coursUtilises: { usd: 1850 } }),
+      params,
+    );
+    expect(r).toEqual({ refus: expect.stringMatching(/cours du 2026-12-31 a été corrigé .*1850 retenu, 1900 coté aujourd’hui.*annulez cette réévaluation.*réévaluez au cours exact/) });
+  });
+
+  it('D5 · le cours retenu sert la reconstitution · inchangé, la règle ordinaire joue (75 000 · rien ne s’oppose)', async () => {
+    expect(
+      await issueReevaluationDejaPassee(monter({ lignes: [...groupeL(), factureB()], passe: -75_000, coursUtilises: { usd: 1850, eur: 1100 } }), params),
+    ).toBeNull();
+  });
+
+  it('D5 · seul le cours de la devise du GROUPE compte · un EUR corrigé ne refuse pas l’écart d’un groupe en USD', async () => {
+    const eur = ligne('eur', 0, 100_000, 100, null);
+    const r = await issueReevaluationDejaPassee(
+      monter({ lignes: [...groupeL(), factureB(), eur], passe: -85_000, cours: { usd: 1850, eur: 1200 }, coursUtilises: { usd: 1850, eur: 1100 } }),
+      params,
+    );
+    expect(r).toBeNull();
   });
 
   // Bloquant 2 · un groupe CRÉÉ APRÈS la réévaluation n'existait pas · ses

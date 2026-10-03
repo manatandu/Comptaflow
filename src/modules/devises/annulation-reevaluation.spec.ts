@@ -119,4 +119,12 @@ describe('annuler une réévaluation des devises (D6)', () => {
     const a6 = readFileSync(join(__dirname, '../reglements/reevaluation-et-ecart-realise.ts'), 'utf8');
     expect(a6.split('annuleeLe: null').length - 1).toBe(2);
   });
+
+  it('D5 · la réévaluation passée GARDE le cours retenu par devise', () => {
+    const { readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs');
+    const { join } = jest.requireActual<typeof import('node:path')>('node:path');
+    const devises = readFileSync(join(__dirname, 'devises.service.ts'), 'utf8');
+    const creation = devises.slice(devises.indexOf('reevaluation = await this.prisma.reevaluation.create({'), devises.indexOf('} catch (e) {', devises.indexOf('reevaluation = await this.prisma.reevaluation.create({')));
+    expect(creation).toContain('coursUtilises: rapport.coursUtilises');
+  });
 });
