@@ -234,6 +234,7 @@ function base(comptes: Cpt[], lignes: Lgn[]) {
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const service = new ExerciceService(prisma as never, { prochainNumeroPiece: jest.fn().mockResolvedValue(7) } as never);

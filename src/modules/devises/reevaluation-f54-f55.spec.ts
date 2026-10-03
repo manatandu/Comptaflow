@@ -216,6 +216,8 @@ describe('F55 · la clôture passe la devise au report', () => {
       ecriture: { count: jest.fn().mockResolvedValue(0) },
       // Aucun lettrage dénoué en souffrance (décision D3).
       ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+      // Aucune créance douteuse à dépréciation orpheline (ligne A7, B1).
+      creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     const s = new ExerciceService(prisma as never, { prochainNumeroPiece: jest.fn().mockResolvedValue(1) } as never);

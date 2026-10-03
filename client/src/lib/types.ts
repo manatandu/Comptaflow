@@ -1446,7 +1446,7 @@ export interface ModeleEcriture {
    * Lot 9 · le bien passe par sa fiche · le modèle renvoie à la fenêtre
    * Immobilisations, et le serveur refuse de le chiffrer.
    */
-  renvoiModule?: { fenetre: string; geste: string };
+  renvoiModule?: { fenetre: string; geste: string; motif?: string };
 }
 
 export interface OperationSpecifique {

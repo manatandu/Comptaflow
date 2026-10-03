@@ -159,6 +159,8 @@ const B6: OperationSpecifique = {
     },
     {
       code: 'B6-COTISATION-DOUTEUSE',
+      // Ligne A7 (relecture adverse, M4) · le reclassement se fait dans son module.
+      renvoiModule: { fenetre: 'Créances douteuses ou litigieuses', geste: 'Reclasser une créance au 416', motif: "La créance a son dossier, qui garde motif et pièces et retient l'écriture ; passée ici, elle échapperait à la revue de la dépréciation à la clôture (fiche du compte 49), et la dépréciation ne suivrait plus la créance." },
       libelle: 'Transfert en cotisations douteuses',
       objet: 'Isole les cotisations dont le recouvrement est compromis, avant de les déprécier.',
       source: 'Partie 3 ch. 5 § 1 : compte 4161 Adhérents, cotisations douteuses.',
@@ -171,6 +173,8 @@ const B6: OperationSpecifique = {
     },
     {
       code: 'B6-DEPRECIATION-COTISATION',
+      // Ligne A7 · aucun pourcentage · la dépréciation se déclare créance par créance, à la clôture.
+      renvoiModule: { fenetre: 'Créances douteuses ou litigieuses', geste: 'Revoir la dépréciation à la clôture', motif: "La créance a son dossier, qui garde motif et pièces et retient l'écriture ; passée ici, elle échapperait à la revue de la dépréciation à la clôture (fiche du compte 49), et la dépréciation ne suivrait plus la créance." },
       libelle: 'Dépréciation des cotisations douteuses',
       objet: 'Constate la perte probable sur les cotisations transférées en douteux.',
       source: 'Partie 3 ch. 5 § 1 : compte 659 Charges pour dépréciations par le crédit du 4912.',

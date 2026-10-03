@@ -294,7 +294,8 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
   if (e.revueApres) {
     return (
       `La dépréciation est déjà revue à la clôture du ${e.revueApres}, sur un reste qui ne comptait pas ce mouvement · ` +
-      'retirez d’abord cette revue, puis repassez-la.'
+      'annulez cette revue (au brouillard, son écriture est supprimée ; validée, elle est inscrite en négatif), passez le ' +
+      'mouvement, puis refaites la revue (AUDCIF art. 20, al. 2).'
     );
   }
   if (!e.journalAttendu) {
@@ -318,4 +319,153 @@ export function motifRefusMouvement(e: EntreeMouvement): string | null {
     }
   }
   return motifEtPieces(e.motif, e.pieces);
+}
+
+/**
+ * LA DÉPRÉCIATION EN PLACE D'UNE CRÉANCE avant une date · la dépréciation
+ * DÉCLARÉE à l'ouverture d'un dossier repris (si la déclaration est datée au
+ * plus tard ce jour) plus les écarts des revues antérieures du module.
+ */
+export function enPlaceAvant(
+  c: { declareeOuverture: boolean; depreciationOuverture: number; dateReclassement: Date },
+  revues: readonly { exerciceDateFin: Date; ecart: number }[],
+  avant: Date,
+): number {
+  const declaree = c.declareeOuverture && c.dateReclassement.getTime() <= avant.getTime() ? c.depreciationOuverture : 0;
+  return centimes(declaree + depreciationEnPlace(revues, avant));
+}
+
+/**
+ * UNE REVUE EST À FAIRE quand elle changerait quelque chose (relecture
+ * adverse, B1) · une reprise est due (la dépréciation en place dépasse ce
+ * qui reste au 416), ou la créance n'a jamais été revue alors qu'il en reste.
+ * Ailleurs, la revue est facultative et l'écran ne le signale pas.
+ */
+export function revueAFaire(p: { revueDeLExercice: boolean; enPlace: number; reste: number; aucuneRevue: boolean }): boolean {
+  if (p.revueDeLExercice) return false;
+  if (p.enPlace > p.reste + 0.005) return true;
+  return p.aucuneRevue && p.reste > 0.005;
+}
+
+/** Une créance qui porterait, sans revue, une dépréciation orpheline à la clôture. */
+export interface DepreciationOrpheline {
+  creance: string;
+  enPlace: number;
+  reste: number;
+}
+
+/**
+ * LA CLÔTURE REFUSE UNE DÉPRÉCIATION ORPHELINE (relecture adverse, B1) ·
+ * fiche du compte 49, « débité à la clôture de l'exercice de la reprise des
+ * dépréciations [...] dont les raisons qui les ont motivées ont cessé
+ * d'exister » ; fiche du compte 759. Une créance perdue ou recouvrée dans
+ * l'exercice, sans revue, laisserait au 491 une dépréciation sans créance,
+ * et le résultat minoré de la reprise.
+ */
+export function motifClotureDepreciationsOrphelines(liste: readonly DepreciationOrpheline[]): string | null {
+  if (liste.length === 0) return null;
+  const detail = liste
+    .slice(0, 20)
+    .map((o) => `${o.creance} (dépréciation en place ${o.enPlace.toFixed(2)}, reste au 416 ${o.reste.toFixed(2)})`)
+    .join(' ; ');
+  return (
+    `${liste.length} créance(s) douteuse(s) portent une dépréciation supérieure à ce qui reste de la créance, sans revue de cet ` +
+    `exercice · ${detail}${liste.length > 20 ? ' ; …' : ''}. Passez la revue de chacune dans « Créances douteuses ou litigieuses » ` +
+    '(la reprise au 759 se proposera) avant de clôturer · fiche du compte 49, « débité à la clôture de l’exercice de la reprise des ' +
+    'dépréciations [...] dont les raisons qui les ont motivées ont cessé d’exister ».'
+  );
+}
+
+/** La plage du motif d'annulation, celle de l'annulation d'une réévaluation des devises. */
+export const MOTIF_ANNULATION_MIN = 3;
+export const MOTIF_ANNULATION_MAX = 500;
+
+export function motifRefusAnnulationRevue(p: {
+  dejaAnnulee: string | null;
+  exerciceClos: boolean;
+  posterieureNonAnnulee: string | null;
+  motif: string | null | undefined;
+}): string | null {
+  if (p.dejaAnnulee) return `Cette revue est déjà annulée, le ${p.dejaAnnulee}.`;
+  if (p.exerciceClos) {
+    return "L'exercice de cette revue est clôturé · son erreur se corrige par le report à nouveau (AUDCIF art. 20, al. 3), hors de ce geste.";
+  }
+  if (p.posterieureNonAnnulee) {
+    return (
+      `La revue de la clôture du ${p.posterieureNonAnnulee}, postérieure, n'est pas annulée · elle part de la dépréciation que celle-ci ` +
+      'a passée. On annule de la plus récente à la plus ancienne.'
+    );
+  }
+  const m = (p.motif ?? '').trim();
+  if (m.length < MOTIF_ANNULATION_MIN || m.length > MOTIF_ANNULATION_MAX) {
+    return `Le motif de l'annulation est exigé, de ${MOTIF_ANNULATION_MIN} à ${MOTIF_ANNULATION_MAX} caractères (AUDCIF art. 20, al. 2).`;
+  }
+  return null;
+}
+
+export interface EntreeDeclaration {
+  referentiel: Referentiel;
+  numeroSource: string;
+  numero416: string;
+  numero416EstDetail: boolean;
+  montant: number;
+  depreciation: number;
+  source: string | null | undefined;
+  /** La date est le premier jour d'un exercice du dossier. */
+  dateDebutExercice: boolean;
+  exerciceOuvert: boolean;
+  /** L'à-nouveau de l'exercice existe. */
+  aNouveau: boolean;
+  /** Débit net de l'à-nouveau du 416 choisi, et ce qui est déjà déclaré sur lui à cette date. */
+  aNouveau416: number;
+  dejaDeclare416: number;
+  /** Crédit net de l'à-nouveau du 491 de la nature, et ce qui est déjà déclaré sur lui. */
+  aNouveau491: number;
+  dejaDeclare491: number;
+}
+
+/**
+ * DOSSIER REPRIS (relecture adverse, M3) · une créance déjà au 416 et sa
+ * dépréciation déjà au 491 avant OmegaX se DÉCLARENT, sans écriture, au
+ * début d'un exercice, source exigée, et bornées par l'à-nouveau · sans quoi
+ * la première revue doterait une seconde fois ce que le 491 porte déjà.
+ */
+export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
+  if (!e.exerciceOuvert) return "L'exercice est clôturé.";
+  if (!e.dateDebutExercice) {
+    return "La déclaration se date au premier jour d'un exercice du dossier, celui de l'à-nouveau qui porte la créance.";
+  }
+  const racines = RACINES_CREANCE_SOURCE[e.referentiel];
+  if (!racines.some((r) => e.numeroSource.startsWith(r))) {
+    return `Le compte ${e.numeroSource} n'est pas un compte client de ce plan (${racines.join(', ')}) · il désigne le débiteur.`;
+  }
+  if (!e.numero416.startsWith(COMPTES_CREANCES_DOUTEUSES.creances416) || !e.numero416EstDetail) {
+    return `Le compte ${e.numero416} n'est pas un compte de détail du 416.`;
+  }
+  if (!e.source || e.source.trim().length === 0) {
+    return (
+      'La source est exigée (balance de reprise, dossier de l’ancien cabinet, état des créances douteuses) · une déclaration ' +
+      'sans source ne se vérifie pas.'
+    );
+  }
+  if (!(e.montant > 0)) return 'Le montant de la créance doit être positif.';
+  if (!(e.depreciation >= 0) || e.depreciation > e.montant + 0.005) {
+    return 'La dépréciation existante est un montant positif ou nul, jamais au-delà de la créance.';
+  }
+  if (!e.aNouveau) {
+    return "Cet exercice n'a pas encore d'à-nouveau (bilan d'ouverture ou report) · la déclaration se borne par lui, passez-le d'abord.";
+  }
+  if (centimes(e.dejaDeclare416 + e.montant) > centimes(e.aNouveau416) + 0.005) {
+    return (
+      `Les créances déclarées sur le ${e.numero416} (${centimes(e.dejaDeclare416 + e.montant).toFixed(2)}) dépassent son à-nouveau ` +
+      `(${centimes(e.aNouveau416).toFixed(2)}) · on ne déclare que ce que le bilan d'ouverture porte.`
+    );
+  }
+  if (centimes(e.dejaDeclare491 + e.depreciation) > centimes(e.aNouveau491) + 0.005) {
+    return (
+      `Les dépréciations déclarées sur le 491 (${centimes(e.dejaDeclare491 + e.depreciation).toFixed(2)}) dépassent son à-nouveau ` +
+      `(${centimes(e.aNouveau491).toFixed(2)}).`
+    );
+  }
+  return null;
 }

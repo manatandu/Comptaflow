@@ -105,7 +105,7 @@ function lectureDuReport(comptes: LigneJeu[]) {
   };
 }
 
-function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre: null; rapprochementId: null }[] } | null) {
+function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre: null; rapprochementId: null }[] } | null, creancesDouteuses: unknown[] = []) {
   const lecture = lectureDuReport(COMPTES);
   const tx = {
     compte: { findMany: lecture.compte.findMany, findUnique: jest.fn().mockResolvedValue({ id: '131' }) },
@@ -130,6 +130,8 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    // Les créances douteuses du module (ligne A7, B1) · aucune par défaut.
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue(creancesDouteuses) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const journalService = { prochainNumeroPiece: jest.fn().mockResolvedValue(50) };
@@ -245,5 +247,24 @@ describe('Clôture de période · bornée à l’exercice', () => {
     const { s, create } = service();
     await s.clorePeriode('t', 'n', 'u', { dateLimite: '2026-03-31' });
     expect(create.mock.calls[0][0].data.dateLimite).toEqual(new Date('2026-03-31'));
+  });
+});
+
+describe('Clôture annuelle · dépréciation orpheline d’une créance douteuse (ligne A7, B1)', () => {
+  it('refuse tant qu’une créance perdue garde sa dépréciation sans revue de l’exercice, et nomme créance, montants et issue', async () => {
+    // Revue de N-1 qui déprécie 800 ; perte de 1 000 en N ; N sans revue.
+    const orpheline = {
+      id: 'cd-1',
+      montant: 1_000,
+      dateReclassement: new Date('2025-06-30'),
+      declareeOuverture: false,
+      depreciationOuverture: 0,
+      compteCreance: { numero: '41110001', intitule: 'Client Kasa' },
+      ajustements: [{ exerciceId: 'n-1', ecart: 800, exercice: { dateFin: new Date('2025-12-31') } }],
+      mouvements: [{ date: new Date('2026-05-10'), montant: 1_000 }],
+    };
+    const { s, tx } = service(null, [orpheline]);
+    await expect(s.cloturer('t', 'n', 'u')).rejects.toThrow(/41110001 Client Kasa \(dépréciation en place 800\.00, reste au 416 0\.00\).*Passez la revue/);
+    expect(tx.ecriture.create).not.toHaveBeenCalled();
   });
 });

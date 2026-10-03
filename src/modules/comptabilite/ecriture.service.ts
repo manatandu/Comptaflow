@@ -1210,7 +1210,9 @@ export class EcritureService {
       // Les créances douteuses (ligne A7) · elles se retirent depuis leur
       // fenêtre, qui libère sa ligne dans la même transaction.
       [DETENTEUR_RECLASSEMENT_CREANCE, this.prisma.creanceDouteuse.count({ where: { tenantId, ecritureReclassementId: ecritureId } })],
-      [DETENTEUR_REVUE_CREANCE, this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, ecritureId } })],
+      // Une revue ANNULÉE ne retient plus son écriture (B2) · validée, elle est
+      // neutralisée par son inscription en négatif.
+      [DETENTEUR_REVUE_CREANCE, this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, ecritureId, annuleeLe: null } })],
       [DETENTEUR_MOUVEMENT_CREANCE, this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans

@@ -1,4 +1,6 @@
 import { ecartsRealisesNonConstates, motifClotureEcartsNonConstates } from '../reglements/ecarts-non-constates';
+import { depreciationsOrphelines } from '../creances-douteuses/depreciations-orphelines';
+import { motifClotureDepreciationsOrphelines } from '../creances-douteuses/creances-douteuses';
 import {
   BadRequestException,
   ConflictException,
@@ -819,6 +821,13 @@ export class ExerciceService {
     // plus une créance ni une dette, et le résultat sans sa perte ou son gain.
     const enSouffrance = motifClotureEcartsNonConstates(await ecartsRealisesNonConstates(this.prisma, { tenantId, exerciceId }));
     if (enSouffrance) throw new BadRequestException(enSouffrance);
+
+    // LA DÉPRÉCIATION D'UNE CRÉANCE SE REPREND À LA CLÔTURE (ligne A7,
+    // relecture adverse B1 · fiche du compte 49) · une créance perdue ou
+    // recouvrée sans revue de l'exercice laisserait au 491 une dépréciation
+    // orpheline et le résultat minoré de sa reprise.
+    const orphelines = motifClotureDepreciationsOrphelines(await depreciationsOrphelines(this.prisma, { tenantId, exerciceId }));
+    if (orphelines) throw new BadRequestException(orphelines);
 
     return avecRetrySerialisable(
       this.prisma,

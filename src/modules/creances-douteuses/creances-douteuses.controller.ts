@@ -6,8 +6,16 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CreancesDouteusesService } from './creances-douteuses.service';
-import { PerteCreanceDto, ReclasserCreanceDto, RecouvrementCreanceDto, RevoirDepreciationDto } from './dto/creances-douteuses.dto';
+import {
+  AnnulerRevueDto,
+  DeclarerCreanceOuvertureDto,
+  PerteCreanceDto,
+  ReclasserCreanceDto,
+  RecouvrementCreanceDto,
+  RevoirDepreciationDto,
+} from './dto/creances-douteuses.dto';
 
 /**
  * CRÉANCES DOUTEUSES OU LITIGIEUSES (ligne A7) · AUCUN `@ReferentielsAutorises`.
@@ -47,7 +55,16 @@ export class CreancesDouteusesController {
     return this.service.reclasser(user.tenantId, user.userId, dto);
   }
 
+  /** Dossier repris · la créance déjà au 416 et au 491 avant OmegaX, sans écriture. */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('declarations')
+  declarer(@CurrentUser() user: AuthenticatedUser, @Body() dto: DeclarerCreanceOuvertureDto) {
+    return this.service.declarer(user.tenantId, user.userId, dto);
+  }
+
+  /** La DÉCISION de dépréciation · réservée au comptable (relecture adverse, M9). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Post(':id/revue')
   revoir(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RevoirDepreciationDto) {
     return this.service.revoir(user.tenantId, user.userId, id, dto);
@@ -71,14 +88,17 @@ export class CreancesDouteusesController {
     return this.service.retirerCreance(user.tenantId, id);
   }
 
+  /** L'annulation d'une revue (AUDCIF art. 20, al. 2) · réservée au comptable comme la revue. */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
-  @Delete(':id/revues/:revueId')
-  retirerRevue(
+  @ReserveAuComptable()
+  @Post(':id/revues/:revueId/annuler')
+  annulerRevue(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('revueId', ParseUUIDPipe) revueId: string,
+    @Body() dto: AnnulerRevueDto,
   ) {
-    return this.service.retirerRevue(user.tenantId, id, revueId);
+    return this.service.annulerRevue(user.tenantId, user.userId, id, revueId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

@@ -635,8 +635,22 @@ SYSCOHADA (litigieuses, douteuses ; croisé, refusé), le DÉBITEUR au SYCEBNL
 (adhérents cotisations, créances des clients-usagers ; proposé, jamais imposé) ;
 491 (4911, 4912) commun ; 6512 « Adhérents » au SYCEBNL seul. Créance en devise non
 lettrée refusée (art. 54, 55), non servie. Trois tables d'acte au journal d'audit,
-écritures RETENUES (`detenteurs-ecriture.ts`), retirées au brouillard du plus
-récent au plus ancien. NON TRANCHÉ · hors taxe ou taxe comprise (aucune fiche ne le
+écritures RETENUES (`detenteurs-ecriture.ts`). RELECTURE ADVERSE (2026-10-03) ·
+(B1) la CLÔTURE refuse une dépréciation en place supérieure au reste au 416 sans
+revue de l'exercice (`depreciationsOrphelines`, même modèle que D3 d'A6), créances,
+montants et issue nommés ; « À faire » seulement si la revue change quelque chose.
+(B2) une revue s'ANNULE (art. 20, al. 2, comme D6 d'A6) · brouillard supprimé,
+validée inscrite en négatif, `motifLignesTenues`, enregistrement marqué par un
+`update` unitaire avec motif (3 à 500), index unique sur les non annulées (NULLS
+NOT DISTINCT) ; le mouvement daté avant une revue nomme l'issue (annuler, passer,
+refaire). (M2) sans à-nouveau, soldes lus sur le report RECONSTITUÉ de l'exercice
+précédent, dit provisoire. (M3) créance reprise DÉCLARÉE au début d'un exercice,
+sans écriture, source exigée, bornée par l'à-nouveau du 416 et du 491. (M4) au
+catalogue, `B6-COTISATION-DOUTEUSE` et `B6-DEPRECIATION-COTISATION` renvoient au
+module (`renvoiModule`, motif propre). (M6) gestes sous un verrou par dossier
+sans connexion retenue (`VerrouCreancesDouteuses`, 409 qui dit le geste). (M9) revue
+et annulation `@ReserveAuComptable()`, boutons sous `peutValider`. Une créance
+revue, même annulée, ne se retire plus. NON TRANCHÉ · hors taxe ou taxe comprise (aucune fiche ne le
 dit de la dépréciation, le ch. 15 § 1.3.1 ne le dit que de l'ABANDON), TVA d'une
 créance irrécouvrable (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127) ·
 le cabinet déclare le montant, la question est à Manasse.

@@ -92,7 +92,7 @@ function operationService(methodeCotisations: MethodeCotisations | null) {
     },
     compte: {
       findMany: jest.fn().mockResolvedValue(
-        ['411', '1851', '701', '103', '6594', '4912'].map((numero) => ({
+        ['411', '1851', '701', '103', '1049', '703'].map((numero) => ({
           id: `c-${numero}`,
           numero: `${numero}00000`.slice(0, 8),
           intitule: `Compte ${numero}`,
@@ -135,11 +135,13 @@ describe('opérations spécifiques · l’appel suppose un droit d’agir', () =
 
   it('laisse passer les modèles qui ne débitent pas le 411', async () => {
     const s = operationService(MethodeCotisations.ENCAISSEMENT);
-    // La dépréciation d'une cotisation douteuse ne constate aucune créance
-    // nouvelle · rien dans le § 5.4.2.1 ne la conditionne.
+    // La quote-part d'une dotation consomptible ne constate aucune créance
+    // nouvelle · rien dans le § 5.4.2.1 ne la conditionne. (La dépréciation
+    // d'une cotisation douteuse, prise ici jusqu'à la ligne A7, renvoie
+    // désormais au module des créances douteuses.)
     const e = await s.proposer('t1', {
-      codeModele: 'B6-DEPRECIATION-COTISATION',
-      parametres: { creanceDouteuse: 1000, tauxDepreciation: 0.5 },
+      codeModele: 'B14-QUOTE-PART-CONSOMPTIBLE',
+      parametres: { chargesCouvertes: 1000 },
     });
     expect(e.lignes).toHaveLength(2);
   });

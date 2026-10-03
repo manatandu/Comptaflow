@@ -160,7 +160,7 @@ export interface ModeleEcriture {
    * et dont il reproposait la reprise (une reprise deux fois). Le service
    * refuse de chiffrer un tel modèle ; l'écran montre le renvoi.
    */
-  renvoiModule?: { fenetre: string; geste: string };
+  renvoiModule?: { fenetre: string; geste: string; motif?: string };
 }
 
 /** Le jeu d'états financiers auquel l'opération se rattache. */

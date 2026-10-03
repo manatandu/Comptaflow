@@ -6,9 +6,19 @@ import { Aide } from '../components/chrome/Aide';
 import { PortailModale } from '../components/PortailModale';
 import type { Compte, Journal } from '../lib/types';
 import { useExercice } from '../lib/exercice';
+import { useGardeFermeture } from '../lib/fenetres';
 import { montant } from '../lib/montants';
 import { montantSaisi } from '../lib/montant-saisi';
-import { annonceRevue, compte416Initial, LIBELLE_NATURE, piecesAEnvoyer, type NatureCreance, type PieceSaisie } from '../lib/creances-douteuses';
+import {
+  annonceRevue,
+  compte416Initial,
+  LIBELLE_NATURE,
+  motifAnnulationValide,
+  motifListe651Vide,
+  piecesAEnvoyer,
+  type NatureCreance,
+  type PieceSaisie,
+} from '../lib/creances-douteuses';
 
 /**
  * CRÉANCES DOUTEUSES OU LITIGIEUSES (ligne A7, relevé CPCC C3).
@@ -49,6 +59,9 @@ interface CreanceDouteuse {
   depreciationALaCloture: number;
   comptePertePropose: string | null;
   revue: { id: string; depreciationNecessaire: number; ecart: number; motif: string } | null;
+  revueAFaire: boolean;
+  declareeOuverture: boolean;
+  revuesAnnulees: { id: string; annuleeLe: string; motif: string | null }[];
   revues: { id: string; exerciceId: string }[];
   mouvements: { id: string; type: 'PERTE' | 'RECOUVREMENT'; date: string; montant: number; motif: string }[];
 }
@@ -58,7 +71,7 @@ interface Liste {
   total: number;
   tronque: boolean;
   creances: CreanceDouteuse[];
-  rapprochement: { solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
+  rapprochement: { provisoire: boolean; solde416: number; resteModule: number; solde491: number; depreciationModule: number } | null;
 }
 interface PropositionRevue {
   depreciationEnPlace: number;
@@ -66,7 +79,7 @@ interface PropositionRevue {
   dateRevue: string;
 }
 
-type Geste = 'reclasser' | 'revue' | 'perte' | 'recouvrement';
+type Geste = 'reclasser' | 'declarer' | 'revue' | 'perte' | 'recouvrement';
 interface Formulaire {
   geste: Geste;
   creance: CreanceDouteuse | null;
@@ -77,6 +90,8 @@ interface Formulaire {
   journalId: string;
   date: string;
   montant: string;
+  depreciationOuverture: string;
+  source: string;
   motif: string;
   pieces: PieceSaisie[];
 }
@@ -85,13 +100,14 @@ const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateStri
 const messageDe = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : String(e));
 const TITRES: Record<Geste, string> = {
   reclasser: 'Reclasser une créance au 416',
+  declarer: 'Déclarer une créance reprise (déjà au 416)',
   revue: 'Revoir la dépréciation à la clôture',
   perte: 'Constater la perte (créance irrécouvrable)',
   recouvrement: 'Enregistrer un recouvrement',
 };
 
 export function CreancesDouteusesPage() {
-  const { peutEcrire } = useAuth();
+  const { peutValider } = useAuth();
   const { exerciceCourant } = useExercice();
   const exerciceId = exerciceCourant?.id ?? '';
   const [liste, setListe] = useState<Liste | null>(null);
@@ -104,6 +120,10 @@ export function CreancesDouteusesPage() {
   const [proposition, setProposition] = useState<PropositionRevue | null>(null);
   const [erreurForm, setErreurForm] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // L'annulation d'une revue (AUDCIF art. 20, al. 2) · motif de 3 à 500 caractères.
+  const [annulation, setAnnulation] = useState<{ creance: CreanceDouteuse; motif: string } | null>(null);
+  const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
+  useGardeFermeture(form || annulation ? 'Un geste sur une créance douteuse est en cours de saisie · il serait perdu.' : null);
 
   useEffect(() => {
     if (!exerciceId) return;
@@ -115,9 +135,9 @@ export function CreancesDouteusesPage() {
   }, [exerciceId, version]);
 
   useEffect(() => {
-    if (!peutEcrire) return;
+    if (!peutValider) return;
     api.get<Journal[]>('/journaux').then(setJournaux, (e) => setErreur(messageDe(e)));
-  }, [peutEcrire]);
+  }, [peutValider]);
 
   function ouvrir(geste: Geste, creance: CreanceDouteuse | null) {
     setErreurForm(null);
@@ -135,10 +155,12 @@ export function CreancesDouteusesPage() {
       journalId: choix.length === 1 ? choix[0].id : '',
       date: liste ? liste.exercice.dateFin.slice(0, 10) : '',
       montant: geste === 'perte' || geste === 'recouvrement' ? String(creance?.resteALaCloture ?? '') : '',
+      depreciationOuverture: '',
+      source: '',
       motif: '',
       pieces: [{ nature: '', reference: '', date: '' }],
     });
-    if (geste === 'reclasser') {
+    if (geste === 'reclasser' || geste === 'declarer') {
       setComptes(null);
       api.get<ComptesFormulaire>(`/creances-douteuses/comptes?exerciceId=${encodeURIComponent(exerciceId)}`).then(setComptes, (e) => setErreurForm(messageDe(e)));
     }
@@ -182,7 +204,21 @@ export function CreancesDouteusesPage() {
     setErreurForm(null);
     try {
       if (valeur == null) throw new Error('Saisissez un montant · un champ vide n’est pas zéro.');
-      if (form.geste === 'reclasser') {
+      if (form.geste === 'declarer') {
+        const deprec = montantSaisi(form.depreciationOuverture);
+        if (deprec == null) throw new Error('Saisissez la dépréciation existante · zéro se tape, vide n’est pas zéro.');
+        await api.post('/creances-douteuses/declarations', {
+          exerciceId,
+          compteCreanceId: form.compteCreanceId,
+          compte416Id: form.compte416Id,
+          nature: form.nature,
+          montant: valeur,
+          depreciationOuverture: deprec,
+          source: form.source,
+          motif: form.motif || undefined,
+          pieces: piecesAEnvoyer(form.pieces),
+        });
+      } else if (form.geste === 'reclasser') {
         await api.post('/creances-douteuses', {
           ...commun,
           date: form.date,
@@ -212,6 +248,22 @@ export function CreancesDouteusesPage() {
     }
   }
 
+  async function annuler(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!annulation?.creance.revue) return;
+    setEnvoi(true);
+    setErreurAnnulation(null);
+    try {
+      await api.post(`/creances-douteuses/${annulation.creance.id}/revues/${annulation.creance.revue.id}/annuler`, { motif: annulation.motif });
+      setAnnulation(null);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setErreurAnnulation(messageDe(e));
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
   async function retirer(chemin: string, question: string) {
     if (!window.confirm(question)) return;
     setErreur(null);
@@ -234,7 +286,7 @@ export function CreancesDouteusesPage() {
     <div className="p-2">
       <EnteteImpression titre="Créances douteuses ou litigieuses" />
       <div className="ecran-seul mb-1.5 max-w-[1240px] flex items-center justify-end gap-2">
-        {peutEcrire && (
+        {peutValider && (
           <button
             type="button"
             onClick={() => ouvrir('reclasser', null)}
@@ -242,6 +294,16 @@ export function CreancesDouteusesPage() {
             className="bg-sel text-white rounded-full px-3 py-[3px] text-[11.5px] font-semibold disabled:opacity-50"
           >
             + Reclasser une créance
+          </button>
+        )}
+        {peutValider && (
+          <button
+            type="button"
+            onClick={() => ouvrir('declarer', null)}
+            disabled={!liste || liste.exercice.statut !== 'OUVERT'}
+            className="border border-bord rounded-[3px] px-2 py-[2px] text-[11.5px] disabled:opacity-50"
+          >
+            Déclarer une créance reprise
           </button>
         )}
         <Aide
@@ -258,7 +320,12 @@ export function CreancesDouteusesPage() {
         <div className="max-w-[1240px] space-y-2">
           {liste.systemeMinimal && (
             <div className="border border-bord rounded-[3px] px-2 py-1 text-[11.5px]">
-              Système minimal de trésorerie · aucune dotation n'est admise, le reclassement, la reprise et la perte restent ouverts.
+              Système minimal de trésorerie · aucune dépréciation n'y est dotée ; le reclassement, la reprise d'une dépréciation existante et la perte restent ouverts.
+            </div>
+          )}
+          {r?.provisoire && (
+            <div className="text-[11.5px] text-text-dim">
+              Soldes du 416 et du 491 lus sur le report reconstitué de l'exercice précédent · l'à-nouveau de cet exercice n'est pas encore passé.
             </div>
           )}
           {r && (Math.abs(ecart416) >= 0.01 || Math.abs(ecart491) >= 0.01) && (
@@ -281,7 +348,7 @@ export function CreancesDouteusesPage() {
                   <th className="text-right px-1.5">Dépréciation à l'ouverture</th>
                   <th className="text-right px-1.5">Dépréciation à la clôture</th>
                   <th className="text-left px-1.5">Revue</th>
-                  {peutEcrire && <th className="text-left px-1.5">Actions</th>}
+                  {peutValider && <th className="text-left px-1.5">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -299,8 +366,10 @@ export function CreancesDouteusesPage() {
                       <td className="px-1.5 text-right tabular-nums">{montant(c.resteALaCloture)}</td>
                       <td className="px-1.5 text-right tabular-nums">{montant(c.depreciationOuverture)}</td>
                       <td className="px-1.5 text-right tabular-nums font-semibold">{montant(c.depreciationALaCloture)}</td>
-                      <td className="px-1.5" title={c.revue?.motif ?? ''}>{c.revue ? 'Faite' : 'À faire'}</td>
-                      {peutEcrire && (
+                      <td className="px-1.5" title={c.revue?.motif ?? c.revuesAnnulees.map((a) => `Annulée le ${jour(a.annuleeLe)} · ${a.motif ?? ''}`).join(' ; ')}>
+                        {c.revue ? 'Faite' : c.revueAFaire ? 'À faire' : '·'}
+                      </td>
+                      {peutValider && (
                         <td className="px-1.5 space-x-2">
                           {ouvert && !c.revue && (
                             <button type="button" className="text-sel hover:underline" onClick={() => ouvrir('revue', c)}>
@@ -317,13 +386,16 @@ export function CreancesDouteusesPage() {
                               </button>
                             </>
                           )}
-                          {c.revue && (
+                          {ouvert && c.revue && (
                             <button
                               type="button"
                               className="text-rouge hover:underline"
-                              onClick={() => retirer(`/creances-douteuses/${c.id}/revues/${c.revue!.id}`, 'Retirer la revue de cet exercice et son écriture au brouillard ?')}
+                              onClick={() => {
+                                setErreurAnnulation(null);
+                                setAnnulation({ creance: c, motif: '' });
+                              }}
                             >
-                              Retirer la revue
+                              Annuler la revue
                             </button>
                           )}
                           {c.mouvements.length > 0 && (
@@ -338,7 +410,7 @@ export function CreancesDouteusesPage() {
                               Retirer le dernier mouvement
                             </button>
                           )}
-                          {c.revues.length === 0 && c.mouvements.length === 0 && (
+                          {c.revues.length === 0 && c.revuesAnnulees.length === 0 && c.mouvements.length === 0 && (
                             <button
                               type="button"
                               className="text-rouge hover:underline"
@@ -354,7 +426,7 @@ export function CreancesDouteusesPage() {
                 })}
                 {liste.creances.length === 0 && (
                   <tr>
-                    <td colSpan={peutEcrire ? 9 : 8} className="px-1.5 py-2 text-text-dim">
+                    <td colSpan={peutValider ? 9 : 8} className="px-1.5 py-2 text-text-dim">
                       Aucune créance reclassée au plus tard à la clôture de cet exercice.
                     </td>
                   </tr>
@@ -365,7 +437,7 @@ export function CreancesDouteusesPage() {
         </div>
       )}
 
-      {peutEcrire && form && (
+      {peutValider && form && (
         <PortailModale>
           <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
             <form onSubmit={envoyer} className="anim-modale w-full max-w-[600px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
@@ -386,7 +458,7 @@ export function CreancesDouteusesPage() {
                       </span>
                     </>
                   )}
-                  {form.geste === 'reclasser' && (
+                  {(form.geste === 'reclasser' || form.geste === 'declarer') && (
                     <>
                       <label className="text-right">Créance :</label>
                       <select required value={form.compteCreanceId} onChange={(e) => choisirCreance(e.target.value, form.nature)} className="border border-border-dark px-2 py-1">
@@ -438,6 +510,14 @@ export function CreancesDouteusesPage() {
                       </span>
                     </>
                   )}
+                  {form.geste === 'declarer' && (
+                    <>
+                      <label className="text-right">Dépréciation existante :</label>
+                      <input required inputMode="decimal" value={form.depreciationOuverture} onChange={(e) => champ('depreciationOuverture', e.target.value)} className="border border-border-dark px-2 py-1" />
+                      <label className="text-right">Source :</label>
+                      <input required maxLength={500} placeholder="Balance de reprise, état de l'ancien cabinet…" value={form.source} onChange={(e) => champ('source', e.target.value)} className="border border-border-dark px-2 py-1" />
+                    </>
+                  )}
                   {form.geste === 'perte' && !form.creance?.comptePertePropose && (
                     <>
                       <label className="text-right">Compte 651 :</label>
@@ -449,9 +529,15 @@ export function CreancesDouteusesPage() {
                           </option>
                         ))}
                       </select>
+                      {motifListe651Vide(comptes651) && (
+                        <>
+                          <span />
+                          <span className="text-text-dim">{motifListe651Vide(comptes651)}</span>
+                        </>
+                      )}
                     </>
                   )}
-                  {form.geste !== 'revue' && (
+                  {form.geste !== 'revue' && form.geste !== 'declarer' && (
                     <>
                       <label className="text-right">Date :</label>
                       <input type="date" required value={form.date} onChange={(e) => champ('date', e.target.value)} className="border border-border-dark px-2 py-1" />
@@ -465,7 +551,8 @@ export function CreancesDouteusesPage() {
                       <span className="text-text-dim">{annonceRevue(proposition.depreciationEnPlace, montantSaisi(form.montant)) ?? ' '}</span>
                     </>
                   )}
-                  <label className="text-right">Journal :</label>
+                  {form.geste !== 'declarer' && <label className="text-right">Journal :</label>}
+                  {form.geste !== 'declarer' && (
                   <select required value={form.journalId} onChange={(e) => champ('journalId', e.target.value)} className="border border-border-dark px-2 py-1">
                     <option value="">Choisir</option>
                     {journauxDuGeste.map((j) => (
@@ -474,7 +561,8 @@ export function CreancesDouteusesPage() {
                       </option>
                     ))}
                   </select>
-                  {journaux && journauxDuGeste.length === 0 && (
+                  )}
+                  {form.geste !== 'declarer' && journaux && journauxDuGeste.length === 0 && (
                     <>
                       <span />
                       <span className="text-text-dim">
@@ -483,7 +571,7 @@ export function CreancesDouteusesPage() {
                     </>
                   )}
                   <label className="text-right">Motif :</label>
-                  <textarea required rows={2} maxLength={2000} value={form.motif} onChange={(e) => champ('motif', e.target.value)} className="border border-border-dark px-2 py-1" />
+                  <textarea required={form.geste !== 'declarer'} rows={2} maxLength={2000} value={form.motif} onChange={(e) => champ('motif', e.target.value)} className="border border-border-dark px-2 py-1" />
                   <span className="text-right self-start pt-1">Pièces :</span>
                   <div className="space-y-1">
                     {form.pieces.map((p, i) => (
@@ -518,7 +606,51 @@ export function CreancesDouteusesPage() {
                     Annuler
                   </button>
                   <button type="submit" disabled={envoi} className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50">
-                    Passer l'écriture
+                    {form.geste === 'declarer' ? 'Déclarer' : "Passer l'écriture"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+
+      {peutValider && annulation && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={annuler} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span>Annuler la revue de la dépréciation</span>
+                <button type="button" onClick={() => setAnnulation(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 text-[11.5px] space-y-2">
+                {erreurAnnulation && <div className="border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 whitespace-pre-wrap">{erreurAnnulation}</div>}
+                <div className="flex items-center gap-1.5">
+                  {annulation.creance.compteCreance.numero} · {annulation.creance.tiers ?? annulation.creance.compteCreance.intitule}
+                  <Aide
+                    titre="Annulation d'une revue"
+                    texte="Au brouillard, l'écriture de la revue est supprimée ; validée, elle est inscrite en négatif. La revue reste au dossier, marquée annulée avec son motif. Passez ensuite le mouvement, puis refaites la revue."
+                    source="AUDCIF art. 20, al. 2"
+                  />
+                </div>
+                <label className="block">Motif :</label>
+                <textarea
+                  required
+                  rows={3}
+                  minLength={3}
+                  maxLength={500}
+                  value={annulation.motif}
+                  onChange={(e) => setAnnulation((a) => (a ? { ...a, motif: e.target.value } : a))}
+                  className="w-full border border-border-dark px-2 py-1"
+                />
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setAnnulation(null)} className="border border-bord rounded-[3px] px-3 py-[3px]">
+                    Fermer
+                  </button>
+                  <button type="submit" disabled={envoi || !motifAnnulationValide(annulation.motif)} className="bg-sel text-white rounded-full px-3 py-[3px] font-semibold disabled:opacity-50">
+                    Annuler la revue
                   </button>
                 </div>
               </div>

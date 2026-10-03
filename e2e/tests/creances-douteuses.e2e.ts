@@ -97,22 +97,26 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     expect(ligne.resteALaCloture).toBe(1_160_000);
     expect(ligne.depreciationALaCloture).toBe(400_000);
     // Le module et la balance disent la même chose du 416 et du 491.
-    expect(liste.rapprochement).toEqual({ solde416: 1_160_000, resteModule: 1_160_000, solde491: 400_000, depreciationModule: 400_000 });
+    expect(liste.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 400_000, depreciationModule: 400_000 });
 
     // L'écriture de la dotation est TENUE · elle ne se supprime pas du journal.
     await expect(appelApi(page, 'DELETE', `/ecritures/${ligne.revue!.ecritureId}`)).rejects.toThrow(/400 · .*créance douteuse/);
 
-    // À l'écran · la fenêtre s'ouvre et montre la créance.
+    // À l'écran · la fenêtre s'ouvre, montre la créance, et l'annulation passe par sa modale.
     await page.goto('/#/creances-douteuses');
     await expect(page.getByText(client.numero, { exact: false }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Retirer la revue' })).toBeVisible();
+    await page.getByRole('button', { name: 'Annuler la revue' }).click();
+    await page.getByRole('textbox').last().fill('Revue passée sur un reste faux');
+    await page.getByRole('button', { name: 'Annuler la revue' }).last().click();
+    await expect(page.getByRole('button', { name: 'Annuler la revue' })).toHaveCount(0);
 
-    // Retirer, du plus récent au plus ancien · la revue, puis la créance.
-    await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*retirez-les d’abord/);
-    await appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}/revues/${ligne.revue!.id}`);
-    await appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`);
-    const vide = await appelApi<Liste>(page, 'GET', `/creances-douteuses?exerciceId=${exercice.id}`);
-    expect(vide.creances).toHaveLength(0);
+    // Au brouillard, l'écriture de la revue est supprimée ; la revue reste, annulée.
+    const apres = await appelApi<Liste & { creances: Array<{ revuesAnnulees: unknown[] }> }>(page, 'GET', `/creances-douteuses?exerciceId=${exercice.id}`);
+    expect(apres.creances[0].revue).toBeNull();
+    expect(apres.creances[0].revuesAnnulees).toHaveLength(1);
+    expect(apres.rapprochement).toEqual({ provisoire: false, solde416: 1_160_000, resteModule: 1_160_000, solde491: 0, depreciationModule: 0 });
+    // Une créance dont une revue est gardée, même annulée, ne se retire plus.
+    await expect(appelApi(page, 'DELETE', `/creances-douteuses/${creance.id}`)).rejects.toThrow(/400 · .*même annulée/);
     expect(pannes).toEqual([]);
   });
 }

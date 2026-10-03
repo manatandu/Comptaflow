@@ -21,7 +21,10 @@ CREATE TABLE "creances_douteuses" (
     "montant" DECIMAL(18,2) NOT NULL,
     "motif" TEXT NOT NULL,
     "pieces" JSONB NOT NULL,
-    "ecritureReclassementId" TEXT NOT NULL,
+    "ecritureReclassementId" TEXT,
+    "declareeOuverture" BOOLEAN NOT NULL DEFAULT false,
+    "sourceDeclaration" TEXT,
+    "depreciationOuverture" DECIMAL(18,2) NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdBy" TEXT NOT NULL,
 
@@ -51,6 +54,10 @@ CREATE TABLE "ajustements_creances_douteuses" (
     "motif" TEXT NOT NULL,
     "pieces" JSONB NOT NULL,
     "ecritureId" TEXT,
+    "annuleeLe" TIMESTAMP(3),
+    "annuleePar" TEXT,
+    "motifAnnulation" TEXT,
+    "annulation" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdBy" TEXT NOT NULL,
 
@@ -58,7 +65,10 @@ CREATE TABLE "ajustements_creances_douteuses" (
 );
 
 CREATE UNIQUE INDEX "ajustements_creances_douteuses_ecritureId_key" ON "ajustements_creances_douteuses"("ecritureId");
-CREATE UNIQUE INDEX "ajustements_creances_douteuses_creanceId_exerciceId_key" ON "ajustements_creances_douteuses"("creanceId", "exerciceId");
+-- Une seule revue NON ANNULÉE par créance et par exercice · deux NULL tenus
+-- pour ÉGAUX, les revues annulées, datées, s'y ajoutent sans le rompre.
+CREATE UNIQUE INDEX "ajustements_creances_douteuses_creanceId_exerciceId_annulee_key"
+  ON "ajustements_creances_douteuses"("creanceId", "exerciceId", "annuleeLe") NULLS NOT DISTINCT;
 CREATE INDEX "ajustements_creances_douteuses_tenantId_idx" ON "ajustements_creances_douteuses"("tenantId");
 CREATE INDEX "ajustements_creances_douteuses_exerciceId_idx" ON "ajustements_creances_douteuses"("exerciceId");
 
@@ -93,3 +103,18 @@ ALTER TABLE "mouvements_creances_douteuses" ADD CONSTRAINT "mouvements_creances_
 ALTER TABLE "mouvements_creances_douteuses" ADD CONSTRAINT "mouvements_creances_douteuses_creanceId_fkey" FOREIGN KEY ("creanceId") REFERENCES "creances_douteuses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "mouvements_creances_douteuses" ADD CONSTRAINT "mouvements_creances_douteuses_exerciceId_fkey" FOREIGN KEY ("exerciceId") REFERENCES "exercices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "mouvements_creances_douteuses" ADD CONSTRAINT "mouvements_creances_douteuses_ecritureId_fkey" FOREIGN KEY ("ecritureId") REFERENCES "ecritures"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Le verrou des gestes, une ligne par dossier (même modèle que la ligne A5).
+CREATE TABLE "verrous_creances_douteuses" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "geste" TEXT NOT NULL,
+    "echeance" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "verrous_creances_douteuses_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "verrous_creances_douteuses_tenantId_key" ON "verrous_creances_douteuses"("tenantId");
+
+ALTER TABLE "verrous_creances_douteuses" ADD CONSTRAINT "verrous_creances_douteuses_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

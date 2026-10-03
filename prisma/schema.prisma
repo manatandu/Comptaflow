@@ -794,6 +794,7 @@ model Tenant {
   mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
   provisionsChangeOuverture    ProvisionChangeOuverture[]
   verrouProvisionChange        VerrouProvisionChange?
+  verrouCreancesDouteuses      VerrouCreancesDouteuses?
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -8924,9 +8925,19 @@ model CreanceDouteuse {
   pieces           Json
 
   /// D 416 / C compte client. RESTRICT déclaré · retirée seule, la créance
-  /// se dirait reclassée sans l'écriture qui l'a fait.
-  ecritureReclassementId String   @unique
-  ecritureReclassement   Ecriture @relation("CreanceDouteuseReclassement", fields: [ecritureReclassementId], references: [id], onDelete: Restrict)
+  /// se dirait reclassée sans l'écriture qui l'a fait. Nulle pour une
+  /// créance DÉCLARÉE à l'ouverture d'un dossier repris (aucune écriture).
+  ecritureReclassementId String?   @unique
+  ecritureReclassement   Ecriture? @relation("CreanceDouteuseReclassement", fields: [ecritureReclassementId], references: [id], onDelete: Restrict)
+
+  /// DOSSIER REPRIS (relecture adverse, M3) · la créance était déjà au 416
+  /// et sa dépréciation au 491 avant OmegaX. Déclarée au début d'un
+  /// exercice, source exigée, sans écriture, bornée par l'à-nouveau.
+  declareeOuverture     Boolean @default(false)
+  sourceDeclaration     String?
+  /// La dépréciation existant à la date de la déclaration · en place pour la
+  /// première revue.
+  depreciationOuverture Decimal @default(0) @db.Decimal(18, 2)
 
   ajustements AjustementCreanceDouteuse[]
   mouvements  MouvementCreanceDouteuse[]
@@ -8964,10 +8975,22 @@ model AjustementCreanceDouteuse {
   ecritureId String?   @unique
   ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
 
+  /// ANNULATION (relecture adverse, B2 · AUDCIF art. 20, al. 2) · la revue
+  /// s'annule, jamais ne se supprime une fois validée · son écriture est
+  /// supprimée au brouillard (le lien est alors effacé) ou inscrite en
+  /// négatif, et l'enregistrement garde la date, l'auteur et le motif.
+  annuleeLe       DateTime?
+  annuleePar      String?
+  motifAnnulation String?
+  annulation      Json?
+
   createdAt DateTime @default(now())
   createdBy String
 
-  @@unique([creanceId, exerciceId])
+  // Une seule revue NON ANNULÉE par créance et par exercice · l'index est
+  // créé NULLS NOT DISTINCT par la migration (deux `annuleeLe` nuls sont
+  // égaux), comme celui de la réévaluation des devises.
+  @@unique([creanceId, exerciceId, annuleeLe])
   @@index([tenantId])
   @@index([exerciceId])
   @@map("ajustements_creances_douteuses")
@@ -8999,4 +9022,19 @@ model MouvementCreanceDouteuse {
   @@index([creanceId])
   @@index([exerciceId])
   @@map("mouvements_creances_douteuses")
+}
+
+/// Le verrou des gestes sur les créances douteuses · une ligne par dossier,
+/// posée par une insertion seule et retirée en `finally` · un second geste
+/// reçoit aussitôt un 409, sans qu'aucune connexion ne soit retenue (même
+/// modèle que `VerrouProvisionChange`, ligne A5).
+model VerrouCreancesDouteuses {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  geste     String
+  echeance  DateTime
+  createdAt DateTime @default(now())
+
+  @@map("verrous_creances_douteuses")
 }

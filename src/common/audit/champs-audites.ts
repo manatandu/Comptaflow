@@ -298,6 +298,8 @@ const LIGNES_DE_LA_TETE =
 export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
   VerrouProvisionChange:
     "Verrou technique d'un geste sur la provision pour pertes de change (A5) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (déclaration, réévaluation, écritures).",
+  VerrouCreancesDouteuses:
+    "Verrou technique d'un geste sur les créances douteuses (A7) · posé et retiré dans la même requête, il ne porte aucune donnée du dossier ; le geste, lui, est journalisé (créance, revue, mouvement, écritures).",
   // ── Lignes d'une tête journalisée
   LigneEcriture:
     "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",

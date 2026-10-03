@@ -180,7 +180,8 @@ export class OperationSpecifiqueService {
     if (modele.renvoiModule) {
       throw new BadRequestException(
         `« ${modele.libelle} » se passe dans la fenêtre ${modele.renvoiModule.fenetre} · ${modele.renvoiModule.geste}. ` +
-          "Le bien a sa fiche, qui calcule et retient l'écriture ; passée ici, elle échapperait au plan d'amortissement et la reprise serait proposée deux fois.",
+          (modele.renvoiModule.motif ??
+            "Le bien a sa fiche, qui calcule et retient l'écriture ; passée ici, elle échapperait au plan d'amortissement et la reprise serait proposée deux fois."),
       );
     }
     await this.verifierDroitDAgir(modele, tenantId);

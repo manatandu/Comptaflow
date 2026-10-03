@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { NatureCreanceDouteuse } from '@prisma/client';
@@ -118,4 +119,52 @@ export class RecouvrementCreanceDto extends MotifEtPiecesDto {
 
   @IsNumber({ maxDecimalPlaces: 2 })
   montant!: number;
+}
+
+/** L'annulation d'une revue (AUDCIF art. 20, al. 2) · motif de 3 à 500 caractères. */
+export class AnnulerRevueDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  motif!: string;
+}
+
+/**
+ * DOSSIER REPRIS · la créance déjà au 416 et sa dépréciation déjà au 491
+ * avant OmegaX, déclarées au premier jour de l'exercice choisi, sans écriture.
+ */
+export class DeclarerCreanceOuvertureDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  compteCreanceId!: string;
+
+  @IsUUID('4')
+  compte416Id!: string;
+
+  @IsEnum(NatureCreanceDouteuse)
+  nature!: NatureCreanceDouteuse;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  montant!: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  depreciationOuverture!: number;
+
+  @IsString()
+  @MaxLength(500)
+  source!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  motif?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => PieceJustificativeDto)
+  pieces?: PieceJustificativeDto[];
 }
