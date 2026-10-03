@@ -186,6 +186,14 @@ contre-passation des disponibilités). Cité tel quel dans le module.
 - Mineur 3 · traces des contre-passations annulées lues dans un ordre
   stable ; le contrôle 32 dit la lecture bornée.
 
+Bloc du § 3 passé après le troisième tour (main f4ab9bb contenu) · serveur
+715 suites, 10048 tests (`npx jest --maxWorkers=2`, deux suites tuées par
+manque de mémoire repassées seules), typage et construction ; client 209
+fichiers, 1708 tests, typage et construction. `prisma migrate diff` · « No
+difference detected » ; formes de requête nouvelles éprouvées sur base
+jetable migrée (filtre de relation sur l'exercice, `OR` sur les deux
+contre-passations, `is: null` sur les liens, update à filtre étendu).
+
 ## Reste
 
 - Relectures (silent-failure-hunter, typescript-reviewer, react-reviewer)
@@ -210,6 +218,6 @@ contre-passation des disponibilités). Cité tel quel dans le module.
 
 ```bash
 npx tsc --noEmit
-npx jest src/modules/devises src/modules/controles/contre-passation-de-disponibilite.spec.ts
-cd client && npx vitest run src/lib/contre-passation.spec.ts src/lib/reevaluation-cloture.spec.ts
+npx jest src/modules/devises src/modules/controles/contre-passation-de-disponibilite.spec.ts src/modules/controles/banque-et-cloture-informatique.spec.ts
+cd client && npx vitest run src/lib/contre-passation.spec.ts src/lib/reevaluation-cloture.spec.ts src/lib/ventilation-disponibilites.spec.ts
 ```
