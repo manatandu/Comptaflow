@@ -25,8 +25,10 @@ passer au journal par la même mécanique que la paie du mois (P9).
 - Semis · `66140000` aux deux (`compte-seed.ts` l. 981 « Indemnités de préavis
   et de licenciement » ; `compte-seed-syscohada.ts` l. 1232 « Indemnités de
   préavis, de licenciement et de recherche d'embauche »). Même numéro, aucun
-  rôle divergent ; l'intitulé du semis SYCEBNL (plan des comptes, ch. 2) est
-  plus court que celui de sa fiche (ch. 3) · non corrigé, signalé.
+  rôle divergent ; l'intitulé SEMÉ côté SYCEBNL est plus court que celui de
+  sa fiche (ch. 3) · écart du SEMIS (`compte-seed.ts`, ligne du 66140000), le
+  plan du ch. 2 du SYCEBNL s'arrêtant au 66 ; semis non retouché, signalé.
+- 66240000 aux deux semis (personnel non national), même fiche.
 - Code du travail, art. 100, 103, 104 ; arrêté n° 12/CAB.MIN/ETPS/042 du
   8 août 2008, art. 2 (décompte écrit « lors de la résiliation du contrat de
   travail, pour quelque cause que ce soit ») ; art. 7, point 8 (liste
@@ -45,7 +47,7 @@ passer au journal par la même mécanique que la paie du mois (P9).
 ## Plan
 
 1. [x] Schéma · `BulletinPaie.nature` (`MOIS` | `DECOMPTE_FINAL`), migration
-   `20270118000000_decompte_final_emis` écrite à la main. CONTRÔLE DE DÉRIVE
+   `20270119000000_decompte_final_emis` (renommée au premier tour) écrite à la main. CONTRÔLE DE DÉRIVE
    NON PASSÉ LOCALEMENT · le PostgreSQL du conteneur n'admet que l'auth par
    pair ou par mot de passe, et l'ouverture d'un accès local a été refusée
    par la politique de l'environnement. La migration est le strict pendant du
@@ -68,9 +70,13 @@ passer au journal par la même mécanique que la paie du mois (P9).
 - Indemnité de préavis, dommages-intérêts de l'art. 70 et somme convenue de
   l'art. 61 bis · nature `INDEMNITE_DE_FIN_DE_CONTRAT`, compte 66140000
   (AUDCIF Titre VIII ch. 21 § 5.2 ; fiche du compte 66 des deux textes).
-  DANS la rémunération (Code du travail, art. 7, point 8 · liste d'exclusion
-  fermée) et IMPOSABLE (loi n° 23/053, art. 68, 6°). Ouverte ni au DTO d'un
-  élément ni aux rubriques du cabinet.
+  IMPOSABLE (loi n° 23/053, art. 68, 6°). Assiette SOCIALE · le corpus se
+  tait (ni nommée ni exclue par l'art. 7, point 8 ; la mention 20 du modèle
+  de 2008 ne la range pas) · OmegaX la garde dans l'assiette, RÉSERVE écrite
+  sur la ligne (`RESERVE_ASSIETTE_SOCIALE_INDEMNITE`). Ses AVANTAGES
+  (art. 63 al. 3, art. 70) se ventilent par nature (logement, transport,
+  soins sortent de l'assiette ; « autres » restent dans l'indemnité) ; non
+  ventilés, refus. Ouverte ni au DTO d'un élément ni aux rubriques du cabinet.
 - Indemnité compensatoire de congé au 6613 (nature existante), gratification
   au 6612, allocations familiales du décompte sous leur nature (hors
   rémunération, et leur montant s'ajoute au taux légal de l'art. 69, 1, sans
@@ -101,6 +107,41 @@ titre du document ouvert.
 suites, 9 580 tests), `npm run build`, `npx prisma generate` ; client
 `npx tsc --noEmit`, `npm test` (203 fichiers, 1 636 tests), `npm run build`.
 
+## Premier tour de relecture (2026-10-03), fait
+
+Serveur (commit « A8 · corrections du premier tour, serveur ») ·
+- 0 · migration renommée `20270119000000_decompte_final_emis`.
+- B2 · `DecompteFinalEmisDto` (`@IsDefined`, `MOTIF_ANCIENNETE_EXIGEE`,
+  `MOTIF_MOIS_NON_COUVERTS_EXIGES`), le calcul seul inchangé.
+- (g) motifs joints au message (`refusNomme`) ; (h) `pg_advisory_xact_lock`
+  par dossier en tête de la transaction de `figerBulletin` ; (i)
+  `chiffresFigeables` refuse un null au lieu de `?? 0` ; (j) éléments
+  négatifs refusés (`motifsElementsNegatifs`), plus de `Math.max` ; taux légal
+  d'allocations déclaré refusé quand le décompte les calcule ; (k) rubriques
+  arrondies au centime, totaux comparés après arrondi ; (l) `MOTIF_GRATIFICATION` ;
+  (m) `motifsDoubleCompte` (congé, gratification, allocations) ; (n)
+  `avertissementsPassation`, rendu dans la réponse et figé dans le calcul ;
+  (o) commentaire du 6614 · écart du semis ; (p)
+  `RESERVE_INDEMNITES_PERSONNEL_NATIONAL` sur la ligne du 6614 (renvoi au 6624).
+- Assiette · `avantagesInclusFc` posé par le moteur, ventilation
+  (`VentilationAvantageDto`, `ventilationDesAvantages` côté écran) ou refus ;
+  phrase « elle reste donc dans la rémunération » retirée.
+
+Client (commit « A8 · corrections du premier tour, écran ») ·
+- B1 · plus aucun effacement des arriérés · motif `MOTIF_ARRIERES_ET_ELEMENTS` ;
+  corps construit par `corpsEmissionDecompte` (pur, testé) ; test par
+  positions remplacé ; import de `vitest` retiré du spec (il cassait la suite
+  Jest de la racine).
+- B2 · champs vides envoyés absents, motif avant le clic.
+- (a) bouton grisé par `motifDecompteNonEmissible(...) !== null`, mois rogné,
+  même garde dans `emettreDecompte` ; (b) l'écran nomme le salarié, le mois et
+  le nombre d'éléments repris ; (c) `useRef` contre le double envoi ; (d)
+  succès et avertissements vidés au changement de salarié ou de mois, réponse
+  tardive jetée par jeton, salarié nommé, liste des bulletins relue à
+  l'ouverture de l'onglet Bulletins émis (montage) ; (e) `aria-describedby`,
+  `role="status"`, `pattern` et `placeholder` AAAA-MM ; (f) Aide réécrite ;
+  avertissements des allocations affichés.
+
 ## Reste
 
 - Contrôle de dérive de la migration sur une base jetable (voir étape 1),
@@ -119,7 +160,9 @@ suites, 9 580 tests), `npm run build`, `npx prisma generate` ; client
   barème du mois appliqué par décision, réserve écrite.
 - Intitulé du 66140000 au semis SYCEBNL (« préavis et de licenciement ») plus
   court que la fiche du compte 66 du même texte (« et de recherche
-  d'embauche ») · écart du texte, non corrigé.
+  d'embauche ») · écart du SEMIS (`compte-seed.ts`), non retouché.
+- Assiette sociale de l'indemnité de fin de contrat · corpus muet, lecture
+  d'OmegaX (gardée dans l'assiette), réserve sur la ligne.
 
 ## Vérification
 

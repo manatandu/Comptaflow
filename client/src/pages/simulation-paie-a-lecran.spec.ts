@@ -357,9 +357,10 @@ describe('D2 · le décompte final déclare les faits de la rupture', () => {
     expect(panneau).toContain('Mois non couverts par un congé');
   });
 
-  it("dit que le décompte écrit est une obligation, et que l'écran ne l'émet pas", () => {
+  it("dit que le décompte écrit est une obligation, et que l'émission le fige (A8)", () => {
     expect(panneau).toContain('arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2');
-    expect(panneau).toContain('il n’émet pas ce décompte écrit');
+    // Une garantie négative vieillit (P5) · depuis A8, l'écran émet le décompte écrit.
+    expect(panneau).toContain('« Émettre le décompte final » fige le décompte écrit');
   });
 
   it('montre à part ce que doit le travailleur, et le total dû', () => {
