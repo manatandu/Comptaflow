@@ -40,6 +40,8 @@ const ROUTES: { methode: Methode; chemin: string }[] = [
   { methode: 'Patch', chemin: 'ecarts/:ecartId' },
   { methode: 'Get', chemin: ':id/caisses-non-comptees' },
   { methode: 'Post', chemin: ':id/pv-caisse' },
+  // Ligne A10 · les mouvements intercalés d'une caisse comptée après la clôture.
+  { methode: 'Get', chemin: 'pv-caisse/:pvId/mouvements' },
 ];
 
 /** Le bloc de la méthode du contrôleur qui porte ce décorateur, jusqu'au suivant. */

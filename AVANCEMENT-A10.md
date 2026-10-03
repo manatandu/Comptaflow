@@ -21,11 +21,21 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    totaux figés). Tests · `solde-caisse-au-comptage.spec.ts` (doublure qui
    honore les filtres), doublures des trois specs existants complétées.
 
+2. Écran · `InventairePage.tsx` · la saisie du solde est retirée (mention
+   « Solde comparé · livre-journal au jour du comptage » et bulle `Aide`) ;
+   `BlocPvCaisse` montre les PV établis, même campagne close · solde à la
+   clôture, encaissements, paiements, solde au jour du comptage, espèces
+   comptées, espèces reconstituées à la clôture, écart ; PV d'avant la règle
+   signalé ; bouton « Mouvements intercalés » (échec dit, tranche dite,
+   discordance dite). Types `ProcesVerbalCaisse`,
+   `MouvementsReconstitutionCaisse`. Tests ·
+   `inventaire-pv-caisse-reconstitution.spec.ts`, route ajoutée à
+   `inventaire-gestes-a-lecran.spec.ts`.
+
 ## Reste
 
-- Écran (`client/src/pages/InventairePage.tsx`) · retirer la saisie du solde,
-  montrer les PV établis avec leur reconstitution et les mouvements.
-- Bloc du § 3 des deux côtés avant le dernier commit.
+- Bloc du § 3 des deux côtés avant le dernier commit (client vert,
+  1 661 tests ; serveur en cours).
 
 ## Décisions, avec leur article
 
