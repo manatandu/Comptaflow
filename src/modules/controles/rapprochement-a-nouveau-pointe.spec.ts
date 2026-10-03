@@ -59,11 +59,14 @@ function analyser(rapprochements: RapFaux[]) {
     rapprochementBancaire: {
       findMany: jest.fn(async ({ where }: { where: { statut?: string; dateReleve?: { gte: Date; lte: Date } } }) => {
         if (where.statut === 'CLOTURE') return rapprochements.filter((r) => r.statut === 'CLOTURE');
+        // Ligne A13 · l'en cours du contrôle de la banque, hors de ce spec.
+        if (where.statut === 'EN_COURS') return [];
         const b = where.dateReleve!;
         return rapprochements.filter(
           (r) => r.lignes.length > 0 && r.dateReleve.getTime() >= b.gte.getTime() && r.dateReleve.getTime() <= b.lte.getTime(),
         );
       }),
+      groupBy: jest.fn().mockResolvedValue([]),
     },
     dotationAmortissement: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
