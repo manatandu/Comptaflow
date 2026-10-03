@@ -1094,8 +1094,8 @@ protégée.
 **P3 · LA PASSATION COMPTABLE** (`docs/paie-p3-passation-comptable.md`). AUCUN
 NUMÉRO DE COMPTE DE PAIE HORS DE `passation-paie.ts`, ET AUCUN SANS SON RÉFÉRENTIEL.
 
-**DIX-SEPT RÔLES, UN SEUL DIVERGE** (dix-huit avec le 78100000 des avantages en
-nature, voir P9) · la retraite OBLIGATOIRE est au **43130000** en SYSCOHADA (sous
+**DIX-HUIT RÔLES, UN SEUL DIVERGE** (dix-neuf avec le 78100000 des avantages en
+nature, voir P9 ; le 66140000 des indemnités de fin de contrat depuis A8) · la retraite OBLIGATOIRE est au **43130000** en SYSCOHADA (sous
 431), au **43210000** en SYCEBNL (sous 432). Le reste coïncide · 6611, 6612, 6613,
 6615, 6617, 6618, 6631, 6634, 6638, 6641, 4311, 4312, 4334, 4335, 4472, 4220. **La
 correction évidente est un piège** · le 432 SYSCOHADA est la retraite COMPLÉMENTAIRE
@@ -1113,7 +1113,7 @@ familiales légales (minima dus par l'EMPLOYEUR, colonne 19 du décret n° 25/22
 dévolution de l'arrêté n° 143/2018 n'est ni charge ni créance de l'employeur, aucune
 fiche du compte 66 ne nomme leur compte, 2026-09-30) ; soins de santé (trois comptes
 possibles) ; frais de voyage (l'art. 68, 1 renvoie à une qualification). Un test
-exige que les deux tables couvrent EXACTEMENT les quinze natures.
+exige que les deux tables couvrent EXACTEMENT les seize natures.
 
 **REFUS, BALANCE BOUCLÉE** · **COTISATION_EN_ABSTENTION** (sans nature d'employeur,
 charge minorée de l'INPP) ; SOLDE DU 422 = NET (brut moins retenues), sinon REFUS,
@@ -1294,6 +1294,23 @@ net), aucun contrat en cours (pas de repli), second bulletin actif le même mois
 (2) **`peutEcrire`** (`lib/auth.tsx`, admin ou comptable) ·
 `ecriture-masquee.spec.ts` exige que tout écran qui écrit le LISE, ou `estAdmin`
 s'il est réservé à l'administrateur, ou soit une exemption motivée.
+(3) **LE DÉCOMPTE FINAL S'ÉMET COMME UN BULLETIN** (ligne A8, 2026-10-03) ·
+même table (`BulletinPaie.nature`, `DECOMPTE_FINAL`), même numérotation, même
+annulation, même passation (P9), indemnités de rupture au 66140000 contre le 422
+(AUDCIF Titre VIII ch. 21 § 5.2 ; fiche du compte 66, « 6614 Indemnités de
+préavis, de licenciement et de recherche d'embauche ») sous la nature
+`INDEMNITE_DE_FIN_DE_CONTRAT` (imposable, loi n° 23/053 art. 68, 6° ; dans
+l'assiette sociale avec RÉSERVE, le corpus se tait), refusée à la saisie d'un
+bulletin ordinaire. Il REMPLACE le bulletin du dernier mois (décision de Manasse
+du 2026-10-02) · un seul document actif par salarié et par mois, sous un verrou
+par dossier (`pg_advisory_xact_lock`) ; impôt au barème du mois avec réserve sur
+le versement unique. Rien ne devient zéro · ancienneté et mois non couverts
+exigés à l'émission (`DecompteFinalEmisDto`), arriérés jamais effacés, solde
+partiel jamais émis ; logement et transport inclus dans une indemnité VENTILÉS
+sous leur nature (Code du travail art. 7, point 8), sinon refus ; sommes dues par
+le travailleur ni retenues ni comptées (art. 112, liste fermée). Allocations
+familiales du décompte · émises avec AVERTISSEMENT, leur passation refusée tant
+qu'aucune fiche ne leur donne de compte.
 
 **P9 · PAIE DU MOIS AU JOURNAL** (`comptabilisation-paie.ts`, trois temps, compte
 par compte). (1) Rejouée sur les CHIFFRES FIGÉS, jamais sur les lignes stockées.
