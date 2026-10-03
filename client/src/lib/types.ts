@@ -808,6 +808,10 @@ export interface DeclarationTva {
   avoirsCollecteConstates: number;
   /** Avoirs antérieurs inscrits en déduction sur cette période (art. 52). */
   recuperationArt52: number;
+  /** TVA de créances irrécouvrables constatée sur la période · déduite le mois suivant (ligne A7). */
+  creancesIrrecouvrablesConstatees: number;
+  /** Récupération sur créance irrécouvrable, art. 52 · en déduction ici, sur sa ligne (décret art. 126). */
+  recuperationCreancesIrrecouvrables: number;
   /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
   avoirsCollecteNonImputes: number;
   /** TVA d'amont écartée par l'article 41 · jamais déductible. */

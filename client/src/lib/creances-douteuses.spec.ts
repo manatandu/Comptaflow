@@ -73,3 +73,11 @@ describe('créances douteuses · E1 à l’écran', () => {
     expect(page).toContain('Base de la dépréciation · le montant TTC inscrit au 416');
   });
 });
+
+describe('créances douteuses · E2 dans la déclaration de TVA', () => {
+  const declaration = readFileSync(join(__dirname, '../pages/DeclarationTvaPage.tsx'), 'utf8');
+  it('la récupération sur créance irrécouvrable a sa ligne propre, et ouvre la liquidation', () => {
+    expect(declaration).toContain('Récupération sur créance irrécouvrable, art. 52');
+    expect(declaration).toContain('declaration.recuperationCreancesIrrecouvrables > 0) && (');
+  });
+});

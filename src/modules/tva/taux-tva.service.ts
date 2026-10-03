@@ -2074,6 +2074,12 @@ export class TauxTvaService {
               // achat, l'autorisation du fournisseur (décret art. 60, audit
               // final F228).
               facture: { select: { nature: true, sens: true, mentionTvaDebits: true } },
+              // LA PERTE SUR CRÉANCE IRRÉCOUVRABLE (ligne A7, E2) · sa ligne de
+              // 443 n'est pas un avoir sur vente · elle se justifie par le
+              // DUPLICATA surchargé (décret n° 011/42, art. 127), jamais par une
+              // note de crédit, et s'inscrit en déduction le mois SUIVANT sa
+              // constatation (art. 126), sur sa propre ligne.
+              mouvementCreanceDouteuse: { select: { id: true } },
               // DEUX contreparties sont lues sur la même écriture, et pour
               // trois questions différentes : la ligne de TIERS lettrée dit
               // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
@@ -2166,9 +2172,21 @@ export class TauxTvaService {
       avoir: number;
       /** Avoirs constatés avant la période et imputés ici (décret art. 126). */
       recuperation: number;
+      /** TVA de créances irrécouvrables constatée dans la période · déduite le mois suivant. */
+      creanceConstatee: number;
+      /** TVA de créances irrécouvrables constatée le mois précédent · déduite ici (art. 52, décret art. 126). */
+      recuperationCreance: number;
     };
     const parTaux = new Map<string, Cumul>();
-    for (const t of taux) parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0, avoir: 0, recuperation: 0 });
+    for (const t of taux) {
+      parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0, avoir: 0, recuperation: 0, creanceConstatee: 0, recuperationCreance: 0 });
+    }
+    // LE MOIS QUI PRÉCÈDE LA PÉRIODE · une créance irrécouvrable constatée ce
+    // mois-là est inscrite en déduction ICI, et nulle part ailleurs (décret
+    // n° 011/42, art. 126, « la déclaration du ou des mois suivants celui de
+    // la constatation »). La déclaration est mensuelle · une ligne n'est lue
+    // en récupération que par la déclaration du mois qui suit sa date.
+    const debutMoisPrecedent = new Date(Date.UTC(dateDebut.getUTCFullYear(), dateDebut.getUTCMonth() - 1, 1));
     // LE MÊME CUMUL, COMPTE PAR COMPTE. La saisie et la facture passée au
     // journal ROUTENT la taxe sur la subdivision que la contrepartie appelle
     // (4432 pour une prestation vendue, 4453 pour un transport déduit), quand
@@ -2279,6 +2297,24 @@ export class TauxTvaService {
             `comptabiliserLiquidation`) et la requête ci-dessus filtre dessus.
           */
           const avoir = estCollecte ? Number(l.debit) : Number(l.credit);
+          if (avoir > EPSILON && estCollecte && l.ecriture.mouvementCreanceDouteuse) {
+            /*
+              TVA D'UNE CRÉANCE IRRÉCOUVRABLE (ligne A7, E2 · O.-L. n° 10/001,
+              art. 52 ; décret n° 011/42, art. 126 et 127). Le D 443 de la perte
+              n'est PAS une TVA collectée négative · il n'est jamais retranché
+              de la collecte du mois de la perte. Il est montré constaté ce
+              mois-là, puis inscrit en DÉDUCTION, une seule fois, dans la
+              déclaration du mois qui suit. La liquidation de ce mois-là le
+              solde au 443 par sa ligne de récupération (`parCompte`).
+            */
+            if (dansLaPeriode) cumul.creanceConstatee = TauxTvaService.c(cumul.creanceConstatee + avoir);
+            else if (dateEcriture < dateDebut && dateEcriture >= debutMoisPrecedent) {
+              cumul.recuperationCreance = TauxTvaService.c(cumul.recuperationCreance + avoir);
+              const v = suivi(l.tauxTvaId!, l.compteId);
+              v.recuperation = TauxTvaService.c(v.recuperation + avoir);
+            }
+            return;
+          }
           if (avoir > EPSILON) {
             if (!estCollecte) {
               // Reprise de la déduction, à la constatation (décret art. 127).
@@ -2488,7 +2524,9 @@ export class TauxTvaService {
         cumul.deductible === 0 &&
         cumul.attente === 0 &&
         cumul.avoir === 0 &&
-        cumul.recuperation === 0
+        cumul.recuperation === 0 &&
+        cumul.creanceConstatee === 0 &&
+        cumul.recuperationCreance === 0
       ) {
         continue; // taux sans mouvement
       }
@@ -2506,7 +2544,11 @@ export class TauxTvaService {
         avoirsCollecteConstates: cumul.avoir,
         /** Avoirs antérieurs inscrits en déduction ici (art. 52). */
         recuperationArt52: cumul.recuperation,
-        net: TauxTvaService.c(cumul.collecte - cumul.deductible - cumul.recuperation),
+        /** TVA de créances irrécouvrables constatée ici · déduite le mois suivant. */
+        creancesIrrecouvrablesConstatees: cumul.creanceConstatee,
+        /** TVA de créances irrécouvrables du mois précédent, en déduction ici (art. 52, décret art. 126). */
+        recuperationCreancesIrrecouvrables: cumul.recuperationCreance,
+        net: TauxTvaService.c(cumul.collecte - cumul.deductible - cumul.recuperation - cumul.recuperationCreance),
         /** Le cumul compte par compte · c'est lui que la liquidation solde. */
         parCompte: [...(parTauxCompte.get(t.id) ?? new Map<string, ParCompte>())].map(([compteId, v]) => ({
           compteId,
@@ -2521,12 +2563,18 @@ export class TauxTvaService {
     const totalDeductible = TauxTvaService.c(lignes.reduce((s, l) => s + l.totalDeductible, 0));
     const avoirsCollecteConstates = TauxTvaService.c(lignes.reduce((s, l) => s + l.avoirsCollecteConstates, 0));
     const recuperationArt52 = TauxTvaService.c(lignes.reduce((s, l) => s + l.recuperationArt52, 0));
+    const creancesIrrecouvrablesConstatees = TauxTvaService.c(lignes.reduce((s, l) => s + l.creancesIrrecouvrablesConstatees, 0));
+    const recuperationCreancesIrrecouvrables = TauxTvaService.c(lignes.reduce((s, l) => s + l.recuperationCreancesIrrecouvrables, 0));
     const prorata = await this.prorataApplicable(tenantId, dateDebut, dateFin);
     const totalDeductibleAdmise = TauxTvaService.c(totalDeductible * (prorata.pourcentage / 100));
     // La récupération de l'art. 52 vient APRÈS le prorata · ce n'est pas de la
     // taxe ayant grevé un achat, c'est la propre taxe du redevable qui lui
     // revient. Lui appliquer le prorata en amputerait une part sans texte.
-    const netAvantImputation = TauxTvaService.c(totalCollecte - totalDeductibleAdmise - recuperationArt52);
+    // Même règle pour la TVA d'une créance irrécouvrable · la taxe du redevable
+    // lui revient, sans prorata.
+    const netAvantImputation = TauxTvaService.c(
+      totalCollecte - totalDeductibleAdmise - recuperationArt52 - recuperationCreancesIrrecouvrables,
+    );
 
     // ARTICLE 63 · le crédit du ou des mois précédents s'impute sur la taxe
     // exigible de celui-ci, jusqu'à épuisement. Un crédit non imputé reste
@@ -2565,6 +2613,8 @@ export class TauxTvaService {
         creditImpute,
         avoirsCollecteConstates,
         recuperationArt52,
+        creancesIrrecouvrablesConstatees,
+        recuperationCreancesIrrecouvrables,
         avoirsCollecteNonImputes,
         avoirsSansNoteDeCredit,
         tvaExclueArt41,
@@ -2588,6 +2638,10 @@ export class TauxTvaService {
       avoirsCollecteConstates,
       /** Avoirs antérieurs inscrits en déduction sur cette période (art. 52). */
       recuperationArt52,
+      /** TVA de créances irrécouvrables constatée sur la période · déduite le mois suivant. */
+      creancesIrrecouvrablesConstatees,
+      /** Récupération sur créance irrécouvrable, art. 52 · en déduction ici, sur sa ligne. */
+      recuperationCreancesIrrecouvrables,
       /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
       avoirsCollecteNonImputes,
       /**
@@ -2683,6 +2737,8 @@ export class TauxTvaService {
     creditImpute: number;
     avoirsCollecteConstates: number;
     recuperationArt52: number;
+    creancesIrrecouvrablesConstatees: number;
+    recuperationCreancesIrrecouvrables: number;
     avoirsCollecteNonImputes: number;
     avoirsSansNoteDeCredit: number;
     tvaExclueArt41: number;
@@ -2955,6 +3011,20 @@ export class TauxTvaService {
           'taxe du redevable lui-même, qui lui revient.',
       );
     }
+    if (e.recuperationCreancesIrrecouvrables > EPSILON) {
+      phrases.push(
+        `RÉCUPÉRATION SUR CRÉANCE IRRÉCOUVRABLE, ART. 52 · ${fc(e.recuperationCreancesIrrecouvrables)} CDF de TVA de créances ` +
+          'devenues irrécouvrables le mois précédent sont inscrits ici en DÉDUCTION (O.-L. n° 10/001, art. 52 ; décret ' +
+          'n° 011/42, art. 126), sur la foi du duplicata surchargé envoyé au client (art. 127). Sans prorata.',
+      );
+    }
+    if (e.creancesIrrecouvrablesConstatees > EPSILON) {
+      phrases.push(
+        `CRÉANCES IRRÉCOUVRABLES CONSTATÉES · ${fc(e.creancesIrrecouvrablesConstatees)} CDF de TVA récupérée sur des créances ` +
+          'perdues ce mois-ci · elle n’est PAS retranchée de la TVA collectée ici ; elle s’inscrit en déduction dans la ' +
+          'déclaration du mois suivant (décret n° 011/42, art. 126).',
+      );
+    }
     if (e.avoirsCollecteNonImputes > EPSILON) {
       phrases.push(
         `AVOIRS ANTÉRIEURS NON IMPUTÉS · ${fc(e.avoirsCollecteNonImputes)} CDF de TVA sur avoirs ont été constatés ` +
@@ -3073,7 +3143,8 @@ export class TauxTvaService {
     if (
       decl.totalCollecte <= EPSILON &&
       Math.abs(decl.totalDeductibleAdmise) <= EPSILON &&
-      recuperationArt52 <= EPSILON
+      recuperationArt52 <= EPSILON &&
+      (decl.recuperationCreancesIrrecouvrables ?? 0) <= EPSILON
     ) {
       throw new BadRequestException('Aucun mouvement de TVA sur cette période · rien à comptabiliser.');
     }
@@ -3167,7 +3238,7 @@ export class TauxTvaService {
         compteId,
         debit: 0,
         credit: montant,
-        libelle: 'Récupération TVA sur ventes annulées ou résiliées (art. 52)',
+        libelle: 'Récupération TVA sur ventes annulées, résiliées ou restées impayées (art. 52)',
       });
     }
     /*

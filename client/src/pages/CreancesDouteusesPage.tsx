@@ -596,7 +596,7 @@ export function CreancesDouteusesPage() {
                         Récupérer la TVA de la créance
                         <Aide
                           titre="TVA d'une créance irrécouvrable"
-                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. La récupération s'inscrit dans la déclaration du mois SUIVANT la constatation."
+                          texte="Si le dossier est assujetti et la créance définitivement irrécouvrable, la TVA se récupère après l'envoi au client d'un duplicata surchargé de la mention « facture demeurée impayée ». La perte passe alors D 651 hors taxe, D 443 TVA, C 416 TTC. La ligne de 443 porte le taux de la vente d'origine, lu par le lettrage du compte du client avec ses factures (sans lui, la récupération est refusée), et la récupération s'inscrit en déduction dans la déclaration du mois SUIVANT la constatation."
                           source="O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 126 et 127"
                         />
                       </label>

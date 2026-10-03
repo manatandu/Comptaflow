@@ -871,6 +871,7 @@ export class CreancesDouteusesService {
     // jamais d'office ; sans elle, la perte passe au TTC entier.
     const recup = type === TypeMouvementCreanceDouteuse.PERTE ? (dto as PerteCreanceDto).recuperationTva : undefined;
     let compteTva: { id: string } | null = null;
+    let tauxTvaId: string | null = null;
     let ventilation: { horsTaxe: number; tva: number } | null = null;
     if (recup) {
       const k = await this.compteParId(tenantId, recup.compteTvaId);
@@ -887,6 +888,22 @@ export class CreancesDouteusesService {
         datePerte: jour(date),
       });
       if (refusTva) throw new BadRequestException(refusTva);
+      // LE TAUX DE LA VENTE D'ORIGINE (décret n° 011/42, art. 126) · lu par le
+      // lettrage, jamais deviné · absent ou ambigu, la récupération est refusée.
+      const origine = await this.origineTva(tenantId, c);
+      if (!origine.proposition) {
+        throw new BadRequestException(
+          `${origine.raison} La ligne de récupération doit porter le taux de la vente d’origine pour entrer dans la déclaration ` +
+            'du mois suivant (décret n° 011/42, art. 126) · sans lui, la récupération est refusée ; la perte peut passer au TTC entier.',
+        );
+      }
+      if (origine.proposition.compteTvaId !== k.id) {
+        throw new BadRequestException(
+          `La TVA de la vente d’origine est au ${origine.proposition.numero} · la récupération se débite sur ce compte, celui que la ` +
+            'liquidation a soldé (fiche du compte 70, « le compte 443 est débité des taxes facturées des retours »).',
+        );
+      }
+      tauxTvaId = origine.proposition.tauxTvaId;
       compteTva = { id: k.id };
       ventilation = ventilationPerte(montant, recup.tvaRecuperee);
     }
@@ -900,7 +917,7 @@ export class CreancesDouteusesService {
         ventilation && compteTva
           ? [
               { compteId: debit, debit: ventilation.horsTaxe, credit: 0 },
-              { compteId: compteTva.id, debit: ventilation.tva, credit: 0 },
+              { compteId: compteTva.id, debit: ventilation.tva, credit: 0, tauxTvaId: tauxTvaId ?? undefined },
               { compteId: c.compte416.id, debit: 0, credit: montant },
             ]
           : [
@@ -955,7 +972,7 @@ export class CreancesDouteusesService {
    */
   async tvaOrigine(tenantId: string, id: string) {
     const c = await this.creance(tenantId, id);
-    const [regime, comptes443] = await Promise.all([
+    const [regime, comptes443, origine] = await Promise.all([
       this.regime(tenantId),
       this.prisma.compte.findMany({
         where: { tenantId, numero: { startsWith: '443' }, typeCompte: TypeCompteDetailTotal.DETAIL, estActif: true },
@@ -963,20 +980,40 @@ export class CreancesDouteusesService {
         orderBy: { numero: 'asc' },
         take: 50,
       }),
+      this.origineTva(tenantId, c),
     ]);
-    const rendu = (proposition: { compteTvaId: string; numero: string; tvaFactureeCreance: number } | null, raison: string | null) => ({
+    return {
       assujetti: regime.assujettiTva,
       comptes443,
-      proposition,
-      raison,
-    });
-    if (!c.ecritureReclassementId) return rendu(null, 'Créance déclarée à l’ouverture · aucune facture d’origine connue, la TVA se déclare.');
+      proposition: origine.proposition,
+      raison: origine.raison,
+    };
+  }
+
+  /**
+   * LA TVA DE LA VENTE D'ORIGINE, lue par le LETTRAGE du compte du client · la
+   * ligne du reclassement lettrée avec les factures, et les lignes du 443 de
+   * ces factures, avec leur TAUX. Un seul compte et un seul taux proposés ;
+   * plusieurs, ou aucun, rien n'est proposé et la raison est dite. Le TAUX
+   * est celui que la ligne de récupération portera (décret n° 011/42,
+   * art. 126 · la récupération s'inscrit dans les déductions de la
+   * déclaration), et il n'est jamais deviné.
+   */
+  private async origineTva(
+    tenantId: string,
+    c: Creance,
+  ): Promise<{
+    proposition: { compteTvaId: string; numero: string; tauxTvaId: string; tvaFactureeCreance: number } | null;
+    raison: string | null;
+  }> {
+    const sans = (raison: string) => ({ proposition: null, raison });
+    if (!c.ecritureReclassementId) return sans('Créance déclarée à l’ouverture · aucune facture d’origine connue, son taux ne se lit pas.');
     const reclassement = await this.prisma.ligneEcriture.findFirst({
       where: { ecritureId: c.ecritureReclassementId, compteId: c.compteCreance.id, ecriture: { tenantId } },
       select: { lettrageId: true },
     });
     if (!reclassement?.lettrageId) {
-      return rendu(null, 'Le reclassement n’est pas lettré avec les factures du client · la TVA facturée ne se lit pas, déclarez-la.');
+      return sans('Le reclassement n’est pas lettré avec les factures du client · la TVA facturée et son taux ne se lisent pas. Lettrez-le d’abord.');
     }
     const factures = await this.prisma.ligneEcriture.findMany({
       where: { lettrageId: reclassement.lettrageId, compteId: c.compteCreance.id, debit: { gt: 0 }, ecriture: { tenantId } },
@@ -985,24 +1022,27 @@ export class CreancesDouteusesService {
     });
     const tva = await this.prisma.ligneEcriture.findMany({
       where: { ecritureId: { in: factures.map((f) => f.ecritureId) }, compte: { tenantId, numero: { startsWith: '443' } }, ecriture: { tenantId } },
-      select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true } } },
+      select: { compteId: true, tauxTvaId: true, debit: true, credit: true, compte: { select: { numero: true } } },
       take: 500,
     });
     const parCompte = new Map<string, { numero: string; montant: number }>();
+    const taux = new Set<string | null>();
     for (const l of tva) {
       const k = parCompte.get(l.compteId) ?? { numero: l.compte.numero, montant: 0 };
       k.montant += n(l.credit) - n(l.debit);
       parCompte.set(l.compteId, k);
+      taux.add(l.tauxTvaId ?? null);
     }
-    if (parCompte.size !== 1) {
-      return rendu(null, parCompte.size === 0 ? 'Les factures lettrées ne portent aucune TVA facturée.' : 'Les factures lettrées portent plusieurs comptes de TVA · choisissez.');
-    }
+    if (parCompte.size === 0) return sans('Les factures lettrées ne portent aucune TVA facturée.');
+    if (parCompte.size > 1) return sans('Les factures lettrées portent plusieurs comptes de TVA · la récupération ne se répartit pas d’office.');
+    if (taux.has(null)) return sans('Une ligne de TVA des factures lettrées ne porte aucun taux · le taux de la vente d’origine ne se lit pas.');
+    if (taux.size !== 1) return sans('Les factures lettrées portent plusieurs taux de TVA · le taux de la récupération serait deviné.');
     const [[compteTvaId, k]] = [...parCompte.entries()];
     const ttcFactures = factures.reduce((s, f) => s + n(f.debit), 0);
     // La TVA des factures, ramenée à la créance reclassée quand celle-ci n'en
     // reprend qu'une part (même prorata que la borne de la récupération).
     const tvaFacturee = ttcFactures > 0 ? plafondTvaRecuperable(k.montant, Math.min(n(c.montant), ttcFactures), ttcFactures) : 0;
-    return rendu({ compteTvaId, numero: k.numero, tvaFactureeCreance: tvaFacturee }, null);
+    return { proposition: { compteTvaId, numero: k.numero, tauxTvaId: [...taux][0]!, tvaFactureeCreance: tvaFacturee }, raison: null };
   }
 
   /** Fiche du compte 65 · D 651 / C 416 pour la part irrécouvrable. */

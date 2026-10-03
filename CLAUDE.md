@@ -667,8 +667,13 @@ assujetti, 443 de détail choisi (proposé par le LETTRAGE du 411 avec les factu
 PRORATA de la TVA facturée sur la part perdue, DUPLICATA SURCHARGÉ envoyé (référence
 et date, au plus tard la perte · O.-L. n° 10/001, art. 52 ; décret n° 011/42,
 art. 127). Sans elles, la perte passe au TTC entier ; rien d'office. La récupération
-s'inscrit dans la déclaration du mois SUIVANT (art. 126), dit à l'écran · la ligne du
-443 ne porte pas de taux, la déclaration ne la reprend pas d'elle-même.
+s'inscrit dans la déclaration du mois SUIVANT (art. 126) · la ligne du 443 porte le
+TAUX de la vente d'origine (lu par le lettrage ; absent, ambigu ou autre compte,
+refus nommé), et `TauxTvaService.declaration` la reconnaît à sa liaison
+(`mouvementCreanceDouteuse`) · constatée au mois M sans toucher la collecte, en
+DÉDUCTION au seul mois M+1 sur sa ligne (« récupération sur créance irrécouvrable,
+art. 52 », sans prorata), jamais avoir sans note de crédit ni collecte négative ; la
+liquidation de M+1 la solde au 443 (`parCompte.recuperation`).
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

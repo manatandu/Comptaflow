@@ -804,7 +804,13 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
     expect(Math.round((v.horsTaxe + v.tva) * 100)).toBe(33333);
   });
 
-  function monterE2(assujettiTva: boolean, lettrageId: string | null = 'let-1') {
+  function monterE2(
+    assujettiTva: boolean,
+    lettrageId: string | null = 'let-1',
+    lignesTva: Array<{ compteId: string; tauxTvaId: string | null; credit: number; numero: string }> = [
+      { compteId: 'c4431', tauxTvaId: 'tx16', credit: 160_000, numero: '44310000' },
+    ],
+  ) {
     let rang = 0;
     const creer = jest.fn().mockImplementation(() => Promise.resolve({ id: `ecr-${++rang}` }));
     const plan: Record<string, { id: string; numero: string; typeCompte: TypeCompteDetailTotal }> = {
@@ -828,7 +834,7 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
           Promise.resolve(
             where.lettrageId
               ? [{ ecritureId: 'fac-1', debit: 1_160_000 }]
-              : [{ compteId: 'c4431', debit: 0, credit: 160_000, compte: { numero: '44310000' } }],
+              : lignesTva.map((l) => ({ compteId: l.compteId, tauxTvaId: l.tauxTvaId, debit: 0, credit: l.credit, compte: { numero: l.numero } })),
           ),
         ),
       },
@@ -868,7 +874,9 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
     await service.perte('t', 'u', 'cd-1', dto);
     expect(creer.mock.calls[0][2].lignes).toEqual([
       { compteId: 'c6511', debit: 1_000_000, credit: 0 },
-      { compteId: 'c4431', debit: 160_000, credit: 0 },
+      // La ligne de 443 porte le TAUX de la vente d'origine · c'est par lui
+      // que la déclaration du mois suivant la reprend (décret art. 126).
+      { compteId: 'c4431', debit: 160_000, credit: 0, tauxTvaId: 'tx16' },
       { compteId: 'c4162', debit: 0, credit: 1_160_000 },
     ]);
     expect(prisma.mouvementCreanceDouteuse.create.mock.calls[0][0].data).toMatchObject({
@@ -895,10 +903,25 @@ describe('créances douteuses · E2, la TVA d’une créance irrécouvrable (O.-
     const { service } = monterE2(true);
     expect(await service.tvaOrigine('t', 'cd-1')).toMatchObject({
       assujetti: true,
-      proposition: { compteTvaId: 'c4431', numero: '44310000', tvaFactureeCreance: 160_000 },
+      proposition: { compteTvaId: 'c4431', numero: '44310000', tauxTvaId: 'tx16', tvaFactureeCreance: 160_000 },
       raison: null,
     });
     const sans = monterE2(true, null);
     expect(await sans.service.tvaOrigine('t', 'cd-1')).toMatchObject({ proposition: null, raison: expect.stringContaining('pas lettré') });
+  });
+
+  it('taux absent ou ambigu, ou compte autre que celui de la vente · la récupération est refusée, jamais devinée', async () => {
+    const sansTaux = monterE2(true, 'let-1', [{ compteId: 'c4431', tauxTvaId: null, credit: 160_000, numero: '44310000' }]);
+    await expect(sansTaux.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow(/aucun taux.*récupération est refusée/);
+    expect(sansTaux.creer).not.toHaveBeenCalled();
+    const deuxTaux = monterE2(true, 'let-1', [
+      { compteId: 'c4431', tauxTvaId: 'tx16', credit: 80_000, numero: '44310000' },
+      { compteId: 'c4431', tauxTvaId: 'tx8', credit: 80_000, numero: '44310000' },
+    ]);
+    await expect(deuxTaux.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow(/plusieurs taux/);
+    const sansLettrage = monterE2(true, null);
+    await expect(sansLettrage.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow(/pas lettré/);
+    const autreCompte = monterE2(true, 'let-1', [{ compteId: 'c4432', tauxTvaId: 'tx16', credit: 160_000, numero: '44320000' }]);
+    await expect(autreCompte.service.perte('t', 'u', 'cd-1', dto)).rejects.toThrow(/au 44320000/);
   });
 });
