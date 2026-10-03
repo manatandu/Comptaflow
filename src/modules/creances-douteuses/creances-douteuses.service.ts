@@ -168,6 +168,46 @@ export class CreancesDouteusesService {
     return resultat;
   }
 
+  /**
+   * M3 · LE RETRAIT D'UNE ÉCRITURE ORPHELINE NE MASQUE JAMAIS L'ERREUR
+   * D'ORIGINE · son propre échec est consigné avec l'identifiant de
+   * l'écriture restée au brouillard, puis l'appelant rejette l'erreur
+   * d'origine.
+   */
+  private async compenser(tenantId: string, ecritureId: string) {
+    try {
+      await this.ecritures.retirerCompensation(tenantId, ecritureId);
+    } catch (retrait) {
+      this.journalServeur.error(
+        `Écriture ${ecritureId} du dossier ${tenantId} restée au brouillard · son retrait après l'échec du geste a échoué`,
+        retrait instanceof Error ? retrait.stack : String(retrait),
+      );
+    }
+  }
+
+  /**
+   * M1 · LE STATUT SE RELIT DANS LA TRANSACTION · une écriture validée entre
+   * la lecture et l'annulation ne se supprime jamais, elle s'inscrit en
+   * négatif (AUDCIF art. 22, 2°).
+   */
+  private async statutDansTx(tx: Prisma.TransactionClient, tenantId: string, ecritureId: string) {
+    const e = await tx.ecriture.findFirst({ where: { id: ecritureId, tenantId }, select: { statut: true } });
+    if (!e) throw new ConflictException(`L'écriture ${ecritureId} n'existe plus · relisez la créance avant d'annuler.`);
+    return e.statut;
+  }
+
+  /** M1 · supprimée seulement si elle est ENCORE au brouillard, une et une seule, sinon 409. */
+  private async supprimerBrouillardDansTx(tx: Prisma.TransactionClient, tenantId: string, ecritureId: string) {
+    await tx.ligneEcriture.deleteMany({ where: { ecritureId, ecriture: { tenantId, statut: StatutEcriture.BROUILLARD } } });
+    const r = await tx.ecriture.deleteMany({ where: { id: ecritureId, tenantId, statut: StatutEcriture.BROUILLARD } });
+    if (r.count !== 1) {
+      throw new ConflictException(
+        "L'écriture a été validée ou retirée pendant l'annulation · rien n'est supprimé. Relancez l'annulation · validée, elle " +
+          "s'inscrira en négatif (AUDCIF art. 20, al. 2).",
+      );
+    }
+  }
+
   private async regime(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
@@ -281,17 +321,23 @@ export class CreancesDouteusesService {
    * dates (un règlement daté APRÈS le reclassement antidaté), et sur la chaîne
    * de l'exercice le plus récent du dossier (N+1 déjà ouvert).
    */
-  private async soldeAuPlusTard(tenantId: string, compteId: string, ex: { id: string; dateDebut: Date }, ids: string[]) {
+  private async soldeAuPlusTard(tenantId: string, compteId: string, ex: { id: string; dateDebut: Date; dateFin: Date }, ids: string[]) {
     const fin = new Date('9999-12-31');
-    const ici = await this.solde(tenantId, { id: compteId }, ids, fin);
-    const dernier = await this.prisma.exercice.findFirst({
-      where: { tenantId },
-      orderBy: { dateFin: 'desc' },
+    let plusPetit = await this.solde(tenantId, { id: compteId }, ids, fin);
+    // M7 · TOUS les exercices qui finissent au plus tôt avec celui du
+    // reclassement, chacun sur sa chaîne · un règlement d'un exercice
+    // intermédiaire ne se perd pas derrière un à-nouveau du dernier.
+    const suivants = await this.prisma.exercice.findMany({
+      where: { tenantId, dateFin: { gte: ex.dateFin }, id: { not: ex.id } },
+      orderBy: { dateFin: 'asc' },
       select: { id: true, dateDebut: true },
+      take: 20,
     });
-    if (!dernier || dernier.id === ex.id) return ici;
-    const chaineDernier = await this.chaine(tenantId, dernier);
-    return Math.min(ici, await this.solde(tenantId, { id: compteId }, chaineDernier.ids, fin));
+    for (const suivant of suivants) {
+      const chaineSuivant = await this.chaine(tenantId, suivant);
+      plusPetit = Math.min(plusPetit, await this.solde(tenantId, { id: compteId }, chaineSuivant.ids, fin));
+    }
+    return plusPetit;
   }
 
   /**
@@ -312,7 +358,15 @@ export class CreancesDouteusesService {
    * comptes de détail du 416 que le texte prescrit. Aucune liste de choix
    * filtrée par la rétention · voir `listes-de-comptes.ts`, régime « texte ».
    */
-  async comptes(tenantId: string, exerciceId: string) {
+  async comptes(tenantId: string, exerciceId: string, numero?: string) {
+    // M4 · L'ISSUE D'UNE LISTE TRONQUÉE · au-delà du plafond, le cabinet tape
+    // le début du numéro du compte du client et la liste se restreint ; un
+    // filtre illisible est refusé, jamais ignoré (il rendrait la liste
+    // tronquée en la disant filtrée).
+    const filtre = (numero ?? '').trim();
+    if (filtre && !/^\d{1,13}$/.test(filtre)) {
+      throw new BadRequestException('Le début de numéro se tape en chiffres (de 1 à 13).');
+    }
     const [{ referentiel }, ex] = await Promise.all([this.regime(tenantId), this.exercice(tenantId, exerciceId)]);
     const { ids, provisoire } = await this.chaine(tenantId, ex);
     const racines = RACINES_CREANCE_SOURCE[referentiel];
@@ -320,7 +374,12 @@ export class CreancesDouteusesService {
       by: ['compteId'],
       where: {
         ecriture: { tenantId, exerciceId: { in: ids } },
-        compte: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, OR: racines.map((r) => ({ numero: { startsWith: r } })) },
+        compte: {
+          tenantId,
+          typeCompte: TypeCompteDetailTotal.DETAIL,
+          OR: racines.map((r) => ({ numero: { startsWith: r } })),
+          ...(filtre ? { AND: [{ numero: { startsWith: filtre } }] } : {}),
+        },
       },
       _sum: { debit: true, credit: true },
       orderBy: { compteId: 'asc' },
@@ -366,6 +425,8 @@ export class CreancesDouteusesService {
         },
       })),
       tronque: groupes.length > PLAFOND_COMPTES_CANDIDATS,
+      plafond: PLAFOND_COMPTES_CANDIDATS,
+      filtreNumero: filtre || null,
       comptes416,
       comptes491,
     };
@@ -381,7 +442,7 @@ export class CreancesDouteusesService {
    */
   async lister(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
-    const [total, lignes, regime, annulees, mouvementsAnnules] = await Promise.all([
+    const [total, lignes, regime, annulees, mouvementsAnnules, totalRevuesAnnulees, totalMouvementsAnnules] = await Promise.all([
       this.prisma.creanceDouteuse.count({ where: { tenantId, dateReclassement: { lte: ex.dateFin }, annuleeLe: null } }),
       // m3 · LES PLUS RÉCENTES D'ABORD · une tranche bornée n'écarte jamais
       // une créance de l'exercice ; au-delà du plafond, ce sont les plus
@@ -396,15 +457,18 @@ export class CreancesDouteusesService {
       this.prisma.ajustementCreanceDouteuse.findMany({
         where: { tenantId, exerciceId: ex.id, annuleeLe: { not: null } },
         select: { id: true, creanceId: true, annuleeLe: true, motifAnnulation: true },
-        orderBy: { annuleeLe: 'asc' },
+        orderBy: { annuleeLe: 'desc' },
         take: PLAFOND_CREANCES_LISTEES,
       }),
       this.prisma.mouvementCreanceDouteuse.findMany({
         where: { tenantId, exerciceId: ex.id, annuleeLe: { not: null } },
         select: { id: true, creanceId: true, type: true, date: true, montant: true, annuleeLe: true, motifAnnulation: true },
-        orderBy: { annuleeLe: 'asc' },
+        orderBy: { annuleeLe: 'desc' },
         take: PLAFOND_CREANCES_LISTEES,
       }),
+      // M5 · les listes d'annulations sont bornées · leur total le dit.
+      this.prisma.ajustementCreanceDouteuse.count({ where: { tenantId, exerciceId: ex.id, annuleeLe: { not: null } } }),
+      this.prisma.mouvementCreanceDouteuse.count({ where: { tenantId, exerciceId: ex.id, annuleeLe: { not: null } } }),
     ]);
     const creances = lignes.map((c) => ({
       ...this.presenter(c, ex, regime.referentiel),
@@ -431,6 +495,10 @@ export class CreancesDouteusesService {
       systemeMinimal: !!motifRefusDepreciationSmt(regime),
       total,
       tronque: total > lignes.length,
+      annulations: {
+        revues: { total: totalRevuesAnnulees, tronque: totalRevuesAnnulees > annulees.length },
+        mouvements: { total: totalMouvementsAnnules, tronque: totalMouvementsAnnules > mouvementsAnnules.length },
+      },
       creances,
       rapprochement:
         total > lignes.length
@@ -609,7 +677,7 @@ export class CreancesDouteusesService {
       return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
       // Une ligne refusée ne laisse pas son écriture au journal.
-      await this.ecritures.retirerCompensation(tenantId, ecriture.id);
+      await this.compenser(tenantId, ecriture.id);
       throw err;
     }
   }
@@ -842,7 +910,7 @@ export class CreancesDouteusesService {
       );
       return { ...ligne, depreciationNecessaire: n(ligne.depreciationNecessaire), depreciationEnPlace: n(ligne.depreciationEnPlace), ecart: n(ligne.ecart) };
     } catch (err) {
-      if (ecritureId) await this.ecritures.retirerCompensation(tenantId, ecritureId);
+      if (ecritureId) await this.compenser(tenantId, ecritureId);
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException('La dépréciation de cette créance est déjà revue pour cet exercice.');
       }
@@ -857,6 +925,14 @@ export class CreancesDouteusesService {
       depreciationEnPlace: e.enPlace,
       resteALaCloture: e.reste,
       dateRevue: jour(e.ex.dateFin),
+      // Écran 12 · l'annonce de l'écriture lit les comptes que le geste
+      // passera, servis ici, jamais recopiés à l'écran · le 491 de LA créance,
+      // la dotation et la reprise du module (fiche du compte 49).
+      comptes: {
+        compte491: e.c.compte491.numero,
+        dotation: COMPTES_CREANCES_DOUTEUSES.dotation,
+        reprise: COMPTES_CREANCES_DOUTEUSES.reprise,
+      },
       resteNegatif: e.resteNegatif,
       dejaRevue: e.c.ajustements.some((a) => a.exerciceId === e.ex.id),
       revuePosterieure: e.posterieure ? jour(e.posterieure.date) : null,
@@ -919,7 +995,7 @@ export class CreancesDouteusesService {
         });
         const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez la revue');
         if (tenues) throw new BadRequestException(tenues);
-        if (e.statut === StatutEcriture.BROUILLARD) {
+        if ((await this.statutDansTx(tx, tenantId, e.id)) === StatutEcriture.BROUILLARD) {
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {
           const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
@@ -947,8 +1023,7 @@ export class CreancesDouteusesService {
         throw err;
       }
       if (e && annulation.traitement === 'SUPPRIMEE') {
-        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id } });
-        await tx.ecriture.deleteMany({ where: { id: e.id, tenantId } });
+        await this.supprimerBrouillardDansTx(tx, tenantId, e.id);
       }
       return { annulee: true, annulation };
     });
@@ -1046,7 +1121,7 @@ export class CreancesDouteusesService {
       );
       return { ...ligne, montant: n(ligne.montant) };
     } catch (err) {
-      await this.ecritures.retirerCompensation(tenantId, ecriture.id);
+      await this.compenser(tenantId, ecriture.id);
       throw err;
     }
   }
@@ -1160,7 +1235,7 @@ export class CreancesDouteusesService {
         });
         const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le reclassement');
         if (tenues) throw new BadRequestException(tenues);
-        if (e.statut === StatutEcriture.BROUILLARD) {
+        if ((await this.statutDansTx(tx, tenantId, e.id)) === StatutEcriture.BROUILLARD) {
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {
           const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
@@ -1185,8 +1260,7 @@ export class CreancesDouteusesService {
         throw err;
       }
       if (e && annulation.traitement === 'SUPPRIMEE') {
-        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id } });
-        await tx.ecriture.deleteMany({ where: { id: e.id, tenantId } });
+        await this.supprimerBrouillardDansTx(tx, tenantId, e.id);
       }
       return { annule: true, annulation };
     });
@@ -1271,7 +1345,7 @@ export class CreancesDouteusesService {
         });
         const tenues = motifLignesTenues(relues, objet, 'annuler', ', puis annulez le mouvement');
         if (tenues) throw new BadRequestException(tenues);
-        if (e.statut === StatutEcriture.BROUILLARD) {
+        if ((await this.statutDansTx(tx, tenantId, e.id)) === StatutEcriture.BROUILLARD) {
           annulation = { traitement: 'SUPPRIMEE', ecritureId: e.id, numeroPiece: e.numeroPiece };
         } else {
           const negatif = await this.ecritures.inscrireEnNegatifPourAnnulation(tenantId, userId, e.id, motif, tx);
@@ -1305,8 +1379,7 @@ export class CreancesDouteusesService {
         throw err;
       }
       if (e && annulation.traitement === 'SUPPRIMEE') {
-        await tx.ligneEcriture.deleteMany({ where: { ecritureId: e.id } });
-        await tx.ecriture.deleteMany({ where: { id: e.id, tenantId } });
+        await this.supprimerBrouillardDansTx(tx, tenantId, e.id);
       }
       return { annule: true, annulation };
     });

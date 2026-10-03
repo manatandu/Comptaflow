@@ -38,8 +38,12 @@ export class CreancesDouteusesController {
 
   /** Les créances à solde débiteur (lues sur la balance) et les 416 que le texte prescrit. */
   @Get('comptes')
-  comptes(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
-    return this.service.comptes(user.tenantId, exerciceId);
+  comptes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('numero') numero?: string,
+  ) {
+    return this.service.comptes(user.tenantId, exerciceId, numero);
   }
 
   @Get(':id/revue')

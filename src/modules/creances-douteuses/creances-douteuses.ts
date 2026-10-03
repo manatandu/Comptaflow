@@ -293,9 +293,9 @@ export function motifResteNegatif(creance: string, resteFinal: number): string |
   if (!(resteFinal < -0.005)) return null;
   return (
     `La créance ${creance} a un reste négatif au 416 après tous ses mouvements (${centimes(resteFinal).toFixed(2)}) · une perte ou un ` +
-    'recouvrement dépasse la créance. Annulez le mouvement en trop (« Annuler une perte ou un recouvrement », AUDCIF art. 20, ' +
-    "al. 2), dans un exercice ouvert ; un mouvement d'un exercice clôturé se corrige par le report à nouveau (art. 20, al. 3). " +
-    'Repassez ensuite le bon montant, puis la revue.'
+    'recouvrement dépasse la créance. Annulez le mouvement en trop s’il est dans un exercice ouvert (« Annuler une perte ou un ' +
+    'recouvrement », AUDCIF art. 20, al. 2), repassez le bon montant, puis la revue. Si les mouvements en cause sont tous dans un ' +
+    "exercice clôturé, aucun geste d'OmegaX ne lève encore ce refus · signalez-le à l'éditeur, qui le tient au suivi (ligne A7)."
   );
 }
 

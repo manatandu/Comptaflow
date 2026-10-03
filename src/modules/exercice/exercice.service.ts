@@ -819,19 +819,23 @@ export class ExerciceService {
     // AUDCIF art. 55) · un lettrage dénoué dans sa devise dont l'écart n'est
     // pas passé laisserait le tiers au bilan d'un reste en francs qui n'est
     // plus une créance ni une dette, et le résultat sans sa perte ou son gain.
+    // Lu AVANT la transaction, tel que D3 l'a posé · le relire dedans touche
+    // à la lecture du report (F185) et sort du périmètre d'A7 (relecture M2).
     const enSouffrance = motifClotureEcartsNonConstates(await ecartsRealisesNonConstates(this.prisma, { tenantId, exerciceId }));
     if (enSouffrance) throw new BadRequestException(enSouffrance);
-
-    // LA DÉPRÉCIATION D'UNE CRÉANCE SE REPREND À LA CLÔTURE (ligne A7,
-    // relecture adverse B1 · fiche du compte 49) · une créance perdue ou
-    // recouvrée sans revue de l'exercice laisserait au 491 une dépréciation
-    // orpheline et le résultat minoré de sa reprise.
-    const orphelines = motifClotureDepreciationsOrphelines(await depreciationsOrphelines(this.prisma, { tenantId, exerciceId }));
-    if (orphelines) throw new BadRequestException(orphelines);
 
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
+        // LA DÉPRÉCIATION D'UNE CRÉANCE SE REPREND À LA CLÔTURE (ligne A7,
+        // relecture adverse B1 · fiche du compte 49) · une créance perdue ou
+        // recouvrée sans revue de l'exercice laisserait au 491 une dépréciation
+        // orpheline et le résultat minoré de sa reprise. RELUE DANS LA
+        // TRANSACTION DE CLÔTURE (relecture « échecs silencieux », M2) · lue
+        // avant, un geste passé entre la lecture et la clôture échappait au refus.
+        const orphelines = motifClotureDepreciationsOrphelines(await depreciationsOrphelines(tx, { tenantId, exerciceId }));
+        if (orphelines) throw new BadRequestException(orphelines);
+
         // Tout l'exercice · le brouillard vient d'être refusé plus haut. Les
         // comptes au SOLDE et de gestion sont lus en sommes, ceux au DÉTAIL
         // ligne à ligne (audit final F185, `lireComptesDuReport`).

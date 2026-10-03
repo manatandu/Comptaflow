@@ -110,7 +110,15 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
   const tx = {
     compte: { findMany: lecture.compte.findMany, findUnique: jest.fn().mockResolvedValue({ id: '131' }) },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od', code: 'OD' }) },
-    exercice: { findFirst: jest.fn().mockResolvedValue(N1), create: jest.fn(), update: jest.fn().mockResolvedValue({ ...N, statut: 'CLOTURE' }) },
+    // Lu par son identifiant (contrôles relus dans la transaction, M2), l'exercice
+    // clôturé ; sinon le suivant.
+    exercice: {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id?: string } }) => Promise.resolve(where?.id === 'n' ? N : N1)),
+      create: jest.fn(),
+      update: jest.fn().mockResolvedValue({ ...N, statut: 'CLOTURE' }),
+    },
+    // Les créances douteuses relues DANS la transaction (A7, M2).
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue(creancesDouteuses) },
     ecriture: {
       findFirst: jest.fn().mockResolvedValue(provisoire),
       delete: jest.fn().mockResolvedValue({}),
@@ -130,8 +138,9 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     // Aucun lettrage dénoué en souffrance (décision D3, `ecartsRealisesNonConstates`).
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
-    // Les créances douteuses du module (ligne A7, B1) · aucune par défaut.
-    creanceDouteuse: { findMany: jest.fn().mockResolvedValue(creancesDouteuses) },
+    // Les créances douteuses du module (ligne A7, B1) · aucune par défaut, et
+    // jamais lues hors de la transaction de clôture (M2).
+    creanceDouteuse: { findMany: jest.fn().mockRejectedValue(new Error('lue hors de la transaction de clôture')) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const journalService = { prochainNumeroPiece: jest.fn().mockResolvedValue(50) };
@@ -266,5 +275,7 @@ describe('Clôture annuelle · dépréciation orpheline d’une créance douteus
     const { s, tx } = service(null, [orpheline]);
     await expect(s.cloturer('t', 'n', 'u')).rejects.toThrow(/41110001 Client Kasa \(dépréciation en place 800\.00, reste au 416 0\.00\).*Passez la revue/);
     expect(tx.ecriture.create).not.toHaveBeenCalled();
+    // M2 · RELUE DANS LA TRANSACTION · la lecture passe par `tx`, jamais par le client hors transaction.
+    expect(tx.creanceDouteuse.findMany).toHaveBeenCalled();
   });
 });

@@ -1,8 +1,8 @@
-import type { PrismaService } from '../../common/prisma.service';
+import type { Prisma } from '@prisma/client';
 import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { DepreciationOrpheline, enPlaceAvant, resteDeLaCreance, resteFinalDeLaCreance } from './creances-douteuses';
 
-type Lecteur = Pick<PrismaService, 'exercice' | 'creanceDouteuse'>;
+type Lecteur = Pick<Prisma.TransactionClient, 'exercice' | 'creanceDouteuse'>;
 
 /**
  * LES DÉPRÉCIATIONS ORPHELINES D'UN EXERCICE (relecture adverse d'A7, B1) ·

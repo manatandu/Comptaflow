@@ -14,18 +14,58 @@ export interface PieceSaisie {
   date: string;
 }
 
+/** Les comptes que la revue passera, SERVIS par le serveur (relecture « écran », 12). */
+export interface ComptesRevue {
+  compte491: string;
+  dotation: string;
+  reprise: string;
+}
+
 /**
  * L'écriture de la revue annoncée AVANT le clic · seul l'écart avec la
  * dépréciation en place se passe (fiche du compte 49), et aucune autre
  * donnée n'entre dans le calcul · ni l'âge, ni un pourcentage. Le montant
- * s'écrit par `lib/montants.ts` (relecture adverse, M8).
+ * s'écrit par `lib/montants.ts` (relecture adverse, M8). Les comptes sont
+ * ceux que le serveur sert pour CETTE créance (le 491 de sa nature), et la
+ * date celle qu'il donnera à l'écriture · rien n'est recopié ici.
  */
-export function annonceRevue(enPlace: number, necessaire: number | null): string | null {
+export function annonceRevue(enPlace: number, necessaire: number | null, comptes: ComptesRevue, dateRevue: string): string | null {
   if (necessaire == null || !Number.isFinite(necessaire)) return null;
   const ecart = Math.round((necessaire - enPlace) * 100) / 100;
-  if (ecart > 0) return `Dotation de ${montant(ecart)} · D 6594 / C 491, au dernier jour de l'exercice.`;
-  if (ecart < 0) return `Reprise de ${montant(-ecart)} · D 491 / C 7594, au dernier jour de l'exercice.`;
+  const au = `au ${dateRevue.slice(8, 10)}/${dateRevue.slice(5, 7)}/${dateRevue.slice(0, 4)}`;
+  if (ecart > 0) return `Dotation de ${montant(ecart)} · D ${comptes.dotation} / C ${comptes.compte491}, ${au}.`;
+  if (ecart < 0) return `Reprise de ${montant(-ecart)} · D ${comptes.compte491} / C ${comptes.reprise}, ${au}.`;
   return 'Dépréciation maintenue · la revue est gardée, aucune écriture.';
+}
+
+/**
+ * LE MONTANT PRÉREMPLI DANS UN CHAMP (relecture « écran », 11) · arrondi au
+ * centime et écrit à deux décimales, point décimal, que `montantSaisi` relit
+ * tel quel. `String(0.1 + 0.2)` aurait rempli « 0.30000000000000004 ».
+ * `null` laisse le champ vide · vide n'est pas zéro.
+ */
+export function montantPourChamp(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '';
+  return (Math.round(v * 100) / 100).toFixed(2);
+}
+
+/**
+ * LA DATE D'UN GESTE BORNÉE À L'EXERCICE (relecture « écran », 13) · bornes
+ * `min` et `max` du champ ; le serveur refuse de toute façon une date hors de
+ * l'exercice.
+ */
+export function bornesExercice(exercice: { dateDebut: string; dateFin: string } | null | undefined): { min?: string; max?: string } {
+  return exercice ? { min: exercice.dateDebut.slice(0, 10), max: exercice.dateFin.slice(0, 10) } : {};
+}
+
+/**
+ * LE RAPPROCHEMENT D'UNE LISTE TRONQUÉE N'EST PAS CALCULÉ (relecture
+ * « échecs silencieux », M6) · le serveur le rend `null`, et l'écran le dit
+ * au lieu de se taire, ce qui se lirait comme un écart nul.
+ */
+export function etatRapprochement(liste: { tronque: boolean; rapprochement: unknown }): 'calcule' | 'non-calcule-tronque' | 'absent' {
+  if (liste.rapprochement) return 'calcule';
+  return liste.tronque ? 'non-calcule-tronque' : 'absent';
 }
 
 /**

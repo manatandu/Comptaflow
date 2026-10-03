@@ -180,6 +180,8 @@ const N1 = { id: 'n1', tenantId: 't', statut: StatutExercice.OUVERT, dateDebut: 
 function base(comptes: Cpt[], lignes: Lgn[]) {
   const lus: Lgn[][] = [];
   const tx = {
+    // Relues DANS la transaction de clôture (A7, M2).
+    creanceDouteuse: { findMany: jest.fn().mockResolvedValue([]) },
     compte: {
       findMany: jest.fn(async (a: { where: unknown; select?: Record<string, unknown>; orderBy?: unknown; include?: unknown }) => {
         if (a.include) throw new Error('doublure : include non honoré');

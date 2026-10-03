@@ -689,14 +689,34 @@ solde du client à la date et de son solde au plus tard enregistré, brouillard 
 (chaîne de l'exercice toutes dates, et chaîne du dernier exercice du dossier). Un
 dossier déjà au reste NÉGATIF n'est pas enfermé · la clôture (B1, revue ou non, dès N)
 et la revue le nomment avec son issue (`motifResteNegatif` · annuler le mouvement en
-trop, report à nouveau s'il est clos). (m1) la borne d'ouverture ne compte que les
+trop dans un exercice ouvert ; tous dans un exercice clos, le message dit qu'aucun
+geste d'OmegaX ne lève encore ce refus, la porte de régularisation restant au
+suivi). (m1) la borne d'ouverture ne compte que les
 créances DÉCLARÉES et celles RECLASSÉES AVANT l'ouverture. (m2) un reclassement
 S'ANNULE comme une revue (brouillard supprimé, validé en négatif, `update` unitaire,
 motif), refusé tant qu'une revue ou un mouvement non annulé porte sur lui ; annulé, il
 ne retient plus son écriture et sort de la liste, des bornes et de la clôture. (m3)
 liste des plus récentes d'abord, `tronque` et `total` le disent. (m4) le 416 du
 rapprochement est celui des créances du module, comme le 491. (m5) le 491 se choisit
-sous la racine de sa nature (`motifRefus491`).
+sous la racine de sa nature (`motifRefus491`). RELECTURES « ÉCHECS SILENCIEUX » ET
+« ÉCRAN » (2026-10-03). (M1) une annulation RELIT le statut de l'écriture DANS sa
+transaction et ne supprime que ce qui est ENCORE au brouillard (`deleteMany` filtré
+sur le statut, une ligne et une seule, sinon 409) · validée entre-temps, elle se
+relance et s'inscrit en négatif. (M2) les dépréciations orphelines se relisent DANS
+la transaction de clôture ; D3 d'A6 reste lu avant, le relire dedans touchant la
+lecture du report (F185). (M3) un retrait d'écriture manqué après l'échec d'un geste
+est consigné avec l'identifiant de l'écriture, et l'erreur d'origine remonte. (M4) la
+liste des comptes clients tronquée le dit et se restreint au début du numéro tapé
+(`numero`, chiffres seuls, sinon 400). (M5) annulations listées les plus récentes
+d'abord, total et `tronque`. (M6) un rapprochement non calculé sur liste tronquée se
+dit, jamais lu comme un écart nul. (M7) le reclassement se borne au plus petit solde
+du client sur TOUS les exercices qui finissent au plus tôt avec le sien. À l'écran ·
+boutons alignés sur le serveur (reclasser, déclarer, recouvrer, retirer à
+`peutEcrire` ; revue, perte, annulations à `peutValider`), modales en dialogue
+(Échap par `ecouterEchap`, focus au premier champ, fermeture tenue pendant l'envoi),
+réponses périmées jetées par jeton, comptes de l'annonce de la revue SERVIS
+(`propositionRevue.comptes`, le 491 de la créance), date bornée à l'exercice, montant
+prérempli au centime (`montantPourChamp`).
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la
