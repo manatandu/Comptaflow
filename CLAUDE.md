@@ -588,7 +588,8 @@ DEVISE ne se réévalue plus (`motifPositionDenouee`, `groupesDenoues`), quel qu
 reste du compte, lu sur ses lignes de l'EXERCICE ; D3 · c'est la CLÔTURE qui refuse
 tant qu'un lettrage dénoué dans l'exercice porte un réalisé non passé (art. 55,
 `ecartsRealisesNonConstates`, lu par tranches sans borne, groupes, comptes, montants
-et les trois issues nommés, jamais un second passage) ; et l'écart
+et les trois issues nommés, jamais un second passage ni un délettrage, qui ferait
+glisser le réalisé au 479) ; et l'écart
 est refusé (409) si la
 réévaluation de l'exercice a lu le groupe (`issueReevaluationDejaPassee` · son total sur
 le compte, ses lignes étant SANS devise, confronté au compte reconstitué TEL QU'IL ÉTAIT,

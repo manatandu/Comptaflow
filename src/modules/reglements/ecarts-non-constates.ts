@@ -88,7 +88,10 @@ export async function ecartsRealisesNonConstates(
  * ISSUES (relecture adverse M3), jamais une qui ferait passer l'écart deux
  * fois · passer l'écart proposé ; l'écart DÉJÀ passé à la main, le lettrer
  * dans le groupe (il le solde) ; le geste refusé (réévaluation qui l'a lu,
- * cours corrigé), délettrer le groupe et traiter la cause. `null` si rien.
+ * cours corrigé), suivre le refus · annuler la réévaluation, passer l'écart,
+ * réévaluer. JAMAIS DÉLETTRER (septième relecture, B2) · le groupe délettré
+ * sort de la garde de la clôture, et la réévaluation suivante porte le
+ * réalisé au 479 latent, un gain hors du résultat. `null` si rien.
  */
 export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }): string | null {
   if (r.ecarts.length === 0) return null;
@@ -104,6 +107,7 @@ export function motifClotureEcartsNonConstates(r: { ecarts: EcartNonConstate[] }
     "AUDCIF art. 55 · « à la date de règlement [...] les pertes et gains de change à cette date sont constatés ». " +
     'Pour chacun, UNE seule issue · passez l’écart proposé depuis Interrogation et lettrage (« Écart de change ») ; ' +
     's’il a DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser ; si le geste est refusé ' +
-    '(réévaluation qui a lu le groupe, cours corrigé), délettrez le groupe et suivez le motif du refus. Puis clôturez.'
+    '(réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l\'écart, ' +
+    'puis réévaluez. Ne délettrez pas le groupe, sans quoi l\'écart ne serait plus constaté. Puis clôturez.'
   );
 }

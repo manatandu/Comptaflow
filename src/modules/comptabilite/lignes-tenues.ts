@@ -1,5 +1,24 @@
 import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 
+/**
+ * LES ISSUES RÉELLES, nommées par les gestes qui existent (septième
+ * relecture, m2) · relues dans le code, pas supposées.
+ *  · RAPPROCHEMENT CLOS · `RapprochementService.rouvrir` (`POST
+ *    /rapprochements/:id/rouvrir`), administrateur seul, motif, le DERNIER
+ *    clos du compte seulement ; en cours, on dépointe directement.
+ *  · LETTRAGE FIGÉ · `gel-cloture.ts` · une clôture TOTALE, de PÉRIODE ou
+ *    d'EXERCICE fige le lettrage, et `ExerciceService.annulerCloture` refuse
+ *    les deux premières (« définitive et ne peut pas être annulée ») · aucun
+ *    geste ne rouvre la période, et on ne le promet pas. Seule la PARTIELLE
+ *    s'annule, et elle ne fige rien.
+ */
+const ISSUE_RAPPROCHEMENT_CLOS =
+  'Un rapprochement encore en cours se dépointe directement ; clos, seul l’administrateur le rouvre (« Rouvrir le rapprochement », ' +
+  'le dernier clos du compte seulement, motif exigé), puis la ligne se dépointe.';
+const ISSUE_LETTRAGE_FIGE =
+  'Une ligne figée par une clôture totale, de période ou d’exercice ne se délettre plus · ces clôtures sont définitives, ' +
+  'et l’erreur relève alors du report à nouveau (AUDCIF art. 20, al. 3).';
+
 /** Une ligne telle que le refus la lit · son lettrage et son pointage. */
 export interface LigneTenue {
   lettre: string | null;
@@ -25,14 +44,14 @@ export function motifLignesTenues(lignes: LigneTenue[], objet: string, geste: st
     return (
       `${lettrees.length} ligne(s) de ${objet} sont lettrées (${[...new Set(lettrees.map(designationLettrage))].join(', ')}). ` +
       `Le lettrage affirme que ces lignes sont soldées entre elles ; ${geste} sans délettrer laisserait cette ` +
-      `affirmation en place, devenue fausse. Délettrez-les d’abord${issue}.`
+      `affirmation en place, devenue fausse. Délettrez-les d’abord${issue}. ${ISSUE_LETTRAGE_FIGE}`
     );
   }
   const pointees = lignes.filter((l) => l.rapprochementId);
   if (pointees.length > 0) {
     return (
       `${pointees.length} ligne(s) de ${objet} sont pointées dans un rapprochement bancaire. Le pointage ` +
-      `affirme la concordance avec un relevé ; dépointez-les d’abord (possible tant que le rapprochement est en cours)${issue}.`
+      `affirme la concordance avec un relevé ; dépointez-les d’abord${issue}. ${ISSUE_RAPPROCHEMENT_CLOS}`
     );
   }
   return null;

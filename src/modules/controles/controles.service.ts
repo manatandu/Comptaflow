@@ -4088,7 +4088,7 @@ export class ControlesService {
     // Reconnaissable dans un lettrage partiel seulement (`reglementsSansEcart`).
     if (ex.statut !== StatutExercice.CLOTURE) {
       const sansEcart = await reglementsSansEcart(this.prisma, { tenantId, exerciceId, referentiel: tenant.referentiel });
-      if (sansEcart.elements.length > 0 || sansEcart.tronque || sansEcart.nonReconnaissables > 0) {
+      if (sansEcart.elements.length > 0 || sansEcart.tronque) {
         anomalies.push({
           code: 'REGLEMENT_DEVISE_SANS_ECART',
           gravite: 'INFORMATION',
@@ -4104,18 +4104,6 @@ export class ControlesService {
             ...(sansEcart.tronque
               ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LIGNES_EXAMINEES} lignes de lettrages partiels lues · d'autres règlements peuvent exister.` }]
               : []),
-            // Écartés et DITS · un groupe où le règlement ne se distingue pas
-            // de la facture (acompte antérieur, avoir) ne se conclut pas.
-            ...(sansEcart.nonReconnaissables > 0
-              ? [
-                  {
-                    reference: 'Lettrages non examinés',
-                    detail:
-                      `${sansEcart.nonReconnaissables} lettrage(s) partiel(s) en devise où le règlement ne se reconnaît pas (acompte antérieur ` +
-                      'à la facture, avoir, pièce sans trésorerie) · écartés, rien n’en est conclu.',
-                  },
-                ]
-              : []),
             ...sansEcart.elements.map((e) => ({
             reference: `${e.compteNumero} · ${e.piece}`,
             detail:
@@ -4125,6 +4113,22 @@ export class ControlesService {
             montant: e.ecart,
             })),
           ],
+        });
+      }
+      // ÉCARTÉS ET DITS, À PART (septième relecture, m4) · un groupe où le
+      // règlement ne se distingue pas de la facture (acompte antérieur,
+      // avoir, pièce sans trésorerie) ne se conclut pas · ni « sans écart »,
+      // ni « corrigez la pièce », seulement le nombre et la raison.
+      if (sansEcart.nonReconnaissables > 0) {
+        anomalies.push({
+          code: 'LETTRAGES_DEVISE_NON_EXAMINES',
+          gravite: 'INFORMATION',
+          libelle: 'Lettrages partiels en devise non examinés',
+          consequence:
+            `${sansEcart.nonReconnaissables} lettrage(s) partiel(s) en devise n'ont pas pu être examinés · le règlement ne s'y distingue pas ` +
+            'de la facture (acompte antérieur à la facture, avoir, pièce sans ligne de trésorerie). Rien n’en est conclu.',
+          action: 'Aucune, sauf à vérifier ces lettrages à la main si un règlement en devise y a soldé le tiers aux francs du jour.',
+          occurrences: [],
         });
       }
     }

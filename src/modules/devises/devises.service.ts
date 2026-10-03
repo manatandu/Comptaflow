@@ -1530,6 +1530,18 @@ export class DevisesService {
     }
     return transactionJournalisee(this.prisma, async (tx) => {
       const fait: Array<{ role: string; ecritureId: string; numeroPiece: number | null; traitement: 'SUPPRIMEE' | 'INSCRITE_EN_NEGATIF'; negatifId?: string; negatifNumeroPiece?: number | null }> = [];
+      // RELU DANS LA TRANSACTION (septième relecture, m1) · un lettrage ou un
+      // pointage posé entre la vérification et la suppression ou le négatif
+      // refuse aussi · le refus annule la transaction, rien n'est écrit.
+      for (const [role, e] of ecritures) {
+        if (!e) continue;
+        const relues = await tx.ligneEcriture.findMany({
+          where: { ecritureId: e.id, ecriture: { tenantId } },
+          select: { lettre: true, lettrageId: true, rapprochementId: true },
+        });
+        const motifTenues = motifLignesTenues(relues, `l'écriture ${NOMS[role]} n° ${e.numeroPiece ?? '·'}`, 'annuler', ', puis annulez la réévaluation');
+        if (motifTenues) throw new BadRequestException(motifTenues);
+      }
       for (const [role, e] of ecritures) {
         if (!e) continue;
         if (e.statut === StatutEcriture.BROUILLARD) {

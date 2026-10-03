@@ -42,7 +42,11 @@ describe('écran Devises · annuler une réévaluation', () => {
     // M7 · la règle du DTO (3 à 500), vérifiée avant l'envoi, et une modale de l'interface.
     expect(corps).toContain('motifRefusMotifAnnulation(aAnnuler.motif)');
     expect(corps).not.toContain('window.prompt');
-    expect(source).toContain("onClick={() => setAAnnuler({ reevaluation: r, motif: '' })}");
+    expect(source).toContain("setAAnnuler({ reevaluation: r, motif: '' });");
+    // m3 · l'erreur du serveur s'affiche DANS la modale.
+    expect(corps).toContain("setErreurAnnulation(e instanceof ApiError ? e.message : 'Annulation impossible')");
+    const modale = source.slice(source.indexOf('{aAnnuler && ('));
+    expect(modale.slice(0, modale.indexOf('</PortailModale>'))).toContain('{erreurAnnulation}');
     expect(source).toMatch(/\{aAnnuler && \(\s*<PortailModale>/);
   });
 

@@ -67,7 +67,11 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     // M3 · les autres issues, sans jamais pousser à passer deux fois.
     expect(motif).toMatch(/UNE seule issue/);
     expect(motif).toMatch(/DÉJÀ été passé à la main, lettrez sa ligne du tiers dans ce groupe, sans le repasser/);
-    expect(motif).toMatch(/si le geste est refusé .* délettrez le groupe/);
+    // B2 (septième relecture) · on gèle la PRÉSENCE de la phrase · délettrer
+    // ferait glisser le réalisé au 479 latent.
+    expect(motif).toContain(
+      "si le geste est refusé (réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l'écart, puis réévaluez. Ne délettrez pas le groupe, sans quoi l'écart ne serait plus constaté.",
+    );
     expect(motifClotureEcartsNonConstates({ ecarts: [] })).toBeNull();
   });
 });

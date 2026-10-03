@@ -107,4 +107,19 @@ describe('le contrôle REGLEMENT_DEVISE_SANS_ECART', () => {
     expect(bloc).toContain("gravite: 'INFORMATION'");
     expect(bloc).not.toMatch(/ecritures?\.creer|\.create\(/);
   });
+
+  // m4 (septième relecture) · les lettrages non reconnaissables ont leur
+  // PROPRE anomalie, neutre · ni « sans écart » ni « corrigez la pièce ».
+  it('les lettrages non examinés · anomalie distincte, en information, sans libellé ni action de correction', () => {
+    const { readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs');
+    const { join } = jest.requireActual<typeof import('node:path')>('node:path');
+    const source = readFileSync(join(__dirname, '../controles/controles.service.ts'), 'utf8');
+    const bloc = source.slice(source.indexOf("code: 'LETTRAGES_DEVISE_NON_EXAMINES'"), source.indexOf('occurrences: []', source.indexOf("code: 'LETTRAGES_DEVISE_NON_EXAMINES'")));
+    expect(bloc).toContain("gravite: 'INFORMATION'");
+    expect(bloc).toContain("libelle: 'Lettrages partiels en devise non examinés'");
+    expect(bloc).toContain("n'ont pas pu être examinés");
+    expect(bloc).toContain('acompte antérieur à la facture, avoir, pièce sans ligne de trésorerie');
+    const sansEcart = source.slice(source.indexOf('// --- 31. Règlement en devise'), source.indexOf("code: 'REGLEMENT_DEVISE_SANS_ECART'"));
+    expect(sansEcart).toContain('if (sansEcart.elements.length > 0 || sansEcart.tronque) {');
+  });
 });

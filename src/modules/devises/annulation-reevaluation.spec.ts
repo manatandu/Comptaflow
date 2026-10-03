@@ -49,7 +49,11 @@ function monter(p: {
       update: jest.fn().mockResolvedValue({ id: 'r1' }),
       findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'r1', annuleeLe: new Date() }),
     },
-    ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    ligneEcriture: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
+      // Relues dans la transaction (m1) · libres par défaut.
+      findMany: jest.fn().mockResolvedValue([{ lettre: null, lettrageId: null, rapprochementId: null }]),
+    },
     ecriture: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
   const prisma = {
@@ -170,5 +174,16 @@ describe('annuler une réévaluation des devises (D6)', () => {
     const { service, tx } = monter({});
     tx.reevaluation.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('absente', { code: 'P2025', clientVersion: 'x' }));
     await expect(service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toMatchObject({ status: 409 });
+  });
+
+  // m1 (septième relecture) · un lettrage posé entre la vérification et la
+  // suppression · relu dans la transaction, il refuse, rien n'est écrit.
+  it('un lettrage posé pendant le geste · relu dans la transaction, refus, ni négatif ni suppression', async () => {
+    const { service, tx, inscrire } = monter({});
+    tx.ligneEcriture.findMany.mockResolvedValueOnce([{ lettre: null, lettrageId: 'g', rapprochementId: null }]);
+    await expect(service.annulerReevaluation('t', 'u', 'r1', 'motif')).rejects.toThrow(/sont lettrées \(lettrage partiel\)/);
+    expect(inscrire).not.toHaveBeenCalled();
+    expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
+    expect(tx.reevaluation.update).not.toHaveBeenCalled();
   });
 });

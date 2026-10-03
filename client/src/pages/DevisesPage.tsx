@@ -203,22 +203,25 @@ export function DevisesPage() {
   // La réévaluation en cours d'annulation et son motif · une MODALE de
   // l'interface (`PortailModale`), jamais `window.prompt`.
   const [aAnnuler, setAAnnuler] = useState<{ reevaluation: Reevaluation; motif: string } | null>(null);
+  // L'erreur s'affiche DANS la modale (septième relecture, m3) · sous le
+  // voile, le bandeau de la page est caché et le refus passerait inaperçu.
+  const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
   const annulerReevaluation = async () => {
     if (!aAnnuler) return;
     // La règle du DTO (3 à 500 caractères), vérifiée avant l'envoi.
     const refus = motifRefusMotifAnnulation(aAnnuler.motif);
     if (refus) {
-      setErreur(refus);
+      setErreurAnnulation(refus);
       return;
     }
-    setErreur(null);
+    setErreurAnnulation(null);
     try {
       await api.post(`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`, { motif: aAnnuler.motif.trim() });
       setAAnnuler(null);
       setInfo('Réévaluation annulée · ses écritures validées sont inscrites en négatif. Réévaluez l’exercice.');
       await charger();
     } catch (e) {
-      setErreur(e instanceof ApiError ? e.message : 'Annulation impossible');
+      setErreurAnnulation(e instanceof ApiError ? e.message : 'Annulation impossible');
     }
   };
 
@@ -715,7 +718,10 @@ export function DevisesPage() {
                       {peutValider && !r.annuleeLe && (
                         <button
                           type="button"
-                          onClick={() => setAAnnuler({ reevaluation: r, motif: '' })}
+                          onClick={() => {
+                            setErreurAnnulation(null);
+                            setAAnnuler({ reevaluation: r, motif: '' });
+                          }}
                           className="ml-2 text-danger hover:underline"
                           title="Inscription en négatif des écritures validées, suppression de celles au brouillard (AUDCIF art. 20, al. 2)"
                         >
@@ -785,6 +791,11 @@ export function DevisesPage() {
                 </button>
               </div>
               <div className="p-4">
+                {erreurAnnulation && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurAnnulation}
+                  </div>
+                )}
                 <label className="text-[11.5px] font-semibold text-text-dim block">
                   Motif
                   <textarea
