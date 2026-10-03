@@ -61,11 +61,19 @@ import { NatureCreanceDouteuse, Referentiel, TypeMouvementCreanceDouteuse } from
  * UN NUMÉRO, DEUX SENS · le 4161 et le 4162.
  *   SYSCOHADA · 4161 « Créances litigieuses », 4162 « Créances douteuses » ·
  *               le sous-compte dit la NATURE.
- *   SYCEBNL   · 4161 « Adhérents cotisations litigieuses ou douteuses »,
- *               4162 « Créances litigieuses ou douteuses » · le sous-compte
- *               dit le DÉBITEUR (adhérent ou client-usager), et la nature ne
- *               se lit plus qu'au 491 (4911 litigieuses, 4912 douteuses, aux
- *               deux plans).
+ *   SYCEBNL   · fiche du compte 41, « 416 Créances adhérents,
+ *               clients-usagers litigieuses ou douteuses (4161 Adhérents
+ *               cotisations litigieuses ou douteuses, 4162 Créances
+ *               litigieuses ou douteuses) » ; « sont crédités les comptes 411
+ *               et 412 [...] des créances litigieuses ou douteuses ; par le
+ *               débit : du compte 416 ». Le sous-compte dit le DÉBITEUR · le
+ *               4161 reçoit les créances d'ADHÉRENTS (411, 4131, 4133), le
+ *               4162 les autres (412, 4132, 4138). Il se DÉDUIT de cette
+ *               table (E3, décision de Manasse du 2026-10-03, « réfère-toi à
+ *               la loi »), et un autre 416 est refusé ; un 413 non subdivisé,
+ *               ou tout compte hors de la table, reste au choix du cabinet,
+ *               jamais deviné. La nature ne se lit plus qu'au 491 (4911
+ *               litigieuses, 4912 douteuses, aux deux plans).
  * Le 651 diverge aussi · 6511 « Clients » et 6515 au SYSCOHADA ; 6511
  * « Clients-usagers », 6512 « Adhérents », 6515 au SYCEBNL.
  */
@@ -100,7 +108,7 @@ export function compte491(nature: NatureCreanceDouteuse): string {
   return nature === NatureCreanceDouteuse.LITIGIEUSE ? '4911' : '4912';
 }
 
-/** Au SYCEBNL, le débiteur que le compte d'origine désigne · lu dans les intitulés du plan. */
+/** Au SYCEBNL, le débiteur que le compte d'origine désigne · la table de la fiche du compte 41 (E3). */
 export function debiteurSycebnl(numeroSource: string): 'ADHERENT' | 'CLIENT_USAGER' | null {
   if (numeroSource.startsWith('411') || numeroSource.startsWith('4131') || numeroSource.startsWith('4133')) return 'ADHERENT';
   if (numeroSource.startsWith('412') || numeroSource.startsWith('4132') || numeroSource.startsWith('4138')) return 'CLIENT_USAGER';
@@ -152,6 +160,31 @@ function motifEtPieces(motif: string | null | undefined, pieces: PieceJustificat
   return null;
 }
 
+/**
+ * LE 416 QUE LE PLAN IMPOSE, quand il se lit · au SYSCOHADA selon la NATURE,
+ * au SYCEBNL selon le DÉBITEUR (E3). Croisé, le compte rangerait la créance
+ * sous un sous-compte qui dit autre chose ; hors de la table, rien n'est imposé.
+ */
+export function motifRefus416Croise(
+  referentiel: Referentiel,
+  nature: NatureCreanceDouteuse,
+  numeroSource: string,
+  numero416: string,
+): string | null {
+  const attendu = compte416Propose(referentiel, nature, numeroSource);
+  if (!attendu || numero416.startsWith(attendu)) return null;
+  if (referentiel === Referentiel.SYSCOHADA) {
+    return (
+      `Au SYSCOHADA, le ${attendu} reçoit les créances ${nature === NatureCreanceDouteuse.LITIGIEUSE ? 'litigieuses' : 'douteuses'} ` +
+      '(4161 « Créances litigieuses », 4162 « Créances douteuses », fiche du compte 41) · le compte choisi ne correspond pas à la nature.'
+    );
+  }
+  return (
+    `Au SYCEBNL, le compte ${numeroSource} désigne ${attendu === '4161' ? 'un adhérent' : 'un client-usager'}, et sa créance va au ` +
+    `${attendu} · fiche du compte 41, « 4161 Adhérents cotisations litigieuses ou douteuses, 4162 Créances litigieuses ou douteuses ».`
+  );
+}
+
 export interface EntreeReclassement {
   referentiel: Referentiel;
   nature: NatureCreanceDouteuse;
@@ -186,17 +219,8 @@ export function motifRefusReclassement(e: EntreeReclassement): string | null {
   if (!e.numero416.startsWith(COMPTES_CREANCES_DOUTEUSES.creances416) || !e.numero416EstDetail) {
     return `Le compte ${e.numero416} n'est pas un compte de détail du 416 (créances litigieuses ou douteuses).`;
   }
-  // Au SYSCOHADA, le sous-compte dit la nature · le croiser rangerait une
-  // créance contestée parmi les créances dont le débiteur se dérobe.
-  if (e.referentiel === Referentiel.SYSCOHADA) {
-    const attendu = compte416Propose(e.referentiel, e.nature, e.numeroSource)!;
-    if (!e.numero416.startsWith(attendu)) {
-      return (
-        `Au SYSCOHADA, le ${attendu} reçoit les créances ${e.nature === NatureCreanceDouteuse.LITIGIEUSE ? 'litigieuses' : 'douteuses'} ` +
-        '(4161 « Créances litigieuses », 4162 « Créances douteuses », fiche du compte 41) · le compte choisi ne correspond pas à la nature.'
-      );
-    }
-  }
+  const croise = motifRefus416Croise(e.referentiel, e.nature, e.numeroSource, e.numero416);
+  if (croise) return croise;
   if (e.ligneEnDevise) {
     return (
       "Le compte du client porte une créance en devise non lettrée · une créance en devise se réévalue à la clôture (AUDCIF art. 54) " +
@@ -507,6 +531,7 @@ export function motifRefusAnnulationRevue(p: {
 
 export interface EntreeDeclaration {
   referentiel: Referentiel;
+  nature: NatureCreanceDouteuse;
   numeroSource: string;
   numero416: string;
   numero416EstDetail: boolean;
@@ -544,6 +569,8 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   if (!e.numero416.startsWith(COMPTES_CREANCES_DOUTEUSES.creances416) || !e.numero416EstDetail) {
     return `Le compte ${e.numero416} n'est pas un compte de détail du 416.`;
   }
+  const croise = motifRefus416Croise(e.referentiel, e.nature, e.numeroSource, e.numero416);
+  if (croise) return croise;
   if (!e.source || e.source.trim().length === 0) {
     return (
       'La source est exigée (balance de reprise, dossier de l’ancien cabinet, état des créances douteuses) · une déclaration ' +

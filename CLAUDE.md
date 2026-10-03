@@ -632,7 +632,9 @@ n'est pas revu), bornée par ce qui reste au 416 ; dotation refusée au SMT
 recouvrement D trésorerie du journal / C 416 ; un mouvement daté avant une revue
 déjà passée est refusé. UN NUMÉRO, DEUX SENS · 4161 et 4162 disent la NATURE au
 SYSCOHADA (litigieuses, douteuses ; croisé, refusé), le DÉBITEUR au SYCEBNL
-(adhérents cotisations, créances des clients-usagers ; proposé, jamais imposé) ;
+(E3 · fiche SYCEBNL du 41, « 4161 Adhérents cotisations litigieuses ou douteuses,
+4162 Créances litigieuses ou douteuses » · 4161 pour 411, 4131, 4133, 4162 pour 412,
+4132, 4138, DÉDUIT et croisé refusé ; un 413 non subdivisé reste au choix) ;
 491 (4911, 4912) commun ; 6512 « Adhérents » au SYCEBNL seul. Créance en devise non
 lettrée refusée (art. 54, 55), non servie. Trois tables d'acte au journal d'audit,
 écritures RETENUES (`detenteurs-ecriture.ts`). RELECTURE ADVERSE (2026-10-03) ·

@@ -124,9 +124,22 @@ describe('créances douteuses · le reclassement au 416 (fiche du compte 41)', (
     expect(motifRefusReclassement({ ...base, exerciceOuvert: false })).toContain('clôturé');
   });
 
-  it('au SYCEBNL le 4161 ou le 4162 se choisit sans refus de nature, le 412 est admis', () => {
-    const s = { ...base, referentiel: Referentiel.SYCEBNL, numeroSource: '41200004', numero416: '41610000' };
-    expect(motifRefusReclassement(s)).toBeNull();
+  it('E3 · au SYCEBNL, le 416 se DÉDUIT du débiteur (fiche du compte 41) · croisé, refusé ; hors table, au choix', () => {
+    const s = { ...base, referentiel: Referentiel.SYCEBNL };
+    // Un client-usager (412) va au 4162, quelle que soit la nature.
+    expect(motifRefusReclassement({ ...s, numeroSource: '41200004', numero416: '41620000' })).toBeNull();
+    expect(motifRefusReclassement({ ...s, numeroSource: '41200004', numero416: '41610000' })).toMatch(
+      /client-usager.*4162 · fiche du compte 41, « 4161 Adhérents cotisations litigieuses ou douteuses, 4162 Créances litigieuses ou douteuses »/,
+    );
+    // Un adhérent (411, 4131, 4133) va au 4161.
+    expect(motifRefusReclassement({ ...s, numeroSource: '41100003', numero416: '41610000' })).toBeNull();
+    expect(motifRefusReclassement({ ...s, numeroSource: '41330000', numero416: '41620000' })).toMatch(/un adhérent/);
+    expect(motifRefusReclassement({ ...s, numeroSource: '41380000', numero416: '41610000' })).toMatch(/un client-usager/);
+    // Un 413 non subdivisé ne se lit pas · au choix du cabinet, aucun refus.
+    expect(motifRefusReclassement({ ...s, numeroSource: '41300000', numero416: '41610000' })).toBeNull();
+    expect(motifRefusReclassement({ ...s, numeroSource: '41300000', numero416: '41620000' })).toBeNull();
+    // Le sens SYSCOHADA (la nature) est inchangé.
+    expect(motifRefusReclassement({ ...base, nature: NatureCreanceDouteuse.LITIGIEUSE, numero416: '41620000' })).toContain('ne correspond pas à la nature');
   });
 
   it('une pièce sans nature ou sans référence n’en est pas une', () => {
@@ -295,6 +308,7 @@ describe('créances douteuses · règles de la relecture adverse (B1, B2, M3)', 
   it('M3 · la déclaration est bornée par l’à-nouveau du 416 et du 491, source exigée', () => {
     const d = {
       referentiel: Referentiel.SYSCOHADA,
+      nature: NatureCreanceDouteuse.DOUTEUSE,
       numeroSource: '41110001',
       numero416: '41620000',
       numero416EstDetail: true,
@@ -315,6 +329,11 @@ describe('créances douteuses · règles de la relecture adverse (B1, B2, M3)', 
     expect(motifRefusDeclaration({ ...d, dejaDeclare416: 1 })).toContain('dépassent son à-nouveau');
     expect(motifRefusDeclaration({ ...d, aNouveau491: 299 })).toContain('491');
     expect(motifRefusDeclaration({ ...d, depreciation: 1001 })).toContain('jamais au-delà de la créance');
+    // E3 · la déclaration suit la même table que le reclassement.
+    expect(motifRefusDeclaration({ ...d, numero416: '41610000' })).toContain('ne correspond pas à la nature');
+    expect(
+      motifRefusDeclaration({ ...d, referentiel: Referentiel.SYCEBNL, numeroSource: '41100002', numero416: '41620000' }),
+    ).toContain('un adhérent');
   });
 });
 

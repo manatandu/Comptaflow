@@ -557,6 +557,7 @@ export class CreancesDouteusesService {
     ]);
     const motif = motifRefusDeclaration({
       referentiel,
+      nature: dto.nature,
       numeroSource: source.numero,
       numero416: c416.numero,
       numero416EstDetail: c416.typeCompte === TypeCompteDetailTotal.DETAIL,
