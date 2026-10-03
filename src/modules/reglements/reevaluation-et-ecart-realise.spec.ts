@@ -230,42 +230,111 @@ describe('un règlement en devise d’une facture déjà réévaluée', () => {
 });
 
 /**
- * M3 (quatrième relecture) · le règlement en N+1 d'une facture réévaluée en
- * N, réévaluation de N non contre-passée · AVERTISSEMENT, jamais un refus.
+ * M3 (quatrième relecture), M-B (cinquième) · le règlement en N+1 d'une
+ * facture réévaluée en N, réévaluation de N non contre-passée ·
+ * AVERTISSEMENT, jamais un refus · seulement l'à-nouveau, seulement la
+ * réévaluation de l'exercice qui précède immédiatement, seulement une devise
+ * qu'elle a réellement portée.
  */
 describe('la contre-passation de la réévaluation précédente oubliée', () => {
-  function monterN1(p: { extournee: boolean; surLeCompte?: boolean; aNouveau?: boolean }) {
+  const EX = { ex0: ['2025-01-01', '2025-12-31'], ex: ['2026-01-01', '2026-12-31'], ex2: ['2027-01-01', '2027-12-31'] } as const;
+  function monterN1(p: { reevaluations: Array<{ exerciceId: 'ex0' | 'ex'; extournee: boolean; passe: number }>; lignes: Ligne[] }) {
     return {
-      exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2027-01-01') })) },
+      exercice: {
+        findFirst: jest.fn(async ({ where }: { where: { id?: keyof typeof EX; dateFin?: { lt: Date } } }) => {
+          if (where.id) return { id: where.id, dateDebut: new Date(EX[where.id][0]) };
+          const avant = (Object.keys(EX) as Array<keyof typeof EX>)
+            .filter((k) => new Date(EX[k][1]) < where.dateFin!.lt)
+            .sort((a, b) => EX[b][1].localeCompare(EX[a][1]));
+          return avant.length ? { id: avant[0] } : null;
+        }),
+      },
       reevaluation: {
-        findFirst: jest.fn(async ({ where }: { where: { dateReevaluation: { lt: Date } } }) =>
-          new Date('2026-12-31') < where.dateReevaluation.lt
+        findFirst: jest.fn(async ({ where }: { where: { exerciceId: string } }) => {
+          const r = p.reevaluations.find((x) => x.exerciceId === where.exerciceId);
+          return r
             ? {
-                dateReevaluation: new Date('2026-12-31'),
-                ecritureExtourneId: p.extournee ? 'x' : null,
-                ecritureEcarts: { lignes: p.surLeCompte === false ? [] : [{ id: 'r' }] },
+                dateReevaluation: new Date(EX[r.exerciceId][1]),
+                // Passée le 5 janvier qui suit sa clôture.
+                createdAt: new Date(`${Number(EX[r.exerciceId][1].slice(0, 4)) + 1}-01-05`),
+                ecritureExtourneId: r.extournee ? 'x' : null,
+                ecritureEcarts: { lignes: [{ debit: r.passe > 0 ? r.passe : 0, credit: r.passe < 0 ? -r.passe : 0 }] },
               }
-            : null,
-        ),
+            : null;
+        }),
       },
-      ligneEcriture: {
-        findMany: jest.fn(async ({ where }: { where: { ecriture: { date: Date } } }) =>
-          (p.aNouveau ?? true) && where.ecriture.date.getTime() === new Date('2027-01-01').getTime() ? [{ id: 'an' }] : [],
-        ),
-      },
+      ligneEcriture: { findMany: jest.fn(async ({ where }: { where: Objet }) => p.lignes.filter((l) => tient(l as unknown as Objet, where))) },
+      coursDevise: { findFirst: jest.fn(async ({ where }: { where: { deviseId: string } }) => ({ usd: { cours: 1850 }, eur: { cours: 1100 } })[where.deviseId] ?? null) },
     } as unknown as PrismaService;
   }
-  const n1 = { tenantId: 't', exerciceId: 'ex2', compteId: 'c401', compteNumero: '40110000', ligneIds: ['an'] };
+  const n1 = { tenantId: 't', exerciceId: 'ex2', compteId: 'c401', compteNumero: '40110000' };
+  const enN = () => factureB();
+  const aNouveau = (deviseId = 'usd') =>
+    ligne(deviseId, 0, 850_000, 500, null, { exerciceId: 'ex2', date: new Date('2027-01-01'), createdAt: new Date('2027-01-02'), estANouveauProvisoire: true });
 
-  it('non contre-passée · l’avertissement nomme la réévaluation et le geste', async () => {
-    expect(await avertissementExtourneManquante(monterN1({ extournee: false }), n1)).toMatch(
+  it('à-nouveau d’une facture réévaluée en N, réévaluation non contre-passée · l’avertissement nomme la réévaluation et le geste', async () => {
+    const an = aNouveau();
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: false, passe: -75_000 }], lignes: [enN(), an] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [an.id] })).toMatch(
       /40110000 · la réévaluation des devises du 2026-12-31 n'a pas été contre-passée.*Passez la contre-passation/,
     );
   });
 
-  it('contre-passée, rien sur le compte, ou une facture qui n’est pas l’à-nouveau · aucun avertissement', async () => {
-    expect(await avertissementExtourneManquante(monterN1({ extournee: true }), n1)).toBeNull();
-    expect(await avertissementExtourneManquante(monterN1({ extournee: false, surLeCompte: false }), n1)).toBeNull();
-    expect(await avertissementExtourneManquante(monterN1({ extournee: false, aNouveau: false }), n1)).toBeNull();
+  it('contre-passée · aucun avertissement', async () => {
+    const an = aNouveau();
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: true, passe: -75_000 }], lignes: [enN(), an] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [an.id] })).toBeNull();
+  });
+
+  it('une facture ORDINAIRE du 1er janvier · aucun avertissement', async () => {
+    const ordinaire = ligne('usd', 0, 850_000, 500, null, { exerciceId: 'ex2', date: new Date('2027-01-01'), createdAt: new Date('2027-01-02') });
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: false, passe: -75_000 }], lignes: [enN(), ordinaire] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [ordinaire.id] })).toBeNull();
+  });
+
+  it('une réévaluation de N-2 seule · aucun avertissement', async () => {
+    const an = aNouveau();
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex0', extournee: false, passe: -75_000 }], lignes: [enN(), an] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [an.id] })).toBeNull();
+  });
+
+  it('une devise que la réévaluation n’a pas portée · aucun avertissement', async () => {
+    const anEur = aNouveau('eur');
+    const prisma = monterN1({ reevaluations: [{ exerciceId: 'ex', extournee: false, passe: -75_000 }], lignes: [enN(), anEur] });
+    expect(await avertissementExtourneManquante(prisma, { ...n1, ligneIds: [anEur.id] })).toBeNull();
+  });
+});
+
+/**
+ * M-A (cinquième relecture) · la concordance avec le groupe ne refuse que si
+ * la devise du GROUPE a été réellement réévaluée. Sur le 401 · F1 de 1 000
+ * USD à 2 000 dans G, F2 de 1 000 USD à 2 200 ouverte, F3 de 100 EUR à 1 000 ;
+ * réévaluation du 30/09 (USD 2 100, EUR 1 100) · l'USD a un écart NUL
+ * (4 200 000 contre 4 200 000), seul l'EUR porte −10 000 ; F1 réglée le 15/11
+ * à 2 150. Le total concorde avec le groupe lu par l'EUR seul · l'écart passe.
+ */
+describe('la devise du groupe, réellement réévaluée', () => {
+  const G = { id: 'G', creeLe: new Date('2026-11-15') };
+  function monter30sept(lignes: Ligne[]) {
+    const prisma = monter({ lignes, passe: -10_000, dateReevaluation: '2026-09-30', cours: { usd: 2100, eur: 1100 } });
+    (prisma.reevaluation.findFirst as jest.Mock).mockResolvedValue({
+      dateReevaluation: new Date('2026-09-30'),
+      createdAt: new Date('2026-10-01'),
+      ecritureEcarts: { lignes: [{ debit: 0, credit: 10_000 }] },
+    });
+    return prisma;
+  }
+  const f1 = () => ligne('usd', 0, 2_000_000, 1000, G, { createdAt: new Date('2026-06-01') });
+  const reglementF1 = () => ligne('usd', 2_150_000, 0, 1000, G, { date: new Date('2026-11-15'), createdAt: new Date('2026-11-15') });
+  const f3 = () => ligne('eur', 0, 100_000, 100, null, { createdAt: new Date('2026-06-01') });
+
+  it('F1, F2, F3 · l’écart USD de la réévaluation est nul · l’écart de F1 passe', async () => {
+    const f2 = ligne('usd', 0, 2_200_000, 1000, null, { createdAt: new Date('2026-06-01') });
+    expect(await issueReevaluationDejaPassee(monter30sept([f1(), reglementF1(), f2, f3()]), { ...params, lettrageId: 'G' })).toBeNull();
+  });
+
+  it('une position USD soldée dans sa devise à la réévaluation · l’écart passe', async () => {
+    const avance = ligne('usd', 2_050_000, 0, 1000, null, { createdAt: new Date('2026-06-01') });
+    expect(await issueReevaluationDejaPassee(monter30sept([f1(), reglementF1(), avance, f3()]), { ...params, lettrageId: 'G' })).toBeNull();
   });
 });

@@ -488,7 +488,22 @@ export class ReglementsService {
       lettrageId: dto.lettrageId,
     });
     if (dejaReevalue && 'refus' in dejaReevalue) throw new ConflictException(dejaReevalue.refus);
-    const avertissement = dejaReevalue && 'avertissement' in dejaReevalue ? dejaReevalue.avertissement : null;
+    // L'à-nouveau du groupe, si la réévaluation de l'exercice précédent n'a
+    // pas été contre-passée (cinquième relecture, M-C) · un avertissement.
+    const lignesDuGroupe = await this.prisma.ligneEcriture.findMany({
+      where: { lettrageId: dto.lettrageId, ecriture: { tenantId } },
+      select: { id: true },
+    });
+    const extourne = await avertissementExtourneManquante(this.prisma, {
+      tenantId,
+      exerciceId: proposition.exerciceId!,
+      compteId: proposition.compteId,
+      compteNumero: proposition.compteNumero,
+      ligneIds: lignesDuGroupe.map((l) => l.id),
+    });
+    const avertissement =
+      [dejaReevalue && 'avertissement' in dejaReevalue ? dejaReevalue.avertissement : null, extourne].filter((x): x is string => x !== null).join(' ') ||
+      null;
     const libelle = `${libelleEcartRealise(proposition.ecart)} · ${proposition.compteNumero} ${proposition.code}`;
     const ecriture = await this.ecritures.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,

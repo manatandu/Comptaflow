@@ -17,6 +17,7 @@ import {
   coursEtFrancsDuReglement,
 } from './ecart-change-realise';
 import { ReglementsService } from './reglements.service';
+import * as reevaluationModule from './reevaluation-et-ecart-realise';
 import type { OrdresVirementService } from './ordres-virement.service';
 import type { PrismaService } from '../../common/prisma.service';
 import type { EcritureService } from '../comptabilite/ecriture.service';
@@ -575,18 +576,21 @@ describe('le règlement d’une facture déjà réévaluée', () => {
 });
 
 describe('le règlement en N+1, réévaluation de N non contre-passée', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // La règle (à-nouveau, exercice précédent, devise portée) est éprouvée dans
+  // reevaluation-et-ecart-realise.spec.ts · ici, son CÂBLAGE (F4a).
   it('l’avertissement revient avec les règlements, la pièce est passée', async () => {
-    const { service, creer, prisma } = monter();
-    (prisma.reevaluation.findFirst as jest.Mock)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ dateReevaluation: new Date('2025-12-31'), ecritureExtourneId: null, ecritureEcarts: { lignes: [{ id: 'r' }] } });
+    const espion = jest.spyOn(reevaluationModule, 'avertissementExtourneManquante').mockResolvedValue('40110000 · non contre-passée');
+    const { service, creer } = monter();
     const r = await service.enregistrer('t', 'u', {
       ...base,
       sens: 'FOURNISSEUR',
       reglements: [{ compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 }],
     });
     expect(creer).toHaveBeenCalled();
-    expect(r.avertissements).toEqual([expect.stringMatching(/n'a pas été contre-passée/)]);
+    expect(espion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ compteId: 'c401', ligneIds: ['fm'] }));
+    expect(r.avertissements).toEqual(['40110000 · non contre-passée']);
   });
 });
 
@@ -749,6 +753,26 @@ describe('passer l’écart de change proposé au lettrage', () => {
     const r = await service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' });
     expect(creer).toHaveBeenCalled();
     expect(r.avertissement).toMatch(/ont changé depuis la réévaluation/);
+  });
+
+  // M-C (cinquième relecture) · l'écart passé sur un groupe dont l'à-nouveau
+  // vient d'une réévaluation de N non contre-passée revient avec son
+  // avertissement, que l'écran Lettrage affiche.
+  it('l’à-nouveau du groupe et une réévaluation précédente non contre-passée · avertissement rendu', async () => {
+    const espion = jest
+      .spyOn(reevaluationModule, 'avertissementExtourneManquante')
+      .mockResolvedValue('40110000 · la réévaluation des devises du 2025-12-31 n’a pas été contre-passée');
+    const { service, propositionEcartChange, prisma } = monter();
+    propositionEcartChange.mockResolvedValueOnce(proposition);
+    (prisma.journal.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'od', code: 'OD', type: 'GENERAL' });
+    const parId = (prisma.ligneEcriture.findMany as jest.Mock).getMockImplementation()!;
+    (prisma.ligneEcriture.findMany as jest.Mock).mockImplementation(async (a: { where: { id?: unknown; lettrageId?: string } }) =>
+      a.where.lettrageId === 'L' ? [{ id: 'an' }, { id: 'p' }] : parId(a),
+    );
+    const r = await service.passerEcartChange('t', 'u', { lettrageId: 'L', exerciceId: 'ex', journalId: 'od', date: '2026-12-02' });
+    expect(espion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ ligneIds: ['an', 'p'], compteId: 'c401' }));
+    expect(r.avertissement).toMatch(/n’a pas été contre-passée/);
+    espion.mockRestore();
   });
 
   it('un groupe resté partiel après l’écart · la pièce est retirée, 409', async () => {

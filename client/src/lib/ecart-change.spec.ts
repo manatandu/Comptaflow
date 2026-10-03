@@ -174,3 +174,18 @@ describe('les avertissements d’un règlement passé s’affichent', () => {
     expect(source).toMatch(/\{avertissements\.map\(\(a\) => \(/);
   });
 });
+
+/**
+ * Cinquième relecture, M-C · l'avertissement rendu par le passage de
+ * l'écart (réévaluation précédente non contre-passée, ou compte changé
+ * depuis la réévaluation) s'affiche à l'écran Lettrage avec le résultat.
+ */
+describe('l’avertissement de l’écart passé s’affiche au lettrage', () => {
+  it('passerEcart rend le message du serveur à la suite du résultat', () => {
+    const source = readFileSync(join(__dirname, '../pages/LettragePage.tsx'), 'utf8');
+    const debut = source.indexOf('const passerEcart = () =>');
+    const corps = source.slice(debut, source.indexOf('\n    });\n', debut));
+    expect(corps).toContain('avertissement: string | null');
+    expect(corps).toContain("(r.avertissement ? ` ${r.avertissement}` : '')");
+  });
+});

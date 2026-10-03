@@ -235,6 +235,18 @@ export async function issueReevaluationDejaPassee(
   if (Math.abs(sansLeGroupe - lu.passe) <= tolerance) return null;
   const avecLeGroupe = ecartReconstitue(lu.lignes, lu.denoues, lu.cours, p.lettrageId);
   if (Math.abs(avecLeGroupe - lu.passe) <= tolerance) {
+    // La concordance ne suffit pas · la devise du GROUPE doit avoir été
+    // réellement réévaluée, position ET écart non nuls (cinquième relecture,
+    // M-A ; même filtre que `motifReglementDejaReevalue`). Sinon le total
+    // concorde par une autre devise (l'EUR seul), et rien du groupe n'est au
+    // 478.
+    const devisesDuGroupe = new Set(lu.lignes.filter((l) => l.lettrageId === p.lettrageId).map((l) => l.deviseId));
+    const parDevise = ecartsParDevise(lu.lignes, lu.denoues, lu.cours, p.lettrageId);
+    const porte = [...devisesDuGroupe].some((d) => {
+      const e = parDevise.get(d);
+      return e !== undefined && Math.abs(e.montantDevise) >= 0.005 && Math.abs(e.ecart) >= 0.005;
+    });
+    if (!porte) return null;
     return { refus: motifDejaReevalue({ date: lu.date, creeeLe: lu.creeeLe, compteNumero: p.compteNumero, objet: 'ce dénouement' }) };
   }
   return {
@@ -279,12 +291,19 @@ export async function motifReglementDejaReevalue(
 
 /**
  * LE RÈGLEMENT EN N+1 D'UNE FACTURE RÉÉVALUÉE EN N, réévaluation NON
- * CONTRE-PASSÉE (quatrième relecture, M3) · l'écart de conversion se
- * contre-passe à l'ouverture de l'exercice suivant (`DevisesService.extourner`) ;
- * oubliée, le 478 ou le 479 de la facture et sa provision restent pendant que
- * le réalisé passe au 656 ou 676. Un AVERTISSEMENT, jamais un refus · la
- * contre-passation se passe encore, et le règlement est juste. Les lignes
- * choisies sont celles de l'à-nouveau, datées du début de l'exercice.
+ * CONTRE-PASSÉE (quatrième relecture M3, cinquième M-B) · l'écart de
+ * conversion se contre-passe à l'ouverture de l'exercice suivant
+ * (`DevisesService.extourner`) ; oubliée, le 478 ou le 479 et sa provision
+ * restent pendant que le réalisé passe au 656 ou 676. Un AVERTISSEMENT,
+ * jamais un refus · la contre-passation se passe encore. Ne vise que
+ *  · la réévaluation de l'exercice qui PRÉCÈDE IMMÉDIATEMENT (une de N-2
+ *    s'est contre-passée, ou non, à l'ouverture de N-1, pas de N) ;
+ *  · les lignes choisies (ou du groupe) issues d'une écriture d'À-NOUVEAU
+ *    (à-nouveau provisoire, ou report de clôture qui n'est pas le solde des
+ *    comptes de gestion), comme `lireLaReevaluation` · une facture ordinaire
+ *    du 1er janvier n'a pas été réévaluée ;
+ *  · les devises que cette réévaluation a RÉELLEMENT portées sur le compte
+ *    (position et écart reconstitués non nuls, `ecartsParDevise`).
  */
 export async function avertissementExtourneManquante(
   prisma: Lecteur,
@@ -292,24 +311,42 @@ export async function avertissementExtourneManquante(
 ): Promise<string | null> {
   const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
   if (!exercice) return null;
-  const reeval = await prisma.reevaluation.findFirst({
-    where: { tenantId: p.tenantId, dateReevaluation: { lt: exercice.dateDebut } },
-    orderBy: { dateReevaluation: 'desc' },
-    select: {
-      dateReevaluation: true,
-      ecritureExtourneId: true,
-      ecritureEcarts: { select: { lignes: { where: { compteId: p.compteId }, select: { id: true } } } },
-    },
-  });
-  if (!reeval || reeval.ecritureExtourneId !== null || !reeval.ecritureEcarts || reeval.ecritureEcarts.lignes.length === 0) return null;
-  const ouverture = await prisma.ligneEcriture.findMany({
-    where: { id: { in: p.ligneIds }, deviseId: { not: null }, ecriture: { tenantId: p.tenantId, exerciceId: p.exerciceId, date: exercice.dateDebut } },
+  const precedent = await prisma.exercice.findFirst({
+    where: { tenantId: p.tenantId, dateFin: { lt: exercice.dateDebut } },
+    orderBy: { dateFin: 'desc' },
     select: { id: true },
   });
+  if (!precedent) return null;
+  const reeval = await prisma.reevaluation.findFirst({
+    where: { tenantId: p.tenantId, exerciceId: precedent.id },
+    select: { ecritureExtourneId: true },
+  });
+  if (!reeval || reeval.ecritureExtourneId !== null) return null;
+  const ouverture = await prisma.ligneEcriture.findMany({
+    where: {
+      id: { in: p.ligneIds },
+      deviseId: { not: null },
+      ecriture: {
+        tenantId: p.tenantId,
+        exerciceId: p.exerciceId,
+        date: exercice.dateDebut,
+        OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }],
+      },
+    },
+    select: { deviseId: true },
+  });
   if (ouverture.length === 0) return null;
+  const lu = await lireLaReevaluation(prisma, { tenantId: p.tenantId, exerciceId: precedent.id, compteId: p.compteId, cible: null });
+  if (!lu) return null;
+  const parDevise = ecartsParDevise(lu.lignes, lu.denoues, lu.cours, null);
+  const portee = ouverture.some((l) => {
+    const e = l.deviseId ? parDevise.get(l.deviseId) : undefined;
+    return e !== undefined && Math.abs(e.montantDevise) >= 0.005 && Math.abs(e.ecart) >= 0.005;
+  });
+  if (!portee) return null;
   return (
-    `${p.compteNumero} · la réévaluation des devises du ${jour(reeval.dateReevaluation)} n'a pas été contre-passée à l'ouverture · ` +
-    'le 478 ou le 479 de cette facture et sa provision restent en place pendant que le règlement passe le réalisé. ' +
+    `${p.compteNumero} · la réévaluation des devises du ${jour(lu.date)} n'a pas été contre-passée à l'ouverture · ` +
+    'le 478 ou le 479 de cette facture et sa provision restent en place pendant que le réalisé est passé. ' +
     'Passez la contre-passation de cette réévaluation (Devises).'
   );
 }
