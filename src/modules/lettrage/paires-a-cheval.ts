@@ -28,8 +28,10 @@ import { lireParLots, LOT_LECTURE, pageApres } from '../../common/lecture-par-lo
  *    retranche.
  *
  * CE QUI EN SORT · `absorbees`, les lignes que la paire éteint (lues ouvertes,
- * elles se compenseraient une seconde fois) ; `reste`, la ligne d'à-nouveau
- * réglée EN PARTIE, avec ce qu'elle doit encore. Le règlement d'un groupe
+ * elles se compenseraient une seconde fois), la ligne en devise soldée dans
+ * sa devise comprise (son reste en francs est le réalisé, que le contrôle 35
+ * nomme) ; `reste`, la ligne d'à-nouveau réglée EN PARTIE, avec ce qu'elle
+ * doit encore. Le règlement d'un groupe
  * s'impute sur ses lignes d'à-nouveau les plus anciennes d'abord, comme le
  * règlement en devise (`ordreDeReglement`). Une paire qui AJOUTERAIT au dû (une
  * facture de l'exercice lettrée avec un acompte antérieur, au SOLDE) n'est
@@ -288,8 +290,12 @@ export async function pairesACheval(
 
   for (const [id, r] of restant) {
     const initial = Math.abs(signe(r.ligne));
-    if (r.francs === initial) continue;
-    if (r.francs <= 0) {
+    if (r.francs === initial && r.devise === enDevise(r.ligne)) continue;
+    // Éteinte en francs, ou DÉNOUÉE DANS SA DEVISE · le reste en francs d'une
+    // ligne en devise soldée dans sa devise est l'écart RÉALISÉ (AUDCIF
+    // art. 55), jamais une dette ni une position à réévaluer · le contrôle
+    // 35 le nomme, l'écart se passe sur le groupe.
+    if (r.francs <= 0 || (r.devise !== null && r.devise <= 0)) {
       resultat.absorbees.add(id);
       resultat.groupeDe.set(id, r.groupe);
       continue;

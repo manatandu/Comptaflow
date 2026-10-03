@@ -137,6 +137,19 @@ describe('la paire à cheval · au Détail', () => {
     expect(r.reste.has('ran')).toBe(false);
   });
 
+  it('une créance soldée dans sa devise, encaissée au payé (avant A6) · son reste en francs est le réalisé, la ligne d’à-nouveau s’éteint', async () => {
+    // 1 000 USD à 2 800, encaissés à 2 700 · 100 000 de réalisé, non passé.
+    const client = { compteId: 'c411', compte: { ...compte401(), id: 'c411', numero: '41110000' } };
+    const lignes = [
+      ligne('f0', 2_800_000, 0, 1000, ecr('n', '2026-12-15'), { ...client, lettrageId: 'G' }),
+      ligne('ran', 2_800_000, 0, 1000, ecr('n1', '2027-01-01', CLOTURE), { ...client, libelle: 'RAN détail 41110000 · Facture NZUZI' }),
+      ligne('p1', 0, 2_700_000, 1000, ecr('n1', '2027-02-10'), { ...client, lettrageId: 'G' }),
+    ];
+    const r = await pairesACheval(lecteur(lignes), { tenantId: 't', exercice: N1, compte: { numero: { startsWith: '41' } } });
+    expect([...r.absorbees].sort()).toEqual(['p1', 'ran']);
+    expect(r.reste.size).toBe(0);
+  });
+
   it('le groupe partiel · la ligne d’à-nouveau ne doit plus que son reste, en francs et en devise', async () => {
     // 600 USD réglés en N+1 au coût historique (1 008 000) · restent 560 USD, 940 800.
     const lignes = [factureN(), copieN1(), ligne('p1', 1_008_000, 0, 600, ecr('n1', '2027-02-10'), { lettrageId: 'G' })];
