@@ -135,6 +135,44 @@ relevé CPCC C9 et C10 ». Branche de sauvegarde `travail/a13`.
   passent par `analyser` avec un 52, sans quoi elles tomberaient après le
   31 décembre 2026.
 
+## Corrections du second tour (2026-10-03)
+
+- **B-α · conversion prise pour une opération de banque.** Les lignes des
+  écritures d'écarts et de contre-passation d'une réévaluation, et de leurs
+  inscriptions en négatif (`corrigeEcriture`), comptent au solde et jamais à
+  la date de la dernière ligne (`estEcritureDeConversion`, par la LIAISON ·
+  `reevaluationEcarts`, `reevaluationExtourne`, `corrigeEcriture` ajoutés à
+  `SELECT_ECRITURE_CONTROLEE`, jamais le libellé). `derniereLigne` devient
+  `Date | null`. ÉCART À LA CONSIGNE, motivé · la réévaluation ANNULÉE est
+  écartée aussi. Son écriture d'origine reste au journal (D6), neutralisée par
+  son négatif ; la compter refaisait B-α (écart d'origine au 31/12, négatif au
+  31/12, aucun des deux n'est un mouvement du relevé). Tests · compte USD fermé
+  en juin, relevé nul en juin, écart au 31/12 · non signalé ; même cas avec
+  réévaluation annulée et repassée · non signalé ; jumeau, même ligne passée à
+  la main · signalé.
+- **B-β · clôture de N+1 ignorée.** Borne haute retirée de la lecture des
+  clôtures (`dateLimite: { gte: debut }` seul) ; doublure et assertion
+  adaptées. Tests · période de N+1 au 31/03 · rien sur N ; totale de N+1 sur
+  un journal · seul l'autre journal signalé.
+- **m4** écrit dans l'en-tête (limite des trois faits).
+
+## Relevés en attente (second tour, non corrigés)
+
+- **m1** · le dernier clos est pris par `max(dateReleve)` et non par
+  `clotureAt` ; rien n'impose à l'ouverture une date de relevé croissante.
+- **m2** · un à-nouveau provisoire périmé, ou sans le brouillard de N-1,
+  fausse le solde comptable lu · piste, message « relancez les à-nouveaux
+  provisoires ».
+- **m3** · le journal d'à-nouveau DÉFINITIF compte comme journal écrit · une
+  ligne de bulle Aide à prévoir.
+- **m5** · l'avertissement bancaire part dès le lendemain de la clôture,
+  voulu (état à régler avant l'arrêté).
+- **Vu en passant, hors A13** · `DevisesService.extourner` contre-passe TOUTES
+  les lignes de l'écriture d'écarts, celles du 52 et du 676 / 776 comprises,
+  alors que la règle d'A5 dit « l'extourne ne touche que 478 et 479 » et que
+  l'écart sur disponibilité est RÉALISÉ (art. 57). À vérifier dans la ligne
+  A5 ; ici la contre-passation est seulement tenue hors de la dernière ligne.
+
 ## Ce que le corpus ne tranche pas (consigné, rien codé)
 
 - La date du relevé « à la clôture » · la fiche dit « périodiquement » ; la

@@ -78,6 +78,22 @@ import { echeanceDepassee, jourUtc } from '../../common/echeance';
  * porte. Pour la même raison, le solde comptable d'un compte se lit sur les
  * seules lignes de l'exercice, à-nouveau compris.
  *
+ * LA DERNIÈRE LIGNE EST UNE OPÉRATION DE BANQUE (seconde relecture, B-α).
+ * Une disponibilité en devises se réévalue au cours de clôture (AUDCIF
+ * art. 57) · un compte en USD fermé en juin garde une position nulle en
+ * devise mais non nulle en francs, et l'écart passé au 31/12 sur le 52 est
+ * une CONVERSION, pas un mouvement du relevé. Les lignes des écritures
+ * d'écarts et de contre-passation d'une réévaluation, et de leurs négatifs,
+ * comptent au solde et jamais à la date de la dernière ligne
+ * (`estEcritureDeConversion`, par la liaison).
+ *
+ * LIMITE DES TROIS FAITS (seconde relecture, m4). Ils lisent les livres et
+ * le dernier relevé clos · un mouvement réel de la banque POSTÉRIEUR au
+ * relevé nul et jamais passé aux livres (frais prélevés après la fermeture
+ * déclarée, virement entrant tardif) ne se voit pas · solde comptable nul,
+ * relevé nul, aucune ligne après lui. Seul un relevé postérieur, que le
+ * dossier n'a pas, le montrerait.
+ *
  * CLÔTURE INFORMATIQUE · OmegaX ne connaît pas les périodes que l'entité
  * s'est données · il lit les clôtures qu'elle a POSÉES DANS OMEGAX. Une
  * clôture faite dans un autre logiciel (dossier repris) ne lui est pas
@@ -152,8 +168,8 @@ export interface CompteBancaireMouvemente {
   intitule: string;
   /** Solde débit moins crédit des lignes de l'exercice, à-nouveau compris. */
   soldeCloture: number;
-  /** Date de la dernière ligne du compte dans l'exercice. */
-  derniereLigne: Date;
+  /** Date de la dernière opération de banque du compte dans l'exercice · null si seules des conversions l'ont touché. */
+  derniereLigne: Date | null;
 }
 
 export interface EtatRapprochementCompte {
@@ -181,7 +197,7 @@ export function compteFermeCouvert(c: CompteBancaireMouvemente, etat: EtatRappro
     etat.dernierClos !== null &&
     etat.soldeDernierClos !== null &&
     estNul(etat.soldeDernierClos) &&
-    jourUtc(etat.dernierClos).getTime() >= jourUtc(c.derniereLigne).getTime() &&
+    (c.derniereLigne === null || jourUtc(etat.dernierClos).getTime() >= jourUtc(c.derniereLigne).getTime()) &&
     estNul(c.soldeCloture)
   );
 }

@@ -339,12 +339,39 @@ const SELECT_ECRITURE_CONTROLEE = {
   // banque mouvementé (rapprochement) se relèvent dans la même lecture.
   journalId: true,
   journal: { select: { code: true } },
+  // Ligne A13, seconde relecture (B-α) · l'écriture d'écarts d'une
+  // réévaluation, sa contre-passation, et leurs inscriptions en négatif
+  // (`corrigeEcriture`) se reconnaissent par leur LIAISON, jamais par le
+  // libellé.
+  reevaluationEcarts: { select: { id: true } },
+  reevaluationExtourne: { select: { id: true } },
+  corrigeEcriture: { select: { reevaluationEcarts: { select: { id: true } }, reevaluationExtourne: { select: { id: true } } } },
   lignes: {
     select: { debit: true, credit: true, lettre: true, compte: { select: { id: true, numero: true, intitule: true } } },
   },
 } satisfies Prisma.EcritureSelect;
 
 type EcritureControlee = Prisma.EcritureGetPayload<{ select: typeof SELECT_ECRITURE_CONTROLEE }>;
+
+/**
+ * L'écriture porte-t-elle une CONVERSION de change, et non une opération de
+ * banque ? Écarts d'une réévaluation (AUDCIF art. 54 et 57, ch. 22 § 2.2),
+ * sa contre-passation d'ouverture, et l'inscription en négatif de l'une ou de
+ * l'autre (annulation D6, art. 20, al. 2). La réévaluation ANNULÉE compte
+ * aussi · son écriture d'origine reste au journal, neutralisée par son
+ * négatif, et ni l'une ni l'autre n'est un mouvement du relevé ; la retenir
+ * refaisait l'anomalie fabriquée de B-α.
+ */
+function estEcritureDeConversion(e: EcritureControlee): boolean {
+  // `!= null` · une liaison absente vaut `null` en base, et une doublure qui
+  // ne la sert pas ne doit pas faire passer toute écriture pour une conversion.
+  return (
+    e.reevaluationEcarts != null ||
+    e.reevaluationExtourne != null ||
+    (e.corrigeEcriture != null &&
+      (e.corrigeEcriture.reevaluationEcarts != null || e.corrigeEcriture.reevaluationExtourne != null))
+  );
+}
 
 /** Plafond des occurrences montrées par contrôle · le nombre trouvé est dit à côté. */
 const PLAFOND_OCCURRENCES = 200;
@@ -1170,7 +1197,11 @@ export class ControlesService {
           annuleeAt: null,
           // La PARTIELLE est réversible · elle n'écarte aucune insertion.
           granularite: { in: [GranulariteCloture.PERIODE, GranulariteCloture.TOTALE] },
-          dateLimite: { gte: ex.dateDebut, lte: ex.dateFin },
+          // Aucune borne HAUTE (seconde relecture, B-β) · une clôture de
+          // période ou totale posée dans N+1 fige tout N (`gel-cloture.ts`
+          // lit toutes les clôtures du dossier) ; `periodeOuverte` rend null
+          // dès qu'un jour figé atteint la fin de l'exercice.
+          dateLimite: { gte: ex.dateDebut },
         },
         select: { granularite: true, journalId: true, dateLimite: true },
       });
@@ -1278,6 +1309,11 @@ export class ControlesService {
             // B1). Le solde se tient en CENTIMES, sans quoi mille lignes
             // laissent un reste flottant qu'aucun relevé nul ne couvre.
             const centimes = Math.round(Number(l.debit) * 100) - Math.round(Number(l.credit) * 100);
+            // Une ligne de CONVERSION n'est pas une opération de banque
+            // (seconde relecture, B-α) · elle compte au solde, jamais à la
+            // date de la dernière ligne, sans quoi l'écart du 31/12 d'un
+            // compte en devises fermé en juin le rendait non couvert.
+            const mouvementDeBanque = !estEcritureDeConversion(e);
             const vu = comptesBancaires.get(l.compte.id);
             if (vu === undefined) {
               comptesBancaires.set(l.compte.id, {
@@ -1285,11 +1321,13 @@ export class ControlesService {
                 numero: n,
                 intitule: l.compte.intitule,
                 soldeCloture: centimes,
-                derniereLigne: e.date,
+                derniereLigne: mouvementDeBanque ? e.date : null,
               });
             } else {
               vu.soldeCloture += centimes;
-              if (e.date.getTime() > vu.derniereLigne.getTime()) vu.derniereLigne = e.date;
+              if (mouvementDeBanque && (vu.derniereLigne === null || e.date.getTime() > vu.derniereLigne.getTime())) {
+                vu.derniereLigne = e.date;
+              }
             }
           }
           if (n.startsWith('40') || n.startsWith('41')) {

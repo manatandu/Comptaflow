@@ -277,7 +277,14 @@ function ecriture(
   journalId: string,
   code: string,
   lignes: ReturnType<typeof ligne>[],
-  autres: { date?: string; estANouveauProvisoire?: boolean } = {},
+  autres: {
+    date?: string;
+    estANouveauProvisoire?: boolean;
+    /** Écriture d'écarts d'une réévaluation (liaison `Reevaluation.ecritureEcartsId`). */
+    ecartsDeReevaluation?: boolean;
+    /** Inscription en négatif de l'écriture d'écarts d'une réévaluation annulée. */
+    negatifDEcarts?: boolean;
+  } = {},
 ) {
   return {
     id,
@@ -292,6 +299,9 @@ function ecriture(
     secondRegardNom: null,
     estGenereeParCloture: false,
     estANouveauProvisoire: autres.estANouveauProvisoire ?? false,
+    reevaluationEcarts: autres.ecartsDeReevaluation ? { id: 'reeval' } : null,
+    reevaluationExtourne: null,
+    corrigeEcriture: autres.negatifDEcarts ? { reevaluationEcarts: { id: 'reeval' }, reevaluationExtourne: null } : null,
     journalId,
     journal: { code },
     lignes,
@@ -347,13 +357,13 @@ function monter(options: {
   };
   const cloture = {
     findMany: jest.fn(
-      async ({ where }: { where: { annuleeAt: null; granularite: { in: GranulariteCloture[] }; dateLimite: { gte: Date; lte: Date } } }) =>
+      async ({ where }: { where: { annuleeAt: null; granularite: { in: GranulariteCloture[] }; dateLimite: { gte: Date; lte?: Date } } }) =>
         (options.clotures ?? []).filter(
           (c) =>
             (c.annuleeAt ?? null) === where.annuleeAt &&
             where.granularite.in.includes(c.granularite) &&
             c.dateLimite >= where.dateLimite.gte &&
-            c.dateLimite <= where.dateLimite.lte,
+            (where.dateLimite.lte === undefined || c.dateLimite <= where.dateLimite.lte),
         ),
     ),
   };
@@ -481,6 +491,47 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
       expect((await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE'))?.occurrences).toHaveLength(1);
     });
 
+    // Compte en USD fermé en juin, relevé final nul en juin, puis écart de
+    // conversion passé au 31/12 par la réévaluation (AUDCIF art. 57) · le
+    // solde comptable redevient nul (seconde relecture, B-α).
+    const fermeEnDevisesPuisReevalue = (autres: Parameters<typeof ecriture>[4]) => [
+      ecriture('e1', 'jBQ', 'BQ', [ligne('1', '52110000', 1000), ligne('2', '70110000', 0, 1000)], { date: '2026-05-10' }),
+      ecriture('e2', 'jBQ', 'BQ', [ligne('3', '58500000', 1020), ligne('4', '52110000', 0, 1020)], { date: '2026-06-15' }),
+      ecriture('e3', 'jOD', 'OD', [ligne('5', '52110000', 20), ligne('6', '77600000', 0, 20)], { date: '2026-12-31', ...autres }),
+    ];
+
+    it('l’écart de conversion du 31/12 ne fait pas d’un compte en devises fermé en juin un compte à rapprocher', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: fermeEnDevisesPuisReevalue({ ecartsDeReevaluation: true }),
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+      });
+      expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+    });
+
+    it('réévaluation annulée · ni l’écart d’origine ni son négatif ne sont des opérations de banque', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: [
+          ...fermeEnDevisesPuisReevalue({ ecartsDeReevaluation: true }),
+          ecriture('e4', 'jOD', 'OD', [ligne('7', '52110000', 0, 20), ligne('8', '77600000', 20)], { date: '2026-12-31', negatifDEcarts: true }),
+          // L'écart exact, repassé par une nouvelle réévaluation.
+          ecriture('e5', 'jOD', 'OD', [ligne('9', '52110000', 20), ligne('10', '77600000', 0, 20)], { date: '2026-12-31', ecartsDeReevaluation: true }),
+        ],
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+      });
+      expect(await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE')).toBeUndefined();
+    });
+
+    it('jumeau · la même ligne passée à la main, vraie opération de banque après le relevé, reste signalée', async () => {
+      le('2027-01-15');
+      const m = monter({
+        ecritures: fermeEnDevisesPuisReevalue({}),
+        rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }],
+      });
+      expect((await anomalie(m, 'BANQUE_SANS_RAPPROCHEMENT_A_LA_CLOTURE'))?.occurrences).toHaveLength(1);
+    });
+
     it('un solde comptable non nul ne fait lire aucun solde de relevé · le compte n’est pas fermé', async () => {
       le('2027-01-15');
       const m = monter({ rapprochements: [{ compteId: 'c-52110000', statut: 'CLOTURE', dateReleve: D('2026-06-30'), soldeReleve: 0 }] });
@@ -534,7 +585,8 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
       tenantId: 't',
       annuleeAt: null,
       granularite: { in: [GranulariteCloture.PERIODE, GranulariteCloture.TOTALE] },
-      dateLimite: { gte: D('2026-01-01'), lte: D('2026-12-31') },
+      // Aucune borne haute (seconde relecture, B-β) · une clôture de N+1 fige N.
+      dateLimite: { gte: D('2026-01-01') },
     });
   });
 
@@ -572,6 +624,18 @@ describe('la batterie de contrôles · câblage de la ligne A13', () => {
     });
     expect(await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD')).toBeUndefined();
     expect(m.cloture.findMany).not.toHaveBeenCalled();
+  });
+
+  it('une clôture de PÉRIODE posée dans N+1 fige tout N · rien signalé sur N (seconde relecture, B-β)', async () => {
+    le('2027-04-15');
+    const m = monter({ clotures: [{ granularite: GranulariteCloture.PERIODE, journalId: null, dateLimite: D('2027-03-31') }] });
+    expect(await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD')).toBeUndefined();
+  });
+
+  it('une clôture TOTALE de N+1 fige son seul journal sur N', async () => {
+    le('2027-04-15');
+    const m = monter({ clotures: [{ granularite: GranulariteCloture.TOTALE, journalId: 'jBQ', dateLimite: D('2027-02-28') }] });
+    expect((await anomalie(m, 'CLOTURE_INFORMATIQUE_EN_RETARD'))?.occurrences.map((o) => o.reference)).toEqual(['Journal AC']);
   });
 
   it('une clôture annulée ne compte pas', async () => {
