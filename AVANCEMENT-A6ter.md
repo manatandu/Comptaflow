@@ -24,10 +24,38 @@ Branche de sauvegarde `travail/a6ter`, partie de `main` 0dbc315.
   d'à-nouveau au Détail, le reste d'un seul tenant au Solde), n'est plus ni
   une facture à payer (`/reglements/echeances`) ni un règlement en francs
   (avertissement du règlement en devise) · `reglements/lignes-de-reevaluation.ts`.
+  La CONTRE-PASSATION aussi (trouvé au rejeu · chez un client elle débite le
+  411 en N+1 et se présentait comme une créance à encaisser).
 
-## Reste
+- Rejeu sur vraie base (§ 10), API du serveur compilé, PostgreSQL 16 jetable,
+  SYSCOHADA, client 411 au SOLDE, USD 2 800 (01/10/2026), 2 750 (31/12/2026),
+  2 700 (10/02/2027), 2 650 (31/12/2027). Facture G 1 000 USD et H 500 USD en
+  N ; encaissement de G en N+1 à 2 700 lettré à cheval AVANT la clôture de N.
+  Réévaluation N · 1 500 USD lus (G subsiste, B-3), perte 75 000 · 411
+  4 125 000, 478 75 000, 4991 -75 000, 6591 75 000. Clôture N, contre-passation
+  en N+1. Échéances N+1 · seule la ligne d'à-nouveau en devise (la
+  contre-passation n'y est plus). Clôture N+1 REFUSÉE · « 41110000 lettrage a ·
+  perte de 100 000,00, à cheval de deux exercices, dénoué le 2027-02-10 ».
+  Écart passé sur le groupe figé (656, 100 000, groupe SOLDE). Règlement de H
+  500 USD à 2 700 · aucun avertissement « en francs, sans devise » (le reste
+  au Solde de -75 000 est reconnu), écart 50 000. Réévaluation N+1 · aucune
+  position, reprise 75 000. Clôture N+1 passe. Soldes N+1 lus contre la main ·
+  411 0, 52 4 050 000, 656 150 000, 478 0, 4991 0, 7591 -75 000 ; N+2 ouvre
+  411 0, 52 4 050 000. Scripts · scratchpad `a6ter/s2.mjs`, `s3.mjs`.
 
-- Rejeu sur vraie base à travers la clôture (§ 10).
+## Reste (au suivi, non traité)
+
+- En Solde, N clôturé, la perte réalisée d'une facture payée en N+1 SANS
+  lettrage reste dans la position et se provisionne (rien ne dit à D3 son
+  dénouement) · le calcul de la réévaluation la nomme seulement.
+- Contrôle qui nomme les réévaluations déjà passées que B-3 change.
+- Relevé du rejeu · avant le passage de l'écart d'un groupe à cheval, la
+  ligne d'à-nouveau qui reporte sa facture se lit due du reste EN FRANCS du
+  paiement (1 500 000 pour 500 USD, au lieu de 1 400 000) · le règlement de
+  l'autre facture passé AVANT l'écart chiffrerait son réalisé sur ce reste.
+  Après l'écart, 1 400 000. À vérifier (`paires-a-cheval.ts`).
+- Le groupe à cheval dont la seule ligne de l'exercice est en francs est lu
+  désormais en entier par D3 (m-1) ; pas de rejeu dédié.
 
 ## Décisions
 
