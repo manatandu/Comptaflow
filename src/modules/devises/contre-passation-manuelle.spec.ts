@@ -1,11 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { DevisesService } from './devises.service';
 import {
+  PLAFOND_SOUS_ENSEMBLES,
   disponibilitesInversees,
+  jugerLEtat,
   libelleMontantsAContrePasser,
   libelleMontantsDeLEcart,
   montantsAContrePasser,
   motifRefusInversion,
+  verdictDeLEtat,
+  type EcritureSurLEcart,
   type LigneAContrePasser,
 } from './contre-passation-manuelle';
 import { estDisponibilite } from './ecarts-disponibilites';
@@ -25,6 +29,11 @@ import { PLAFOND_REEVALUATIONS_EXAMINEES, ecrituresDesContrePassationsAnnulees }
  * 4781 » ; Application 85, « 4793 · 4812 »), à la place où le module l'aurait
  * posée, sans lien avec une autre réévaluation, dans le même dossier. Et
  * `extourner` refuse quand le cabinet a déjà touché l'écart à la main.
+ *
+ * CINQUIÈME TOUR · une seule règle, fondée sur l'ÉTAT RÉEL des comptes de
+ * l'écart (le 478 ou le 479 à leur solde, le tiers par son écart d'ouverture et
+ * les écritures hors module qui touchent l'écart), jugée contre les écarts en
+ * place (`jugerLEtat`) · la doublure honore les requêtes qui la lisent.
  *
  * Jeu d'essai · réévaluation de N au 31/12/2026 · créance de 1 000 USD au
  * coût de 2 000 000, réévaluée à 2 500 (D 411 / C 4791 de 500 000), et banque
@@ -113,6 +122,8 @@ interface EcritureFaite {
   id: string;
   tenantId?: string;
   exercice: Exo;
+  /** Par défaut, l'ouverture de son exercice. */
+  date?: Date;
   numeroPiece?: number;
   lignes: ReturnType<typeof l>[];
   estGenereeParCloture?: boolean;
@@ -120,9 +131,16 @@ interface EcritureFaite {
   corrige?: { id: string; numeroPiece: number };
   /** L'écriture a été corrigée · son négatif. */
   correction?: { numeroPiece: number } | null;
+  reevaluationEcarts?: { id: string } | null;
   reevaluationExtourne?: { id: string } | null;
   reevaluationContrePassationDeclaree?: { id: string } | null;
 }
+const dateDe = (e: EcritureFaite) => e.date ?? e.exercice.dateDebut;
+
+/** N · la vente de 1 000 USD (2 000 000) et l'écriture des écarts du module (réévaluation r1 du 31/12/2026). */
+const VENTE_N: EcritureFaite = { id: 'vente', exercice: N, date: new Date('2026-04-01'), lignes: [l('c-4111', '41110000', 2_000_000, 0), l('c-701', '70110000', 0, 2_000_000)] };
+const ECARTS_N_ECR: EcritureFaite = { id: 'ecarts-n', exercice: N, date: N.dateFin, numeroPiece: 2, reevaluationEcarts: { id: 'r1' }, lignes: ECARTS_N };
+const BASE_N = [VENTE_N, ECARTS_N_ECR];
 
 /** L'à-nouveau de N+1 · la clôture de N, écart de conversion compris (D 4111 2 500 000, C 4791 500 000). */
 const AN_N1: EcritureFaite = {
@@ -151,22 +169,43 @@ function correspond(valeur: unknown, filtre: unknown): boolean {
     if (f.gt && !(t > (f.gt as Date).getTime())) return false;
     if (f.gte && !(t >= (f.gte as Date).getTime())) return false;
     if (f.lt && !(t < (f.lt as Date).getTime())) return false;
+    if (f.lte && !(t <= (f.lte as Date).getTime())) return false;
     return true;
   }
   return valeur === filtre;
 }
 
-/** La doublure honore le filtre d'écriture que le service pose · dossier, exercice, à-nouveau, liens, paires neutralisées. */
+/**
+ * La doublure honore le filtre d'écriture que le service pose · dossier,
+ * exercice, date, à-nouveau, liens, paires neutralisées, compte touché, et
+ * la disjonction de la fenêtre (son exercice depuis la réévaluation, ou la
+ * fenêtre) · ce qui dépend de ce qu'une requête RAMÈNE se teste sur la requête.
+ */
 function ecritureRetenue(e: EcritureFaite, w: Record<string, unknown> = {}): boolean {
   if (w.tenantId !== undefined && (e.tenantId ?? 't') !== w.tenantId) return false;
   if (!correspond(e.id, w.id)) return false;
   if (!correspond(e.exercice.id, w.exerciceId)) return false;
+  if (!correspond(dateDe(e), w.date)) return false;
   if (w.estGenereeParCloture !== undefined && (e.estGenereeParCloture ?? false) !== w.estGenereeParCloture) return false;
+  // Aucune écriture de la doublure n'est un à-nouveau provisoire ni un solde des comptes de gestion.
+  if (w.estANouveauProvisoire === true || w.estSoldeDesComptesDeGestion === true) return false;
   if (w.corrigeEcritureId === null && e.corrige) return false;
   if (w.correction !== undefined && e.correction) return false;
+  if (w.reevaluationEcarts !== undefined && e.reevaluationEcarts) return false;
   if (w.reevaluationExtourne !== undefined && e.reevaluationExtourne) return false;
   if (w.reevaluationContrePassationDeclaree !== undefined && e.reevaluationContrePassationDeclaree) return false;
+  const some = (w.lignes as { some?: { compteId: { in: string[] } } } | undefined)?.some;
+  if (some && !e.lignes.some((x) => some.compteId.in.includes(x.compteId))) return false;
+  if (Array.isArray(w.OR) && !(w.OR as Record<string, unknown>[]).some((o) => ecritureRetenue(e, o))) return false;
   return true;
+}
+
+interface ReevaluationFaite {
+  id: string;
+  exercice: Exo;
+  ecritureEcarts: { lignes: ReturnType<typeof l>[] };
+  ecritureExtourne?: { exercice: { dateDebut: Date } } | null;
+  contrePassationDeclaree?: { exercice: { dateDebut: Date } } | null;
 }
 
 function monter(
@@ -174,15 +213,18 @@ function monter(
     exercices?: Exo[];
     ecritures?: EcritureFaite[];
     reeval?: Record<string, unknown>;
+    /** Les AUTRES réévaluations du dossier (r1 est la réévaluation jugée). */
+    autres?: ReevaluationFaite[];
     appui?: { dateReevaluation: Date } | null;
     updateEchoue?: unknown;
     referentiel?: 'SYSCOHADA' | 'SYCEBNL';
   } = {},
 ) {
   const exercices = p.exercices ?? [N, N1, N2];
-  const ecritures = p.ecritures ?? [AN_N1, OD];
+  const ecritures = p.ecritures ?? [...BASE_N, AN_N1, OD];
   const reeval = {
     id: 'r1',
+    exerciceId: N.id,
     dateReevaluation: N.dateFin,
     annuleeLe: null,
     ecritureExtourneId: null,
@@ -198,9 +240,14 @@ function monter(
     ecritureEcarts: { lignes: ECARTS_N },
     ...p.reeval,
   };
+  const reevaluations: ReevaluationFaite[] = [
+    { id: 'r1', exercice: N, ecritureEcarts: reeval.ecritureEcarts as { lignes: ReturnType<typeof l>[] }, ecritureExtourne: null, contrePassationDeclaree: null },
+    ...(p.autres ?? []),
+  ];
   const filtrer = (where: Record<string, unknown> = {}) =>
     exercices.filter((e) => correspond(e.id, where.id) && correspond(e.dateDebut, where.dateDebut) && correspond(e.statut, where.statut));
-  const trier = (liste: Exo[]) => [...liste].sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
+  const trier = (liste: Exo[], orderBy?: { dateDebut?: 'asc' | 'desc' }) =>
+    [...liste].sort((a, b) => (orderBy?.dateDebut === 'desc' ? -1 : 1) * (a.dateDebut.getTime() - b.dateDebut.getTime()));
   const update = jest.fn(async (_a: { where: unknown; data: Record<string, unknown> }) => {
     if (p.updateEchoue) throw p.updateEchoue;
     return { id: 'r1' };
@@ -214,6 +261,23 @@ function monter(
     reevaluation: {
       findFirst: jest.fn(async (a: { where: Record<string, unknown> }) => (a.where.id === 'r1' ? reeval : appuiFindFirst(a))),
       findFirstOrThrow: jest.fn(async () => ({ id: 'r1' })),
+      // Les écarts encore en place · non annulées, d'un exercice qui finit avant la cible ; les lignes filtrées comme le service le demande.
+      findMany: jest.fn(
+        async (a: {
+          where: { exercice?: { dateFin?: { lt: Date } } };
+          select?: { ecritureEcarts?: { select?: { lignes?: { where?: { compteId?: { in: string[] } } } } } };
+        }) => {
+          const comptes = a.select?.ecritureEcarts?.select?.lignes?.where?.compteId?.in;
+          return reevaluations
+            .filter((r) => correspond(r.exercice.dateFin, a.where.exercice?.dateFin))
+            .map((r) => ({
+              id: r.id,
+              ecritureExtourne: r.ecritureExtourne ?? null,
+              contrePassationDeclaree: r.contrePassationDeclaree ?? null,
+              ecritureEcarts: { lignes: r.ecritureEcarts.lignes.filter((x) => !comptes || comptes.includes(x.compteId)) },
+            }));
+        },
+      ),
       update,
     },
     ecriture: {
@@ -223,26 +287,38 @@ function monter(
         return {
           id: e.id,
           numeroPiece: e.numeroPiece ?? 1,
-          date: e.exercice.dateDebut,
+          date: dateDe(e),
           estGenereeParCloture: e.estGenereeParCloture ?? false,
           estANouveauProvisoire: false,
           estSoldeDesComptesDeGestion: false,
-          exercice: { dateDebut: e.exercice.dateDebut, dateFin: e.exercice.dateFin },
+          exercice: { id: e.exercice.id, dateDebut: e.exercice.dateDebut, dateFin: e.exercice.dateFin },
           correction: e.correction ?? null,
           corrigeEcritureId: e.corrige?.id ?? null,
           corrigeEcriture: e.corrige ? { numeroPiece: e.corrige.numeroPiece } : null,
-          reevaluationEcarts: null,
+          reevaluationEcarts: e.reevaluationEcarts ?? null,
           reevaluationProvision: null,
           reevaluationExtourne: e.reevaluationExtourne ?? null,
           reevaluationContrePassationDeclaree: e.reevaluationContrePassationDeclaree ?? null,
           lignes: e.lignes,
         };
       }),
-      findMany: jest.fn(async (a: { where: Record<string, unknown> }) =>
-        ecritures
+      findMany: jest.fn(async (a: { where: Record<string, unknown>; distinct?: string[] }) => {
+        const retenues = ecritures
           .filter((e) => ecritureRetenue(e, a.where))
-          .map((e) => ({ id: e.id, numeroPiece: e.numeroPiece ?? 1, date: e.exercice.dateDebut, libelle: 'OD', statut: 'VALIDEE', journal: { code: 'OD' }, exercice: e.exercice })),
-      ),
+          .sort((x, y) => dateDe(x).getTime() - dateDe(y).getTime() || x.id.localeCompare(y.id));
+        const rendues = retenues.map((e) => ({
+          id: e.id,
+          exerciceId: e.exercice.id,
+          numeroPiece: e.numeroPiece ?? 1,
+          date: dateDe(e),
+          libelle: 'OD',
+          statut: 'VALIDEE',
+          journal: { code: 'OD' },
+          exercice: e.exercice,
+          lignes: e.lignes,
+        }));
+        return a.distinct?.includes('exerciceId') ? rendues.filter((e, i) => rendues.findIndex((x) => x.exerciceId === e.exerciceId) === i) : rendues;
+      }),
       count: jest.fn(async (a: { where: Record<string, unknown> }) => ecritures.filter((e) => ecritureRetenue(e, a.where)).length),
     },
     ligneEcriture: {
@@ -254,12 +330,21 @@ function monter(
               (!a.where.ecritureId || a.where.ecritureId.in.includes(x.ecritureId)) &&
               ecritureRetenue(x.ecriture, a.where.ecriture),
           )
-          .map((x) => ({ ...x, ecriture: { numeroPiece: x.ecriture.numeroPiece ?? 1, date: x.ecriture.exercice.dateDebut } })),
+          .map((x) => ({ ...x, ecriture: { numeroPiece: x.ecriture.numeroPiece ?? 1, date: dateDe(x.ecriture) } })),
       ),
+      groupBy: jest.fn(async (a: { where: { compteId: { in: string[] }; ecriture?: Record<string, unknown> } }) => {
+        const sommes = new Map<string, { debit: number; credit: number }>();
+        for (const x of toutes()) {
+          if (!a.where.compteId.in.includes(x.compteId) || !ecritureRetenue(x.ecriture, a.where.ecriture)) continue;
+          const s = sommes.get(x.compteId) ?? { debit: 0, credit: 0 };
+          sommes.set(x.compteId, { debit: s.debit + x.debit, credit: s.credit + x.credit });
+        }
+        return [...sommes].map(([compteId, s]) => ({ compteId, _sum: s }));
+      }),
     },
     exercice: {
       findFirst: jest.fn(async (a: { where: Record<string, unknown> }) => trier(filtrer(a.where))[0] ?? null),
-      findMany: jest.fn(async (a: { where: Record<string, unknown> }) => trier(filtrer(a.where))),
+      findMany: jest.fn(async (a: { where: Record<string, unknown>; orderBy?: { dateDebut?: 'asc' | 'desc' } }) => trier(filtrer(a.where), a.orderBy)),
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od-journal' }) },
     verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
@@ -281,6 +366,90 @@ const soldeFinal411 = (ecritures: EcritureFaite[], creer: jest.Mock) =>
   }, 0) +
   400_000;
 
+describe('cinquième tour · le jugement de l’état, pur', () => {
+  const c = (o: Record<string, number>) => new Map(Object.entries(o));
+  const X = { id: 'X', ecart: c({ e479: -500, t411: 500 }) };
+  const Y = { id: 'Y', ecart: c({ e479: -400, t411: 400 }) };
+  const juger = (p: Partial<Parameters<typeof jugerLEtat>[0]>) =>
+    jugerLEtat({
+      comptes47: ['e479'],
+      comptesTiers: ['t411'],
+      lu47: c({ e479: -500 }),
+      ecartTiers: c({}),
+      enPlace: [X],
+      reevaluationId: 'X',
+      ecartX: X.ecart,
+      retablissable: false,
+      ecritures: [],
+      ...p,
+    });
+  const ecr = (id: string, effet: Record<string, number>, o: Partial<EcritureSurLEcart> = {}): EcritureSurLEcart => ({
+    id,
+    numeroPiece: 1,
+    date: new Date('2027-01-01'),
+    dansLaCible: true,
+    exacte: false,
+    horsDeLEcart: false,
+    dansLeSens: false,
+    effet: c(effet),
+    ...o,
+  });
+
+  it('lu = attendu, sur le 479 ET sur le tiers · EN_PLACE, aucune issue à dire (le module passe)', () => {
+    const j = juger({});
+    expect(j.verdict).toBe('EN_PLACE');
+    expect(j.issue).toEqual({ gestes: [], fin: 'CONTRE_PASSER' });
+  });
+
+  it('contre-passé par une écriture exacte · CONTRE_PASSEE, l’issue · la déclarer', () => {
+    const cp = ecr('cp', { e479: 500, t411: -500 }, { exacte: true });
+    const j = juger({ lu47: c({ e479: 0 }), ecartTiers: c({ t411: -500 }), ecritures: [cp] });
+    expect(j.verdict).toBe('CONTRE_PASSEE');
+    expect(j.issue).toMatchObject({ gestes: [], fin: 'DECLARER', ecriture: { id: 'cp' } });
+  });
+
+  it('le 479 seul a bougé (contre la banque) · ANOMALIE ; l’issue prouvée · corriger, puis contre-passer', () => {
+    const banque = ecr('banque', { e479: 500 }, { horsDeLEcart: true });
+    const j = juger({ lu47: c({ e479: 0 }), ecritures: [banque] });
+    expect(j.verdict).toBe('ANOMALIE');
+    expect(j.issue).toMatchObject({ gestes: [{ type: 'NEUTRALISER', ecritures: [{ id: 'banque' }] }], fin: 'CONTRE_PASSER' });
+  });
+
+  it('l’ouverture omet l’écart (X2) · la contre-passation manuelle seule ne se déclare pas ; l’issue · rétablir, puis déclarer', () => {
+    const cp = ecr('cp', { e479: 500, t411: -500 }, { exacte: true });
+    const j = juger({ lu47: c({ e479: 500 }), ecartTiers: c({ t411: -1000 }), retablissable: true, ecritures: [cp] });
+    expect(j.verdict).toBe('ANOMALIE');
+    expect(j.issue).toMatchObject({ gestes: [{ type: 'RETABLIR' }], fin: 'DECLARER', ecriture: { id: 'cp' } });
+  });
+
+  it('deux écarts de mêmes comptes et montants, un seul contre-passé · AMBIGU ; l’écriture exacte se déclare (elle vaut pour l’un ou l’autre)', () => {
+    const Z = { id: 'Z', ecart: c({ e479: -500, t411: 500 }) };
+    const cp = ecr('cp', { e479: 500, t411: -500 }, { exacte: true });
+    const j = juger({ enPlace: [X, Z], lu47: c({ e479: -500 }), ecartTiers: c({ t411: -500 }), ecritures: [cp] });
+    expect(j.verdict).toBe('AMBIGU');
+    expect(j.issue).toMatchObject({ gestes: [], fin: 'DECLARER' });
+  });
+
+  it('deux réévaluations contre-passées chacune par son OD (X8) · CONTRE_PASSEE pour chacune', () => {
+    const cpX = ecr('cpX', { e479: 500, t411: -500 }, { exacte: true });
+    const cpY = ecr('cpY', { e479: 400, t411: -400 });
+    const j = juger({ enPlace: [X, Y], lu47: c({ e479: 0 }), ecartTiers: c({ t411: -900 }), ecritures: [cpX, cpY] });
+    expect(j.verdict).toBe('CONTRE_PASSEE');
+    expect(j.issue).toMatchObject({ gestes: [], fin: 'DECLARER', ecriture: { id: 'cpX' } });
+  });
+
+  it('aucune correction ne se déduit · `issue` à null (« rapprochez »)', () => {
+    const j = juger({ lu47: c({ e479: -600 }), ecartTiers: c({ t411: 3100 }) });
+    expect(j.verdict).toBe('ANOMALIE');
+    expect(j.issue).toBeNull();
+  });
+
+  it('plus de douze écarts en place sur ces comptes · ANOMALIE, la lecture dite non tranchée', () => {
+    const beaucoup = Array.from({ length: PLAFOND_SOUS_ENSEMBLES + 1 }, (_, i) => ({ id: `r${i}`, ecart: c({ e479: -1 }) }));
+    expect(verdictDeLEtat({ comptes: ['e479'], lu: c({ e479: 0 }), enPlace: beaucoup, reevaluationId: 'r0' })).toMatchObject({ verdict: 'ANOMALIE', trop: true });
+  });
+});
+
 describe('déclarer une contre-passation faite à la main', () => {
   it('l’OD d’ouverture de N+1 inverse exactement le 411 et le 4791 · déclarée, motif, date et auteur, par un `update` unitaire sur une réévaluation libre', async () => {
     const { svc, update } = monter();
@@ -298,34 +467,43 @@ describe('déclarer une contre-passation faite à la main', () => {
 
   it('elle n’inverse qu’une part de l’écart · refus nommé compte par compte, rien déclaré', async () => {
     const partielle: EcritureFaite = { ...OD, lignes: [l('c-4791', '47910000', 300_000, 0), l('c-4111', '41110000', 0, 300_000)] };
-    const { svc, update } = monter({ ecritures: [AN_N1, partielle] });
+    const { svc, update } = monter({ ecritures: [...BASE_N, AN_N1, partielle] });
     await expect(svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
       /41110000 · attendu crédit de 500000\.00, l'écriture porte crédit de 300000\.00/,
     );
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('hors de sa place · dans l’exercice même de la réévaluation, ou en N+2 quand N+1 est ouvert · refus nommé, la cible dite', async () => {
-    const dansN: EcritureFaite = { ...OD, exercice: { ...N } };
-    await expect(monter({ ecritures: [dansN] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
-      /n'est pas à la place de la contre-passation de la réévaluation du 2026-12-31/,
-    );
+  it('hors de sa place · dans l’exercice même AVANT la réévaluation, ou en N+2 quand N+1 est ouvert · refus nommé, la cible dite', async () => {
+    const avantLaReevaluation: EcritureFaite = { ...OD, exercice: { ...N }, date: new Date('2026-06-30') };
+    await expect(
+      monter({ ecritures: [...BASE_N, avantLaReevaluation] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif'),
+    ).rejects.toThrow(/n'est pas à la place de la contre-passation de la réévaluation du 2026-12-31/);
     const dansN2: EcritureFaite = { ...OD, exercice: N2 };
-    await expect(monter({ ecritures: [AN_N1, dansN2] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
+    await expect(monter({ ecritures: [...BASE_N, AN_N1, dansN2] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
       /celui du 2027-01-01 au 2027-12-31/,
     );
   });
 
+  it('X3 · passée DANS N, au plus tôt à la date de la réévaluation, N ouvert, N+1 sans à-nouveau · l’écart n’est plus dans les comptes, déclarée', async () => {
+    const dansN: EcritureFaite = { ...OD, exercice: { ...N, statut: 'OUVERT' }, date: N.dateFin };
+    const exercices: Exo[] = [{ ...N, statut: 'OUVERT' }, N1, N2];
+    const { svc, update } = monter({ exercices, ecritures: [{ ...VENTE_N, exercice: exercices[0] }, { ...ECARTS_N_ECR, exercice: exercices[0] }, dansN] });
+    await svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'CP passée dans N');
+    expect(update).toHaveBeenCalled();
+  });
+
   it('en N+2, N+1 clôturé · à sa place, déclarée', async () => {
     const dansN2: EcritureFaite = { ...OD, exercice: N2 };
-    const { svc, update } = monter({ exercices: [N, { ...N1, statut: 'CLOTURE' }, N2], ecritures: [AN_N1, dansN2] });
+    const AN_N2: EcritureFaite = { ...AN_N1, id: 'an28', exercice: N2 };
+    const { svc, update } = monter({ exercices: [N, { ...N1, statut: 'CLOTURE' }, N2], ecritures: [...BASE_N, AN_N1, AN_N2, dansN2] });
     await svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif');
     expect(update).toHaveBeenCalled();
   });
 
   it('écriture d’un autre dossier · introuvable', async () => {
     const etrangere: EcritureFaite = { ...OD, tenantId: 'autre' };
-    await expect(monter({ ecritures: [AN_N1, etrangere] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
+    await expect(monter({ ecritures: [...BASE_N, AN_N1, etrangere] }).svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
       /Écriture introuvable pour ce dossier/,
     );
   });
@@ -338,7 +516,7 @@ describe('déclarer une contre-passation faite à la main', () => {
       [{ estGenereeParCloture: true }, /engendrée par la clôture ou l'à-nouveau/],
     ];
     for (const [defaut, motif] of cas) {
-      const { svc, update } = monter({ ecritures: [AN_N1, { ...OD, ...defaut }] });
+      const { svc, update } = monter({ ecritures: [...BASE_N, AN_N1, { ...OD, ...defaut }] });
       await expect(svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(motif);
       expect(update).not.toHaveBeenCalled();
     }
@@ -368,11 +546,11 @@ describe('déclarer une contre-passation faite à la main', () => {
     );
   });
 
-  it('elle doit être SEULE · un doublon exact passé à côté est nommé, rien déclaré', async () => {
+  it('un doublon exact passé à côté · l’état ne se lit pas contre-passé (deux fois) · refusée, l’issue dit de corriger le doublon puis de déclarer', async () => {
     const doublon: EcritureFaite = { ...OD, id: 'od2', numeroPiece: 8 };
-    const { svc, update } = monter({ ecritures: [AN_N1, OD, doublon] });
+    const { svc, update } = monter({ ecritures: [...BASE_N, AN_N1, OD, doublon] });
     await expect(svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od', 'motif')).rejects.toThrow(
-      /D'autres écritures passées hors du module touchent aussi le 478 ou le 479 de cet écart \(pièce n° 8/,
+      /La pièce n° 7 du 2027-01-01 ne se déclare pas[\s\S]*Corrigez la pièce n° 8 du 2027-01-01[\s\S]*puis déclarez la pièce n° 7 du 2027-01-01/,
     );
     expect(update).not.toHaveBeenCalled();
   });
@@ -400,7 +578,7 @@ describe('BLOQUANT 1 · une inscription en négatif n’est pas une contre-passa
     corrige: { id: 'faux', numeroPiece: 3 },
     lignes: [l('c-4111', '41110000', -500_000, 0), l('c-4791', '47910000', 0, -500_000)],
   };
-  const ecritures = [AN_N1, FAUX, NEGATIF];
+  const ecritures = [...BASE_N, AN_N1, FAUX, NEGATIF];
 
   it('le négatif n’est pas proposé ; la paire neutralisée ne gêne pas · l’écran dit de contre-passer par le module', async () => {
     const r = await monter({ ecritures }).svc.candidatesContrePassationManuelle('t', 'r1');
@@ -431,7 +609,7 @@ describe('BLOQUANT 1 · une inscription en négatif n’est pas une contre-passa
       corrige: { id: 'ecarts-annulee', numeroPiece: 11 },
       lignes: [l('c-4111', '41110000', -500_000, 0), l('c-4791', '47910000', 0, -500_000)],
     };
-    const m = monter({ ecritures: [AN_N1, negatifD6] });
+    const m = monter({ ecritures: [...BASE_N, AN_N1, negatifD6] });
     expect((await m.svc.candidatesContrePassationManuelle('t', 'r1')).candidates).toEqual([]);
     await expect(m.svc.declarerContrePassationManuelle('t', 'u', 'r1', 'neg-d6', 'motif')).rejects.toThrow(/inscription en négatif/);
   });
@@ -439,21 +617,30 @@ describe('BLOQUANT 1 · une inscription en négatif n’est pas une contre-passa
 
 /**
  * QUATRIÈME TOUR, BLOQUANT 2 · `extourner` ne voyait pas ce que le cabinet
- * avait déjà passé à la main.
+ * avait déjà passé à la main. CINQUIÈME TOUR · il juge l'état réel des
+ * comptes de l'écart.
  */
 describe('BLOQUANT 2 · la contre-passation par le module n’est plus aveugle', () => {
   it('sm · OD manuelle exacte en N+1, non déclarée · « Contre-passer » refusé, « déclarez-la », rien écrit ; le 411 reste juste (2 400 000, et non 1 900 000)', async () => {
-    const ecritures = [AN_N1, OD];
+    const ecritures = [...BASE_N, AN_N1, OD];
     const { svc, creer } = monter({ ecritures });
     await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(
-      /déjà contre-passé à la main · pièce n° 7 du 2027-01-01 l'inverse exactement\. Déclarez cette écriture/,
+      /déjà contre-passé à la main · la pièce n° 7 du 2027-01-01 l'inverse exactement \(47910000 · attendu 500000\.00 créditeur \(écarts en place\), solde 0\.00 ; 41110000 · [^)]*500000\.00 créditeur\)\. Déclarez cette écriture/,
     );
     expect(creer).not.toHaveBeenCalled();
     expect(soldeFinal411(ecritures, creer)).toBe(2_400_000);
   });
 
-  it('sk · une seule OD en N+2 pour N et N+1 (900 000) · « Contre-passer » refusé, l’OD nommée, l’issue · la corriger, une contre-passation par réévaluation', async () => {
+  it('sk · une seule OD en N+2 pour N et N+1 (900 000) · « Contre-passer » refusé, l’OD nommée, l’issue · la corriger, puis contre-passer', async () => {
     const exercices: Exo[] = [N, { ...N1, statut: 'CLOTURE' }, N2];
+    const ECARTS_N1_ECR: EcritureFaite = {
+      id: 'ecarts-n1',
+      exercice: N1,
+      date: N1.dateFin,
+      reevaluationEcarts: { id: 'r2' },
+      lignes: [l('c-4111', '41110000', 400_000, 0), l('c-4791', '47910000', 0, 400_000)],
+    };
+    const r2: ReevaluationFaite = { id: 'r2', exercice: N1, ecritureEcarts: { lignes: ECARTS_N1_ECR.lignes } };
     const AN_N2: EcritureFaite = {
       id: 'an28',
       exercice: N2,
@@ -466,9 +653,10 @@ describe('BLOQUANT 2 · la contre-passation par le module n’est plus aveugle',
       numeroPiece: 21,
       lignes: [l('c-4791', '47910000', 900_000, 0), l('c-4111', '41110000', 0, 900_000)],
     };
-    const m = monter({ exercices, ecritures: [AN_N2, groupee] });
+    const fond = [...BASE_N, AN_N1, ECARTS_N1_ECR, AN_N2];
+    const m = monter({ exercices, ecritures: [...fond, groupee], autres: [r2] });
     await expect(m.svc.extourner('t', 'u', 'r1', 'e28')).rejects.toThrow(
-      /touchent déjà le 478 ou le 479 de l'écart de la réévaluation du 2026-12-31 \(pièce n° 21 du 2028-01-01\)[\s\S]*plusieurs réévaluations à la fois ne se déclare pas · corrigez-la, puis contre-passez chaque réévaluation séparément/,
+      /il n'est plus en place \(47910000 · attendu 900000\.00 créditeur[\s\S]*Corrigez la pièce n° 21 du 2028-01-01[\s\S]*inscription en négatif[\s\S]*puis contre-passez/,
     );
     expect(m.creer).not.toHaveBeenCalled();
     // La déclaration est refusée, sans renvoyer au module ; l'écran dit ce que le serveur sert.
@@ -476,12 +664,12 @@ describe('BLOQUANT 2 · la contre-passation par le module n’est plus aveugle',
     await m.svc.declarerContrePassationManuelle('t', 'u', 'r1', 'od-groupee', 'motif').catch((e: Error) => expect(e.message).not.toMatch(/par le module/));
     const lues = await m.svc.candidatesContrePassationManuelle('t', 'r1');
     expect(lues.candidates).toEqual([]);
-    expect(lues.motifHorsModule).toMatch(/pièce n° 21 du 2028-01-01[\s\S]*Corrigez-les par inscription en négatif/);
+    expect(lues.motifHorsModule).toMatch(/Corrigez la pièce n° 21 du 2028-01-01/);
 
     // L'issue suivie · l'OD corrigée par son négatif, la paire ne gêne plus ; N se contre-passe (500 000), N+1 de même (400 000).
     const corrigee = { ...groupee, correction: { numeroPiece: 22 } };
     const negatif: EcritureFaite = { ...groupee, id: 'neg-groupee', numeroPiece: 22, corrige: { id: 'od-groupee', numeroPiece: 21 }, lignes: groupee.lignes.map((x) => ({ ...x, debit: -x.debit, credit: -x.credit })) };
-    const apres = monter({ exercices, ecritures: [AN_N2, corrigee, negatif] });
+    const apres = monter({ exercices, ecritures: [...fond, corrigee, negatif], autres: [r2] });
     await apres.svc.extourner('t', 'u', 'r1', 'e28');
     const cpN = (apres.creer.mock.calls[0][2] as { lignes: { compteId: string; debit?: number; credit?: number }[] }).lignes;
     // Le 411 de N+2 · à-nouveau 2 900 000, OD et négatif (0), contre-passation de N (−500 000), celle de N+1 (−400 000), écart de N+2 depuis le coût (+600 000).
@@ -489,10 +677,37 @@ describe('BLOQUANT 2 · la contre-passation par le module n’est plus aveugle',
     expect(2_900_000 + 0 + cpN411 - 400_000 + 600_000).toBe(2_600_000);
   });
 
-  it('une OD partielle sur le 4791 (300 000) · refusée, nommée ; jamais « contre-passez par le module »', async () => {
+  it('une OD partielle sur le 4791 (300 000) · refusée, nommée, l’issue prouvée · la corriger, puis contre-passer ; jamais « par le module »', async () => {
     const partielle: EcritureFaite = { ...OD, id: 'part', numeroPiece: 9, lignes: [l('c-4791', '47910000', 300_000, 0), l('c-4111', '41110000', 0, 300_000)] };
-    const { svc, creer } = monter({ ecritures: [AN_N1, partielle] });
-    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/pièce n° 9 du 2027-01-01[\s\S]*Corrigez-les par inscription en négatif/);
+    const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1, partielle] });
+    let message = '';
+    await svc.extourner('t', 'u', 'r1', 'e27').catch((e: Error) => (message = e.message));
+    expect(message).toMatch(/Corrigez la pièce n° 9 du 2027-01-01[\s\S]*inscription en négatif[\s\S]*puis contre-passez \(Devises, « Contre-passer »\)/);
+    expect(message).not.toMatch(/par le module/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('X1 · un AUTRE écart, hors module, sur le même 4791 (créance reprise sans devise) · en place, puis contre-passé à la main · le module passe', async () => {
+    const ecartEur: EcritureFaite = { id: 'eur', exercice: N, date: N.dateFin, numeroPiece: 5, lignes: [l('c-4111', '41110000', 100_000, 0), l('c-4791', '47910000', 0, 100_000)] };
+    const AN: EcritureFaite = { ...AN_N1, lignes: [l('c-4111', '41110000', 2_600_000, 0), l('c-4791', '47910000', 0, 600_000)] };
+    const cpEur: EcritureFaite = { id: 'cp-eur', exercice: N1, numeroPiece: 8, lignes: [l('c-4791', '47910000', 100_000, 0), l('c-4111', '41110000', 0, 100_000)] };
+    // Le module d'abord (X1 bis, ordre inverse) · l'écart EUR est en place, il ne gêne pas.
+    const avant = monter({ ecritures: [...BASE_N, ecartEur, AN] });
+    await avant.svc.extourner('t', 'u', 'r1', 'e27');
+    expect(avant.creer).toHaveBeenCalled();
+    // La CP EUR à la main d'abord (X1) · le module passe aussi.
+    const apres = monter({ ecritures: [...BASE_N, ecartEur, AN, cpEur] });
+    await apres.svc.extourner('t', 'u', 'r1', 'e27');
+    expect(apres.creer).toHaveBeenCalled();
+  });
+
+  it('X4 · ouverture nette de l’écart, « rétablissement » contre la BANQUE · refusé ; l’issue prouvée · corriger, rétablir, contre-passer', async () => {
+    const IMPORT_NET: EcritureFaite = { id: 'import', exercice: N1, numeroPiece: 1, estGenereeParCloture: true, lignes: [l('c-4111', '41110000', 2_000_000, 0)] };
+    const pseudo: EcritureFaite = { id: 'pseudo', exercice: N1, numeroPiece: 3, lignes: [l('c-5211', '52110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
+    const { svc, creer } = monter({ ecritures: [...BASE_N, IMPORT_NET, pseudo] });
+    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(
+      /Corrigez la pièce n° 3 du 2027-01-01[\s\S]*rétablissez l'écart, que l'ouverture de l'exercice du 2027-01-01 au 2027-12-31 omet \(AUDCIF art\. 34\), par une OD à cette ouverture \(41110000 au débit de 500000\.00, 47910000 au crédit de 500000\.00\), puis contre-passez/,
+    );
     expect(creer).not.toHaveBeenCalled();
   });
 
@@ -524,48 +739,74 @@ describe('m1 · l’ouverture qui ne porte pas l’écart', () => {
   const IMPORT_NET: EcritureFaite = { id: 'import', exercice: N1, numeroPiece: 1, estGenereeParCloture: true, lignes: [l('c-4111', '41110000', 2_000_000, 0)] };
 
   it('« Contre-passer » refusé · l’à-nouveau ne correspond pas à la clôture de N (AUDCIF art. 34), l’issue · rétablir l’écart par une OD, puis contre-passer', async () => {
-    const { svc, creer } = monter({ ecritures: [IMPORT_NET] });
+    const { svc, creer } = monter({ ecritures: [...BASE_N, IMPORT_NET] });
     await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(
-      /ne porte pas l'écart de conversion de la réévaluation du 2026-12-31[\s\S]*\(AUDCIF art\. 34\)[\s\S]*Rétablissez l'écart par une OD à l'ouverture \(41110000 au débit de 500000\.00, 47910000 au crédit de 500000\.00\), puis contre-passez/,
+      /il n'est plus en place[\s\S]*Rétablissez l'écart, que l'ouverture de l'exercice du 2027-01-01 au 2027-12-31 omet \(AUDCIF art\. 34\), par une OD à cette ouverture \(41110000 au débit de 500000\.00, 47910000 au crédit de 500000\.00\), puis contre-passez/,
     );
     expect(creer).not.toHaveBeenCalled();
   });
 
   it('au SYCEBNL, la correspondance se cite à son art. 16, 4) (son art. 3 écarte l’art. 34 de l’AUDCIF)', async () => {
-    const { svc } = monter({ ecritures: [IMPORT_NET], referentiel: 'SYCEBNL' });
+    const { svc } = monter({ ecritures: [...BASE_N, IMPORT_NET], referentiel: 'SYCEBNL' });
     await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/\(SYCEBNL art\. 16, 4\)\)/);
   });
 
-  it('l’OD de rétablissement passée (D 4111 / C 4791 de l’écart) · « Contre-passer » admis, le net est nul', async () => {
+  it('l’OD de rétablissement passée (D 4111 / C 4791 de l’écart) · « Contre-passer » admis', async () => {
     const retablissement: EcritureFaite = { id: 'retab', exercice: N1, numeroPiece: 2, lignes: [l('c-4111', '41110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
-    const { svc, creer } = monter({ ecritures: [IMPORT_NET, retablissement] });
+    const { svc, creer } = monter({ ecritures: [...BASE_N, IMPORT_NET, retablissement] });
     await svc.extourner('t', 'u', 'r1', 'e27');
     expect(creer).toHaveBeenCalled();
   });
 
+  it('X2 · rétablie PUIS contre-passée à la main · la contre-passation se déclare ; seule (sans rétablissement), elle est refusée avec l’issue « rétablissez, puis déclarez »', async () => {
+    const retablissement: EcritureFaite = { id: 'retab', exercice: N1, numeroPiece: 2, lignes: [l('c-4111', '41110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
+    const cp: EcritureFaite = { id: 'cp', exercice: N1, numeroPiece: 3, lignes: [l('c-4791', '47910000', 500_000, 0), l('c-4111', '41110000', 0, 500_000)] };
+    const seule = monter({ ecritures: [...BASE_N, IMPORT_NET, cp] });
+    await expect(seule.svc.declarerContrePassationManuelle('t', 'u', 'r1', 'cp', 'CP à la main')).rejects.toThrow(
+      /ne se déclare pas[\s\S]*Rétablissez l'écart[\s\S]*puis déclarez la pièce n° 3 du 2027-01-01/,
+    );
+    expect(seule.update).not.toHaveBeenCalled();
+    const retablie = monter({ ecritures: [...BASE_N, IMPORT_NET, retablissement, cp] });
+    await retablie.svc.declarerContrePassationManuelle('t', 'u', 'r1', 'cp', 'CP à la main');
+    expect(retablie.update).toHaveBeenCalled();
+  });
+
   it('la même OD sur une ouverture qui PORTE déjà l’écart (sh1 non corrigé) · refusée, elle le doublerait', async () => {
     const faux: EcritureFaite = { id: 'faux', exercice: N1, numeroPiece: 3, lignes: [l('c-4111', '41110000', 500_000, 0), l('c-4791', '47910000', 0, 500_000)] };
-    const { svc, creer } = monter({ ecritures: [AN_N1, faux] });
-    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/pièce n° 3 du 2027-01-01[\s\S]*Corrigez-les/);
+    const { svc, creer } = monter({ ecritures: [...BASE_N, AN_N1, faux] });
+    await expect(svc.extourner('t', 'u', 'r1', 'e27')).rejects.toThrow(/Corrigez la pièce n° 3 du 2027-01-01/);
     expect(creer).not.toHaveBeenCalled();
   });
 });
 
 describe('les écritures candidates', () => {
-  it('celles des exercices où la contre-passation est à sa place, qui inversent exactement · une autre OD sur le 4791 écartée', async () => {
-    const autre: EcritureFaite = { id: 'od2', exercice: N1, lignes: [l('c-4791', '47910000', 200_000, 0), l('c-4111', '41110000', 0, 200_000)] };
+  it('celles qui inversent exactement, quand l’état dit l’écart contre-passé · une OD en N+2 (hors de la fenêtre) n’est pas lue', async () => {
     const plusLoin: EcritureFaite = { ...OD, id: 'od3', exercice: N2 };
-    const { svc, prisma } = monter({ ecritures: [AN_N1, OD, autre, plusLoin] });
+    const { svc, prisma } = monter({ ecritures: [...BASE_N, AN_N1, OD, plusLoin] });
     const r = await svc.candidatesContrePassationManuelle('t', 'r1');
     expect(r.montants).toBe('41110000 au crédit de 500000.00, 47910000 au débit de 500000.00');
     expect(r.candidates.map((c) => c.id)).toEqual(['od']);
     expect(r.tronque).toBe(false);
-    // Lues par le compte d'écart, hors module, dans N+1 seul · le premier exercice ouvert après la réévaluation.
-    const lecture = prisma.ligneEcriture.findMany.mock.calls.find((c) => c[0].where.ecriture?.estGenereeParCloture === false)![0];
+    // Lues par le compte d'écart, hors module, dans l'exercice réévalué depuis sa date, puis N+1 seul (la fenêtre).
+    const lecture = prisma.ecriture.findMany.mock.calls.find((c) => (c[0].where as { lignes?: unknown }).lignes)![0];
     expect(lecture.where).toMatchObject({
-      compteId: { in: ['c-4791'] },
-      ecriture: { exerciceId: { in: ['e27'] }, corrigeEcritureId: null, correction: { is: null }, reevaluationExtourne: { is: null } },
+      tenantId: 't',
+      estGenereeParCloture: false,
+      corrigeEcritureId: null,
+      correction: { is: null },
+      reevaluationEcarts: { is: null },
+      reevaluationExtourne: { is: null },
+      reevaluationContrePassationDeclaree: { is: null },
+      lignes: { some: { compteId: { in: ['c-4791'] } } },
+      OR: [{ exerciceId: 'e26', date: { gte: N.dateFin } }, { exerciceId: { in: ['e27'] } }],
     });
+  });
+
+  it('une autre OD partielle à côté · l’état ne se lit plus contre-passé · aucune candidate, l’issue prouvée dite (corriger l’autre, puis déclarer)', async () => {
+    const autre: EcritureFaite = { id: 'od2', exercice: N1, numeroPiece: 5, lignes: [l('c-4791', '47910000', 200_000, 0), l('c-4111', '41110000', 0, 200_000)] };
+    const r = await monter({ ecritures: [...BASE_N, AN_N1, OD, autre] }).svc.candidatesContrePassationManuelle('t', 'r1');
+    expect(r.candidates).toEqual([]);
+    expect(r.motifHorsModule).toMatch(/Corrigez la pièce n° 5 du 2027-01-01[\s\S]*puis déclarez la pièce n° 7 du 2027-01-01/);
   });
 });
 

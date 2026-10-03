@@ -2437,6 +2437,7 @@ export class DevisesService {
         dansLaCible,
         exacte,
         horsDeLEcart: e.lignes.some((l) => !idsEcart.includes(l.compteId)),
+        dansLeSens,
         effet,
       });
     }
@@ -2561,7 +2562,8 @@ export class DevisesService {
         if (dans.length > 0) {
           etapes.push(
             `corrigez ${pieces(dans)}, qui ${dans.length > 1 ? 'déplacent' : 'déplace'} le 478 ou le 479 de l'écart (au brouillard, supprimez-la ; ` +
-              'validée, par inscription en négatif, AUDCIF art. 20, al. 2 ; un écart de cet exercice se repasse après la contre-passation)',
+              'validée, par inscription en négatif, AUDCIF art. 20, al. 2' +
+              (dans.some((e) => e.dansLeSens) ? ' ; un écart de cet exercice se repasse après la contre-passation)' : ')'),
           );
         }
         if (avant.length > 0) {

@@ -222,6 +222,8 @@ export interface EcritureSurLEcart {
   exacte: boolean;
   /** Elle porte le 478 ou le 479 contre un compte étranger à l'écart (une banque, un autre client). */
   horsDeLEcart: boolean;
+  /** Elle porte un écart dans le sens de celui-ci (un écart, ou un rétablissement), et non sa contre-passation. */
+  dansLeSens: boolean;
   /** Débit moins crédit, en centimes, sur chaque compte de l'écart. */
   effet: Map<string, number>;
 }

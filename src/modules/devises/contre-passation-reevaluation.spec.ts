@@ -107,6 +107,8 @@ function monter(
       }),
       update,
       findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'r1' }),
+      // L'état · la seule réévaluation en place est celle-ci.
+      findMany: jest.fn().mockResolvedValue([{ id: 'r1', ecritureExtourne: null, contrePassationDeclaree: null, ecritureEcarts: { lignes: lignes.map(ligne) } }]),
     },
     exercice: {
       findFirst: jest.fn(async (a: { where: Record<string, unknown> }) => {
@@ -119,10 +121,28 @@ function monter(
             .find((x) => x.dateDebut.getTime() > apres && (a.where.statut === undefined || x.statut === a.where.statut)) ?? null
         );
       }),
-      // Ce que le cabinet a passé à la main sur l'écart (quatrième tour,
-      // `manuellesSurLEcart`) · aucune fenêtre lue ici, rien de manuel ; la
-      // règle a son propre spec (`contre-passation-manuelle.spec.ts`).
-      findMany: jest.fn().mockResolvedValue([]),
+      // L'état de l'écart (cinquième tour, `etatDeLEcart`) · la doublure
+      // honore le filtre de date et l'ordre ; la règle a son propre spec
+      // (`contre-passation-manuelle.spec.ts`).
+      findMany: jest.fn(async (a: { where: { dateDebut?: { gt?: Date; lte?: Date } }; orderBy?: { dateDebut?: 'asc' | 'desc' } }) =>
+        [...exercices]
+          .filter(
+            (x) =>
+              (!a.where.dateDebut?.gt || x.dateDebut.getTime() > a.where.dateDebut.gt.getTime()) &&
+              (!a.where.dateDebut?.lte || x.dateDebut.getTime() <= a.where.dateDebut.lte.getTime()),
+          )
+          .sort((x, y) => (a.orderBy?.dateDebut === 'desc' ? -1 : 1) * (x.dateDebut.getTime() - y.dateDebut.getTime())),
+      ),
+    },
+    // L'état · aucune ouverture fiable, aucune écriture hors module ; le 478
+    // ou le 479 porte l'écart de la réévaluation, en place.
+    ecriture: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: {
+      groupBy: jest.fn(async (a: { where: { compteId: { in: string[] } } }) =>
+        lignes
+          .filter((x) => a.where.compteId.in.includes(x.compteId))
+          .map((x) => ({ compteId: x.compteId, _sum: { debit: x.debit, credit: x.credit } })),
+      ),
     },
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od' }) },

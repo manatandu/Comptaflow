@@ -169,6 +169,10 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     const retenues = p.lignes.filter((l) => {
       if (!correspond(l.compteId, w.compteId) || !correspond(l.deviseId, w.deviseId)) return false;
       if (!correspond(l.exerciceId, e.exerciceId) || !correspond(l.date, e.date)) return false;
+      // L'état de l'écart (cinquième tour) · l'ouverture seule, ou tout sauf l'à-nouveau provisoire.
+      const ouverte = l.ouverture === 'DEFINITIF' || l.ouverture === 'PROVISOIRE';
+      if (e.estGenereeParCloture === true && !ouverte) return false;
+      if (e.estANouveauProvisoire === false && l.ouverture === 'PROVISOIRE') return false;
       if (branches) {
         const saisieAvant = branches.some((b) =>
           b.createdAt
@@ -324,7 +328,19 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     },
     provisionChangeOuverture: { findMany: jest.fn().mockResolvedValue([]) },
     verrouProvisionChange: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'verrou' }) },
-    ecriture: { count: jest.fn().mockResolvedValue(1), findFirst: jest.fn().mockResolvedValue(null) },
+    ecriture: {
+      count: jest.fn().mockResolvedValue(1),
+      findFirst: jest.fn().mockResolvedValue(null),
+      // L'état de l'écart (cinquième tour) · les exercices dont l'ouverture est fiable (à-nouveau définitif) ;
+      // aucune écriture hors module sur l'écart dans ce jeu d'essai.
+      findMany: jest.fn(async (a: { where?: Record<string, unknown>; distinct?: string[] } = {}) => {
+        if (!a.distinct?.includes('exerciceId')) return [];
+        const exercicesLus = (a.where?.exerciceId as { in?: string[] } | undefined)?.in ?? [];
+        return [...new Set(p.lignes.filter((l) => l.ouverture === 'DEFINITIF' && exercicesLus.includes(l.exerciceId)).map((l) => l.exerciceId))].map(
+          (exerciceId) => ({ exerciceId }),
+        );
+      }),
+    },
     coursDevise: {
       findFirst: jest.fn(async (a: { where: { deviseId: string; date: { lte: Date } } }) => {
         const c = typeof p.cours === 'function' ? p.cours(a.where.date.lte, a.where.deviseId) : (p.cours ?? 2400);
@@ -941,6 +957,22 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
       { compteId: 'c-4111', solde: 2_000_000 + 500_000 + 400_000 - 400_000 },
       { compteId: 'c-4791', solde: -500_000 - 400_000 + 400_000 },
     ];
+    /**
+     * Le 4791 tel que l'état le lit (cinquième tour) · l'écart de N+1 passé par le module au 31/12/2027, et sa
+     * contre-passation à l'ouverture de N+2 · sans elles, le 4791 de N+2 se lirait à −900 000 pour un écart de N en
+     * place de −500 000.
+     */
+    const ecart479 = (exerciceId: string, date: Date, debit: number, credit: number): Ligne => ({
+      compteId: 'c-4791',
+      numero: '47910000',
+      deviseId: null,
+      debit,
+      credit,
+      montantDevise: null,
+      exerciceId,
+      date,
+    });
+    const livre479 = [ecart479('e27', N1.dateFin, 0, 400_000), ecart479('e28', N2.dateDebut, 400_000, 0)];
     const monterS11 = () =>
       monter({
         exercices,
@@ -950,6 +982,7 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
           { ...creanceN, exerciceId: 'e28', date: N2.dateDebut, ouverture: 'DEFINITIF' },
           ecartOuvert('e27', N1.dateDebut, 500_000),
           ecartOuvert('e28', N2.dateDebut, 900_000),
+          ...livre479,
         ],
         reevals: [
           { exerciceId: 'e26', lignesEcarts: ecartsN },
@@ -971,10 +1004,11 @@ describe('A5 bis · la créance en devise · réévaluer N+1 exige la contre-pas
         /La réévaluation du 2026-12-31 n'est pas contre-passée \(exercice du 2026-01-01 au 2026-12-31\)[\s\S]*41110000 au crédit de 500000\.00, 47910000 au débit de 500000\.00[\s\S]*à l'ouverture de cet exercice/,
       );
       await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.not.toThrow(/2027-12-31/);
-      // Les deux issues · contre-passer par le module, ou déclarer l'écriture manuelle qui l'a déjà fait.
-      await expect(svc.reevaluer('t', 'u', { exerciceId: 'e28' })).rejects.toThrow(
-        /Passez la contre-passation de la réévaluation du 2026-12-31 \(Devises\)[\s\S]*déjà été contre-passée À LA MAIN, déclarez cette écriture \(Devises, « Déclarer une contre-passation manuelle »\)/,
-      );
+      // L'état réel (cinquième tour) · le 4791 de N+2 porte l'écart de N en place · l'issue est de contre-passer, et elle seule.
+      let message = '';
+      await svc.reevaluer('t', 'u', { exerciceId: 'e28' }).catch((e: Error) => (message = e.message));
+      expect(message).toMatch(/Passez la contre-passation de la réévaluation du 2026-12-31 \(Devises\)/);
+      expect(message).not.toMatch(/Déclarer une contre-passation manuelle/);
       expect(creer).not.toHaveBeenCalled();
     });
 
