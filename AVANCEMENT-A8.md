@@ -90,9 +90,36 @@ passer au journal par la même mécanique que la paie du mois (P9).
 Tests · `decompte-final-emis.spec.ts` (règle), `decompte-final-emis-service.spec.ts`
 (câblage, coexistence dans les deux sens, passation 6614 / 422).
 
+Étape 4 · écran · onglet « Décompte final » de Personnel, bouton « Émettre le
+décompte final » (derrière `peutEcrire`, grisé avec son motif sans salarié
+choisi ni mois de cessation, `lib/decompte-emis.ts`), corps unique
+`corpsDecompte` pour calculer et émettre, éléments du mois repris de l'onglet
+Simulation ; onglet Bulletins · « Décompte final » nommé dans la liste et en
+titre du document ouvert.
+
+Étape 5 · bloc du § 3 passé · serveur `npx tsc --noEmit`, `npx jest` (699
+suites, 9 580 tests), `npm run build`, `npx prisma generate` ; client
+`npx tsc --noEmit`, `npm test` (203 fichiers, 1 636 tests), `npm run build`.
+
 ## Reste
 
-Étape 4 (écran) et 5 (bloc du § 3 des deux côtés).
+- Contrôle de dérive de la migration sur une base jetable (voir étape 1),
+  à passer par l'intégrateur ou par le portillon `verifier`.
+- Relecture adverse et agents du § 11 (`silent-failure-hunter`,
+  `typescript-reviewer`, `react-reviewer`) avant intégration.
+
+## Ce que le corpus ne tranche pas (à remonter)
+
+- Allocations familiales · la nature `ALLOCATIONS_FAMILIALES_LEGALES` reste
+  sans compte (P3, aucune fiche du 66 ne le nomme) · un décompte qui en porte
+  s'ÉMET, mais la paie du mois qui le contient est refusée à la passation,
+  comme un bulletin qui en porte.
+- Versement unique · la loi n° 23/053 ne prévoit ni étalement ni taux
+  distinct pour les sommes de rupture (art. 68, 6° les rend imposables) ;
+  barème du mois appliqué par décision, réserve écrite.
+- Intitulé du 66140000 au semis SYCEBNL (« préavis et de licenciement ») plus
+  court que la fiche du compte 66 du même texte (« et de recherche
+  d'embauche ») · écart du texte, non corrigé.
 
 ## Vérification
 

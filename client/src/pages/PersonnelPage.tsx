@@ -12,6 +12,7 @@ import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 import { montant } from '../lib/montants';
+import { motifDecompteNonEmissible } from '../lib/decompte-emis';
 
 /**
  * LE PERSONNEL · le registre (l'état civil, les engagements, et ce que
@@ -893,47 +894,84 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
    * réserves sur le séminaire CPCC vivent dans `decompte-final.ts`. Les
    * recopier ici produirait un second décompte, plausible et différent.
    */
-  const calculerDecompte = () => {
-    setErreur('');
-    setEnCours(true);
+  // UN SEUL CORPS POUR CALCULER ET POUR ÉMETTRE LE DÉCOMPTE (A8) · comme le
+  // bulletin, le décompte émis est le calcul rejoué par le serveur.
+  const corpsDecompte = () => {
     const nombre = (v: string) => {
       const n = Number(v.replace(/\s/g, '').replace(',', '.'));
       return v.trim() === '' || Number.isNaN(n) ? undefined : n;
     };
+    return {
+      anneesAnciennete: nombre(dec.anneesAnciennete) ?? 0,
+      moisNonCouvertsParUnConge: nombre(dec.moisNonCouvertsParUnConge) ?? 0,
+      moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
+      initiative: dec.initiative,
+      motif: dec.motif,
+      typeContrat: dec.typeContrat || undefined,
+      periodeDEssai: dec.periodeDEssai,
+      joursDEssaiEcoules: dec.periodeDEssai ? nombre(dec.joursDEssaiEcoules) : undefined,
+      delegueSyndical: dec.delegueSyndical,
+      dateNotification: dec.dateNotification || undefined,
+      preavisRetenuJours: nombre(dec.preavisRetenuJours),
+      forceMajeureConstateeParInspecteur: dec.forceMajeureConstateeParInspecteur,
+      deuxMoisDeSuspension: dec.deuxMoisDeSuspension,
+      executionPreavis: dec.executionPreavis || undefined,
+      joursPreavisNonObserves: nombre(dec.joursPreavisNonObserves),
+      partieResponsable: dec.partieResponsable || undefined,
+      remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
+      moyenneMensuelleArticle66Fc: nombre(dec.moyenneMensuelleArticle66Fc),
+      moyenneMensuelleArticle142Fc: nombre(dec.moyenneMensuelleArticle142Fc),
+      avantagesPendantPreavisFc: nombre(dec.avantagesPendantPreavisFc),
+      joursRestantsJusquAuTerme: nombre(dec.joursRestantsJusquAuTerme),
+      avantagesJusquAuTermeFc: nombre(dec.avantagesJusquAuTermeFc),
+      montantConvenuCommunAccordFc: nombre(dec.montantConvenuCommunAccordFc),
+      arrieresFc: nombre(dec.arrieresFc),
+      gratificationFc: nombre(dec.gratificationFc),
+      moisDeCessation: dec.moisDeCessation || undefined,
+      enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
+      joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
+    };
+  };
+
+  const calculerDecompte = () => {
+    setErreur('');
+    setEnCours(true);
     api
-      .post<Decompte>('/personnel/decompte-final', {
-        anneesAnciennete: nombre(dec.anneesAnciennete) ?? 0,
-        moisNonCouvertsParUnConge: nombre(dec.moisNonCouvertsParUnConge) ?? 0,
-        moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
-        initiative: dec.initiative,
-        motif: dec.motif,
-        typeContrat: dec.typeContrat || undefined,
-        periodeDEssai: dec.periodeDEssai,
-        joursDEssaiEcoules: dec.periodeDEssai ? nombre(dec.joursDEssaiEcoules) : undefined,
-        delegueSyndical: dec.delegueSyndical,
-        dateNotification: dec.dateNotification || undefined,
-        preavisRetenuJours: nombre(dec.preavisRetenuJours),
-        forceMajeureConstateeParInspecteur: dec.forceMajeureConstateeParInspecteur,
-        deuxMoisDeSuspension: dec.deuxMoisDeSuspension,
-        executionPreavis: dec.executionPreavis || undefined,
-        joursPreavisNonObserves: nombre(dec.joursPreavisNonObserves),
-        partieResponsable: dec.partieResponsable || undefined,
-        remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
-        moyenneMensuelleArticle66Fc: nombre(dec.moyenneMensuelleArticle66Fc),
-        moyenneMensuelleArticle142Fc: nombre(dec.moyenneMensuelleArticle142Fc),
-        avantagesPendantPreavisFc: nombre(dec.avantagesPendantPreavisFc),
-        joursRestantsJusquAuTerme: nombre(dec.joursRestantsJusquAuTerme),
-        avantagesJusquAuTermeFc: nombre(dec.avantagesJusquAuTermeFc),
-        montantConvenuCommunAccordFc: nombre(dec.montantConvenuCommunAccordFc),
-        arrieresFc: nombre(dec.arrieresFc),
-        gratificationFc: nombre(dec.gratificationFc),
-        moisDeCessation: dec.moisDeCessation || undefined,
-        enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
-        joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
-      })
+      .post<Decompte>('/personnel/decompte-final', corpsDecompte())
       .then(
         (r) => {
           setDecompte(r);
+          setEnCours(false);
+        },
+        (e: ApiError) => {
+          setErreur(e.message);
+          setEnCours(false);
+        },
+      );
+  };
+
+  /**
+   * A8 · ÉMETTRE LE DÉCOMPTE FINAL · les faits de la rupture (cet onglet) et
+   * la paie du mois de cessation (les éléments de l'onglet Simulation), que
+   * le serveur rejoue et fige comme un bulletin. Les éléments du mois TIENNENT
+   * LIEU des arriérés · le montant global ne part que s'il n'y en a aucun.
+   */
+  const emettreDecompte = () => {
+    if (!selection || !dec.moisDeCessation) return;
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    const paie = { ...corpsSimulation(), moisDePaie: dec.moisDeCessation };
+    const faits = corpsDecompte();
+    const decompteEmis = paie.elements.length > 0 ? { ...faits, arrieresFc: undefined } : faits;
+    api
+      .post<{ numero: number; moisDePaie: string }>(`/personnel/salaries/${selection}/decompte-final`, {
+        decompte: decompteEmis,
+        paie,
+      })
+      .then(
+        (b) => {
+          setSucces(`Décompte final n° ${b.numero} émis pour ${b.moisDePaie}. Il ne se modifie plus : une erreur se corrige en l’annulant.`);
           setEnCours(false);
         },
         (e: ApiError) => {
@@ -3459,7 +3497,28 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               >
                 Calculer
               </button>
+              {peutEcrire && (
+                <>
+                  <button
+                    type="button"
+                    disabled={enCours || !selection || !dec.moisDeCessation}
+                    onClick={emettreDecompte}
+                    title={motifDecompteNonEmissible(selection, dec.moisDeCessation) ?? undefined}
+                    className="bg-sel text-white rounded-full px-4 py-1 disabled:opacity-40"
+                  >
+                    Émettre le décompte final
+                  </button>
+                  <Aide
+                    titre="Décompte final émis"
+                    texte="Rejoue le décompte et la paie du mois de cessation (éléments saisis dans l’onglet Simulation pour le salarié choisi), puis fige le document dans la numérotation des bulletins. Il remplace le bulletin de ce mois. Une erreur se corrige en l’annulant."
+                    source="Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2 ; Code du travail, art. 103 et 214"
+                  />
+                </>
+              )}
             </div>
+            {peutEcrire && motifDecompteNonEmissible(selection, dec.moisDeCessation) && (
+              <div className="text-[11px] text-text-dim mt-1">{motifDecompteNonEmissible(selection, dec.moisDeCessation)}</div>
+            )}
           </div>
 
           {decompte && (
