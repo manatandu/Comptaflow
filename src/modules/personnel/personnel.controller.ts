@@ -13,6 +13,7 @@ import {
   ContratTravailDto,
   DecompteFinalDto,
   DeviseRemunerationDto,
+  EmissionDecompteFinalDto,
   LivreDePaieDto,
   RemiseBulletinDto,
   SalarieDto,
@@ -197,6 +198,21 @@ export class PersonnelController {
     @Body() dto: SimulationPaieDto,
   ) {
     return this.personnel.emettreBulletin(user.tenantId, user.userId, salarieId, dto);
+  }
+
+  /**
+   * A8 · ÉMETTRE LE DÉCOMPTE FINAL · les faits de la rupture et la paie du
+   * mois de cessation, rejoués côté serveur, figés comme un bulletin dans la
+   * même séquence. Aucun montant calculé n'est reçu du client.
+   */
+  @Post('salaries/:salarieId/decompte-final')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async emettreDecompteFinal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('salarieId') salarieId: string,
+    @Body() dto: EmissionDecompteFinalDto,
+  ) {
+    return this.personnel.emettreDecompteFinal(user.tenantId, user.userId, salarieId, dto);
   }
 
   @Post('bulletins/:id/annulation')

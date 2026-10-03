@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, StatutBulletinPaie, StatutEcriture, TypeContratTravail } from '@prisma/client';
+import { NatureBulletinPaie, Prisma, StatutBulletinPaie, StatutEcriture, TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   ContratTravailDto,
   DecompteFinalDto,
+  EmissionDecompteFinalDto,
   LivreDePaieDto,
   SalarieDto,
   SimulationPaieDto,
@@ -76,12 +77,22 @@ import {
   MENTIONS_MODELE_2008,
   RESERVE_ARTICLE_104,
   SANCTION_ARTICLE_103,
+  DECOMPTE_A_LA_RUPTURE,
   livreDePaie,
   type FormeDuDocument,
 } from './livre-de-paie';
 import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere, type Annexe } from './bareme-smig';
 import { BAREMES_SERVIS, annexesSmigDuDossier, versionsDuDossier, type LigneVersion } from './baremes-dossier';
 import { effectifDuRegistre } from './effectif-registre';
+import {
+  RESERVE_DU_PAR_LE_TRAVAILLEUR,
+  RESERVE_EN_FRANCS,
+  RESERVE_VERSEMENT_UNIQUE,
+  arrieresDesElements,
+  elementsDuDecompte,
+  motifRefusMoisDeCessation,
+  motifRefusTypeContrat,
+} from './decompte-final-emis';
 import {
   decompteFinal,
   motifRefusDecompte,
@@ -1334,7 +1345,8 @@ export class PersonnelService {
 
 
   /**
-   * LE DÉCOMPTE FINAL · P4. PUREMENT CALCULÉ, RIEN N'EST STOCKÉ.
+   * LE DÉCOMPTE FINAL · P4. LE CALCUL SEUL NE STOCKE RIEN · c'est
+   * `emettreDecompteFinal` (A8) qui le fige, comme un bulletin.
    *
    * Aucune lecture Prisma non plus · tout ce dont le calcul a besoin est dans
    * le Code du travail et dans ce que le cabinet déclare. L'ancienneté et les
@@ -1534,15 +1546,63 @@ export class PersonnelService {
       });
     }
 
+    const cree = await this.figerBulletin(tenantId, userId, {
+      salarieId,
+      salarie,
+      contrat,
+      moisDePaie: dto.moisDePaie,
+      nature: NatureBulletinPaie.MOIS,
+      simulation,
+      entree: saisie,
+      calculEnPlus: {},
+    });
+    return this.lireBulletin(tenantId, cree.id);
+  }
+
+  /**
+   * FIGER UN DOUBLE DU LIVRE DE PAIE · bulletin du mois ou décompte final
+   * (A8), une seule écriture de la règle pour les deux. La séquence des
+   * numéros est UNE (art. 214), et la limite « un seul actif par salarié et
+   * par mois » vaut pour les deux natures ensemble · c'est elle qui fait que
+   * le décompte REMPLACE le bulletin du mois de cessation (décision de Manasse
+   * du 2026-10-02) · un bulletin actif refuse le décompte, et inversement.
+   */
+  private async figerBulletin(
+    tenantId: string,
+    userId: string,
+    p: {
+      salarieId: string;
+      salarie: { nom: string; postNom: string | null; prenoms: string | null; matricule: string | null; numeroAffiliationCnss: string | null };
+      contrat: {
+        id: string;
+        natureTravail: string | null;
+        categorieProfessionnelle: string | null;
+        remunerationBase: Prisma.Decimal | null;
+        periodiciteRemuneration: string | null;
+        deviseRemuneration: string | null;
+      };
+      moisDePaie: string;
+      nature: NatureBulletinPaie;
+      simulation: SimulationPaie;
+      entree: unknown;
+      calculEnPlus: Record<string, unknown>;
+    },
+  ) {
+    const { salarieId, salarie, contrat, simulation } = p;
     const creer = () =>
       transactionJournalisee(this.prisma, async (tx) => {
         const actif = await tx.bulletinPaie.findFirst({
-          where: { tenantId, salarieId, moisDePaie: dto.moisDePaie, statut: StatutBulletinPaie.EMIS },
-          select: { numero: true },
+          where: { tenantId, salarieId, moisDePaie: p.moisDePaie, statut: StatutBulletinPaie.EMIS },
+          select: { numero: true, nature: true },
         });
         if (actif) {
+          const quoi = actif.nature === NatureBulletinPaie.DECOMPTE_FINAL ? 'Le décompte final' : 'Le bulletin';
+          const remplace =
+            p.nature === NatureBulletinPaie.DECOMPTE_FINAL || actif.nature === NatureBulletinPaie.DECOMPTE_FINAL
+              ? ' Le décompte final remplace le bulletin du mois de cessation · un seul des deux est actif.'
+              : '';
           throw new BadRequestException(
-            `Le bulletin n° ${actif.numero} est déjà émis pour ce salarié en ${dto.moisDePaie}. Annulez-le d'abord s'il est faux. ${LIMITE_UN_BULLETIN_PAR_MOIS}`,
+            `${quoi} n° ${actif.numero} est déjà émis pour ce salarié en ${p.moisDePaie}. Annulez-le d'abord s'il est faux.${remplace} ${LIMITE_UN_BULLETIN_PAR_MOIS}`,
           );
         }
         const dernier = await tx.bulletinPaie.aggregate({ where: { tenantId }, _max: { numero: true } });
@@ -1552,7 +1612,8 @@ export class PersonnelService {
             salarieId,
             contratId: contrat.id,
             numero: (dernier._max.numero ?? 0) + 1,
-            moisDePaie: dto.moisDePaie,
+            moisDePaie: p.moisDePaie,
+            nature: p.nature,
             nomComplet: nomCompletMajuscules(salarie),
             matricule: salarie.matricule,
             emploi: contrat.natureTravail,
@@ -1564,12 +1625,13 @@ export class PersonnelService {
             cotisationsEmployeurFc: simulation.cotisations.totalEmployeurFc,
             irppFc: simulation.retenue?.retenueFc ?? 0,
             netAPayerFc: simulation.net.netAPayerFc ?? 0,
-            entree: JSON.parse(JSON.stringify(saisie)) as Prisma.InputJsonValue,
+            entree: JSON.parse(JSON.stringify(p.entree)) as Prisma.InputJsonValue,
             // Le salaire du contrat (mention 5 du modèle de 2008) est FIGÉ avec
             // le calcul · un bulletin remis ne change pas avec le contrat.
             calcul: JSON.parse(
               JSON.stringify({
                 ...simulation,
+                ...p.calculEnPlus,
                 contrat: {
                   remunerationBase: contrat.remunerationBase === null ? null : Number(contrat.remunerationBase),
                   periodiciteRemuneration: contrat.periodiciteRemuneration,
@@ -1604,23 +1666,184 @@ export class PersonnelService {
     // DEUX ÉMISSIONS SIMULTANÉES prennent le même « dernier numéro ». L'index
     // unique (tenantId, numero) refuse la seconde · on la rejoue une fois, sur
     // le numéro suivant, plutôt que de laisser l'utilisateur recommencer.
-    let cree;
     try {
-      cree = await creer();
+      return await creer();
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         try {
-          cree = await creer();
+          return await creer();
         } catch (e2) {
           if (e2 instanceof Prisma.PrismaClientKnownRequestError && e2.code === 'P2002') {
             throw new ConflictException('Deux bulletins ont été émis au même instant · réessayez.');
           }
           throw e2;
         }
-      } else {
-        throw e;
       }
+      throw e;
     }
+  }
+
+  /**
+   * A8 · ÉMETTRE LE DÉCOMPTE FINAL, et le figer comme un bulletin. Règles et
+   * textes dans `decompte-final-emis.ts`.
+   *
+   * TOUT EST REJOUÉ ICI · le décompte (P4) sur les faits déclarés, puis la
+   * simulation du mois de cessation (P2, P8) sur les éléments du mois ET les
+   * rubriques du décompte, traduites en éléments de paie. Le client n'envoie
+   * aucun montant calculé · ni indemnité, ni impôt, ni net.
+   */
+  async emettreDecompteFinal(
+    tenantId: string,
+    userId: string,
+    salarieId: string,
+    dto: EmissionDecompteFinalDto,
+    maintenant: Date = new Date(),
+  ) {
+    const mois = dto.paie.moisDePaie;
+    if (!moisValide(mois)) {
+      throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
+    }
+    if (dto.decompte.moisDeCessation !== undefined && dto.decompte.moisDeCessation !== mois) {
+      throw new BadRequestException(
+        `Le mois de cessation (${dto.decompte.moisDeCessation}) et le mois de paie (${mois}) diffèrent · le décompte final remplace le bulletin du mois de cessation.`,
+      );
+    }
+    if ((dto.paie.deviseStipulation ?? 'CDF') !== 'CDF') {
+      throw new BadRequestException(RESERVE_EN_FRANCS);
+    }
+
+    const salarie = await this.prisma.salarie.findFirst({
+      where: { id: salarieId, tenantId },
+      select: {
+        id: true,
+        nom: true,
+        postNom: true,
+        prenoms: true,
+        matricule: true,
+        numeroAffiliationCnss: true,
+        contrats: {
+          select: {
+            id: true,
+            type: true,
+            dateEntreeEnVigueur: true,
+            dateFin: true,
+            natureTravail: true,
+            categorieProfessionnelle: true,
+            remunerationBase: true,
+            periodiciteRemuneration: true,
+            deviseRemuneration: true,
+          },
+        },
+      },
+    });
+    if (!salarie) throw new NotFoundException('Salarié introuvable dans ce dossier.');
+    const contrat = contratCouvrantLeMois(salarie.contrats, mois);
+    if (!contrat) {
+      throw new BadRequestException(
+        `Aucun contrat de ce salarié n'est en cours en ${mois} · le décompte final se rapporte au contrat résilié, et doit dire lequel.`,
+      );
+    }
+    const refusContrat =
+      motifRefusMoisDeCessation(contrat.dateFin, mois) ?? motifRefusTypeContrat(contrat.type, dto.decompte.typeContrat);
+    if (refusContrat) throw new BadRequestException(refusContrat);
+
+    // LES ÉLÉMENTS DU MOIS, relus comme ceux d'un bulletin (nature des
+    // rubriques, retenues d'avance). Leur total versé TIENT LIEU des arriérés
+    // du décompte (art. 100) · deux sources pour la même somme se
+    // contrediraient tôt ou tard.
+    const { dto: saisie } = await this.resoudreSaisie(tenantId, salarieId, dto.paie);
+    const elementsDuMois = saisie.elements.map((e) => ({
+      nature: e.nature as NatureElementPaie,
+      montantFc: e.montantFc,
+      enNature: e.enNature === true,
+    }));
+    if (elementsDuMois.length === 0 && dto.decompte.arrieresFc !== 0) {
+      throw new BadRequestException(
+        "Le décompte final remplace le bulletin du mois de cessation · saisissez les éléments du mois (salaire des jours prestés, sommes restant dues), ou déclarez zéro arriéré si rien n'est dû.",
+      );
+    }
+    const arrieresFc = arrieresDesElements(elementsDuMois);
+    if (typeof dto.decompte.arrieresFc === 'number' && Math.abs(dto.decompte.arrieresFc - arrieresFc) >= 0.005) {
+      throw new BadRequestException(
+        `Les arriérés déclarés (${dto.decompte.arrieresFc.toFixed(2)} FC) diffèrent des éléments du mois versés (${arrieresFc.toFixed(2)} FC) · au décompte émis, les arriérés SONT ces éléments.`,
+      );
+    }
+
+    const faits: DecompteFinalDto = { ...dto.decompte, moisDeCessation: mois, arrieresFc };
+    const verdict = await this.decompteFinal(tenantId, faits);
+    const { elements: indemnites, refus } = elementsDuDecompte(verdict);
+    if (refus.length > 0) {
+      throw new BadRequestException({
+        message: `Décompte final non émis · un solde partiel se lit comme un solde. ${TEXTE_ARTICLE_103}`,
+        motifs: refus,
+      });
+    }
+
+    // ARTICLE 69, 1 · LES ALLOCATIONS FAMILIALES DU DÉCOMPTE sont la colonne
+    // 19 elle-même (enfants × jours × taux), donc exactement le « taux légal »
+    // qui les immunise. Elles s'ajoutent au plafond du mois, sans quoi leur
+    // montant serait imposé comme un excédent qu'il n'est pas. Des
+    // allocations du mois sans plafond lisible refusent · deviner le plafond
+    // serait deviner l'impôt.
+    const allocationsDecompte = indemnites
+      .filter((e) => e.nature === 'ALLOCATIONS_FAMILIALES_LEGALES')
+      .reduce((n, e) => n + e.montantFc, 0);
+    let tauxLegalAllocationsFamilialesFc = saisie.tauxLegalAllocationsFamilialesFc;
+    if (allocationsDecompte > 0) {
+      const allocationsDuMois = elementsDuMois.some((e) => e.nature === 'ALLOCATIONS_FAMILIALES_LEGALES');
+      let plafondDuMois = 0;
+      if (allocationsDuMois) {
+        const annexes = annexesSmigDuDossier(await this.versionsBaremesDuMois(tenantId, mois));
+        const plafond = this.tauxLegalAllocationsFamiliales(saisie, annexes);
+        if (plafond === null) {
+          throw new BadRequestException(
+            "Les allocations familiales du mois n'ont pas de plafond lisible (article 69, 1) · déclarez les enfants bénéficiaires du mois, ou le taux légal.",
+          );
+        }
+        plafondDuMois = plafond;
+      }
+      tauxLegalAllocationsFamilialesFc = plafondDuMois + allocationsDecompte;
+    }
+
+    const paieComplete: SimulationPaieDto = {
+      ...saisie,
+      tauxLegalAllocationsFamilialesFc,
+      elements: [
+        ...saisie.elements,
+        ...indemnites.map((e) => ({ nature: e.nature, libelle: e.libelle, montantFc: e.montantFc })),
+      ],
+    };
+    const simulation = await this.simulerPaie(tenantId, salarieId, paieComplete, maintenant);
+    const motifs = motifsRefusEmission(simulation);
+    if (motifs.length > 0) {
+      throw new BadRequestException({
+        message: `Décompte final non émis · ${motifs.length} montant(s) non calculé(s). ${TEXTE_ARTICLE_103}`,
+        motifs,
+      });
+    }
+    // LES DEUX MOTEURS PARLENT DU MÊME DÉCOMPTE · le total versé de la paie
+    // est celui que le décompte dit dû au travailleur. Un écart est un défaut,
+    // jamais un arrondi à rattraper.
+    const duAuTravailleur = verdict.totalDuAuTravailleurFc as number;
+    if (Math.abs(simulation.net.totalVerseFc - duAuTravailleur) >= 0.01) {
+      throw new BadRequestException(
+        `Le décompte doit ${duAuTravailleur.toFixed(2)} FC au travailleur et la paie en verserait ${simulation.net.totalVerseFc.toFixed(2)} FC · rien n'est émis.`,
+      );
+    }
+
+    const cree = await this.figerBulletin(tenantId, userId, {
+      salarieId,
+      salarie,
+      contrat,
+      moisDePaie: mois,
+      nature: NatureBulletinPaie.DECOMPTE_FINAL,
+      simulation,
+      entree: { ...paieComplete, decompte: faits },
+      calculEnPlus: {
+        decompte: verdict,
+        reservesDecompteEmis: [RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR, DECOMPTE_A_LA_RUPTURE],
+      },
+    });
     return this.lireBulletin(tenantId, cree.id);
   }
 
@@ -1648,6 +1871,7 @@ export class PersonnelService {
           numero: true,
           moisDePaie: true,
           statut: true,
+          nature: true,
           nomComplet: true,
           matricule: true,
           salarieId: true,
@@ -1708,7 +1932,10 @@ export class PersonnelService {
       // PASSE D2 · ce que le bulletin porte des énonciations du modèle de
       // 2008, et ce qu'il ne porte pas, dit rang par rang.
       enonciations: enonciationsDuBulletin(b),
-      reserves: [TEXTE_ARTICLE_103, TEXTE_INALTERABILITE, RESERVE_MODELE],
+      reserves:
+        b.nature === NatureBulletinPaie.DECOMPTE_FINAL
+          ? [TEXTE_ARTICLE_103, TEXTE_INALTERABILITE, RESERVE_MODELE, DECOMPTE_A_LA_RUPTURE, RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR]
+          : [TEXTE_ARTICLE_103, TEXTE_INALTERABILITE, RESERVE_MODELE],
     };
   }
 

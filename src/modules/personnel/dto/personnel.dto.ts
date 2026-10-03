@@ -747,6 +747,23 @@ export class DecompteFinalDto {
 }
 
 /**
+ * A8 · ÉMETTRE LE DÉCOMPTE FINAL. Deux moitiés, et aucun montant calculé · les
+ * faits de la rupture (`decompte`, le corps du calcul P4) et la paie du mois
+ * de cessation (`paie`, le corps d'une simulation), dont le mois DOIT être le
+ * mois de cessation. Le serveur rejoue les deux et fige ce qu'il rend
+ * (`decompte-final-emis.ts`).
+ */
+export class EmissionDecompteFinalDto {
+  @ValidateNested()
+  @Type(() => DecompteFinalDto)
+  decompte!: DecompteFinalDto;
+
+  @ValidateNested()
+  @Type(() => SimulationPaieDto)
+  paie!: SimulationPaieDto;
+}
+
+/**
  * LE LIVRE DE PAIE · ce qui se DÉCLARE, et rien de nominatif. La route ne
  * reçoit aucun nom de salarié : elle juge un DOCUMENT et une organisation,
  * pas une paie.

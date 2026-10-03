@@ -438,6 +438,8 @@ describe("D2-B4 · le décompte écrit est une OBLIGATION de l'arrêté de 2008"
     const r = decompteFinal(BASE).reserves;
     expect(r).toContain(DECOMPTE_A_LA_RUPTURE);
     expect(r).toContain(SANCTION_ARTICLE_103);
-    expect(r.join(' ')).toContain("il n'émet ni ne fige le document daté");
+    // A8 · la garantie négative a vieilli avec l'émission · la réserve dit
+    // désormais où le document daté se fige.
+    expect(r.join(' ')).toContain("il le devient à l'ÉMISSION, qui fige le document daté");
   });
 });

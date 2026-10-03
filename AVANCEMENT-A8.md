@@ -44,24 +44,55 @@ passer au journal par la même mécanique que la paie du mois (P9).
 
 ## Plan
 
-1. [ ] Schéma · `BulletinPaie.nature` (`MOIS` | `DECOMPTE_FINAL`), migration
-   écrite à la main, contrôle de dérive sur une base jetable.
-2. [ ] Moteur · nature `INDEMNITE_DE_FIN_DE_CONTRAT` (6614 aux deux plans),
-   éléments du décompte (`elements-decompte.ts`), refus d'émission.
-3. [ ] Service et route · `POST /personnel/salaries/:id/decompte-final`,
-   rejoué au serveur, même séquence et même refus de coexistence que le
-   bulletin ; passation par la paie du mois (P9) sans autre chemin.
+1. [x] Schéma · `BulletinPaie.nature` (`MOIS` | `DECOMPTE_FINAL`), migration
+   `20270118000000_decompte_final_emis` écrite à la main. CONTRÔLE DE DÉRIVE
+   NON PASSÉ LOCALEMENT · le PostgreSQL du conteneur n'admet que l'auth par
+   pair ou par mot de passe, et l'ouverture d'un accès local a été refusée
+   par la politique de l'environnement. La migration est le strict pendant du
+   schéma (type énuméré + colonne NOT NULL DEFAULT 'MOIS') ; le portillon
+   `verifier` la jouera sur PostgreSQL 18 et 17.
+2. [x] Moteur · nature `INDEMNITE_DE_FIN_DE_CONTRAT` (6614 aux deux plans,
+   rôle `INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT`), `decompte-final-emis.ts`
+   (rubriques vers éléments, refus du solde partiel, arriérés = éléments du
+   mois versés, mois de cessation = mois de fin du contrat, type du registre).
+3. [x] Service et route · `POST /personnel/salaries/:salarieId/decompte-final`
+   (`emettreDecompteFinal`), création partagée avec le bulletin
+   (`figerBulletin`, une séquence, un actif par salarié et par mois toutes
+   natures confondues) ; passation par la paie du mois (P9) sans autre chemin.
 4. [ ] Écran · bouton « Émettre le décompte » dans l'onglet du décompte,
    nature affichée dans la liste des bulletins.
 5. [ ] Bloc du § 3 des deux côtés.
 
+## Décisions prises en lisant la loi (session A8)
+
+- Indemnité de préavis, dommages-intérêts de l'art. 70 et somme convenue de
+  l'art. 61 bis · nature `INDEMNITE_DE_FIN_DE_CONTRAT`, compte 66140000
+  (AUDCIF Titre VIII ch. 21 § 5.2 ; fiche du compte 66 des deux textes).
+  DANS la rémunération (Code du travail, art. 7, point 8 · liste d'exclusion
+  fermée) et IMPOSABLE (loi n° 23/053, art. 68, 6°). Ouverte ni au DTO d'un
+  élément ni aux rubriques du cabinet.
+- Indemnité compensatoire de congé au 6613 (nature existante), gratification
+  au 6612, allocations familiales du décompte sous leur nature (hors
+  rémunération, et leur montant s'ajoute au taux légal de l'art. 69, 1, sans
+  quoi il serait imposé comme un excédent).
+- Arriérés du décompte = éléments du mois saisis nature par nature (art. 100) ;
+  un montant global déclaré qui les contredit est refusé.
+- Le décompte se rapporte au contrat que le registre dit TERMINÉ dans le mois
+  (arrêté de 2008, art. 2, « lors de la résiliation ») ; type de contrat lu au
+  registre.
+- Sommes dues PAR le travailleur (art. 63 al. 3, art. 70) · ni retenues ni
+  comptées (art. 112, liste fermée des retenues).
+- Stipulation en dollars refusée au décompte (ses rubriques sont en francs).
+
 ## Fait
 
-(rien encore)
+Étapes 1 à 3 (commit « A8 · le décompte final émis, figé et passé au journal »).
+Tests · `decompte-final-emis.spec.ts` (règle), `decompte-final-emis-service.spec.ts`
+(câblage, coexistence dans les deux sens, passation 6614 / 422).
 
 ## Reste
 
-Tout le plan ci-dessus.
+Étape 4 (écran) et 5 (bloc du § 3 des deux côtés).
 
 ## Vérification
 
