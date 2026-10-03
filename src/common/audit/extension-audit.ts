@@ -173,9 +173,14 @@ async function ecrireMaillon(
   }
 }
 
-class ErreurMaillonDansTransaction extends Error {
+export class ErreurMaillonDansTransaction extends Error {
   constructor(model: string, operation: string, cause: unknown) {
     super(`Maillon d'audit NON écrit dans la transaction · ${model}.${operation} · ${cause instanceof Error ? cause.message : cause}`);
+    // La cause reste lisible · un échec de SÉRIALISATION du maillon (40001)
+    // est un conflit que `avecRetrySerialisable` doit rejouer, non une panne
+    // (A5, quatrième relecture · deux réévaluations de dossiers différents
+    // finissaient en 500 au lieu d'être reprises).
+    (this as { cause?: unknown }).cause = cause;
   }
 }
 
