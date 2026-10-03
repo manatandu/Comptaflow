@@ -71,8 +71,26 @@ export const ECHEANCE_VERROU_CREANCES_MS = 15 * 60 * 1000;
 export const MOTIF_VERROU_CREANCES =
   'Une opération sur les créances douteuses est en cours sur ce dossier · réessayez après sa fin.';
 
-/** L'à-nouveau d'un exercice · bilan d'ouverture importé ou report, quel qu'en soit le statut. */
-const A_NOUVEAU = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } as const;
+/**
+ * L'À-NOUVEAU QUI FAIT FOI d'un exercice · bilan d'ouverture importé ou report
+ * de la clôture, quel qu'en soit le statut. L'À-NOUVEAU PROVISOIRE d'OmegaX
+ * (`estANouveauProvisoire`) n'en est PAS un (ligne A7 ter, B1) · il est
+ * calculé sur le seul livre-journal de l'exercice précédent, sans son
+ * brouillard (point 11), et lu comme solde il valait zéro pour une facture
+ * passée au brouillard le 10 décembre · le reclassement du 31 décembre était
+ * refusé « au-delà de ce que le client doit au plus tard enregistré
+ * (0.00) ». Même parti que la provision pour pertes de change (ligne A5,
+ * `DevisesService.ouverturesDe`) · seul l'à-nouveau provisoire cède la place
+ * à la clôture précédente, reconstituée brouillard compris.
+ */
+const A_NOUVEAU = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false, estANouveauProvisoire: false } as const;
+
+/**
+ * JAMAIS L'À-NOUVEAU PROVISOIRE DANS UN SOLDE (B1) · la chaîne lit déjà
+ * l'exercice précédent qu'il recopie ; le compter en plus porterait le report
+ * DEUX fois.
+ */
+const HORS_REPORT_PROVISOIRE = { estANouveauProvisoire: false } as const;
 
 const INCLURE_CREANCE = {
   compteCreance: { select: { id: true, numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } } },
@@ -250,17 +268,25 @@ export class CreancesDouteusesService {
     return c;
   }
 
+  /** Un à-nouveau qui fait foi · jamais l'à-nouveau provisoire (B1). */
   private async aUnANouveau(tenantId: string, exerciceId: string) {
     return (await this.prisma.ecriture.count({ where: { tenantId, exerciceId, ...A_NOUVEAU } })) > 0;
   }
 
+  /** L'exercice porte-t-il un à-nouveau PROVISOIRE · seulement pour le dire dans un message. */
+  private async aUnReportProvisoire(tenantId: string, exerciceId: string) {
+    return (await this.prisma.ecriture.count({ where: { tenantId, exerciceId, estANouveauProvisoire: true } })) > 0;
+  }
+
   /**
    * LES EXERCICES DONT LES ÉCRITURES FONT LE SOLDE (relecture adverse, M2) ·
-   * l'exercice lui-même, et, tant qu'il n'a pas d'à-nouveau, l'exercice qui le
-   * précède, récursivement · le report RECONSTITUÉ de la clôture précédente,
-   * comme `lireComptesDuReport` le calcule, et DIT provisoire. Sans lui, une
+   * l'exercice lui-même, et, tant qu'il n'a pas d'à-nouveau QUI FAIT FOI,
+   * l'exercice qui le précède, récursivement · le report RECONSTITUÉ de la
+   * clôture précédente, brouillard compris, et DIT provisoire. Sans lui, une
    * créance de N-1 lue dans N sans à-nouveau valait zéro, et le rapprochement
    * fabriquait un écart qui n'existe pas (§ 10 bis, cinquième défaut).
+   * L'à-nouveau PROVISOIRE n'arrête pas la chaîne (B1) · et `solde` ne le lit
+   * jamais, sans quoi le report serait compté deux fois.
    */
   private async chaine(tenantId: string, ex: { id: string; dateDebut: Date }) {
     const ids = [ex.id];
@@ -281,10 +307,16 @@ export class CreancesDouteusesService {
     return { ids, provisoire };
   }
 
-  /** Solde (débit moins crédit) sur la chaîne d'exercices, jusqu'à une date comprise, brouillard compris. */
+  /**
+   * Solde (débit moins crédit) sur la chaîne d'exercices, jusqu'à une date
+   * comprise, brouillard compris, à-nouveau PROVISOIRE exclu (B1).
+   */
   private async solde(tenantId: string, compte: Prisma.CompteWhereInput, ids: string[], au: Date) {
     const s = await this.prisma.ligneEcriture.aggregate({
-      where: { compte: { tenantId, ...compte }, ecriture: { tenantId, exerciceId: { in: ids }, date: { lte: au } } },
+      where: {
+        compte: { tenantId, ...compte },
+        ecriture: { tenantId, exerciceId: { in: ids }, date: { lte: au }, ...HORS_REPORT_PROVISOIRE },
+      },
       _sum: { debit: true, credit: true },
     });
     return centimes(n(s._sum.debit) - n(s._sum.credit));
@@ -313,6 +345,27 @@ export class CreancesDouteusesService {
   /** B-α · ce qui reste après TOUS les mouvements non annulés, quelle que soit leur date. */
   private resteFinal(c: Creance) {
     return resteFinalDeLaCreance(n(c.montant), c.mouvements.map((m) => ({ montant: n(m.montant) })));
+  }
+
+  /**
+   * LE SOLDE RECONSTITUÉ SE DIT, avec son issue (relecture adverse, M2 ; A7
+   * ter, B1) · sans à-nouveau, passer l'à-nouveau ou le bilan d'ouverture ;
+   * avec un report PROVISOIRE, le relancer une fois le brouillard de
+   * l'exercice précédent validé (le report provisoire ne lit que le
+   * livre-journal, point 11), ou clôturer cet exercice.
+   */
+  private async motifSoldeReconstitue(tenantId: string, exerciceId: string, suite: string) {
+    if (await this.aUnReportProvisoire(tenantId, exerciceId)) {
+      return (
+        " Ce solde est reconstitué depuis l'exercice précédent, brouillard compris · l'à-nouveau de cet exercice n'est qu'un " +
+        'report PROVISOIRE, calculé sur le seul livre-journal, qui ne se lit pas comme un solde. Validez le brouillard de ' +
+        `l'exercice précédent et relancez le report (ou clôturez cet exercice), vérifiez le montant, puis ${suite}.`
+      );
+    }
+    return (
+      " Ce solde est le report RECONSTITUÉ de l'exercice précédent, l'à-nouveau de cet exercice n'étant pas encore passé · " +
+      `passez l'à-nouveau (ou le bilan d'ouverture), puis ${suite}.`
+    );
   }
 
   /**
@@ -373,7 +426,8 @@ export class CreancesDouteusesService {
     const groupes = await this.prisma.ligneEcriture.groupBy({
       by: ['compteId'],
       where: {
-        ecriture: { tenantId, exerciceId: { in: ids } },
+        // B1 · la chaîne lit déjà l'exercice que l'à-nouveau provisoire recopie.
+        ecriture: { tenantId, exerciceId: { in: ids }, ...HORS_REPORT_PROVISOIRE },
         compte: {
           tenantId,
           typeCompte: TypeCompteDetailTotal.DETAIL,
@@ -486,9 +540,12 @@ export class CreancesDouteusesService {
     // m4 · LE 416 DU MODULE SEUL, comme le 491 · une créance reclassée à la
     // main sur un autre 416 fabriquait un écart qui n'est pas celui du module.
     const comptes416 = [...new Set(lignes.map((c) => c.compte416Id))];
-    const [solde416, solde491] = await Promise.all([
+    const [solde416, solde491, reportProvisoire] = await Promise.all([
       comptes416.length > 0 ? this.solde(tenantId, { id: { in: comptes416 } }, ids, ex.dateFin) : Promise.resolve(0),
       comptes491.length > 0 ? this.solde(tenantId, { id: { in: comptes491 } }, ids, ex.dateFin) : Promise.resolve(0),
+      // B1 · l'écran dit pourquoi les soldes sont provisoires · à-nouveau
+      // absent, ou report provisoire à relancer.
+      provisoire ? this.aUnReportProvisoire(tenantId, ex.id) : Promise.resolve(false),
     ]);
     return {
       exercice: { id: ex.id, dateDebut: ex.dateDebut, dateFin: ex.dateFin, statut: ex.statut },
@@ -505,8 +562,10 @@ export class CreancesDouteusesService {
           ? null
           : {
               // Lu sur le report reconstitué de l'exercice précédent tant que
-              // l'à-nouveau n'est pas passé · provisoire, et l'écran le dit.
+              // l'à-nouveau qui fait foi n'est pas passé · provisoire, et
+              // l'écran le dit (B1 · un report provisoire n'en tient pas lieu).
               provisoire,
+              reportProvisoire,
               solde416,
               resteModule: centimes(creances.reduce((s, c) => s + c.resteALaCloture, 0)),
               // Le 491 est créditeur · rendu en positif pour se comparer.
@@ -607,7 +666,12 @@ export class CreancesDouteusesService {
       this.solde(tenantId, { id: source.id }, ids, date),
       this.soldeAuPlusTard(tenantId, source.id, ex, ids),
       this.prisma.ligneEcriture.count({
-        where: { compteId: source.id, deviseId: { not: null }, lettre: null, ecriture: { tenantId, exerciceId: { in: ids } } },
+        where: {
+          compteId: source.id,
+          deviseId: { not: null },
+          lettre: null,
+          ecriture: { tenantId, exerciceId: { in: ids }, ...HORS_REPORT_PROVISOIRE },
+        },
       }),
       this.compte491Choisi(tenantId, dto.nature, dto.compte491Id),
     ]);
@@ -628,12 +692,10 @@ export class CreancesDouteusesService {
       dateDansExercice: date >= ex.dateDebut && date <= ex.dateFin,
       journalGeneral: journal.type === TypeJournal.GENERAL,
     });
-    // Le solde lu sans à-nouveau est le report reconstitué · le refus le dit,
-    // avec l'issue (relecture adverse, M2).
+    // Le solde lu sans à-nouveau qui fait foi est le report reconstitué · le
+    // refus le dit, avec l'issue (relecture adverse, M2 ; A7 ter, B1).
     if (motif && provisoire && motif.includes('dépasse ce que le client doit')) {
-      motif +=
-        " Ce solde est le report RECONSTITUÉ de l'exercice précédent, l'à-nouveau de cet exercice n'étant pas encore passé · " +
-        "passez l'à-nouveau (ou le bilan d'ouverture), puis reprenez le reclassement.";
+      motif += await this.motifSoldeReconstitue(tenantId, ex.id, 'reprenez le reclassement');
     }
     if (motif) throw new BadRequestException(motif);
 
@@ -701,14 +763,11 @@ export class CreancesDouteusesService {
     ]);
     const c491 = await this.compte491Choisi(tenantId, dto.nature, dto.compte491Id);
     const date = ex.dateDebut;
-    const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
-    const [an416, an491, existe, dejaPorte] = await Promise.all([
-      this.prisma.ligneEcriture.aggregate({ where: { compteId: c416.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
-      this.prisma.ligneEcriture.aggregate({ where: { compteId: c491.id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
-      this.aUnANouveau(tenantId, ex.id),
+    const [ouverture, dejaPorte] = await Promise.all([
+      this.soldesALOuverture(tenantId, ex, c416.id, c491.id),
       this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
     ]);
-    const motif = motifRefusDeclaration({
+    let motif = motifRefusDeclaration({
       referentiel,
       nature: dto.nature,
       numeroSource: source.numero,
@@ -719,12 +778,16 @@ export class CreancesDouteusesService {
       source: dto.source,
       dateDebutExercice: true,
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
-      aNouveau: existe,
-      aNouveau416: centimes(n(an416._sum.debit) - n(an416._sum.credit)),
+      aNouveau: ouverture.existe,
+      aNouveau416: ouverture.solde416,
       dejaDeclare416: dejaPorte.sur416,
-      aNouveau491: centimes(n(an491._sum.credit) - n(an491._sum.debit)),
+      aNouveau491: ouverture.solde491,
       dejaDeclare491: dejaPorte.sur491,
     });
+    // B1 · une borne lue sur le report reconstitué se dit, avec son issue.
+    if (motif && ouverture.reconstitue && motif.includes('dépasse')) {
+      motif += await this.motifSoldeReconstitue(tenantId, ex.id, 'reprenez la déclaration');
+    }
     if (motif) throw new BadRequestException(motif);
     const ligne = await transactionJournalisee(this.prisma, (tx) =>
       tx.creanceDouteuse.create({
@@ -747,6 +810,47 @@ export class CreancesDouteusesService {
       }),
     );
     return { ...ligne, montant: n(ligne.montant), depreciationOuverture: n(ligne.depreciationOuverture) };
+  }
+
+  /**
+   * LA BORNE DE LA DÉCLARATION D'OUVERTURE (relecture adverse, M3 ; A7 ter,
+   * B1) · l'à-nouveau QUI FAIT FOI du 416 (débit net) et du 491 (crédit net).
+   * Sans lui, le report RECONSTITUÉ de la clôture précédente, brouillard
+   * compris, à la veille de l'ouverture · comme toute lecture du module
+   * (M2), et jamais l'à-nouveau PROVISOIRE, calculé sur le seul livre-journal
+   * · il ignorait le brouillard de l'exercice précédent, et une créance
+   * passée au 416 au brouillard se déclarait refusée, ou une sortie au
+   * brouillard laissait déclarer ce qui n'y était plus. Sans à-nouveau ni
+   * exercice précédent, aucune borne · la déclaration est refusée.
+   */
+  private async soldesALOuverture(tenantId: string, ex: { id: string; dateDebut: Date }, compte416Id: string, compte491Id: string) {
+    if (await this.aUnANouveau(tenantId, ex.id)) {
+      const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };
+      const [an416, an491] = await Promise.all([
+        this.prisma.ligneEcriture.aggregate({ where: { compteId: compte416Id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
+        this.prisma.ligneEcriture.aggregate({ where: { compteId: compte491Id, ecriture: aNouveau }, _sum: { debit: true, credit: true } }),
+      ]);
+      return {
+        existe: true,
+        reconstitue: false,
+        solde416: centimes(n(an416._sum.debit) - n(an416._sum.credit)),
+        solde491: centimes(n(an491._sum.credit) - n(an491._sum.debit)),
+      };
+    }
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateFin: { lt: ex.dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateDebut: true },
+    });
+    if (!precedent) return { existe: false, reconstitue: false, solde416: 0, solde491: 0 };
+    const { ids } = await this.chaine(tenantId, precedent);
+    const veille = new Date(ex.dateDebut.getTime() - 24 * 60 * 60 * 1000);
+    const [s416, s491] = await Promise.all([
+      this.solde(tenantId, { id: compte416Id }, ids, veille),
+      this.solde(tenantId, { id: compte491Id }, ids, veille),
+    ]);
+    // Le 491 est créditeur · rendu en positif, comme l'à-nouveau.
+    return { existe: true, reconstitue: true, solde416: s416, solde491: centimes(-s491) };
   }
 
   /**

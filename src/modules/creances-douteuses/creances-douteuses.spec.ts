@@ -406,6 +406,14 @@ describe('créances douteuses · service', () => {
       solde?: number;
       creationEchoue?: boolean;
       aNouveauDans?: string[];
+      /** B1 · les exercices qui ne portent qu'un à-nouveau PROVISOIRE. */
+      reportProvisoireDans?: string[];
+      /**
+       * B1 · les lignes de la base, lues par la doublure de `aggregate` qui
+       * HONORE la requête (compte, exercices, date, à-nouveau provisoire).
+       * Absentes, `aggregate` rend `solde`.
+       */
+      lignes?: Array<{ compteId: string; exerciceId: string; date: string; debit: number; credit: number; provisoire?: boolean; aNouveau?: boolean }>;
       revue?: Record<string, unknown> | null;
       verrouTenu?: boolean;
       mouvement?: Record<string, unknown> | null;
@@ -426,6 +434,26 @@ describe('créances douteuses · service', () => {
       options.statutRelu ??
       ((options.revue as any)?.ecriture?.statut ?? (options.mouvement as any)?.ecriture?.statut ?? (options.creance as any)?.ecritureReclassement?.statut ?? 'BROUILLARD');
     const aNouveauDans = options.aNouveauDans ?? ['ex-26', 'ex-27'];
+    const reportProvisoireDans = options.reportProvisoireDans ?? [];
+    // B1 · la doublure de `aggregate` honore la requête quand la base est donnée.
+    const aggregatSurLignes = ({ where }: any) => {
+      const e = where.ecriture ?? {};
+      const exercicesLus: string[] | null = e.exerciceId?.in ?? (e.exerciceId ? [e.exerciceId] : null);
+      const comptesLus: string[] | null = where.compteId
+        ? [where.compteId]
+        : where.compte?.id?.in ?? (where.compte?.id ? [where.compte.id] : null);
+      const retenues = options.lignes!.filter(
+        (l) =>
+          (!comptesLus || comptesLus.includes(l.compteId)) &&
+          (!exercicesLus || exercicesLus.includes(l.exerciceId)) &&
+          (!e.date?.lte || new Date(l.date) <= e.date.lte) &&
+          (e.estANouveauProvisoire !== false || !l.provisoire) &&
+          (!e.estGenereeParCloture || l.aNouveau === true || l.provisoire === true),
+      );
+      return Promise.resolve({
+        _sum: { debit: retenues.reduce((t, l) => t + l.debit, 0), credit: retenues.reduce((t, l) => t + l.credit, 0) },
+      });
+    };
     const prisma: any = {
       tenant: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({
@@ -445,7 +473,13 @@ describe('créances douteuses · service', () => {
         findFirst: jest.fn().mockResolvedValue({ geste: 'REVUE', createdAt: new Date('2026-12-31T10:00:00Z'), echeance: new Date('2026-12-31T10:15:00Z') }),
       },
       ecriture: {
-        count: jest.fn().mockImplementation(({ where }) => Promise.resolve(where.estGenereeParCloture && aNouveauDans.includes(where.exerciceId) ? 1 : 0)),
+        // B1 · la doublure distingue l'à-nouveau qui fait foi du report PROVISOIRE.
+        count: jest.fn().mockImplementation(({ where }) => {
+          if (where.estANouveauProvisoire === true) return Promise.resolve(reportProvisoireDans.includes(where.exerciceId) ? 1 : 0);
+          if (!where.estGenereeParCloture) return Promise.resolve(0);
+          const provisoireCompte = where.estANouveauProvisoire !== false && reportProvisoireDans.includes(where.exerciceId);
+          return Promise.resolve(aNouveauDans.includes(where.exerciceId) || provisoireCompte ? 1 : 0);
+        }),
         // M1 · la doublure honore le filtre de statut · une écriture validée
         // entre-temps ne se supprime pas.
         deleteMany: jest.fn().mockImplementation(({ where }) => Promise.resolve({ count: where.statut && where.statut !== statutRelu() ? 0 : 1 })),
@@ -462,6 +496,7 @@ describe('créances douteuses · service', () => {
             exercices.filter(
               (e) =>
                 (!where.statut || e.statut === where.statut) &&
+                (!where.id?.not || e.id !== where.id.not) &&
                 (!where.dateFin?.gte || e.dateFin >= where.dateFin.gte) &&
                 (!where.dateFin?.lt || e.dateFin < where.dateFin.lt),
             ),
@@ -479,7 +514,11 @@ describe('créances douteuses · service', () => {
         ),
       },
       ligneEcriture: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { debit: options.solde ?? 1_160_000, credit: 0 } }),
+        aggregate: jest
+          .fn()
+          .mockImplementation((args: any) =>
+            options.lignes ? aggregatSurLignes(args) : Promise.resolve({ _sum: { debit: options.solde ?? 1_160_000, credit: 0 } }),
+          ),
         count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn().mockResolvedValue([{ lettre: null, lettrageId: null, rapprochementId: null }]),
         deleteMany: jest.fn().mockResolvedValue({}),
@@ -545,7 +584,8 @@ describe('créances douteuses · service', () => {
     // L'exercice a son à-nouveau · le solde du client se lit dans lui seul, à la date.
     expect(prisma.ligneEcriture.aggregate.mock.calls[0][0].where).toEqual({
       compte: { tenantId: 't', id: 'cli' },
-      ecriture: { tenantId: 't', exerciceId: { in: ['ex-26'] }, date: { lte: new Date('2026-11-15') } },
+      // B1 · l'à-nouveau provisoire n'entre jamais dans un solde.
+      ecriture: { tenantId: 't', exerciceId: { in: ['ex-26'] }, date: { lte: new Date('2026-11-15') }, estANouveauProvisoire: false },
     });
     expect(prisma.verrouCreancesDouteuses.create).toHaveBeenCalled();
     expect(prisma.verrouCreancesDouteuses.deleteMany).toHaveBeenLastCalledWith({ where: { tenantId: 't', id: 'verrou-1' } });
@@ -557,6 +597,73 @@ describe('créances douteuses · service', () => {
       /report RECONSTITUÉ de l'exercice précédent.*passez l'à-nouveau/,
     );
     expect(prisma.ligneEcriture.aggregate.mock.calls[0][0].where.ecriture.exerciceId).toEqual({ in: ['ex-27', 'ex-26'] });
+  });
+
+  // B1 (A7 ter) · LE SCÉNARIO DE LA RELECTURE · facture de 1 160 000 passée
+  // au BROUILLARD le 10 décembre 2026 ; 2027 déjà ouvert, avec un report
+  // à-nouveau PROVISOIRE calculé sur le seul livre-journal (la facture n'y
+  // est donc pas). Le reclassement du 31 décembre 2026 était refusé « au-delà
+  // de ce que le client doit au plus tard enregistré (0.00) ».
+  const factureAuBrouillard = { compteId: 'cli', exerciceId: 'ex-26', date: '2026-12-10', debit: 1_160_000, credit: 0 };
+
+  it('B1 · un à-nouveau PROVISOIRE n’arrête pas la chaîne · le reclassement du 31 décembre passe sur la facture au brouillard', async () => {
+    const { service, creer, prisma } = monter({
+      aNouveauDans: [],
+      reportProvisoireDans: ['ex-27'],
+      // Le report provisoire de 2027 ne porte rien au client (la facture était au brouillard).
+      lignes: [factureAuBrouillard, { compteId: 'c521', exerciceId: 'ex-27', date: '2027-01-01', debit: 50_000, credit: 0, provisoire: true }],
+    });
+    await service.reclasser('t', 'u', { ...dtoReclassement, date: '2026-12-31' });
+    expect(creer).toHaveBeenCalledTimes(1);
+    // La chaîne de 2027 remonte à 2026 · le report provisoire ne l'a pas arrêtée.
+    const exercicesLus = prisma.ligneEcriture.aggregate.mock.calls.map((c: any) => c[0].where.ecriture.exerciceId.in);
+    expect(exercicesLus).toContainEqual(['ex-27', 'ex-26']);
+    // Et l'à-nouveau qui fait foi se compte SANS le provisoire.
+    expect(prisma.ecriture.count).toHaveBeenCalledWith({
+      where: { tenantId: 't', exerciceId: 'ex-27', estGenereeParCloture: true, estSoldeDesComptesDeGestion: false, estANouveauProvisoire: false },
+    });
+  });
+
+  it('B1 · le report provisoire n’est jamais compté DEUX fois · facture validée, recopiée par le report de 2027', async () => {
+    const { service, creer } = monter({
+      aNouveauDans: [],
+      reportProvisoireDans: ['ex-27'],
+      lignes: [
+        { ...factureAuBrouillard, date: '2026-11-10' },
+        { compteId: 'cli', exerciceId: 'ex-27', date: '2027-01-01', debit: 1_160_000, credit: 0, provisoire: true },
+      ],
+    });
+    // En 2027, le client doit 1 160 000, jamais 2 320 000.
+    await expect(
+      service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15', montant: 2_000_000 }),
+    ).rejects.toThrow(/\(1160000\.00\).*report PROVISOIRE.*relancez le report/);
+    expect(creer).not.toHaveBeenCalled();
+    await service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15' });
+    expect(creer).toHaveBeenCalledTimes(1);
+  });
+
+  it('B1 · la déclaration d’ouverture se borne par le report reconstitué, jamais par l’à-nouveau provisoire', async () => {
+    const { service, prisma } = monter({
+      aNouveauDans: [],
+      reportProvisoireDans: ['ex-27'],
+      lignes: [
+        // Au 4162 à la clôture de 2026, au brouillard · le report provisoire l'ignore.
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-06-30', debit: 500_000, credit: 0 },
+        { compteId: 'c4912', exerciceId: 'ex-26', date: '2026-12-31', debit: 0, credit: 100_000 },
+      ],
+    });
+    const dto = {
+      exerciceId: 'ex-27',
+      compteCreanceId: 'cli',
+      compte416Id: 'c4162',
+      nature: NatureCreanceDouteuse.DOUTEUSE,
+      montant: 500_000,
+      depreciationOuverture: 100_000,
+      source: 'Balance de reprise',
+    };
+    await service.declarer('t', 'u', dto);
+    expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
+    await expect(service.declarer('t', 'u', { ...dto, montant: 500_000.01 })).rejects.toThrow(/report PROVISOIRE.*reprenez la déclaration/);
   });
 
   it('M6 · un second geste reçoit aussitôt un 409 qui dit le geste en cours', async () => {

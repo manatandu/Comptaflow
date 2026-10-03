@@ -5,7 +5,7 @@ Fiche retirée à l'intégration.
 
 ## Reste à faire
 
-- [ ] B1 · l'à-nouveau PROVISOIRE n'arrête plus la chaîne ni ne sert de solde
+- [x] B1 · l'à-nouveau PROVISOIRE n'arrête plus la chaîne ni ne sert de solde
 - [ ] B3 · la ligne C 411 d'un reclassement hors du lettrage (automatique, pré-lettrage, manuel)
 - [ ] B2 (a) · `TIERS_ANCIEN_NON_LETTRE` écarte les écritures tenues par une créance douteuse
 - [ ] B2 (b) · le module lettre ses lignes 416 à l'extinction, et défait ce lettrage à l'annulation
@@ -21,11 +21,14 @@ Fiche retirée à l'intégration.
 
 ## Fait
 
-(rien encore)
+- B1 · `A_NOUVEAU` exclut `estANouveauProvisoire` ; `solde`, `comptes`, le contrôle de devise et la borne de la
+  déclaration (`soldesALOuverture`, report reconstitué brouillard compris) l'excluent ; refus et écran disent
+  « report provisoire, relancez-le après validation » (`motifSoldeReconstitue`, `rapprochement.reportProvisoire`).
 
 ## Décisions prises, avec leur source
 
-(à compléter au fil des lots)
+- B1 · même parti que la ligne A5 (`DevisesService.ouverturesDe`) · seul l'à-nouveau provisoire, calculé sur le
+  seul livre-journal (point 11), cède la place à la clôture précédente reconstituée.
 
 ## Vérification
 
