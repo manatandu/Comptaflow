@@ -1408,11 +1408,20 @@ export class InventaireService {
       applicable: true as const,
       unite: enDevise && unite.devise ? unite.devise.code : null,
       lignes: lignes.map((l) => {
-        // Dans l'unité du PV · en devise, le montant en devise signé par le
-        // sens de la ligne ; une ligne sans devise (écart de réévaluation) n'a
-        // aucun montant en devise et vaut zéro dans cette unité.
-        const montant = enDevise ? Number(l.montantDevise ?? 0) : Number(l.debit) + Number(l.credit);
-        const auDebit = Number(l.debit) > 0;
+        // Dans l'unité du PV, et dans la colonne de SON côté · une inscription
+        // en négatif (AUDCIF art. 20, `lignesEnNegatif`) porte un débit ou un
+        // crédit NÉGATIF et un montant en devise SANS signe. Elle reste dans sa
+        // colonne, en négatif, comme `sommesDansLUnite` la compte (débit
+        // effectif = débits positifs moins débits négatifs) · lue sur
+        // `debit > 0`, une correction d'encaissement passait en décaissement,
+        // et en francs elle y entrait même négative. Le sens net reste celui de
+        // `positionDesLignes` (débit moins crédit). Une ligne sans devise
+        // (écart de réévaluation) vaut zéro dans l'unité de la devise.
+        const debit = Number(l.debit);
+        const credit = Number(l.credit);
+        const auDebit = debit !== 0;
+        const brut = auDebit ? debit : credit;
+        const montant = enDevise ? Math.sign(brut) * Number(l.montantDevise ?? 0) : brut;
         return {
           id: l.id,
           date: l.ecriture.dateValeur ?? l.ecriture.date,

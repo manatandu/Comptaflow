@@ -264,19 +264,33 @@ export async function uniteDeLaCaisse(
 type Ecr = Prisma.EcritureWhereInput;
 
 /**
- * Débits, crédits et nombre de lignes d'une fenêtre, DANS L'UNITÉ · en
- * devise, le montant en devise signé par le sens de la ligne (il est toujours
- * positif, `ligne-en-devise.ts`), écritures d'écarts de réévaluation à part.
+ * Débits, crédits et nombre de lignes d'une fenêtre, DANS L'UNITÉ.
+ *
+ * En devise, le montant en devise est stocké SANS SIGNE (`ligne-en-devise.ts`)
+ * et le sens vient de la ligne, débit moins crédit, règle commune avec
+ * `positionDesLignes` (devises/perimetre-reevaluation.ts). Une inscription en
+ * NÉGATIF (`EcritureService.lignesEnNegatif`, AUDCIF art. 20 · correction,
+ * réimputation, annulation) porte un débit ou un crédit NÉGATIF et recopie le
+ * montant en devise tel quel · la filtrer sur `debit > 0` laissait l'erreur
+ * corrigée au solde, et le PV figeait un manquant qui n'existe pas. Débit
+ * effectif = lignes au débit positif MOINS lignes au débit négatif ; crédit
+ * de même. Écritures d'écarts de réévaluation à part (aucun montant en devise).
  */
 export async function sommesDansLUnite(prisma: Client, compteId: string, ecriture: Ecr, unite: UniteComparaison) {
   if (unite.mode === ModeComparaisonCaisse.DEVISE) {
     const e: Ecr = { AND: [ecriture, HORS_ECARTS_DE_REEVALUATION] };
-    const [d, c, n] = await Promise.all([
-      prisma.ligneEcriture.aggregate({ where: { compteId, ecriture: e, debit: { gt: 0 } }, _sum: { montantDevise: true } }),
-      prisma.ligneEcriture.aggregate({ where: { compteId, ecriture: e, credit: { gt: 0 } }, _sum: { montantDevise: true } }),
+    const somme = (filtre: Prisma.LigneEcritureWhereInput) =>
+      prisma.ligneEcriture
+        .aggregate({ where: { compteId, ecriture: e, ...filtre }, _sum: { montantDevise: true } })
+        .then((r) => Number(r._sum?.montantDevise ?? 0));
+    const [dPlus, dMoins, cPlus, cMoins, n] = await Promise.all([
+      somme({ debit: { gt: 0 } }),
+      somme({ debit: { lt: 0 } }),
+      somme({ credit: { gt: 0 } }),
+      somme({ credit: { lt: 0 } }),
       prisma.ligneEcriture.count({ where: { compteId, ecriture: e } }),
     ]);
-    return { debit: Number(d._sum?.montantDevise ?? 0), credit: Number(c._sum?.montantDevise ?? 0), nombre: n };
+    return { debit: dPlus - dMoins, credit: cPlus - cMoins, nombre: n };
   }
   const s = await prisma.ligneEcriture.aggregate({
     where: { compteId, ecriture },

@@ -736,3 +736,69 @@ describe('(a) l’aperçu avant de figer', () => {
     expect(refus).toMatchObject({ lisible: false });
   });
 });
+
+describe('une inscription en NÉGATIF se compte dans son sens (AUDCIF art. 20, `lignesEnNegatif`)', () => {
+  // `lignesEnNegatif` nie le débit ou le crédit et recopie le montant en
+  // devise SANS signe · filtrée sur `debit > 0`, la correction disparaissait
+  // et l'encaissement corrigé restait au solde en dollars.
+  const negatif = (exerciceId: string, date: string, montantFc: number, usd: number) =>
+    ligne(exerciceId, date, { debit: -montantFc }, { devise: ['usd', usd] });
+
+  it('encaissement de 300 USD inscrit en négatif · il ne reste rien de lui au solde', async () => {
+    const l = [...livreUsd(), negatif('ex26', '2026-01-06', 900_000, 300)];
+    const r = await lire(l, '2026-01-10');
+    expect(r.lisible && r.soldeComptable).toBe(2_100);
+    expect(r.lisible && r.reconstitution).toMatchObject({
+      soldeALaCloture: 2_500,
+      encaissementsPosterieurs: 0,
+      decaissementsPosterieurs: 400,
+    });
+  });
+
+  it('réimputé vers le 5211 · négatif sur la caisse, l’exact sur la banque, la caisse perd les 300 USD', async () => {
+    const l = [
+      ...livreUsd(),
+      negatif('ex26', '2026-01-06', 900_000, 300),
+      ligne('ex26', '2026-01-06', { debit: 900_000 }, { compteId: '5211', devise: ['usd', 300] }),
+    ];
+    const r = await lire(l, '2026-01-10');
+    expect(r.lisible && r.soldeComptable).toBe(2_100);
+  });
+
+  it('un décaissement inscrit en négatif au crédit se retranche des décaissements', async () => {
+    const l = [...livreUsd(), ligne('ex26', '2026-01-09', { credit: -1_200_000 }, { devise: ['usd', 400] })];
+    const r = await lire(l, '2026-01-10');
+    expect(r.lisible && r.soldeComptable).toBe(2_800);
+    expect(r.lisible && r.reconstitution).toMatchObject({ encaissementsPosterieurs: 300, decaissementsPosterieurs: 0 });
+  });
+
+  it('en francs, rien ne change · le négatif était déjà soustrait par la somme des débits', async () => {
+    const l = [...livre(), ligne('ex26', '2026-01-06', { debit: -300_000 })];
+    const r = await lire(l, '2026-01-10');
+    expect(r.lisible && r.soldeComptable).toBe(580_000);
+    expect(r.lisible && r.reconstitution).toMatchObject({ encaissementsPosterieurs: 0, decaissementsPosterieurs: 470_000 });
+  });
+
+  it('les mouvements ligne à ligne gardent le négatif dans SA colonne, et leurs sommes rendent les totaux', async () => {
+    const m = monter([...livreUsd(), negatif('ex26', '2026-01-06', 900_000, 300)]);
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 2_100));
+    const r = await m.svc.mouvementsReconstitution('t1', 'pv1');
+    if (!r.applicable) throw new Error('applicable attendu');
+    expect(r.lignes.map((x) => [x.encaissement, x.decaissement])).toEqual([
+      [300, 0],
+      [0, 400],
+      [-300, 0],
+    ]);
+    expect(r.lignes.reduce((s, x) => s + x.encaissement, 0)).toBe(r.encaissements);
+    expect(r.concorde).toBe(true);
+  });
+
+  it('en francs, une ligne négative au débit reste un encaissement négatif, jamais un décaissement négatif', async () => {
+    const m = monter([...livre(), ligne('ex26', '2026-01-06', { debit: -300_000 })]);
+    await m.svc.etablirPvCaisse('t1', 'camp1', 'u1', corps('2026-01-10', 580_000));
+    const r = await m.svc.mouvementsReconstitution('t1', 'pv1');
+    if (!r.applicable) throw new Error('applicable attendu');
+    expect(r.lignes.find((x) => x.encaissement === -300_000)).toBeDefined();
+    expect(r.lignes.every((x) => x.decaissement >= 0)).toBe(true);
+  });
+});
