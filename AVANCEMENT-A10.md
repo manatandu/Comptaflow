@@ -84,6 +84,10 @@ art. 16 ; fiche du compte 57) · relevé CPCC C6, décision de Manasse du
    ramené à ce que la transaction garantit · une pièce validée pendant la
    lecture n'est pas tue, le PV dit « ne concorde pas ». Commentaire de la
    route des mouvements remis au-dessus d'elle. Schéma inchangé.
+9. Bloc du § 3 du second tour · serveur `tsc` et `npm run build` verts,
+   `npx jest --maxWorkers=2` · 701 suites, 9 740 tests, tous verts, aucune
+   suite tuée ; client `tsc`, 204 fichiers et 1 665 tests verts,
+   `npm run build` vert.
 
 ## Relevés en attente (second tour, non codés)
 
