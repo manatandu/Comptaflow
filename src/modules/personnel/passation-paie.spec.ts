@@ -4,6 +4,7 @@ import {
   IMPUTATION_PAR_NATURE,
   NATURES_SANS_IMPUTATION,
   NOMENCLATURE_PAIE,
+  RESERVE_INDEMNITES_PERSONNEL_NATIONAL,
   compteDuRole,
   estVerseEnEspeces,
   passationPaie,
@@ -45,11 +46,13 @@ describe('Chaque numéro de la nomenclature est RÉELLEMENT ouvert dans son semi
     }
   });
 
-  it("gèle le décompte · UN SEUL rôle diverge sur les dix-huit", () => {
+  it("gèle le décompte · UN SEUL rôle diverge sur les dix-neuf", () => {
     // Dix-sept jusqu'au 2026-09-27 · le transfert de charges des avantages en
     // nature (781) est le dix-huitième (audit final F22), même numéro aux deux.
+    // A8 · les indemnités de fin de contrat (6614) sont le dix-neuvième,
+    // même numéro et même fiche aux deux textes.
     const divergents = roles.filter((x) => NOMENCLATURE_PAIE[x].divergent);
-    expect(roles).toHaveLength(18);
+    expect(roles).toHaveLength(19);
     expect(divergents).toEqual(['CNSS_PENSIONS']);
   });
 
@@ -91,10 +94,15 @@ describe("Le piège du 432, et la correction évidente qui est elle-même un pi�
 });
 
 describe('Les deux tables de natures se complètent exactement', () => {
-  it("couvre les quinze natures, sans trou ni recouvrement", () => {
+  it("couvre les seize natures, sans trou ni recouvrement", () => {
+    // Quinze jusqu'à A8 · l'indemnité de fin de contrat du décompte final est
+    // la seizième, imputée au 6614 (AUDCIF Titre VIII ch. 21 § 5.2).
     const imputees = Object.keys(IMPUTATION_PAR_NATURE);
     const sansImputation = Object.keys(NATURES_SANS_IMPUTATION);
-    expect(imputees.length + sansImputation.length).toBe(15);
+    expect(imputees.length + sansImputation.length).toBe(16);
+    expect(IMPUTATION_PAR_NATURE.INDEMNITE_DE_FIN_DE_CONTRAT).toBe('INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT');
+    expect(NOMENCLATURE_PAIE.INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT.SYSCOHADA).toBe('66140000');
+    expect(NOMENCLATURE_PAIE.INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT.SYCEBNL).toBe('66140000');
     expect(imputees.filter((n) => sansImputation.includes(n))).toEqual([]);
   });
 
@@ -237,6 +245,31 @@ describe("L'écriture proposée", () => {
     const appointements = v.lignes.filter((l) => l.compte === '66110000');
     expect(appointements).toHaveLength(1);
     expect(appointements[0].montantFc).toBeCloseTo(1_000_000, 6);
+  });
+});
+
+describe('A8 (p) · la réserve du personnel non national vaut aussi pour le 6614', () => {
+  it("porte la ligne du 66140000 et nomme le 66240000 · OmegaX ne connaît pas la nationalité", () => {
+    const v = passationPaie(
+      entree({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 300_000 },
+          { nature: 'INDEMNITE_DE_FIN_DE_CONTRAT', libelle: 'Préavis', montantFc: 100_000 },
+        ],
+      }),
+    );
+    const l = v.lignes.find((x) => x.bloc === 'BRUT' && x.compte === '66140000');
+    expect(l?.reserve).toBe(RESERVE_INDEMNITES_PERSONNEL_NATIONAL);
+    expect(RESERVE_INDEMNITES_PERSONNEL_NATIONAL).toContain('66240000');
+    // Le salaire, lui, ne la porte pas · la réserve suit le rôle, pas le bloc.
+    expect(v.lignes.find((x) => x.bloc === 'BRUT' && x.compte === '66110000')?.reserve).toBeNull();
+  });
+
+  it('le 66240000 est semé aux deux plans, sous le personnel non national', () => {
+    for (const f of ['compte-seed.ts', 'compte-seed-syscohada.ts']) {
+      expect(readFileSync(join(SEMIS, f), 'utf8')).toContain("'66240000'");
+    }
   });
 });
 

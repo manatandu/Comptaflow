@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
@@ -12,6 +12,13 @@ import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 import { montant } from '../lib/montants';
+import {
+  corpsEmissionDecompte,
+  motifDecompteNonEmissible,
+  totalVentile,
+  ventilationDesAvantages,
+  type SaisieVentilation,
+} from '../lib/decompte-emis';
 
 /**
  * LE PERSONNEL · le registre (l'état civil, les engagements, et ce que
@@ -628,6 +635,15 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
    * démissionnaire le préavis entier de l'employeur (audit D2-A1) ; le serveur
    * refuse aussi la combinaison.
    */
+  // A8 · LA VENTILATION DES AVANTAGES compris dans l'indemnité · logement,
+  // transport et soins sortent de l'assiette sociale sous leur nature (Code du
+  // travail, art. 7, point 8) ; le serveur refuse un montant non ventilé.
+  const [ventil, setVentil] = useState<SaisieVentilation>({ logement: '', transport: '', soins: '', autres: '' });
+  // A8 (c, d) · un clic ne part qu'une fois, et une réponse arrivée après un
+  // changement de salarié ou de mois est jetée · elle parlerait d'un autre.
+  const emissionDecompteEnVol = useRef(false);
+  const jetonEmissionDecompte = useRef(0);
+  const [avertissementsDecompte, setAvertissementsDecompte] = useState<string[]>([]);
   const initiativeDuMotif = (motif: string) =>
     motif === 'DEMISSION' ? 'TRAVAILLEUR' : motif === 'LICENCIEMENT' ? 'EMPLOYEUR' : null;
   const [enfantsAllocations, setEnfantsAllocations] = useState('');
@@ -893,44 +909,52 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
    * réserves sur le séminaire CPCC vivent dans `decompte-final.ts`. Les
    * recopier ici produirait un second décompte, plausible et différent.
    */
-  const calculerDecompte = () => {
-    setErreur('');
-    setEnCours(true);
+  // UN SEUL CORPS POUR CALCULER ET POUR ÉMETTRE LE DÉCOMPTE (A8) · comme le
+  // bulletin, le décompte émis est le calcul rejoué par le serveur.
+  const corpsDecompte = () => {
     const nombre = (v: string) => {
       const n = Number(v.replace(/\s/g, '').replace(',', '.'));
       return v.trim() === '' || Number.isNaN(n) ? undefined : n;
     };
+    return {
+      // A8 (B2) · un champ vide part VIDE, jamais lu zéro · le serveur exige
+      // ces deux faits à l'émission, et l'écran refuse le clic avant.
+      anneesAnciennete: nombre(dec.anneesAnciennete),
+      moisNonCouvertsParUnConge: nombre(dec.moisNonCouvertsParUnConge),
+      moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
+      initiative: dec.initiative,
+      motif: dec.motif,
+      typeContrat: dec.typeContrat || undefined,
+      periodeDEssai: dec.periodeDEssai,
+      joursDEssaiEcoules: dec.periodeDEssai ? nombre(dec.joursDEssaiEcoules) : undefined,
+      delegueSyndical: dec.delegueSyndical,
+      dateNotification: dec.dateNotification || undefined,
+      preavisRetenuJours: nombre(dec.preavisRetenuJours),
+      forceMajeureConstateeParInspecteur: dec.forceMajeureConstateeParInspecteur,
+      deuxMoisDeSuspension: dec.deuxMoisDeSuspension,
+      executionPreavis: dec.executionPreavis || undefined,
+      joursPreavisNonObserves: nombre(dec.joursPreavisNonObserves),
+      partieResponsable: dec.partieResponsable || undefined,
+      remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
+      moyenneMensuelleArticle66Fc: nombre(dec.moyenneMensuelleArticle66Fc),
+      moyenneMensuelleArticle142Fc: nombre(dec.moyenneMensuelleArticle142Fc),
+      avantagesPendantPreavisFc: nombre(dec.avantagesPendantPreavisFc),
+      joursRestantsJusquAuTerme: nombre(dec.joursRestantsJusquAuTerme),
+      avantagesJusquAuTermeFc: nombre(dec.avantagesJusquAuTermeFc),
+      montantConvenuCommunAccordFc: nombre(dec.montantConvenuCommunAccordFc),
+      arrieresFc: nombre(dec.arrieresFc),
+      gratificationFc: nombre(dec.gratificationFc),
+      moisDeCessation: dec.moisDeCessation || undefined,
+      enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
+      joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
+    };
+  };
+
+  const calculerDecompte = () => {
+    setErreur('');
+    setEnCours(true);
     api
-      .post<Decompte>('/personnel/decompte-final', {
-        anneesAnciennete: nombre(dec.anneesAnciennete) ?? 0,
-        moisNonCouvertsParUnConge: nombre(dec.moisNonCouvertsParUnConge) ?? 0,
-        moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
-        initiative: dec.initiative,
-        motif: dec.motif,
-        typeContrat: dec.typeContrat || undefined,
-        periodeDEssai: dec.periodeDEssai,
-        joursDEssaiEcoules: dec.periodeDEssai ? nombre(dec.joursDEssaiEcoules) : undefined,
-        delegueSyndical: dec.delegueSyndical,
-        dateNotification: dec.dateNotification || undefined,
-        preavisRetenuJours: nombre(dec.preavisRetenuJours),
-        forceMajeureConstateeParInspecteur: dec.forceMajeureConstateeParInspecteur,
-        deuxMoisDeSuspension: dec.deuxMoisDeSuspension,
-        executionPreavis: dec.executionPreavis || undefined,
-        joursPreavisNonObserves: nombre(dec.joursPreavisNonObserves),
-        partieResponsable: dec.partieResponsable || undefined,
-        remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
-        moyenneMensuelleArticle66Fc: nombre(dec.moyenneMensuelleArticle66Fc),
-        moyenneMensuelleArticle142Fc: nombre(dec.moyenneMensuelleArticle142Fc),
-        avantagesPendantPreavisFc: nombre(dec.avantagesPendantPreavisFc),
-        joursRestantsJusquAuTerme: nombre(dec.joursRestantsJusquAuTerme),
-        avantagesJusquAuTermeFc: nombre(dec.avantagesJusquAuTermeFc),
-        montantConvenuCommunAccordFc: nombre(dec.montantConvenuCommunAccordFc),
-        arrieresFc: nombre(dec.arrieresFc),
-        gratificationFc: nombre(dec.gratificationFc),
-        moisDeCessation: dec.moisDeCessation || undefined,
-        enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
-        joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
-      })
+      .post<Decompte>('/personnel/decompte-final', corpsDecompte())
       .then(
         (r) => {
           setDecompte(r);
@@ -939,6 +963,84 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
         (e: ApiError) => {
           setErreur(e.message);
           setEnCours(false);
+        },
+      );
+  };
+
+  /**
+   * A8 · ÉMETTRE LE DÉCOMPTE FINAL · les faits de la rupture (cet onglet) et
+   * la paie du mois de cessation (les éléments de l'onglet Simulation), que
+   * le serveur rejoue et fige comme un bulletin. Les éléments du mois TIENNENT
+   * LIEU des arriérés · une saisie qui les contredit est NOMMÉE et refuse le
+   * clic, elle n'est jamais effacée (B1). Le corps se construit hors du
+   * composant (`corpsEmissionDecompte`), testé à part.
+   */
+  const lireMontantSaisi = (v: string) => {
+    const n = Number(v.replace(/\s/g, '').replace(',', '.'));
+    return v.trim() === '' || Number.isNaN(n) ? 0 : n;
+  };
+  const rubriqueAvantages =
+    lireMontantSaisi(dec.avantagesPendantPreavisFc) > 0
+      ? ('preavis' as const)
+      : lireMontantSaisi(dec.avantagesJusquAuTermeFc) > 0
+        ? ('dommages-interets-art-70' as const)
+        : null;
+  const ventilation = ventilationDesAvantages(rubriqueAvantages, ventil);
+  // Les éléments que le corps enverra · la MÊME lecture pour le motif et pour
+  // l'annonce, jamais un second décompte des lignes saisies.
+  const lignesDuMois = corpsSimulation().elements.length;
+  const salarieDuDecompte = salaries.find((x) => x.id === selection) ?? null;
+  const motifEmissionDecompte = motifDecompteNonEmissible({
+    salarieId: selection,
+    moisDeCessation: dec.moisDeCessation,
+    anneesAnciennete: dec.anneesAnciennete,
+    moisNonCouvertsParUnConge: dec.moisNonCouvertsParUnConge,
+    arrieresFc: dec.arrieresFc,
+    nombreElementsDuMois: lignesDuMois,
+    avantagesFc: lireMontantSaisi(dec.avantagesPendantPreavisFc) + lireMontantSaisi(dec.avantagesJusquAuTermeFc),
+    avantagesVentilesFc: totalVentile(ventilation),
+  });
+
+  // A8 (d) · le message de succès et les avertissements parlent d'UN salarié
+  // et d'UN mois · ils tombent quand l'un ou l'autre change, et une réponse
+  // encore en vol est jetée (son jeton n'est plus le bon).
+  useEffect(() => {
+    jetonEmissionDecompte.current += 1;
+    setAvertissementsDecompte([]);
+    setSucces((m) => (m.startsWith('Décompte final n°') ? '' : m));
+  }, [selection, dec.moisDeCessation]);
+
+  const emettreDecompte = () => {
+    // A8 (a, c) · la même garde que le bouton, et un seul envoi à la fois.
+    if (motifEmissionDecompte !== null || emissionDecompteEnVol.current) return;
+    emissionDecompteEnVol.current = true;
+    const jeton = ++jetonEmissionDecompte.current;
+    const nom = salarieDuDecompte ? nomComplet(salarieDuDecompte) : 'le salarié choisi';
+    setErreur('');
+    setSucces('');
+    setAvertissementsDecompte([]);
+    setEnCours(true);
+    const corps = corpsEmissionDecompte(corpsDecompte(), corpsSimulation(), dec.moisDeCessation, ventilation);
+    api
+      .post<{ numero: number; moisDePaie: string; avertissements?: string[] }>(
+        `/personnel/salaries/${selection}/decompte-final`,
+        corps,
+      )
+      .then(
+        (b) => {
+          emissionDecompteEnVol.current = false;
+          setEnCours(false);
+          if (jeton !== jetonEmissionDecompte.current) return;
+          setSucces(
+            `Décompte final n° ${b.numero} émis pour ${nom} en ${b.moisDePaie}. Il ne se modifie plus : une erreur se corrige en l’annulant. Il figure dans l’onglet Bulletins émis.`,
+          );
+          setAvertissementsDecompte(b.avertissements ?? []);
+        },
+        (e: ApiError) => {
+          emissionDecompteEnVol.current = false;
+          setEnCours(false);
+          if (jeton !== jetonEmissionDecompte.current) return;
+          setErreur(e.message);
         },
       );
   };
@@ -3110,7 +3212,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             (art. 100).{' '}
             <Aide
               titre="Décompte final"
-              texte="À toute résiliation, pour quelque cause que ce soit, l’employeur doit remettre au travailleur un décompte écrit des payements effectués (arrêté de 2008, art. 2, al. 3) ; à défaut, ses allégations sur les paiements sont rejetées (art. 103, al. 2). Cet écran calcule les rubriques, il n’émet pas ce décompte écrit."
+              texte="À toute résiliation, pour quelque cause que ce soit, l’employeur doit remettre au travailleur un décompte écrit des payements effectués (arrêté de 2008, art. 2, al. 3) ; à défaut, ses allégations sur les paiements sont rejetées (art. 103, al. 2). « Calculer » rend les rubriques sans rien figer ; « Émettre le décompte final » fige le décompte écrit, numéroté avec les bulletins, à remettre au travailleur au moment du paiement."
               source="Code du travail, art. 100 et 103 · arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2"
             />
           </div>
@@ -3425,6 +3527,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 <input
                   value={dec.moisDeCessation}
                   onChange={(e) => setDec({ ...dec, moisDeCessation: e.target.value })}
+                  placeholder="AAAA-MM"
+                  pattern="\d{4}-(0[1-9]|1[0-2])"
+                  aria-describedby={peutEcrire && motifEmissionDecompte ? 'motif-emission-decompte' : undefined}
                   className="border border-border bg-transparent px-2 py-1 w-[120px]"
                 />
               </label>
@@ -3459,7 +3564,66 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               >
                 Calculer
               </button>
+              {peutEcrire && (
+                <>
+                  <button
+                    type="button"
+                    disabled={enCours || motifEmissionDecompte !== null}
+                    onClick={emettreDecompte}
+                    title={motifEmissionDecompte ?? undefined}
+                    aria-describedby={motifEmissionDecompte ? 'motif-emission-decompte' : undefined}
+                    className="bg-sel text-white rounded-full px-4 py-1 disabled:opacity-40"
+                  >
+                    Émettre le décompte final
+                  </button>
+                  <Aide
+                    titre="Décompte final émis"
+                    texte="Rejoue le décompte et la paie du mois de cessation (éléments saisis dans l’onglet Simulation pour le salarié choisi), puis fige le document dans la numérotation des bulletins. Il remplace le bulletin de ce mois. Une erreur se corrige en l’annulant. Les arriérés SONT les éléments du mois · si la paie porte des éléments, le champ Arriérés reste vide ; sans éléments, déclarez les arriérés, zéro compris. Les avantages compris dans l’indemnité se ventilent par nature · logement, transport et soins sortent de l’assiette sociale (art. 7, point 8). L’indemnité elle-même reste dans l’assiette sociale · lecture d’OmegaX, aucun texte lu ne la range, et le document le dit."
+                    source="Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2 ; Code du travail, art. 7, 100, 103 et 214"
+                  />
+                </>
+              )}
             </div>
+            {peutEcrire && rubriqueAvantages !== null && (
+              <div className="flex flex-wrap gap-3 items-end mt-2">
+                <span className={etiquette}>Avantages compris dans l’indemnité, ventilés (FC)</span>
+                {(
+                  [
+                    ['logement', 'Logement'],
+                    ['transport', 'Transport'],
+                    ['soins', 'Soins de santé'],
+                    ['autres', 'Autres avantages'],
+                  ] as const
+                ).map(([cle, libelle]) => (
+                  <label key={cle} className="flex flex-col gap-0.5">
+                    <span className={etiquette}>{libelle}</span>
+                    <input
+                      value={ventil[cle]}
+                      onChange={(e) => setVentil({ ...ventil, [cle]: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+            {peutEcrire && motifEmissionDecompte && (
+              <div id="motif-emission-decompte" role="status" className="text-[11px] text-text-dim mt-1">
+                {motifEmissionDecompte}
+              </div>
+            )}
+            {peutEcrire && motifEmissionDecompte === null && (
+              <div role="status" className="text-[11px] text-text-dim mt-1">
+                Émis pour {salarieDuDecompte ? nomComplet(salarieDuDecompte) : 'le salarié choisi'} en {dec.moisDeCessation.trim()} ·{' '}
+                {lignesDuMois} élément(s) du mois repris de l’onglet Simulation.
+              </div>
+            )}
+            {avertissementsDecompte.length > 0 && (
+              <ul role="status" className="text-[11px] text-warning mt-1 list-disc pl-4">
+                {avertissementsDecompte.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {decompte && (

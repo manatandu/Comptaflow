@@ -49,6 +49,7 @@ export type RoleComptePaie =
   | 'APPOINTEMENTS_ET_COMMISSIONS'
   | 'PRIMES_ET_GRATIFICATIONS'
   | 'CONGES_PAYES'
+  | 'INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT'
   | 'INDEMNITES_DE_MALADIE'
   | 'AVANTAGES_EN_NATURE'
   | 'AUTRES_REMUNERATIONS_DIRECTES'
@@ -96,6 +97,26 @@ export const NOMENCLATURE_PAIE: Readonly<Record<RoleComptePaie, CompteDuRole>> =
     SYSCOHADA: '66130000',
     SYCEBNL: '66130000',
     intitule: 'Congés payés',
+    divergent: false,
+  },
+  // A8 · LES INDEMNITÉS DE FIN DE CONTRAT DU DÉCOMPTE FINAL. AUDCIF Titre VIII
+  // ch. 21 § 5.2 · « L'indemnité de cessation d'emploi est comptabilisée au
+  // débit d'un compte de charge de personnel par le crédit du compte 42
+  // Personnel » (licenciement, rupture conventionnelle, départ volontaire).
+  // Le compte de charge est nommé par la fiche du compte 66 des DEUX textes ·
+  // « 6614 Indemnités de préavis, de licenciement et de recherche
+  // d'embauche » (AUDCIF Titre VII ; SYCEBNL Partie 2 ch. 3, même fiche, même
+  // libellé). Semé au 66140000 des deux côtés, même numéro. L'intitulé SEMÉ
+  // côté SYCEBNL (`compte-seed.ts`, ligne du 66140000) s'arrête à « préavis et
+  // de licenciement » quand la fiche du ch. 3 ajoute « et de recherche
+  // d'embauche » · c'est un écart du SEMIS, pas du texte (le plan du ch. 2 du
+  // SYCEBNL s'arrête au 66 et ne donne aucun intitulé au 6614). Signalé, le
+  // semis n'est pas retouché ici. Le 6614 vise le personnel NATIONAL · le
+  // non-national est au 6624 (même fiche), voir `RESERVE_INDEMNITES_PERSONNEL_NATIONAL`.
+  INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT: {
+    SYSCOHADA: '66140000',
+    SYCEBNL: '66140000',
+    intitule: 'Indemnités de préavis et de licenciement',
     divergent: false,
   },
   INDEMNITES_DE_MALADIE: {
@@ -194,6 +215,10 @@ export const NOMENCLATURE_PAIE: Readonly<Record<RoleComptePaie, CompteDuRole>> =
   },
 } as const;
 
+/** A8 (p) · le 6614 vise le personnel national ; le non-national est au 6624. */
+export const RESERVE_INDEMNITES_PERSONNEL_NATIONAL =
+  "Le 6614 vise le personnel NATIONAL. Une indemnité de fin de contrat due à un non-national va au 66240000, et OmegaX ne connaît pas la nationalité ligne à ligne.";
+
 export const compteDuRole = (role: RoleComptePaie, referentiel: Referentiel): string =>
   NOMENCLATURE_PAIE[role][referentiel];
 
@@ -237,6 +262,7 @@ export const IMPUTATION_PAR_NATURE: Readonly<
   AVANTAGE_EN_NATURE: 'AVANTAGES_EN_NATURE',
   ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE: 'CONGES_PAYES',
   INDEMNITE_INCAPACITE_OU_ACCOUCHEMENT: 'INDEMNITES_DE_MALADIE',
+  INDEMNITE_DE_FIN_DE_CONTRAT: 'INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT',
   LOGEMENT_OU_SON_INDEMNITE: 'INDEMNITE_DE_LOGEMENT',
   INDEMNITE_DE_TRANSPORT: 'INDEMNITE_DE_TRANSPORT',
 } as const;
@@ -420,6 +446,13 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
     };
   }
 
+  // A8 (p) · LA RÉSERVE DU PERSONNEL NON NATIONAL vaut aussi pour les
+  // indemnités de fin de contrat · le 6614 vise le personnel national, le
+  // 6624 le non-national (fiche du compte 66 des deux textes), et OmegaX ne
+  // ventile pas ligne à ligne.
+  const reserveBrut = (role: RoleComptePaie): string | null =>
+    role === 'INDEMNITES_DE_PREAVIS_ET_LICENCIEMENT' ? RESERVE_INDEMNITES_PERSONNEL_NATIONAL : null;
+
   const reserveRole = (role: RoleComptePaie) =>
     NOMENCLATURE_PAIE[role].divergent
       ? `NUMÉRO PROPRE AU RÉFÉRENTIEL · ce rôle est au ${NOMENCLATURE_PAIE[role].SYSCOHADA} en SYSCOHADA et au ${NOMENCLATURE_PAIE[role].SYCEBNL} en SYCEBNL. L'autre numéro n'est pas ouvert dans ce plan.`
@@ -439,7 +472,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
       intitule: NOMENCLATURE_PAIE[role].intitule,
       sens: 'DEBIT',
       montantFc,
-      reserve: null,
+      reserve: reserveBrut(role),
     });
   }
   lignes.push({

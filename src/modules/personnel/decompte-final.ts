@@ -468,6 +468,14 @@ export type RubriqueDecompte = {
   readonly montantFc: number | null;
   readonly fondement: string;
   readonly reserve: string | null;
+  /**
+   * A8 · la part « avantages de toute nature » comprise dans le montant
+   * (art. 63, al. 3 ; art. 70, al. 2). L'émission la ventile par nature ·
+   * l'art. 7, point 8 sort NOMMÉMENT de la rémunération le logement ou son
+   * indemnité et le transport, qui ne peuvent entrer dans l'assiette sociale
+   * sous couvert d'une indemnité de rupture.
+   */
+  readonly avantagesInclusFc?: number;
 };
 
 export type VerdictDecompteFinal = {
@@ -679,6 +687,7 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         cle: 'preavis',
         libelle: LIBELLE_PREAVIS,
         montantFc: montant,
+        ...(montant !== null && avantages !== null && avantages > 0 ? { avantagesInclusFc: avantages } : {}),
         fondement:
           `${fondementDuree} Article 63, alinéa 3 · « une indemnité dont le montant correspond à la rémunération et aux avantages de toute nature dont aurait bénéficié le travailleur durant le délai de préavis qui n'a pas été effectivement respecté ». ` +
           `${nonObserves ?? '?'} jours × (taux journalier + moyenne de l'art. 66) + avantages ; ${conversionMoyenne}.`,
@@ -725,6 +734,7 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
         cle: 'dommages-interets-art-70',
         libelle: "Dommages-intérêts de rupture d'un contrat à durée déterminée",
         montantFc: reserve === null ? (restants as number) * (jour as number) + (avantages as number) : null,
+        ...(reserve === null && (avantages as number) > 0 ? { avantagesInclusFc: avantages as number } : {}),
         fondement: `${TEXTE_70} La qualification de l'irrégularité appartient au dossier.`,
         reserve,
       });
@@ -822,8 +832,11 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
       // l'arrêté de 2008 fait du décompte écrit une OBLIGATION à toute rupture.
       DECOMPTE_A_LA_RUPTURE,
       SANCTION_ARTICLE_103,
-      "CE CALCUL N'EST PAS LE DÉCOMPTE ÉCRIT · OmegaX chiffre les rubriques, il n'émet ni ne fige le document daté que l'employeur remet au travailleur.",
-      "LES RETENUES NE SONT PAS APPLIQUÉES ICI · l'assiette sociale, l'assiette fiscale et le barème de l'article 118 valent pour le décompte comme pour un mois ordinaire, et ils vivent dans `assiettes-paie.ts` et `bareme-irpp.ts`. Aucune retenue « syndicat » n'est appliquée · l'article 112 énumère les retenues autorisées et ne la nomme pas.",
+      // A8 · UNE GARANTIE NÉGATIVE VIEILLIT (P5) · ces deux phrases disaient
+      // qu'OmegaX n'émettait rien et n'appliquait aucune retenue. L'émission
+      // existe depuis A8 (`decompte-final-emis.ts`) · elles le disent.
+      "CE CALCUL N'EST PAS ENCORE LE DÉCOMPTE ÉCRIT · il le devient à l'ÉMISSION, qui fige le document daté que l'employeur remet au travailleur, dans la numérotation continue des bulletins, avec ses retenues et son net.",
+      "LES RETENUES S'APPLIQUENT À L'ÉMISSION · l'assiette sociale, l'assiette fiscale et le barème de l'article 118 valent pour le décompte comme pour un mois ordinaire (`assiettes-paie.ts`, `bareme-irpp.ts`), sur le mois de cessation. Aucune retenue « syndicat » n'est appliquée · l'article 112 énumère les retenues autorisées et ne la nomme pas.",
       ...preavis.reserves,
       ...conge.reserves,
     ],

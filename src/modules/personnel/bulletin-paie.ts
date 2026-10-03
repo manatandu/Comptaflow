@@ -226,6 +226,24 @@ export function motifsRefusEmission(s: SimulationEmissible): string[] {
 }
 
 /**
+ * LES CHIFFRES QUE LE DOUBLE FIGE, ou les raisons de ne pas le figer (A8, i).
+ * Rejoué par le seul endroit qui écrit (`figerBulletin`) · un `?? 0` y
+ * figerait un net, une assiette ou un impôt que personne n'a calculé.
+ */
+export function chiffresFigeables(
+  s: SimulationEmissible,
+): { assietteSocialeFc: number; netAPayerFc: number; irppFc: number } | { motifs: string[] } {
+  const motifs = motifsRefusEmission(s);
+  const assietteSocialeFc = s.assiettes.assietteSocialeFc;
+  const netAPayerFc = s.net.netAPayerFc;
+  const irppFc = s.retenue === null ? null : s.retenue.retenueFc;
+  if (motifs.length > 0 || assietteSocialeFc === null || netAPayerFc === null || irppFc === null) {
+    return { motifs: motifs.length > 0 ? motifs : ['Un montant du document est indéterminé.'] };
+  }
+  return { assietteSocialeFc, netAPayerFc, irppFc };
+}
+
+/**
  * Mention 2 de l'arrêté de 2008 · « les noms et prénoms du travailleur, EN
  * MAJUSCULES D'IMPRIMERIE ». Le post-nom, usage congolais que l'art. 212 du
  * Code nomme, est gardé à sa place.

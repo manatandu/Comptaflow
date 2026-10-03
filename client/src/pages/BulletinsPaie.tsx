@@ -4,6 +4,7 @@ import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { PaieDuMois } from './PaieDuMois';
 import { Aide } from '../components/chrome/Aide';
 import { ecartDuDecompte, elementsDuBulletin, montantAffiche, retenuesDuBulletin } from '../lib/bulletin-affiche';
+import { natureDuBulletin, type NatureBulletin } from '../lib/decompte-emis';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -22,6 +23,8 @@ interface LigneBulletin {
   numero: number;
   moisDePaie: string;
   statut: 'EMIS' | 'ANNULE';
+  /** A8 · bulletin du mois ou décompte final, même séquence de numéros. */
+  nature: NatureBulletin;
   nomComplet: string;
   matricule: string | null;
   totalVerseFc: number;
@@ -198,6 +201,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                   <td className="px-3 py-1.5">
                     {b.nomComplet}
                     {b.matricule ? <span className="text-text-dim"> · {b.matricule}</span> : null}
+                    {b.nature === 'DECOMPTE_FINAL' ? <span className="text-text-dim"> · {natureDuBulletin(b.nature)}</span> : null}
                   </td>
                   <td className="px-3 py-1.5 text-right">{fc(b.totalVerseFc)}</td>
                   <td className="px-3 py-1.5 text-right">{fc(b.irppFc)}</td>
@@ -241,7 +245,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
           {/* LE BULLETIN · c'est la partie qui s'imprime. */}
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h2 className="text-[13px] font-semibold">
-              Bulletin de paie n° {ouvert.numero} · {ouvert.moisDePaie}
+              {natureDuBulletin(ouvert.nature)} n° {ouvert.numero} · {ouvert.moisDePaie}
             </h2>
             <span className="text-text-dim">Émis le {jour(ouvert.emisLe)}</span>
           </div>

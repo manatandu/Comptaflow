@@ -209,6 +209,9 @@ describe('la liste d’exclusion est fermée sur User', () => {
       'numero',
       'moisDePaie',
       'statut',
+      // A8 · bulletin du mois ou décompte final · aucun montant, c'est ce que
+      // la ligne EST, et le journal doit pouvoir dire qu'un décompte a été émis.
+      'nature',
       'nomComplet',
       'matricule',
       'emploi',

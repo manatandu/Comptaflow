@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { PersonnelService } from './personnel.service';
 import { PrismaService } from '../../common/prisma.service';
 import {
+  chiffresFigeables,
   contratCouvrantLeMois,
   enonciationsDuBulletin,
   moisValide,
@@ -64,6 +65,28 @@ describe('les refus d’émettre · aucun montant provisoire sur un décompte op
 
   it('une simulation complète s’émet', () => {
     expect(motifsRefusEmission(complete)).toEqual([]);
+  });
+
+  it("(A8, i) le double se fige sur des chiffres CALCULÉS · un null refuse, jamais un `?? 0`", () => {
+    expect(chiffresFigeables(complete)).toEqual({ assietteSocialeFc: 1_000_000, netAPayerFc: 938_000, irppFc: 12_000 });
+    for (const trou of [
+      { ...complete, retenue: null },
+      { ...complete, net: { totalVerseFc: 1_000_000, netAPayerFc: null } },
+      { ...complete, assiettes: { assietteSocialeFc: null } },
+    ]) {
+      const r = chiffresFigeables(trou);
+      expect('motifs' in r && r.motifs.length > 0).toBe(true);
+    }
+  });
+
+  it("(A8, i) le seul endroit qui écrit le double relit les chiffres, sans repli à zéro", () => {
+    const source = readFileSync(join(__dirname, 'personnel.service.ts'), 'utf8');
+    const debut = source.indexOf('private async figerBulletin(');
+    const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
+    expect(corps).toContain('chiffresFigeables(simulation)');
+    expect(corps).toContain('netAPayerFc: chiffres.netAPayerFc');
+    expect(corps).toContain('irppFc: chiffres.irppFc');
+    expect(corps).toContain('assietteSocialeFc: chiffres.assietteSocialeFc');
   });
 
   it("un impôt non chiffré bloque · jamais un zéro par défaut", () => {
@@ -182,6 +205,7 @@ function service(opts: { salarie?: unknown; actif?: unknown; max?: number | null
     versionBaremePaie: { findFirst: jest.fn().mockResolvedValue(null) },
     bulletinPaie: { findFirst: bulletinFindFirst, aggregate, create, update: jest.fn() },
   };
+  prisma.$executeRaw = jest.fn().mockResolvedValue(0);
   prisma.$transaction = (fn: (tx: unknown) => unknown) => fn(prisma);
   return { svc: new PersonnelService(prisma as unknown as PrismaService), create, aggregate, prisma };
 }
