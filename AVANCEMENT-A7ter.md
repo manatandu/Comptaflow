@@ -19,7 +19,8 @@ Fiche retirée à l'intégration.
 - [x] m10 · rapprochement par exercice, jamais `null` pour toujours
 - [x] Écran · rapprochement (report provisoire, hors module), `retirable`, `listes416491`, cotisations,
   `lettrage416`, retrait d'un mouvement sous `peutValider`
-- [ ] Bloc du § 3 des deux côtés, `npx jest --maxWorkers=2` en fin
+- [x] Bloc du § 3 des deux côtés, `npx jest --maxWorkers=2` en fin (9 972 tests, 713 suites ; le seul échec, le
+  balayage du cloisonnement, corrigé et rejoué) · client 1 697 tests, construction verte ; e2e typé
 
 ## Fait
 
@@ -70,6 +71,14 @@ Fiche retirée à l'intégration.
 
 - e2e · `creances-douteuses.e2e.ts` · rapprochement à sept clés, B3 (lettrage automatique sans paire, manuel
   refusé) et B2 (perte qui éteint · `lettrage416.pose`) · typé localement, joué par la CI (base réelle).
+
+## Reste ouvert (hors périmètre, à relever)
+
+- Le règlement des tiers peut encore payer la FACTURE d'une créance reclassée (ligne débitrice ouverte du 411) · ce
+  serait un recouvrement hors module ; à trancher avec A7 bis.
+- `creances_douteuses.compteCreanceId` n'a pas d'index · le select imbriqué du contrôle d'ancienneté le lit par lot.
+- Les filtres de relation Prisma ajoutés ne sont éprouvés sur base réelle que par la CI (aucune base locale).
+- `origin/main` a reçu f4ab9bb (suivi seul) après le départ de la branche · fusion triviale.
 
 ## Vérification
 
