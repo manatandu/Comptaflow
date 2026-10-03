@@ -1039,7 +1039,6 @@ export class ExerciceService {
     const brouillardNonRepris = await this.prisma.ecriture.count({
       where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
     });
-
     const resultat = await avecRetrySerialisable(
       this.prisma,
       async (tx) => {
@@ -1204,16 +1203,25 @@ function versLigneRan(l: {
  *  · AU DÉTAIL, LES LIGNES, par tranches (`lireParLots`) · chaque mouvement
  *    non lettré est reporté un à un. Les lettrées restent en base, puisque le
  *    report les écarte ; une lettre vide n'y vaut pas lettre, comme au calcul.
+ *    CHAQUE EXERCICE SE LIT POUR LUI-MÊME (A6 bis, premier tour, règle 1 de
+ *    `lettrage/lettrages-a-cheval.ts`) · une ligne lettrée par un groupe qui
+ *    touche un AUTRE exercice se lit comme NON lettrée · sa lettre dit
+ *    qu'elle se solde avec une ligne d'ailleurs, pas dans cet exercice.
+ *    L'écarter laissait le report déséquilibré (la clôture tombait en 500),
+ *    et le refus qui l'avait remplacé enfermait le dossier dès que le groupe
+ *    était figé. Lue ainsi, la ligne est reportée et le report s'équilibre,
+ *    figé ou non, sans rien délettrer.
  *
  * Le report rendu est le même, au centime, que celui de la lecture ligne à
  * ligne (`report-a-nouveau-agrege.spec.ts` confronte les deux sur un même
  * jeu). `ecriture` porte le périmètre de l'appelant · l'exercice entier à la
- * clôture, le livre-journal seul au provisoire.
+ * clôture, le livre-journal seul au provisoire · et nomme toujours l'exercice
+ * lu, contre lequel un groupe « touche un autre exercice ».
  */
 async function lireComptesDuReport(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  ecriture: Prisma.EcritureWhereInput,
+  ecriture: Prisma.EcritureWhereInput & { tenantId: string; exerciceId: string },
 ): Promise<CompteRan[]> {
   // « Non nul » en deux bornes strictes plutôt qu'un NOT · une comparaison
   // à NULL n'est ni vraie ni fausse en SQL, et c'est ce que `gt` et `lt`
@@ -1278,14 +1286,21 @@ async function lireComptesDuReport(
         where: {
           ecriture,
           compte: { modeReportANouveau: ModeReportANouveau.DETAIL },
-          OR: [{ lettre: null }, { lettre: '' }],
+          OR: [
+            { lettre: null },
+            { lettre: '' },
+            // Lettrée par un groupe qui touche un autre exercice · se lit non lettrée.
+            { lettrage: { lignes: { some: { ecriture: { tenantId: ecriture.tenantId, exerciceId: { not: ecriture.exerciceId } } } } } },
+          ],
         },
         select: { id: true, compteId: true, ...SELECT_LIGNE_RAN },
         ...pageApres(curseur, LOT_LECTURE),
       }),
     (l) => {
       const duCompte = lignes.get(l.compteId) ?? [];
-      duCompte.push(versLigneRan(l));
+      // Toute ligne rendue ici est reportée · la lettre d'un groupe à cheval
+      // ne vaut pas pour le report de son exercice (règle 1).
+      duCompte.push({ ...versLigneRan(l), lettre: null });
       lignes.set(l.compteId, duCompte);
     },
     LOT_LECTURE,

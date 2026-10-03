@@ -185,7 +185,10 @@ partielle, et la règle vit une fois, dans `exercice/gel-cloture.ts`. Le
 besoin que le cours protège est tenu autrement : un règlement de mars qui
 solde une facture de décembre se lettre contre la ligne de REPORT À-NOUVEAU de
 l'exercice ouvert (mode Détail des comptes de tiers), jamais contre la ligne
-de l'exercice clos (voir l'en-tête de `lettrage.service.ts`).
+de l'exercice clos (voir l'en-tête de `lettrage.service.ts`). C'est une
+convention d'OmegaX, pas une règle du cours · au mode Détail, un nouveau
+groupe ne mêle pas deux exercices, et un groupe déjà à cheval se lit
+exercice par exercice sans se délettrer (`lettrages-a-cheval.ts`, A6 bis).
 
 **La composition d'une écriture.** Le § 2.6.2 énumère ce qu'une écriture
 devrait porter : numéro d'ordre, date de valeur comptable, numéro de pièce

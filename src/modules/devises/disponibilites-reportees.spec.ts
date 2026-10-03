@@ -133,10 +133,14 @@ function monter(p: { lignes: Ligne[]; reeval?: Reeval; reevals?: Reeval[]; cours
     });
   };
   const CLES_CONNUES = new Set(['compteId', 'deviseId', 'lettre', 'ecriture']);
+  // La lecture de la réévaluation (A6 bis, B1) · non lettrée, ou lettrée par
+  // un groupe qui sort de l'exercice · les lignes de la doublure ne sont
+  // jamais lettrées, la première branche les prend toutes.
+  const ouvertesOuACheval = (ou: unknown) => Array.isArray(ou) && ou.some((b) => (b as Record<string, unknown>).lettre === null);
   const lignesFiltrees = (where: Record<string, unknown> = {}) => {
     // Une requête que la doublure ne sait pas lire ne ramène rien · ce n'est
     // pas l'objet de ce spec (provision, groupes lettrés).
-    if (Object.keys(where).some((k) => !CLES_CONNUES.has(k))) return [];
+    if (Object.keys(where).some((k) => !CLES_CONNUES.has(k) && !(k === 'OR' && ouvertesOuACheval(where.OR)))) return [];
     const e = (where.ecriture ?? {}) as Record<string, unknown>;
     return p.lignes.filter((l) => {
       if (!correspond(l.compteId, where.compteId)) return false;

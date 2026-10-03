@@ -330,20 +330,30 @@ export async function motifReglementDejaReevalue(
 }
 
 /**
- * LE RÈGLEMENT EN N+1 D'UNE FACTURE RÉÉVALUÉE EN N, réévaluation NON
- * CONTRE-PASSÉE (quatrième relecture M3, cinquième M-B) · l'écart de
- * conversion se contre-passe à l'ouverture de l'exercice suivant
- * (`DevisesService.extourner`) ; oubliée, le 478 ou le 479 et sa provision
- * restent pendant que le réalisé passe au 656 ou 676. Un AVERTISSEMENT,
- * jamais un refus · la contre-passation se passe encore. Ne vise que
- *  · la réévaluation de l'exercice qui PRÉCÈDE IMMÉDIATEMENT (une de N-2
- *    s'est contre-passée, ou non, à l'ouverture de N-1, pas de N) ;
+ * LE RÈGLEMENT EN N+1 D'UNE FACTURE RÉÉVALUÉE AVANT, réévaluation NON
+ * CONTRE-PASSÉE (quatrième relecture M3, cinquième M-B, A6 bis M5 et M7) ·
+ * l'écart de conversion se contre-passe à l'ouverture d'un exercice suivant
+ * (`DevisesService.extourner`) ; oubliée, le 478 ou le 479 reste en place
+ * pendant que le réalisé passe au 656 ou 676. Un AVERTISSEMENT, jamais un
+ * refus · la contre-passation se passe encore, dans tout exercice ouvert qui
+ * commence après la réévaluation. Ne vise que
+ *  · TOUTE réévaluation d'un exercice antérieur, non annulée et non
+ *    contre-passée (A6 bis, M5) · celle de N-2 oubliée laisse son 478 aussi
+ *    bien que celle de N-1, reporté d'à-nouveau en à-nouveau ; lire la seule
+ *    réévaluation de N-1 taisait l'oubli le plus ancien ;
  *  · les lignes choisies (ou du groupe) issues d'une écriture d'À-NOUVEAU
  *    (à-nouveau provisoire, ou report de clôture qui n'est pas le solde des
  *    comptes de gestion), comme `lireLaReevaluation` · une facture ordinaire
  *    du 1er janvier n'a pas été réévaluée ;
- *  · les devises que cette réévaluation a RÉELLEMENT portées sur le compte
- *    (position et écart reconstitués non nuls, `ecartsParDevise`).
+ *  · les devises que la réévaluation a RÉELLEMENT portées sur le compte
+ *    (position et écart reconstitués non nuls, `ecartsParDevise`), lues sur
+ *    le compte du tiers seul · les disponibilités ont leur propre lecture
+ *    (A5 bis), étrangère à ce règlement.
+ * LE MESSAGE NE PROMET PAS CE QUE LA CONTRE-PASSATION NE FAIT PAS (A6 bis,
+ * M7) · elle ne touche que le 478 et le 479 ; la provision pour pertes de
+ * change s'ajuste à la réévaluation de l'exercice en cours (Titre VIII ch. 22
+ * § 2.3, « ajustée pour tenir compte des opérations dénouées au cours de
+ * l'exercice »).
  */
 export async function avertissementExtourneManquante(
   prisma: Lecteur,
@@ -351,17 +361,25 @@ export async function avertissementExtourneManquante(
 ): Promise<string | null> {
   const exercice = await prisma.exercice.findFirst({ where: { id: p.exerciceId, tenantId: p.tenantId }, select: { dateDebut: true } });
   if (!exercice) return null;
-  const precedent = await prisma.exercice.findFirst({
-    where: { tenantId: p.tenantId, dateFin: { lt: exercice.dateDebut } },
-    orderBy: { dateFin: 'desc' },
-    select: { id: true },
+  // Les réévaluations antérieures restées en place · bornées (une par exercice).
+  // Une contre-passation faite à la main et DÉCLARÉE (A5 bis,
+  // `contrePassationDeclareeId`) vaut celle du module · le portillon de la
+  // réévaluation la compte faite (`motifContrePassationManquante`), et
+  // l'avertir ici inviterait à contre-passer une seconde fois le 478 ou le
+  // 479 que l'écriture du cabinet a déjà inversés (A6 bis, après A5 bis).
+  const enPlace = await prisma.reevaluation.findMany({
+    where: {
+      tenantId: p.tenantId,
+      annuleeLe: null,
+      ecritureExtourneId: null,
+      contrePassationDeclareeId: null,
+      exercice: { dateFin: { lt: exercice.dateDebut } },
+    },
+    select: { exerciceId: true },
+    orderBy: { dateReevaluation: 'asc' },
+    take: 50,
   });
-  if (!precedent) return null;
-  const reeval = await prisma.reevaluation.findFirst({
-    where: { tenantId: p.tenantId, exerciceId: precedent.id, annuleeLe: null },
-    select: { ecritureExtourneId: true },
-  });
-  if (!reeval || reeval.ecritureExtourneId !== null) return null;
+  if (enPlace.length === 0) return null;
   const ouverture = await prisma.ligneEcriture.findMany({
     where: {
       id: { in: p.ligneIds },
@@ -376,17 +394,25 @@ export async function avertissementExtourneManquante(
     select: { deviseId: true },
   });
   if (ouverture.length === 0) return null;
-  const lu = await lireLaReevaluation(prisma, { tenantId: p.tenantId, exerciceId: precedent.id, compteId: p.compteId, cible: null });
-  if (!lu) return null;
-  const parDevise = ecartsParDevise(lu.lignes, lu.denoues, lu.cours, null);
-  const portee = ouverture.some((l) => {
-    const e = l.deviseId ? parDevise.get(l.deviseId) : undefined;
-    return e !== undefined && Math.abs(e.montantDevise) >= 0.005 && Math.abs(e.ecart) >= 0.005;
-  });
-  if (!portee) return null;
+  const dates: Date[] = [];
+  for (const r of enPlace) {
+    const lu = await lireLaReevaluation(prisma, { tenantId: p.tenantId, exerciceId: r.exerciceId, compteId: p.compteId, cible: null });
+    if (!lu) continue;
+    const parDevise = ecartsParDevise(lu.lignes, lu.denoues, lu.cours, null);
+    const portee = ouverture.some((l) => {
+      const e = l.deviseId ? parDevise.get(l.deviseId) : undefined;
+      return e !== undefined && Math.abs(e.montantDevise) >= 0.005 && Math.abs(e.ecart) >= 0.005;
+    });
+    if (portee) dates.push(lu.date);
+  }
+  if (dates.length === 0) return null;
+  const quelles =
+    dates.length === 1
+      ? `la réévaluation des devises du ${jour(dates[0]!)} n'a pas été contre-passée`
+      : `les réévaluations des devises du ${dates.map(jour).join(', du ')} n'ont pas été contre-passées`;
   return (
-    `${p.compteNumero} · la réévaluation des devises du ${jour(lu.date)} n'a pas été contre-passée à l'ouverture · ` +
-    'le 478 ou le 479 de cette facture et sa provision restent en place pendant que le réalisé est passé. ' +
-    'Passez la contre-passation de cette réévaluation (Devises).'
+    `${p.compteNumero} · ${quelles} · l'écart de conversion (478 ou 479) de cette devise reste en place pendant que le réalisé est passé. ` +
+    "Passez la contre-passation (Devises) · elle ne touche que le 478 et le 479 ; la provision pour pertes de change, elle, s'ajuste à la " +
+    "réévaluation de l'exercice en cours (AUDCIF, Titre VIII ch. 22 § 2.3)."
   );
 }

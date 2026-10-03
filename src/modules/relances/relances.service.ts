@@ -8,6 +8,7 @@ import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto, PLAFOND_COMPTES_
 import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { jourDeKinshasa } from '../../common/echeance';
+import { pairesACheval, type PairesACheval } from '../lettrage/paires-a-cheval';
 
 const JOUR = 86_400_000;
 
@@ -392,7 +393,9 @@ export class RelancesService {
             },
           },
         },
-        ecriture: { select: { date: true, libelle: true } },
+        ecriture: {
+          select: { date: true, libelle: true, estANouveauProvisoire: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true },
+        },
       },
     });
 
@@ -408,9 +411,36 @@ export class RelancesService {
     // elle qui borne les relances qui comptent (plus bas, audit final F169).
     const piecePlusAncienne = new Map<string, Date>();
 
-    const parCompte = new Map<string, PositionRelance>();
+    // LA PAIRE À CHEVAL SE COMPENSE (A6 bis, second tour, m1) · la ligne
+    // d'à-nouveau qui reporte une facture lettrée avec un encaissement de cet
+    // exercice ne se réclame plus, ou seulement pour son reste
+    // (`lettrage/paires-a-cheval.ts`) · la lettre ne lisait qu'elle, et le
+    // client recevait le rappel d'une facture qu'il avait payée. Les lignes
+    // sont toutes gardées pour la lettre (`acc.lignes`) · lues d'abord, puis
+    // la paire, lue seulement quand une ligne d'à-nouveau est ouverte.
+    type LigneLue = Awaited<ReturnType<typeof lire>>[number];
+    const lues: LigneLue[] = [];
     await lireParLots(lire, (l) => {
-      const net = Number(l.debit) - Number(l.credit);
+      lues.push(l);
+    });
+    let paires: PairesACheval | null = null;
+    if (
+      lues.some(
+        (l) => l.ecriture.estANouveauProvisoire === true || (l.ecriture.estGenereeParCloture === true && l.ecriture.estSoldeDesComptesDeGestion !== true),
+      )
+    ) {
+      const exercice = await this.prisma.exercice.findFirst({
+        where: { id: params.exerciceId, tenantId },
+        select: { id: true, dateDebut: true },
+      });
+      if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier');
+      paires = await pairesACheval(this.prisma, { tenantId, exercice, compte: { OR: racines.map((r) => ({ numero: { startsWith: r } })) } });
+    }
+
+    const parCompte = new Map<string, PositionRelance>();
+    const traiter = (l: LigneLue) => {
+      if (paires?.absorbees.has(l.id)) return;
+      const net = paires?.reste.get(l.id)?.francs ?? Number(l.debit) - Number(l.credit);
       if (Math.abs(net) < 0.005) return;
       const echeance = l.dateEcheance ?? l.ecriture.date;
       const retard = Math.floor((ref.getTime() - echeance.getTime()) / JOUR);
@@ -465,7 +495,8 @@ export class RelancesService {
         acc.echeancePlusAncienne = echeance.toISOString().slice(0, 10);
       }
       parCompte.set(l.compte.id, acc);
-    });
+    };
+    for (const l of lues) traiter(l);
 
     // LES RELANCES QUI COMPTENT SONT CELLES DE LA DETTE OUVERTE (audit final
     // F169) · la dernière relance d'un compte, même vieille d'un an et d'une

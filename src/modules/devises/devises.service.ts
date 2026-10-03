@@ -4,7 +4,7 @@ import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/cli
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifLignesTenues } from '../comptabilite/lignes-tenues';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
-import { groupesDenoues, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
+import { groupesDenoues, lectureDesGroupes, motifDateReevaluation, motifHorsReevaluation, motifPositionDenouee } from './perimetre-reevaluation';
 import {
   AVERTISSEMENT_INTEGRALE,
   CodeContrePassationIntegrale,
@@ -775,14 +775,36 @@ export class DevisesService {
     const date = dto.dateReevaluation ? new Date(dto.dateReevaluation) : exercice.dateFin;
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
     if (!tenant) throw new BadRequestException('Dossier introuvable');
+    const avertissementsGroupes = new Set<string>();
 
+    // UN GROUPE DE LETTRAGE N'ÉTEINT UNE LIGNE QUE S'IL TIENT TOUT ENTIER DANS
+    // L'EXERCICE, À LA DATE (ligne A6 bis, B1 et B-3). La réévaluation lit
+    // chaque exercice pour lui-même, comme le report à-nouveau
+    // (`lettrage/lettrages-a-cheval.ts`, règle 1) ·
+    //  · B-3 · une facture de N lettrée par un règlement de N+1 « subsiste au
+    //    bilan à la date de clôture » de N (AUDCIF art. 54 ; ch. 22 § 2.2) ·
+    //    écartée parce que lettrée, son latent n'était jamais calculé ;
+    //  · B1 · en N+1, la ligne d'à-nouveau qui reporte cette facture n'est
+    //    dans aucun groupe, et le règlement qui la solde l'était (avec la
+    //    facture de N) · l'à-nouveau se réévaluait seul, comme une créance
+    //    vivante, et le réalisé déjà passé au 656 était provisionné une
+    //    seconde fois. Lu ouvert, le règlement compense l'à-nouveau.
+    // Une ligne lettrée l'est donc seulement par un groupe dont TOUTES les
+    // lignes sont de l'exercice, datées au plus tard de la réévaluation ;
+    // sinon, ses lignes de l'exercice se lisent ouvertes, y compris celles en
+    // FRANCS (l'écart réalisé passé sur le groupe, sans devise), sans quoi le
+    // réalisé resterait hors de la valeur comptable de la position.
+    const horsDeLExercice: Prisma.LigneEcritureWhereInput = {
+      OR: [{ ecriture: { exerciceId: { not: dto.exerciceId } } }, { ecriture: { date: { gt: date } } }],
+    };
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
         ecriture: { tenantId, exerciceId: dto.exerciceId, date: { lte: date } },
         deviseId: { not: null },
         // Une ligne lettrée est soldée : sa créance n'existe plus, il n'y a
-        // rien à réévaluer.
-        lettre: null,
+        // rien à réévaluer · sauf par un groupe qui sort de l'exercice ou
+        // dépasse la date (ci-dessus).
+        OR: [{ lettre: null }, { lettrage: { lignes: { some: horsDeLExercice } } }],
       },
       include: {
         compte: { select: { id: true, numero: true, intitule: true } },
@@ -790,50 +812,69 @@ export class DevisesService {
       },
     });
 
-    // LES GROUPES PARTIELS DÉNOUÉS DANS LEUR DEVISE sortent de la position,
-    // quel que soit le reste du compte (ligne A6, `groupesDenoues`) · leur
-    // reste en francs est du RÉALISÉ, proposé au lettrage, jamais un écart de
-    // conversion. Lus sur toutes leurs lignes de l'exercice à la date, francs
-    // compris.
+    // LES GROUPES DES LIGNES LUES, sur TOUTES leurs lignes · c'est ce qui dit
+    // s'ils sortent de l'exercice. Ceux qui y tiennent entiers et sont
+    // PARTIELS DANS LEUR DEVISE (ligne A6, `groupesDenoues`) sortent de la
+    // position, quel que soit le reste du compte · leur reste en francs est
+    // du RÉALISÉ, proposé au lettrage, jamais un écart de conversion.
     const idsGroupes = [
       ...new Set(lignes.filter((l) => l.lettrageId && !estDisponibilite(l.compte.numero)).map((l) => l.lettrageId!)),
     ];
-    const denoues = idsGroupes.length
-      ? groupesDenoues(
-          (
-            await this.prisma.ligneEcriture.findMany({
-              // Bornée à l'EXERCICE de la position · un groupe à cheval sur N
-              // et N+1 se lirait soldé en devise par ses lignes de N, et son
-              // règlement de N+1 sortirait de la position, laissant
-              // l'à-nouveau réévalué comme une dette vivante.
-              where: { lettrageId: { in: idsGroupes }, ecriture: { tenantId, exerciceId: dto.exerciceId, date: { lte: date } } },
-              select: {
-                lettrageId: true,
-                debit: true,
-                credit: true,
-                deviseId: true,
-                montantDevise: true,
-                lettrage: { select: { code: true } },
-              },
-            })
-          ).map((l) => ({
-            lettrageId: l.lettrageId!,
-            code: l.lettrage?.code ?? '',
-            debit: Number(l.debit),
-            credit: Number(l.credit),
-            deviseId: l.deviseId,
-            montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-          })),
-        )
-      : new Map<string, { code: string; ecart: number }>();
+    const lignesDesGroupes = idsGroupes.length
+      ? (
+          await this.prisma.ligneEcriture.findMany({
+            where: { lettrageId: { in: idsGroupes }, ecriture: { tenantId } },
+            select: {
+              id: true,
+              lettrageId: true,
+              compteId: true,
+              debit: true,
+              credit: true,
+              deviseId: true,
+              montantDevise: true,
+              lettrage: { select: { code: true } },
+              compte: { select: { id: true, numero: true, intitule: true } },
+              devise: { select: { id: true, code: true } },
+              ecriture: { select: { exerciceId: true, date: true } },
+            },
+          })
+        ).map((l) => ({
+          ...l,
+          lettrageId: l.lettrageId!,
+          code: l.lettrage?.code ?? '',
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+        }))
+      : [];
+    const lecture = lectureDesGroupes(lignesDesGroupes, { exerciceId: dto.exerciceId, date });
+    const denoues = groupesDenoues(lignesDesGroupes.filter((l) => !lecture.aCheval.has(l.lettrageId)));
     const groupesSignales = new Set<string>();
     const positionsNonReevaluees: RapportReevaluation['positionsNonReevaluees'] = [];
+    const ouverture = (l: { compte: { id: string; numero: string; intitule: string } }, devise: { id: string; code: string }) =>
+      ({
+        compteId: l.compte.id,
+        numero: l.compte.numero,
+        intitule: l.compte.intitule,
+        deviseCode: devise.code,
+        deviseId: devise.id,
+        montantDevise: 0,
+        valeurComptable: 0,
+        coursCloture: 0,
+        valeurReevaluee: 0,
+        ecart: 0,
+        estTresorerie: estDisponibilite(l.compte.numero),
+        provisionnable: 0,
+      }) satisfies PositionDevise;
 
     // Agrégation par (compte, devise) : c'est la position nette qui se
     // réévalue, pas chaque ligne prise isolément.
     const positions = new Map<string, PositionDevise>();
     for (const l of lignes) {
       if (!l.devise) continue;
+      // Une disponibilité lettrée reste hors de la position, comme avant
+      // (A5 bis la relit ainsi, `sommesDesDisponibilitesALaReevaluation`).
+      if (l.lettre && estDisponibilite(l.compte.numero)) continue;
       const denoue = l.lettrageId ? denoues.get(l.lettrageId) : undefined;
       if (denoue) {
         if (!groupesSignales.has(l.lettrageId!)) {
@@ -849,22 +890,7 @@ export class DevisesService {
         continue;
       }
       const cle = `${l.compteId}|${l.deviseId}`;
-      const acc =
-        positions.get(cle) ??
-        ({
-          compteId: l.compte.id,
-          numero: l.compte.numero,
-          intitule: l.compte.intitule,
-          deviseCode: l.devise.code,
-          deviseId: l.devise.id,
-          montantDevise: 0,
-          valeurComptable: 0,
-          coursCloture: 0,
-          valeurReevaluee: 0,
-          ecart: 0,
-          estTresorerie: estDisponibilite(l.compte.numero),
-          provisionnable: 0,
-        } satisfies PositionDevise);
+      const acc = positions.get(cle) ?? ouverture(l, l.devise);
       // Le montant en devise est stocké sans signe : c'est le sens de la ligne
       // (débit moins crédit) qui le donne. « Débit positif » ne suffisait pas ·
       // une ligne de crédit inscrite en négatif (correction, réimputation)
@@ -873,6 +899,43 @@ export class DevisesService {
       acc.montantDevise += sens * Number(l.montantDevise ?? 0);
       acc.valeurComptable += Number(l.debit) - Number(l.credit);
       positions.set(cle, acc);
+    }
+    // Les lignes en FRANCS d'un groupe qui sort de l'exercice (l'écart
+    // réalisé passé sur le groupe, B2 du second tour) entrent dans la valeur
+    // comptable de la position de SA devise. Un groupe à plusieurs devises
+    // ne se range pas · dit, jamais deviné.
+    for (const l of lecture.lignesEnFrancs) {
+      const devise = lecture.deviseDuGroupe.get(l.lettrageId);
+      if (!devise) {
+        avertissementsGroupes.add(
+          `${l.compte.numero} · lettrage ${l.code.toLowerCase()} · le groupe sort de l'exercice et porte plusieurs devises ; ses lignes en francs ` +
+            "(écart réalisé) ne se rangent dans aucune position · vérifiez la position de ce compte.",
+        );
+        continue;
+      }
+      const cle = `${l.compteId}|${devise.id}`;
+      const acc = positions.get(cle) ?? ouverture(l, devise);
+      acc.valeurComptable += l.debit - l.credit;
+      positions.set(cle, acc);
+    }
+    // Le groupe à cheval DÉNOUÉ avant la date, réalisé non passé · la
+    // position le porte entier (à-nouveau et lignes de l'exercice) · son
+    // reste en francs en sort et se nomme, jamais réévalué avec les autres
+    // factures de la devise (`lectureDesGroupes`, AUDCIF art. 55).
+    for (const [id, d] of lecture.denouesACheval) {
+      const devise = lecture.deviseDuGroupe.get(id);
+      const l = lignesDesGroupes.find((x) => x.lettrageId === id);
+      if (!devise || !l) continue;
+      const cle = `${l.compteId}|${devise.id}`;
+      const acc = positions.get(cle);
+      if (acc) acc.valeurComptable = Math.round((acc.valeurComptable - d.ecart) * 100) / 100;
+      positionsNonReevaluees.push({
+        numero: l.compte.numero,
+        intitule: l.compte.intitule,
+        deviseCode: devise.code,
+        montantDevise: 0,
+        motif: `lettrage ${d.code.toLowerCase()} · ${motifPositionDenouee(0, d.ecart) ?? 'position dénouée'}`,
+      });
     }
 
     // UNE DISPONIBILITÉ PART DE SA VALEUR DE CLÔTURE PRÉCÉDENTE (ligne A5
@@ -1035,7 +1098,7 @@ export class DevisesService {
     // sans échéancier. Il ne peut donc pas la calculer, et il ne l'invente pas ·
     // il dote la totalité, ce qui est prudent mais dépasse ce que le texte
     // demande, et il le DIT, position par position, avec le montant à ventiler.
-    const avertissements: string[] = [...enPlace.avertissements, ...reports.reserves];
+    const avertissements: string[] = [...enPlace.avertissements, ...reports.reserves, ...avertissementsGroupes];
     for (const p of resultat) {
       if (p.estTresorerie || p.ecart >= 0) continue;
       if (!RACINES_FINANCIERES_LONGUES.test(p.numero)) continue;

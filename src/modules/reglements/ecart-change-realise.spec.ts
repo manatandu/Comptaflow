@@ -14,8 +14,12 @@ import {
   compteAdmisPourEcart,
   libelleEcartRealise,
   coursEtFrancsDuReglement,
+  coutsHistoriquesSuccessifs,
 } from './ecart-change-realise';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { ReglementsService } from './reglements.service';
+import { ReglementTiersDto } from './reglements.dto';
 import * as reevaluationModule from './reevaluation-et-ecart-realise';
 import type { OrdresVirementService } from './ordres-virement.service';
 import type { PrismaService } from '../../common/prisma.service';
@@ -23,6 +27,7 @@ import type { EcritureService } from '../comptabilite/ecriture.service';
 import type { LettrageService } from '../lettrage/lettrage.service';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { lignesReportANouveau } from '../exercice/report-a-nouveau';
 
 /**
  * ÉCART DE CHANGE RÉALISÉ AU RÈGLEMENT (ligne A6, relevé CPCC C2). Ce qui
@@ -160,12 +165,53 @@ export const CAS_ADMIS: Array<[ 'SYSCOHADA' | 'SYCEBNL', 'COMMERCIALE' | 'FINANC
   ['SYCEBNL', null, 'GAIN', '75880000', true],
   ['SYCEBNL', null, 'GAIN', '75100000', false],
   ['SYCEBNL', null, 'GAIN', '75910000', false],
+  // A6 bis, M3 · le 404 du SYSCOHADA est financier · son écart va au 676 ou
+  // au 776, jamais au 656 ni au 756 ; le 414 sans nature · le cabinet choisit
+  // parmi les comptes de change.
+  ['SYSCOHADA', 'FINANCIERE', 'PERTE', '65600000', false],
+  ['SYSCOHADA', 'FINANCIERE', 'PERTE', '67600000', true],
+  ['SYSCOHADA', null, 'GAIN', '75600000', true],
+  ['SYSCOHADA', null, 'GAIN', '75800000', false],
+];
+
+/**
+ * LA NATURE LUE SUR LE COMPTE, serveur et écran sur une seule table (A6 bis,
+ * M3) · le spec du client la relit et la rejoue sur sa recopie.
+ */
+export const CAS_NATURE: Array<['SYSCOHADA' | 'SYCEBNL', string, 'COMMERCIALE' | 'FINANCIERE' | null]> = [
+  ['SYSCOHADA', '40110000', 'COMMERCIALE'],
+  ['SYSCOHADA', '40410000', 'FINANCIERE'],
+  ['SYSCOHADA', '40470000', 'FINANCIERE'],
+  ['SYSCOHADA', '48120000', 'FINANCIERE'],
+  ['SYSCOHADA', '41110000', 'COMMERCIALE'],
+  ['SYSCOHADA', '41420000', null],
+  ['SYSCOHADA', '16200000', 'FINANCIERE'],
+  ['SYCEBNL', '40110000', 'COMMERCIALE'],
+  ['SYCEBNL', '41200000', 'COMMERCIALE'],
+  ['SYCEBNL', '16200000', null],
+  ['SYCEBNL', '18710000', 'FINANCIERE'],
 ];
 
 describe('les comptes admis pour l’écart, serveur et écran sur une seule table', () => {
   it.each(CAS_ADMIS)('%s, nature %s, %s · %s admis : %s', (referentiel, nature, ecart, numero, admis) => {
     expect(compteAdmisPourEcart(racinesAdmises(referentiel, nature, ecart), numero)).toBe(admis);
     expect(motifRefusCompteEcart({ referentiel, nature, ecart, numero }) === null).toBe(admis);
+  });
+
+  it.each(CAS_NATURE)('%s · %s · nature %s', (referentiel, numero, nature) => {
+    expect(natureDuCompte(numero, referentiel)).toBe(nature);
+  });
+
+  // A6 bis, M3 · le Titre VIII ch. 22 § 1.1, relu · « Lorsque le prix payé
+  // [...] est différent du coût initial comptabilisé, par suite de modalités
+  // spéciales de règlement (cas de paiement à terme libellé en devises), la
+  // différence constitue une charge ou un produit financier ». Les semis
+  // disent ce que sont le 404 et le 414 ; le SYCEBNL n'ouvre ni l'un ni l'autre.
+  it('le 404 et le 414 tels que les semis les ouvrent · le SYCEBNL n’en a aucun', () => {
+    const syscohada = new Map(PLAN_COMPTES_SYSCOHADA.map((c) => [c.numero, c.intitule]));
+    expect(syscohada.get('404')).toMatch(/acquisitions courantes d.immobilisations/i);
+    expect(syscohada.get('414')).toMatch(/cessions courantes d.immobilisations/i);
+    expect(PLAN_COMPTES_SYCEBNL.some((c) => c.numero.startsWith('404') || c.numero.startsWith('414'))).toBe(false);
   });
 
   it('la nature lue · 17 et 481 au SYSCOHADA, 187 et 481 au SYCEBNL sont financiers ; le 17 du SYCEBNL est un fonds', () => {
@@ -192,6 +238,37 @@ describe('les comptes admis pour l’écart, serveur et écran sur une seule tab
   it('ni cours ni débit saisi · refus, jamais un cours deviné', () => {
     expect(coursEtFrancsDuReglement({ montantDevise: 600, tolerance: () => true })).toHaveProperty('motif');
   });
+
+  // A6 bis, B1 · la règle pure refuse elle-même ce qui est nul ou négatif,
+  // quelle que soit la porte, sur la valeur que la pièce porterait (arrondie).
+  it('rien de nul ni de négatif · francs, cours saisi ou déduit, montant en devise', () => {
+    const t = () => true;
+    for (const francs of [0, -600, null, Number.NaN, 0.004]) {
+      expect(coursEtFrancsDuReglement({ montantDevise: 600, francs, tolerance: t })).toEqual({ motif: expect.stringMatching(/francs doit être strictement positif/) });
+    }
+    for (const cours of [0, -1, null, Number.NaN]) {
+      expect(coursEtFrancsDuReglement({ montantDevise: 600, cours, tolerance: t })).toEqual({ motif: expect.stringMatching(/cours du jour du règlement doit être strictement positif/) });
+    }
+    // Un cours qui ne fait pas un centime · la trésorerie porterait zéro.
+    expect(coursEtFrancsDuReglement({ montantDevise: 0.01, cours: 0.1, tolerance: t })).toEqual({ motif: expect.stringMatching(/francs doit être/) });
+    // Des francs qui ne font pas un cours à six décimales.
+    expect(coursEtFrancsDuReglement({ montantDevise: 1_000_000, francs: 0.01, tolerance: t })).toEqual({ motif: expect.stringMatching(/cours du jour/) });
+    for (const montantDevise of [0, -600, Number.NaN]) {
+      expect(coursEtFrancsDuReglement({ montantDevise, cours: 1750, tolerance: t })).toEqual({ motif: expect.stringMatching(/devise doit être strictement positif/) });
+    }
+    expect(coursEtFrancsDuReglement({ montantDevise: 600, cours: 1750, tolerance: t })).toEqual({ cours: 1750, francs: 1050000 });
+  });
+
+  it('la porte · `montant` facultatif, jamais `null`, zéro ni négatif', async () => {
+    const uuid = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    const erreurs = async (montant: unknown) =>
+      (await validate(plainToInstance(ReglementTiersDto, { compteId: uuid, ligneIds: [uuid], montant }))).map((e) => e.property);
+    expect(await erreurs(null)).toEqual(['montant']);
+    expect(await erreurs(0)).toEqual(['montant']);
+    expect(await erreurs(-600)).toEqual(['montant']);
+    expect(await erreurs(1050000)).toEqual([]);
+    expect((await validate(plainToInstance(ReglementTiersDto, { compteId: uuid, ligneIds: [uuid] }))).length).toBe(0);
+  });
 });
 
 describe('le coût historique de ce qui est réglé (AUDCIF art. 55)', () => {
@@ -210,6 +287,30 @@ describe('le coût historique de ce qui est réglé (AUDCIF art. 55)', () => {
     const recente = { id: 'b', francs: 340000, montantDevise: 200, date: new Date('2026-03-10') };
     // 150 USD · la vieille entière (160 000), puis 50 sur 200 de la récente (85 000).
     expect(coutHistoriqueRegle([recente, vieille], 150)).toBe(245000);
+  });
+
+  // A6 bis, M4 · deux factures du MÊME jour à des cours différents · l'ordre
+  // ne dépend plus de celui où la base les rend · l'identifiant de ligne
+  // départage, au serveur comme à l'écran (même cas au spec du client).
+  it('deux factures du même jour · départagées par l’identifiant de ligne, quel que soit l’ordre reçu', () => {
+    const a = { id: 'a', francs: 160000, montantDevise: 100, date: new Date('2026-03-10') };
+    const b = { id: 'b', francs: 170000, montantDevise: 100, date: new Date('2026-03-10') };
+    expect(coutHistoriqueRegle([b, a], 100)).toBe(160000);
+    expect(coutHistoriqueRegle([a, b], 100)).toBe(160000);
+    expect(coutHistoriqueRegle([b, a], 150)).toBe(245000);
+  });
+
+  // A6 bis, M1 · la règle rejouée sur des règlements successifs (le
+  // signalement D4 la relit après coup) · chacun reprend où le précédent
+  // s'est arrêté, et la part qui épuise une facture prend ce qui reste de
+  // ses francs, au centime.
+  it('règlements successifs · le premier rend coutHistoriqueRegle, la facture entamée s’épuise au centime', () => {
+    const f = { id: 'f', francs: 1000.01, montantDevise: 3, date: new Date('2026-01-10') };
+    const g = { id: 'g', francs: 340000, montantDevise: 200, date: new Date('2026-03-10') };
+    const couts = coutsHistoriquesSuccessifs([g, f], [1, 2, 100]);
+    expect(couts[0]).toBe(coutHistoriqueRegle([g, f], 1));
+    expect(Math.round((couts[0]! + couts[1]!) * 100) / 100).toBe(1000.01);
+    expect(couts[2]).toBe(170000);
   });
 
   it('l’écart est signé · positif pour une perte, dans les deux sens de règlement', () => {
@@ -300,7 +401,52 @@ describe('l’écart d’un groupe de lettrage soldé dans sa devise', () => {
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
-function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
+/** La référence de colonne que la doublure rend pour `fields.credit`. */
+const CHAMP_CREDIT = { colonne: 'credit' };
+type Borne = { gt?: unknown; lt?: unknown; gte?: unknown; lte?: unknown };
+type FiltreLigne = {
+  compteId?: string;
+  deviseId?: string;
+  id?: { notIn?: string[] };
+  lettre?: null;
+  lettrageId?: null;
+  debit?: Borne;
+  credit?: Borne;
+  ecriture?: { exerciceId?: string; OR?: Array<Record<string, boolean>> };
+};
+type LigneDouble = {
+  id: string;
+  compteId: string;
+  debit: number;
+  credit: number;
+  deviseId: string | null;
+  montantDevise: number | null;
+  lettre?: string | null;
+  lettrageId?: string | null;
+  ecriture: Record<string, unknown> & { exerciceId: string };
+};
+function ligneRetenue(l: LigneDouble, where: FiltreLigne): boolean {
+  if (where.compteId !== undefined && l.compteId !== where.compteId) return false;
+  if (where.deviseId !== undefined && l.deviseId !== where.deviseId) return false;
+  if (where.id?.notIn?.includes(l.id)) return false;
+  if ('lettre' in where && (l.lettre ?? null) !== null) return false;
+  if ('lettrageId' in where && (l.lettrageId ?? null) !== null) return false;
+  if (where.ecriture?.exerciceId !== undefined && l.ecriture.exerciceId !== where.ecriture.exerciceId) return false;
+  if (where.ecriture?.OR && !where.ecriture.OR.some((c) => Object.entries(c).every(([k, v]) => (l.ecriture[k] ?? false) === v))) return false;
+  const valeur = (b: unknown) => (b === CHAMP_CREDIT ? l.credit : Number(b));
+  for (const colonne of ['debit', 'credit'] as const) {
+    const borne = where[colonne];
+    if (!borne) continue;
+    const x = l[colonne];
+    if (borne.gt !== undefined && !(x > valeur(borne.gt))) return false;
+    if (borne.lt !== undefined && !(x < valeur(borne.lt))) return false;
+    if (borne.gte !== undefined && !(x >= valeur(borne.gte))) return false;
+    if (borne.lte !== undefined && !(x <= valeur(borne.lte))) return false;
+  }
+  return true;
+}
+
+function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA', lignesEnPlus: unknown[] = []) {
   const date = new Date('2026-05-15');
   const ecriture = { exerciceId: 'ex', date, journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
   const lignes = [
@@ -311,6 +457,7 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
     { id: 'ff', compteId: 'c402', debit: 0, credit: 500, deviseId: null, montantDevise: null, lettrageId: null, compte: { numero: '40120000', intitule: 'Francs', lettrable: true }, ecriture },
     { id: 'fe', compteId: 'c401', debit: 0, credit: 1000, deviseId: null, montantDevise: null, lettrageId: null, compte: { numero: '40110000', intitule: 'NZUZI', lettrable: true }, ecriture },
   ];
+  (lignes as unknown[]).push(...lignesEnPlus);
   const comptes = [
     { id: 'c656', numero: '65600000', typeCompte: 'DETAIL', estActif: true },
     { id: 'c756', numero: '75600000', typeCompte: 'DETAIL', estActif: true },
@@ -322,6 +469,21 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'CA', type: 'TRESORERIE', compteTresorerieId: 'c571' })) },
     ligneEcriture: {
       findMany: jest.fn(async ({ where }: { where: { id?: { in: string[] } } }) => (where.id ? lignes.filter((l) => where.id!.in.includes(l.id)) : [])),
+      // M6 · la doublure HONORE la requête (F4b) · compte, devise, factures
+      // écartées, lettre, groupe, exercice, drapeaux d'à-nouveau, colonne et
+      // signe, et la comparaison d'une colonne à l'autre (`fields.credit`).
+      fields: { credit: CHAMP_CREDIT },
+      aggregate: jest.fn(async ({ where }: { where: FiltreLigne }) => {
+        const retenues = (lignes as LigneDouble[]).filter((l) => ligneRetenue(l, where));
+        const somme = (f: (l: LigneDouble) => number) => (retenues.length > 0 ? retenues.reduce((s, l) => s + f(l), 0) : null);
+        return {
+          _sum: {
+            montantDevise: somme((l) => Number(l.montantDevise ?? 0)),
+            debit: somme((l) => l.debit),
+            credit: somme((l) => l.credit),
+          },
+        };
+      }),
     },
     cloture: { findMany: jest.fn(async () => []) },
     tenant: { findFirst: jest.fn(async () => ({ referentiel })) },
@@ -342,7 +504,8 @@ function monter(referentiel: 'SYSCOHADA' | 'SYCEBNL' = 'SYSCOHADA') {
     ribBanque: { findFirst: jest.fn(async () => null) },
     // A7 ter, mineur 1 · aucune créance reclassée sur ces comptes.
     creanceDouteuse: { findMany: jest.fn(async () => []) },
-    reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null) },
+    // Aucune réévaluation · ni de l'exercice, ni d'antérieure restée en place (M5).
+    reevaluation: { findFirst: jest.fn(async (): Promise<unknown> => null), findMany: jest.fn(async (): Promise<unknown[]> => []) },
     exercice: { findFirst: jest.fn(async () => ({ dateDebut: new Date('2026-01-01') })) },
     coursDevise: { findFirst: jest.fn(async () => ({ cours: 1850 })) },
   } as unknown as PrismaService;
@@ -439,6 +602,28 @@ describe('enregistrer un règlement en devise', () => {
     expect(creer).not.toHaveBeenCalled();
   });
 
+  // A6 bis, M4 · deux factures du même jour, rendues par la base dans
+  // l'ordre b, a et choisies dans cet ordre · le passage éteint d'abord la
+  // facture de plus petit identifiant de ligne, comme l'écran l'a estimé.
+  it('deux factures du même jour · le passage suit l’identifiant de ligne, jamais l’ordre reçu', async () => {
+    const ecriture = { exerciceId: 'ex', date: new Date('2026-03-10'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
+    const compte = { numero: '40110000', intitule: 'NZUZI', lettrable: true };
+    const { service, creer } = monter('SYSCOHADA', [
+      { id: 'jb', compteId: 'c401', debit: 0, credit: 170000, deviseId: 'usd', montantDevise: 100, lettrageId: null, compte, ecriture },
+      { id: 'ja', compteId: 'c401', debit: 0, credit: 160000, deviseId: 'usd', montantDevise: 100, lettrageId: null, compte, ecriture },
+    ]);
+    await service.enregistrer('t', 'u', {
+      ...base,
+      sens: 'FOURNISSEUR',
+      reglements: [{ compteId: 'c401', ligneIds: ['jb', 'ja'], montantDevise: 100, coursReglement: 1750 }],
+    });
+    expect(resume(creer.mock.calls[0][2].lignes)).toEqual([
+      ['c401', 160000, 0],
+      ['c656', 15000, 0],
+      ['c571', 0, 175000],
+    ]);
+  });
+
   it('sans le cours du jour, refus nommé · jamais un cours deviné', async () => {
     const { service, creer } = monter();
     await expect(
@@ -491,6 +676,28 @@ describe('enregistrer un règlement en devise', () => {
     await expect(
       service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c401', ligneIds: ['fm'], montant: 500000 }] }),
     ).rejects.toThrow(/saisissez aussi le montant réglé en devise/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  // A6 bis, B1 · reproduit par la relecture adverse. 600 USD « payés » zéro
+  // franc passaient D 401 1 008 000 / C 52 0 / C 756 1 008 000 ; `null`
+  // idem ; -600 donnait un cours de -1. Refus avant toute pièce.
+  it.each([
+    ['zéro franc payé', { montantDevise: 600, montant: 0 }],
+    ['des francs nuls (null)', { montantDevise: 600, montant: null }],
+    ['des francs négatifs', { montantDevise: 600, montant: -600 }],
+    ['un cours nul', { montantDevise: 600, coursReglement: 0 }],
+    ['un cours négatif', { montantDevise: 600, coursReglement: -1 }],
+    ['un montant en devise nul (null)', { montantDevise: null, coursReglement: 1750 }],
+  ])('%s · refus nommé, avant toute pièce', async (_cas, saisie) => {
+    const { service, creer } = monter();
+    await expect(
+      service.enregistrer('t', 'u', {
+        ...base,
+        sens: 'FOURNISSEUR',
+        reglements: [{ compteId: 'c401', ligneIds: ['fm'], ...(saisie as Record<string, number>) }],
+      }),
+    ).rejects.toThrow(/strictement positif/);
     expect(creer).not.toHaveBeenCalled();
   });
 
@@ -603,6 +810,186 @@ describe('le règlement en N+1, réévaluation de N non contre-passée', () => {
   });
 });
 
+/**
+ * A6 bis, M6 · LA FACTURE DE N PAYÉE EN PARTIE, REPORTÉE ENTIÈRE EN N+1.
+ * Vérifié · le report Détail lit les lignes sans lettre, et un groupe
+ * PARTIEL n'en pose aucune · la facture de 1 160 USD et le règlement de
+ * 600 USD passent en N+1 chacun de son côté, sans lien. Premier tour de
+ * relecture · la borne ne vise que les lignes CHOISIES qui sont elles-mêmes
+ * des à-nouveaux, contre LEUR part ; une facture de l'exercice n'en est
+ * jamais bornée, et rien d'autre ne borne (fiche du compte 40 · le compte
+ * est aussi « débité des avances et acomptes versés »).
+ */
+describe('la facture de N payée en partie, reportée entière en N+1', () => {
+  const aNouveau = (drapeaux: Record<string, boolean>) => ({
+    exerciceId: 'ex',
+    date: new Date('2026-01-01'),
+    journalId: 'jAN',
+    journal: { code: 'AN' },
+    exercice: { statut: 'OUVERT' },
+    ...drapeaux,
+  });
+  const cloture = aNouveau({ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false });
+  const ordinaire = { exerciceId: 'ex', date: new Date('2026-02-10'), journalId: 'jBQ', journal: { code: 'BQ' }, exercice: { statut: 'OUVERT' } };
+  const ligne = (id: string, compteId: string, debit: number, credit: number, devise: number, ecriture: object, enPlus: object = {}) => ({
+    id,
+    compteId,
+    debit,
+    credit,
+    deviseId: 'usd',
+    montantDevise: devise,
+    lettre: null,
+    lettrageId: null,
+    compte: { numero: compteId === 'c401' ? '40110000' : '41110000', intitule: 'Tiers', lettrable: true },
+    ecriture,
+    ...enPlus,
+  });
+  // La facture de N reportée ENTIÈRE par l'à-nouveau · 1 160 USD à 1 680.
+  const factureReportee = (ecriture: object = cloture) => ligne('ranF', 'c401', 0, 1_948_800, 1160, ecriture);
+  const reglerLaReportee = { ...base, sens: 'FOURNISSEUR' as const, reglements: [{ compteId: 'c401', ligneIds: ['ranF'], coursReglement: 1750 }] };
+  const reglerFm = { ...base, sens: 'FOURNISSEUR' as const, reglements: [{ compteId: 'c401', ligneIds: ['fm'], coursReglement: 1750 }] };
+
+  it('le report Détail reprend la facture entière et le règlement partiel, chacun sans lettre (la vérification)', () => {
+    const report = lignesReportANouveau(
+      [
+        {
+          id: 'c401',
+          numero: '40110000',
+          intitule: 'NZUZI',
+          modeReportANouveau: 'DETAIL',
+          lignes: [
+            // Le groupe PARTIEL de N · aucune lettre posée, les deux lignes sont lues.
+            { debit: 0, credit: 1_948_800, lettre: null, libelle: 'Facture', dateEcheance: null, deviseId: 'usd', montantDevise: 1160 },
+            { debit: 1_008_000, credit: 0, lettre: null, libelle: 'Règlement', dateEcheance: null, deviseId: 'usd', montantDevise: 600 },
+          ],
+        },
+      ],
+      null,
+    );
+    expect(report.map((l) => [l.debit, l.credit, l.montantDevise])).toEqual([
+      [0, 1_948_800, 1160],
+      [1_008_000, 0, 600],
+    ]);
+  });
+
+  it('la ligne d’à-nouveau choisie, 1 160 USD contre 600 reportés · refusée avant toute pièce, l’issue nommée ; 560 USD passent', async () => {
+    // L'à-nouveau PROVISOIRE ne se règle plus ici (second tour, m6) · refusé
+    // avant la borne, l'issue nommée.
+    const provisoire = monter('SYSCOHADA', [
+      factureReportee(aNouveau({ estANouveauProvisoire: true })),
+      ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau({ estANouveauProvisoire: true })),
+    ]);
+    await expect(provisoire.service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(/la ligne d'à-nouveau choisie est PROVISOIRE/);
+    for (const drapeaux of [{ estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }] as Array<Record<string, boolean>>) {
+      const enPlus = [factureReportee(aNouveau(drapeaux)), ligne('ranP', 'c401', 1_008_000, 0, 600, aNouveau(drapeaux))];
+      const { service, creer } = monter('SYSCOHADA', enPlus);
+      await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
+        /600\.00 dans la devise des factures choisies sont déjà réglés au report à-nouveau[\s\S]*Les lignes d'à-nouveau choisies ne doivent plus que 560\.00 · réglez au plus 560\.00, puis complétez le lettrage/,
+      );
+      // L'issue qui reste, nommée (second tour, m5).
+      await expect(service.enregistrer('t', 'u', reglerLaReportee)).rejects.toThrow(
+        /Pour payer autrement, saisissez le règlement au journal de trésorerie, puis lettrez-le à la main avec la facture qu'il solde/,
+      );
+      await expect(
+        service.enregistrer('t', 'u', { ...reglerLaReportee, reglements: [{ compteId: 'c401', ligneIds: ['ranF'], montantDevise: 560.01, coursReglement: 1750 }] }),
+      ).rejects.toThrow(/au plus 560\.00/);
+      expect(creer).not.toHaveBeenCalled();
+    }
+    const { service, creer, lettrerManuel } = monter('SYSCOHADA', [factureReportee(), ligne('ranP', 'c401', 1_008_000, 0, 600, cloture)]);
+    await service.enregistrer('t', 'u', { ...reglerLaReportee, reglements: [{ compteId: 'c401', ligneIds: ['ranF'], montantDevise: 560, coursReglement: 1750 }] });
+    // 560 USD au coût historique de la facture · 1 948 800 × 560 / 1 160 = 940 800.
+    expect(resume(creer.mock.calls[0][2].lignes)).toEqual([
+      ['c401', 940_800, 0],
+      ['c656', 39_200, 0],
+      ['c571', 0, 980_000],
+    ]);
+    expect(lettrerManuel).toHaveBeenCalledWith('t', 'c401', ['ranF', 'p1-0'], 'u', { autoriserPartiel: true, ecartChangeRealise: 39_200 });
+  });
+
+  it('une facture de l’exercice, à côté d’un règlement reporté, n’est jamais bornée par lui (le premier tour la refusait à tort)', async () => {
+    const { service, creer } = monter('SYSCOHADA', [factureReportee(), ligne('ranP', 'c401', 1_008_000, 0, 600, cloture)]);
+    await service.enregistrer('t', 'u', reglerFm);
+    expect(resume(creer.mock.calls[0][2].lignes)[0]).toEqual(['c401', 1_948_800, 0]);
+  });
+
+  it('un lot · la facture de l’exercice garde son dû entier, la reportée sa seule part (2 320 dus, 1 720 au plus)', async () => {
+    const lot = { ...base, sens: 'FOURNISSEUR' as const, reglements: [{ compteId: 'c401', ligneIds: ['ranF', 'fm'], coursReglement: 1750 }] };
+    const { service, creer } = monter('SYSCOHADA', [factureReportee(), ligne('ranP', 'c401', 1_008_000, 0, 600, cloture)]);
+    await expect(service.enregistrer('t', 'u', lot)).rejects.toThrow(/ne doivent plus que 560\.00 · réglez au plus 1720\.00/);
+    await service.enregistrer('t', 'u', { ...lot, reglements: [{ ...lot.reglements[0]!, montantDevise: 1720 }] });
+    expect(creer).toHaveBeenCalledTimes(1);
+  });
+
+  it('côté client, l’encaissement reporté borne la créance reportée de même', async () => {
+    const { service, creer } = monter('SYSCOHADA', [ligne('ranC', 'c411', 1_948_800, 0, 1160, cloture), ligne('ranE', 'c411', 0, 1_008_000, 600, cloture)]);
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', reglements: [{ compteId: 'c411', ligneIds: ['ranC'], coursReglement: 1750 }] }),
+    ).rejects.toThrow(/réglez au plus 560\.00/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('une ligne reportée déjà lettrée avec SA facture, ou annulée par son inscription en négatif · ne borne rien', async () => {
+    // Le règlement reporté, rendu en N+1 à la facture qu'il réglait (groupe partiel G).
+    const lettree = monter('SYSCOHADA', [
+      factureReportee(),
+      ligne('f3', 'c401', 0, 1_850_000, 1000, cloture, { lettrageId: 'G' }),
+      ligne('ranP', 'c401', 1_008_000, 0, 600, cloture, { lettrageId: 'G' }),
+    ]);
+    await lettree.service.enregistrer('t', 'u', reglerLaReportee);
+    expect(lettree.creer).toHaveBeenCalled();
+    // Le montant en devise est stocké SANS signe · c'est le débit négatif qui annule.
+    const annulee = monter('SYSCOHADA', [
+      factureReportee(),
+      ligne('ranP', 'c401', 1_008_000, 0, 600, cloture),
+      ligne('ranN', 'c401', -1_008_000, 0, 600, cloture),
+    ]);
+    await annulee.service.enregistrer('t', 'u', reglerLaReportee);
+    expect(annulee.creer).toHaveBeenCalled();
+  });
+
+  it('un règlement, un acompte ou un avoir non lettré passé dans l’exercice ne borne rien · l’avoir se lettre à part (fiche du compte 40)', async () => {
+    const { service, creer, prisma } = monter('SYSCOHADA', [ligne('p', 'c401', 1_050_000, 0, 600, ordinaire)]);
+    await service.enregistrer('t', 'u', reglerFm);
+    expect(creer).toHaveBeenCalled();
+    // Aucune ligne d'à-nouveau choisie · le compte n'est même pas relu.
+    expect(prisma.ligneEcriture.aggregate).not.toHaveBeenCalled();
+  });
+
+  it('la doublure lit la requête · lignes reportées du compte, de la devise et de l’exercice, hors groupe, factures choisies écartées', async () => {
+    const { service, prisma } = monter('SYSCOHADA', [factureReportee()]);
+    await service.enregistrer('t', 'u', reglerLaReportee);
+    const appels = (prisma.ligneEcriture.aggregate as unknown as jest.Mock).mock.calls.map((c) => c[0]);
+    expect(appels).toHaveLength(4);
+    for (const { where: w } of appels) {
+      expect(w).toMatchObject({
+        compteId: 'c401',
+        id: { notIn: ['ranF'] },
+        lettrageId: null,
+        ecriture: { tenantId: 't', exerciceId: 'ex', OR: [{ estANouveauProvisoire: true }, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }] },
+      });
+    }
+    // Dans la devise, puis en francs sans devise (m4), chacun par son signe.
+    expect(appels.map((a) => a.where.deviseId)).toEqual(['usd', 'usd', null, null]);
+    expect(appels[0].where).toMatchObject({ debit: { gt: 0 } });
+    expect(appels[1].where).toMatchObject({ debit: { lt: 0 } });
+    expect(appels[2]).toMatchObject({ where: { debit: { gt: 0 } }, _sum: { debit: true } });
+    expect(appels[3]).toMatchObject({ where: { debit: { lt: 0 } }, _sum: { debit: true } });
+  });
+
+  // Second tour, m4 · un règlement reporté en francs SANS devise (avant A6)
+  // ne se lit pas dans la devise · il n'arrête rien, et il est dit.
+  it('un règlement reporté en francs sans devise · le règlement passe, avec l’avertissement qui le chiffre', async () => {
+    const enFrancs = { ...ligne('ranX', 'c401', 500_000, 0, 0, cloture), deviseId: null, montantDevise: null };
+    const { service, creer } = monter('SYSCOHADA', [factureReportee(), enFrancs]);
+    const r = await service.enregistrer('t', 'u', reglerLaReportee);
+    expect(creer).toHaveBeenCalled();
+    expect(r.avertissements).toEqual([expect.stringMatching(/40110000 · 500000\.00 en francs, sans devise, sont reportés à l'à-nouveau de ce compte hors de tout lettrage/)]);
+    // Sans règlement reporté en francs, aucun avertissement.
+    const net = monter('SYSCOHADA', [factureReportee()]);
+    expect((await net.service.enregistrer('t', 'u', reglerLaReportee)).avertissements).toEqual([]);
+  });
+});
+
 describe('la trésorerie en devise', () => {
   const regl = { compteId: 'c401', ligneIds: ['fm'], montantDevise: 600, coursReglement: 1750 };
 
@@ -645,9 +1032,28 @@ describe('la trésorerie en devise', () => {
     ).rejects.toThrow(/RIB du journal CA est tenu en EUR, et non en USD/);
     (prisma.ribBanque.findFirst as jest.Mock).mockResolvedValueOnce({ devise: 'usd' });
     await expect(service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [regl] })).rejects.toThrow(
-      /RIB du journal CA est tenu en USD · cochez « Moyen de paiement en devise »/,
+      /RIB du journal CA est tenu en USD · cochez « Moyen de paiement en devise ».*ou, si le RIB est mal renseigné, corrigez sa devise \(Banques\)/,
     );
     expect(creer).not.toHaveBeenCalled();
+  });
+
+  // A6 bis, B3 · reproduit par la relecture adverse. Le RIB n'était lu que
+  // si le lot portait une facture en devise · une banque en USD qui payait
+  // des factures en francs passait C 52 sans devise, et la conversion des
+  // disponibilités à la clôture (art. 57) partait d'une position fausse.
+  it('le RIB du journal tenu en USD, des factures en francs, case décochée · refus avant toute pièce', async () => {
+    const { service, prisma, creer } = monter();
+    (prisma.ribBanque.findFirst as jest.Mock).mockResolvedValueOnce({ devise: 'USD' });
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c402', ligneIds: ['ff'] }] }),
+    ).rejects.toThrow(/RIB du journal CA est tenu en USD et les factures choisies sont en francs.*ou, si le RIB est mal renseigné, corrigez sa devise \(Banques\)/);
+    expect(creer).not.toHaveBeenCalled();
+    // Un RIB en francs, ou sans devise renseignée (le franc), ne s'oppose à rien.
+    for (const devise of ['cdf', null, '']) {
+      (prisma.ribBanque.findFirst as jest.Mock).mockResolvedValueOnce({ devise });
+      await service.enregistrer('t', 'u', { ...base, sens: 'FOURNISSEUR', reglements: [{ compteId: 'c402', ligneIds: ['ff'] }] });
+    }
+    expect(creer).toHaveBeenCalledTimes(3);
   });
 
   it('un lot USD et EUR · la règle pure refuse un moyen de paiement à deux devises', () => {
@@ -664,6 +1070,17 @@ describe('la trésorerie en devise', () => {
         journalCode: 'BQ',
       }),
     ).toMatch(/plusieurs devises \(USD, EUR\)/);
+    // Un lot en francs sur un RIB en USD, case décochée · refus (B3).
+    expect(
+      motifRefusTresorerieEnDevise({
+        tresorerieEnDevise: false,
+        devisesDuLot: [null, null],
+        deviseTresorerie: null,
+        deviseRib: ' usd ',
+        monnaieDeTenue: 'CDF',
+        journalCode: 'BQ',
+      }),
+    ).toMatch(/tenu en USD et les factures choisies sont en francs/);
     // Un RIB en francs ne s'oppose à rien.
     expect(
       motifRefusTresorerieEnDevise({
@@ -720,9 +1137,37 @@ describe('passer l’écart de change proposé au lettrage', () => {
       ['c656', 123200, 0],
       ['c401', 0, 123200],
     ]);
-    expect(completer).toHaveBeenCalledWith('t', 'L', ['p1-1']);
+    // Sa propre ligne complète le groupe, sous la tolérance nommée (B2).
+    expect(completer).toHaveBeenCalledWith('t', 'L', ['p1-1'], { groupeTolere: 'L' });
     expect(r).toMatchObject({ ecart: 123200, compte: '65600000', statut: 'SOLDE' });
     expect(creer.mock.calls[0][2].libelle).toBe('Perte de change réalisée · 40110000 a');
+    // Le report au premier jour ouvert n'est jamais demandé d'office.
+    expect(creer.mock.calls[0][2]).not.toHaveProperty('reporterAuPremierJourOuvert');
+  });
+
+  // A6 bis, second tour, B2 · le dénouement dans une période close · l'écart
+  // s'enregistre au premier jour non clôturé SUR DEMANDE, sa date de valeur
+  // gardée (AUDCIF art. 22, 4°), et la réponse dit les deux dates.
+  it('période close · la demande expresse passe à la saisie, la date posée et la date de valeur reviennent', async () => {
+    const { service, creer, propositionEcartChange, prisma } = monter();
+    propositionEcartChange.mockResolvedValueOnce(proposition);
+    (prisma.journal.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'od', code: 'OD', type: 'GENERAL' });
+    creer.mockImplementationOnce(async (_t: string, _u: string, dto: { lignes: { compteId: string }[] }) => ({
+      id: 'e1',
+      numeroPiece: 1,
+      date: new Date('2026-12-01'),
+      dateValeur: new Date('2026-11-30'),
+      lignes: dto.lignes.map((l, i) => ({ ...l, id: `p1-${i}` })),
+    }));
+    const r = await service.passerEcartChange('t', 'u', {
+      lettrageId: 'L',
+      exerciceId: 'ex',
+      journalId: 'od',
+      date: '2026-11-30',
+      reporterAuPremierJourOuvert: true,
+    });
+    expect(creer.mock.calls[0][2]).toMatchObject({ date: '2026-11-30', reporterAuPremierJourOuvert: true });
+    expect(r).toMatchObject({ date: new Date('2026-12-01'), dateValeur: new Date('2026-11-30') });
   });
 
   // Mineur 1 · l'écart se constate « à la date d'encaissement ou de

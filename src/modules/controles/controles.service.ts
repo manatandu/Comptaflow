@@ -43,6 +43,7 @@ import { motifNonAmortissable, motifSansAmortissementProjet } from '../immobilis
 import { amortissementsHorsDotations } from '../immobilisations/partie-remplacee';
 import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 import { PLAFOND_LIGNES_EXAMINEES, reglementsSansEcart } from '../reglements/reglements-sans-ecart';
+import { issueEcartACheval, issueLettrageACheval, lettragesACheval, PLAFOND_LETTRAGES_A_CHEVAL } from '../lettrage/lettrages-a-cheval';
 import {
   PLAFOND_REEVALUATIONS_EXAMINEES,
   contrePassationsDeDisponibilites,
@@ -358,10 +359,14 @@ const SELECT_ECRITURE_CONTROLEE = {
   mouvementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
   ajustementCreanceDouteuse: { select: { annuleeLe: true, creance: { select: { annuleeLe: true } } } },
   lignes: {
+    // `lettrageId` · le contrôle 35 (lettrage à cheval de deux exercices, A6
+    // bis, B2) n'interroge les lettrages que si une ligne de l'exercice est
+    // lettrée, partiel compris · sans elle, aucun groupe ne peut y toucher.
     select: {
       debit: true,
       credit: true,
       lettre: true,
+      lettrageId: true,
       compte: {
         select: {
           id: true,
@@ -1362,6 +1367,8 @@ export class ControlesService {
     // Ligne A13 · relevés au passage, sans seconde lecture des écritures.
     const journauxEcrits = new Map<string, JournalEcrit>();
     const comptesBancaires = new Map<string, CompteBancaireMouvemente>();
+    // Ligne A6 bis, B2 · une ligne de l'exercice dans un groupe de lettrage.
+    let lettrageVu = false;
     // Une contre-passation ANNULÉE (A5 bis, M1) et son négatif ne portent
     // plus la liaison · la trace gardée sur la réévaluation les nomme (second
     // tour, m3), sans quoi une ancienne contre-passation qui inversait la
@@ -1398,6 +1405,7 @@ export class ControlesService {
         for (const l of e.lignes) {
           debit += Number(l.debit);
           credit += Number(l.credit);
+          if (l.lettrageId) lettrageVu = true;
           const n = l.compte.numero;
           if (estCompteBancaireARapprocher(n)) {
             // Solde comptable à la clôture (lignes de l'exercice, à-nouveau
@@ -1535,6 +1543,7 @@ export class ControlesService {
       comptesClasse9,
       classe9HorsEquilibre,
       journauxEcrits,
+      lettrageVu,
       // Au-delà de la borne, une contre-passation annulée plus ancienne
       // pourrait passer pour une opération de banque · le contrôle 32 le DIT
       // (troisième tour, mineur 3).
@@ -4625,6 +4634,64 @@ export class ControlesService {
     // Les règles, leurs textes et leurs bornes vivent dans
     // `banque-et-cloture-informatique.ts` · ici, la lecture et le message.
     anomalies.push(...(await this.controlesBanqueEtClotureInformatique(tenantId, ex, tenant.referentiel, parcours, maintenant)));
+
+    // --- 35. Lettrage à cheval de deux exercices (ligne A6 bis) ------------
+    //
+    // Rien ne BLOQUE (premier tour de relecture) · le report lit chaque
+    // exercice pour lui-même (règle 1 de `lettrages-a-cheval.ts`), et la
+    // clôture passe, figé ou non. Restent deux effets réels, nommés avec leur
+    // issue. INFORMATION · au Détail, le groupe ne se délettre pas (second
+    // tour, m2) ; le règlement des tiers, les relances et la réévaluation
+    // apparient la ligne d'à-nouveau de la facture avec le règlement lettré,
+    // la balance âgée et les notes par échéance la lisent encore ouverte quand
+    // le groupe est soldé, et le message le nomme (second tour, m1) ; un
+    // compte au SOLDE n'en garde aucun. AVERTISSEMENT · un groupe soldé dans
+    // sa devise et non en francs, dénoué dans cet exercice, dont l'écart
+    // réalisé n'est pas passé (AUDCIF art. 55) · l'écart proposé se passe sur
+    // le groupe, figé compris (second tour, B2), et le contrôle s'éteint ;
+    // la clôture ne le refuse pas (D3 ne lit pas les groupes à cheval).
+    // Sans ligne lettrée dans l'exercice (relevé au parcours), aucun groupe
+    // n'y touche · la lecture des lettrages n'a pas lieu d'être.
+    if (parcours.lettrageVu) {
+      const aCheval = await lettragesACheval(this.prisma, { tenantId, exerciceId });
+      const borne = aCheval.tronque
+        ? [{ reference: 'Lecture bornée', detail: `${PLAFOND_LETTRAGES_A_CHEVAL} groupes lus · d'autres lettrages à cheval peuvent exister.` }]
+        : [];
+      const auDetail = aCheval.groupes.filter((g) => g.auDetail);
+      if (auDetail.length > 0) {
+        anomalies.push({
+          code: 'LETTRAGE_A_CHEVAL_D_EXERCICES',
+          gravite: 'INFORMATION',
+          libelle: 'Lettrage qui mêle deux exercices sur un compte au Détail',
+          consequence:
+            "Le report à-nouveau lit chaque exercice pour lui-même · ces lignes y passent comme ouvertes, et la ligne d'à-nouveau de la facture " +
+            "se lit réglée par le groupe dans l'exercice suivant au règlement des tiers, aux relances et à la réévaluation. Le solde du compte est " +
+            'juste ; la balance âgée et les notes par échéance lisent encore ouverte la ligne d’à-nouveau d’un groupe soldé.',
+          action:
+            "Rien à défaire · ne délettrez pas le groupe (soldé dans sa devise, il rouvrirait ses lignes à la réévaluation), et ne lettrez la " +
+            'ligne d’à-nouveau de sa facture avec aucun autre règlement. Justifiez au dossier de travail la ligne que la balance âgée montre ouverte.',
+          occurrences: [...borne, ...auDetail.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueLettrageACheval(g) }))],
+        });
+      }
+      const ecarts = aCheval.groupes.filter((g) => g.ecartNonPasse !== null);
+      if (ecarts.length > 0) {
+        anomalies.push({
+          code: 'ECART_CHANGE_A_CHEVAL_NON_CONSTATE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Écart de change réalisé non passé sur un lettrage à cheval de deux exercices',
+          consequence:
+            "Le groupe est soldé dans sa devise et pas en francs · l'écart de change réalisé « est constaté » à la date du règlement " +
+            '(AUDCIF art. 55) ; non passé, il reste au compte du tiers comme un reste qui n’est plus une créance ni une dette, et manque au résultat.',
+          action:
+            "Passez l'écart proposé sur le groupe (Interrogation et lettrage, « Écart de change »), figé ou non · jamais par une écriture hors " +
+            "du groupe, que la réévaluation recompterait. Dénouement dans une période close · report au premier jour non clôturé (AUDCIF art. 22, 4°).",
+          occurrences: [
+            ...borne,
+            ...ecarts.map((g) => ({ reference: `${g.compteNumero} · lettrage ${g.code}`, detail: issueEcartACheval(g, tenant.referentiel), montant: g.ecartNonPasse! })),
+          ],
+        });
+      }
+    }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);

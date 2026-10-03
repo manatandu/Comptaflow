@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../common/prisma.service';
-import { compteAdmisPourEcart, racinesAdmises, type Referentiel } from './ecart-change-realise';
+import { compteAdmisPourEcart, coutsHistoriquesSuccessifs, ordreDeReglement, racinesAdmises, type Referentiel } from './ecart-change-realise';
 
 type Lecteur = Pick<PrismaService, 'ligneEcriture'>;
 
@@ -35,12 +35,20 @@ const centimes = (x: number) => Math.round(x * 100) / 100;
  * RECONNAISSABLE SEULEMENT DANS UN LETTRAGE PARTIEL · c'est le groupe qui dit
  * quelle facture la ligne règle. Le RÈGLEMENT se reconnaît à SA PIÈCE (une
  * ligne de trésorerie 5x dans la même écriture, ou un journal de trésorerie),
- * les autres lignes sont les factures ; un règlement dont les francs ne sont
- * pas la contrevaleur au coût historique des factures du groupe (leur cours
- * moyen) a soldé au payé, sauf si sa pièce porte une ligne de change
- * (`racinesAdmises`, nature non lue). Un groupe où ce n'est pas reconnaissable
+ * jamais une écriture de CLÔTURE ni d'À-NOUVEAU (A6 bis, M2 · le report porte
+ * aussi les lignes du 52 et du 57, et sa ligne du tiers passait pour un
+ * règlement), les autres lignes sont les factures ; un règlement dont les
+ * francs ne sont pas le coût historique de ce qu'il règle a soldé au payé,
+ * sauf si sa pièce porte une ligne de change (`racinesAdmises`, nature non
+ * lue). LE COÛT HISTORIQUE SE LIT PAR LA RÈGLE D'A6 (A6 bis, M1) · les
+ * factures les plus anciennes d'abord, le même jour par l'identifiant de
+ * ligne (`ordreDeReglement`), chaque règlement reprenant où le précédent
+ * s'est arrêté (`coutsHistoriquesSuccessifs`). Le cours MOYEN des factures,
+ * lu jusque-là, fabriquait un « écart non constaté » sur tout règlement A6 de
+ * factures à des cours différents. Un groupe où ce n'est pas reconnaissable
  * (factures de deux sens, comme un avoir ; règlement antérieur à la première
- * facture, comme un acompte) est ÉCARTÉ et COMPTÉ (`nonReconnaissables`). Un règlement NON LETTRÉ n'est pas
+ * facture, comme un acompte ; règlements qui dépassent les factures dans leur
+ * devise) est ÉCARTÉ et COMPTÉ (`nonReconnaissables`). Un règlement NON LETTRÉ n'est pas
  * reconnaissable · rien ne dit quelle facture il éteint, ni à quel coût
  * historique ; un groupe SOLDE a vu son écart passé (A6) ; un partiel dénoué
  * dans sa devise relève de la proposition d'écart et du refus de la clôture
@@ -71,6 +79,9 @@ export async function reglementsSansEcart(
         select: {
           date: true,
           numeroPiece: true,
+          // Une écriture de clôture ou d'à-nouveau n'est jamais un règlement (M2).
+          estGenereeParCloture: true,
+          estANouveauProvisoire: true,
           journal: { select: { code: true, type: true } },
           // La pièce dit ce qu'est la ligne · une ligne de trésorerie (5x) dans
           // la même écriture fait d'elle un règlement (relecture adverse M5).
@@ -98,7 +109,10 @@ export async function reglementsSansEcart(
     // la même écriture, ou un journal de trésorerie. Lire « la plus ancienne
     // est la facture » prenait un acompte ou un avoir antérieurs pour la
     // facture, et fabriquait une anomalie.
-    const estReglement = (l: (typeof groupe)[number]) => l.ecriture.journal.type === 'TRESORERIE' || l.ecriture.lignes.length > 0;
+    const estReglement = (l: (typeof groupe)[number]) =>
+      !l.ecriture.estGenereeParCloture &&
+      !l.ecriture.estANouveauProvisoire &&
+      (l.ecriture.journal.type === 'TRESORERIE' || l.ecriture.lignes.length > 0);
     const reglements = groupe.filter(estReglement);
     const factures = groupe.filter((l) => !estReglement(l));
     // RECONNAISSABLE, OU ÉCARTÉ ET DIT · des factures toutes d'un sens, des
@@ -117,15 +131,24 @@ export async function reglementsSansEcart(
       continue;
     }
     const devisesFactures = factures.reduce((t, l) => t + Number(l.montantDevise ?? 0), 0);
-    if (!(devisesFactures > 0)) {
+    const devisesReglees = reglements.reduce((t, l) => t + Number(l.montantDevise ?? 0), 0);
+    if (!(devisesFactures > 0) || devisesReglees > devisesFactures + 0.005) {
       nonReconnaissables += 1;
       continue;
     }
-    const coursHistorique = factures.reduce((t, l) => t + Math.abs(Number(l.debit) - Number(l.credit)), 0) / devisesFactures;
-    for (const r of reglements) {
+    // LA RÈGLE D'A6, REJOUÉE (M1) · les règlements dans leur ordre, chacun
+    // éteignant les factures les plus anciennes à partir d'où le précédent
+    // s'est arrêté.
+    const enOrdre = (l: (typeof groupe)[number]) => ({ id: l.id, date: l.ecriture.date });
+    const reglementsEnOrdre = [...reglements].sort((a, b) => ordreDeReglement(enOrdre(a), enOrdre(b)));
+    const couts = coutsHistoriquesSuccessifs(
+      factures.map((l) => ({ id: l.id, date: l.ecriture.date, francs: Math.abs(Number(l.debit) - Number(l.credit)), montantDevise: Number(l.montantDevise ?? 0) })),
+      reglementsEnOrdre.map((l) => Number(l.montantDevise ?? 0)),
+    );
+    for (const [i, r] of reglementsEnOrdre.entries()) {
       const devise = Number(r.montantDevise ?? 0);
       const portes = centimes(Math.abs(Number(r.debit) - Number(r.credit)));
-      const historiques = centimes(devise * coursHistorique);
+      const historiques = couts[i]!;
       // Au coût historique (règlement A6), à l'arrondi du cours près · rien à dire.
       if (Math.abs(portes - historiques) <= 0.01 + devise * 1e-6) continue;
       // Factures au crédit (fournisseur) · payer plus que l'origine est une perte.

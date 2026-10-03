@@ -20,11 +20,13 @@ interface LigneFausse {
   montantDevise: number | null;
   ecriture: {
     tenantId: string;
+    exerciceId: string;
     date: Date;
     reference: string | null;
     journalId: string;
     journal: { code: string };
     exercice: { statut: 'OUVERT' | 'CLOTURE' };
+    estANouveauProvisoire?: boolean;
   };
   libelle: string | null;
 }
@@ -52,6 +54,10 @@ function ligne(
     reference?: string;
     date?: string;
     exerciceClos?: boolean;
+    /** L'exercice de l'écriture · un seul par défaut (A6 bis, B2). */
+    exercice?: string;
+    /** Une ligne de l'à-nouveau PROVISOIRE (A6 bis, m1). */
+    provisoire?: boolean;
   } = {},
 ): LigneFausse {
   return {
@@ -66,11 +72,13 @@ function ligne(
     libelle: null,
     ecriture: {
       tenantId: 't1',
+      exerciceId: extra.exercice ?? 'ex1',
       date: new Date(extra.date ?? '2026-03-01'),
       reference: extra.reference ?? null,
       journalId: 'jACH',
       journal: { code: 'ACH' },
       exercice: { statut: extra.exerciceClos ? 'CLOTURE' : 'OUVERT' },
+      estANouveauProvisoire: extra.provisoire ?? false,
     },
   };
 }
@@ -81,13 +89,17 @@ interface ClotureFausse {
   dateLimite: Date;
 }
 
-function service(lignes: LigneFausse[], options: { lettrable?: boolean; clotures?: ClotureFausse[] } = {}) {
+function service(
+  lignes: LigneFausse[],
+  options: { lettrable?: boolean; clotures?: ClotureFausse[]; mode?: 'DETAIL' | 'SOLDE' | 'AUCUN'; referentiel?: 'SYSCOHADA' | 'SYCEBNL' } = {},
+) {
   const groupes: GroupeFaux[] = [];
   let seq = 0;
 
   const filtrer = (where: any) =>
     lignes.filter((l) => {
       if (where?.id?.in && !where.id.in.includes(l.id)) return false;
+      if (where?.id?.notIn && where.id.notIn.includes(l.id)) return false;
       if (where?.compteId && l.compteId !== where.compteId) return false;
       if (where?.lettrageId !== undefined) {
         if (where.lettrageId === null && l.lettrageId !== null) return false;
@@ -97,6 +109,7 @@ function service(lignes: LigneFausse[], options: { lettrable?: boolean; clotures
       if (where?.lettre?.not === null && l.lettre === null) return false;
       if (typeof where?.lettre === 'string' && l.lettre !== where.lettre) return false;
       if (where?.ecriture?.tenantId && l.ecriture.tenantId !== where.ecriture.tenantId) return false;
+      if (where?.ecriture?.estANouveauProvisoire === false && l.ecriture.estANouveauProvisoire) return false;
       return true;
     });
 
@@ -117,8 +130,11 @@ function service(lignes: LigneFausse[], options: { lettrable?: boolean; clotures
         numero: '41100000',
         intitule: 'Adhérents',
         lettrable: options.lettrable ?? true,
+        // Un compte de tiers se reporte au Détail · la règle des exercices y vaut (A6 bis).
+        modeReportANouveau: options.mode ?? 'DETAIL',
       }),
     },
+    tenant: { findFirst: jest.fn().mockResolvedValue({ referentiel: options.referentiel ?? 'SYSCOHADA' }) },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where))),
       count: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(filtrer(where).length)),
@@ -728,5 +744,254 @@ describe('Gel du lettrage par la clôture', () => {
     await expect(
       s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['a', 'b'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
     ).rejects.toThrow(/figée/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, B2 · un lettrage ne mêle pas deux exercices
+// ---------------------------------------------------------------------------
+
+describe('Au Détail, un nouveau lettrage ne mêle pas deux exercices (A6 bis, règle 2)', () => {
+  // La facture de N (15/12/2026) et son règlement de N+1 (10/01/2027), les
+  // deux exercices ouverts · soldé, le groupe posait sa lettre sur la facture
+  // de N, qui sortait du report à-nouveau Détail sans s'y solder.
+  const facture = () => ligne('f', 0, 1000, { date: '2026-12-15', exercice: 'N' });
+  const reglement = () => ligne('r', 1000, 0, { date: '2027-01-10', exercice: 'N1' });
+
+  it('le lettrage manuel refuse, nomme les deux lignes et l’issue · rien n’est posé', async () => {
+    const { service: s, groupes, lignes } = service([facture(), reglement()]);
+    await expect(s.lettrerManuel('t1', 'c1', ['f', 'r'], 'u1')).rejects.toThrow(
+      /Le compte 41100000 est reporté en mode Détail, et ces lignes appartiennent à 2 exercices \(lignes du 2026-12-15, du 2027-01-10\).*ligne d'à-nouveau DÉFINITIF une fois l'exercice antérieur clôturé ; tant qu'il ne l'est pas, attendez sa clôture/,
+    );
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettrageId === null)).toBe(true);
+  });
+
+  it('compléter un partiel de N avec une ligne de N+1 · refusé, le groupe reste tel quel', async () => {
+    const { service: s, groupes, lignes } = service([
+      facture(),
+      ligne('a', 400, 0, { date: '2026-12-20', exercice: 'N' }),
+      ligne('r', 600, 0, { date: '2027-01-10', exercice: 'N1' }),
+    ]);
+    await s.lettrerManuel('t1', 'c1', ['f', 'a'], 'u1', { autoriserPartiel: true });
+    await expect(s.completer('t1', groupes[0].id, ['r'])).rejects.toThrow(/est reporté en mode Détail, et ces lignes appartiennent à 2 exercices/);
+    expect(groupes[0].statut).toBe('PARTIEL');
+    expect(lignes.find((l) => l.id === 'r')!.lettrageId).toBeNull();
+  });
+
+  it('le pré-lettrage et le lettrage automatique ne proposent qu’à l’intérieur d’un exercice', async () => {
+    const scene = () => [facture(), reglement(), ligne('d', 300, 0, { exercice: 'N1' }), ligne('c', 0, 300, { exercice: 'N1' })];
+    const { service: s } = service(scene());
+    const pre = await s.preLettrage('t1', 'c1');
+    expect(pre.propositions.map((p) => [...p.ligneIds].sort())).toEqual([['c', 'd']]);
+    const pose = service(scene());
+    await pose.service.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(pose.lignes.find((l) => l.id === 'f')!.lettrageId).toBeNull();
+    expect(pose.lignes.find((l) => l.id === 'r')!.lettrageId).toBeNull();
+  });
+
+  it('la confirmation d’un groupe à cheval · refusée, il ne vient pas d’une proposition', async () => {
+    const { service: s, groupes } = service([facture(), reglement()]);
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['f', 'r'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
+    ).rejects.toThrow(/est reporté en mode Détail, et ces lignes appartiennent à 2 exercices/);
+    expect(groupes).toHaveLength(0);
+  });
+
+  /** Un groupe à cheval DÉJÀ en base (posé avant la règle) · rien ne le réécrit. */
+  function groupeExistant(statut: 'PARTIEL' | 'SOLDE', options: { mode?: 'DETAIL' | 'SOLDE'; factureClose?: boolean } = {}) {
+    const lettre = statut === 'SOLDE' ? 'A' : null;
+    const lignes = [
+      ligne('f', 0, 1_948_800, {
+        date: '2026-12-15',
+        exercice: 'N',
+        deviseId: 'usd',
+        montantDevise: 1160,
+        lettrageId: 'g9',
+        lettre,
+        exerciceClos: options.factureClose,
+      }),
+      ligne('r', 2_030_000, 0, { date: '2027-01-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9', lettre }),
+    ];
+    const monte = service(lignes, { mode: options.mode });
+    monte.groupes.push({
+      id: 'g9',
+      tenantId: 't1',
+      compteId: 'c1',
+      code: 'A',
+      statut,
+      solde: statut === 'SOLDE' ? 0 : 81_200,
+      origine: 'MANUEL',
+      verrouille: false,
+      ecartChange: null,
+      createdAt: new Date('2027-01-10'),
+      createdBy: 'u1',
+      soldeAt: null,
+    });
+    const p = monte.prisma as any;
+    const trouver = p.lettrage.findFirst.getMockImplementation();
+    p.lettrage.findFirst = jest.fn().mockImplementation(async (args: any) => {
+      const g = await trouver(args);
+      return g ? { ...g, compte: { id: 'c1', numero: '40110000', intitule: 'NZUZI', modeReportANouveau: options.mode ?? 'DETAIL' } } : null;
+    });
+    return monte;
+  }
+
+  it('au Détail, l’écart de change d’un groupe à cheval SE PROPOSE · rien à délettrer (second tour, m2)', async () => {
+    const { service: s } = groupeExistant('PARTIEL');
+    const r = await s.propositionEcartChange('t1', 'g9');
+    // 2 030 000 − 1 948 800 = 81 200 de perte, à la date et dans l'exercice du règlement.
+    expect(r).toMatchObject({ ecart: 81_200, sens: 'PERTE', exerciceId: 'N1', aCheval: true, fige: false });
+    expect(r.motif ?? '').not.toMatch(/élettrez/);
+  });
+
+  it('au SOLDE, un groupe à cheval non figé · l’écart se propose, daté du dénouement, dans son exercice', async () => {
+    const { service: s } = groupeExistant('PARTIEL', { mode: 'SOLDE' });
+    const r = await s.propositionEcartChange('t1', 'g9');
+    expect(r).toMatchObject({ ecart: 81_200, sens: 'PERTE', exerciceId: 'N1', aCheval: true, fige: false });
+  });
+
+  it('un groupe à cheval FIGÉ (exercice clôturé), au SOLDE comme au Détail · l’écart se propose quand même, le gel dit (B2)', async () => {
+    for (const mode of ['SOLDE', 'DETAIL'] as const) {
+      const { service: s } = groupeExistant('PARTIEL', { mode, factureClose: true });
+      const r = await s.propositionEcartChange('t1', 'g9');
+      expect(r).toMatchObject({ ecart: 81_200, exerciceId: 'N1', aCheval: true, fige: true });
+      expect(r.motif ?? '').not.toMatch(/écriture manuelle/);
+    }
+  });
+
+  it('un groupe à cheval déjà en base reste délettrable tant que ses exercices sont ouverts · aucun geste ne l’interdit', async () => {
+    const { service: s, groupes, lignes } = groupeExistant('SOLDE');
+    const r = await s.delettrer('t1', 'c1', 'A');
+    expect(r.nombreLignes).toBe(2);
+    expect(groupes).toHaveLength(0);
+    expect(lignes.every((l) => l.lettrageId === null && l.lettre === null)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, second tour, B2 · le groupe figé reçoit l'écart de change réalisé
+// sous la tolérance nommée de `completer` (`groupeTolere`)
+// ---------------------------------------------------------------------------
+
+describe('Un groupe figé reçoit son écart de change (A6 bis, second tour, B2)', () => {
+  /** La facture de N (exercice CLÔTURÉ), le règlement de N1, l'écart de N1 à rattacher. */
+  function figeAvecEcart(options: { mode?: 'DETAIL' | 'SOLDE'; ecart?: Partial<{ exercice: string; exerciceClos: boolean }> } = {}) {
+    const lignes = [
+      ligne('f', 0, 1_948_800, { date: '2026-12-15', exercice: 'N', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9', exerciceClos: true }),
+      ligne('r', 2_030_000, 0, { date: '2027-01-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      // La ligne du tiers de l'écriture d'écart · perte de 81 200, C 401.
+      ligne('e', 0, 81_200, { date: '2027-01-10', exercice: options.ecart?.exercice ?? 'N1', exerciceClos: options.ecart?.exerciceClos }),
+    ];
+    const monte = service(lignes, { mode: options.mode });
+    monte.groupes.push({
+      id: 'g9',
+      tenantId: 't1',
+      compteId: 'c1',
+      code: 'A',
+      statut: 'PARTIEL',
+      solde: 81_200,
+      origine: 'MANUEL',
+      verrouille: false,
+      ecartChange: null,
+      createdAt: new Date('2027-01-10'),
+      createdBy: 'u1',
+      soldeAt: null,
+    });
+    return monte;
+  }
+
+  it('sans tolérance · refusé comme avant · au SOLDE la facture de N est figée, au Détail le groupe mêle deux exercices', async () => {
+    const auSolde = figeAvecEcart({ mode: 'SOLDE' });
+    await expect(auSolde.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/est figée, son exercice est clôturé/);
+    expect(auSolde.groupes[0].statut).toBe('PARTIEL');
+    expect(auSolde.lignes.find((l) => l.id === 'e')!.lettrageId).toBeNull();
+    const auDetail = figeAvecEcart();
+    await expect(auDetail.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/appartiennent à 2 exercices/);
+  });
+
+  it('toléré · le groupe passe SOLDE, la ligne de l’exercice clôturé n’est pas touchée, les autres reçoivent la lettre', async () => {
+    for (const mode of ['DETAIL', 'SOLDE'] as const) {
+      const { service: s, groupes, lignes } = figeAvecEcart({ mode });
+      const r = await s.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' });
+      expect(r).toMatchObject({ statut: 'SOLDE', lettre: 'A', solde: 0 });
+      expect(groupes[0].statut).toBe('SOLDE');
+      const par = (id: string) => lignes.find((l) => l.id === id)!;
+      expect(par('e')).toMatchObject({ lettrageId: 'g9', lettre: 'A' });
+      expect(par('r')).toMatchObject({ lettrageId: 'g9', lettre: 'A' });
+      // La facture de l'exercice clôturé · ni lettre posée, ni rattachement changé.
+      expect(par('f')).toMatchObject({ lettrageId: 'g9', lettre: null });
+    }
+  });
+
+  it('une ligne figée par une PÉRIODE close d’un exercice OUVERT reçoit la lettre · sinon le report la lirait ouverte', async () => {
+    const lignes = [
+      ligne('f', 0, 1_948_800, { date: '2027-01-15', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      ligne('r', 2_030_000, 0, { date: '2027-04-10', exercice: 'N1', deviseId: 'usd', montantDevise: 1160, lettrageId: 'g9' }),
+      ligne('e', 0, 81_200, { date: '2027-04-10', exercice: 'N1' }),
+    ];
+    const monte = service(lignes, { clotures: [{ granularite: 'PERIODE', journalId: null, dateLimite: new Date('2027-03-31') }] });
+    monte.groupes.push({ ...monte.groupes[0], id: 'g9', tenantId: 't1', compteId: 'c1', code: 'B', statut: 'PARTIEL', solde: 81_200, origine: 'MANUEL', verrouille: false, ecartChange: null, createdAt: new Date(), createdBy: 'u1', soldeAt: null });
+    await expect(monte.service.completer('t1', 'g9', ['e'])).rejects.toThrow(/est figée/);
+    const r = await monte.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' });
+    expect(r.statut).toBe('SOLDE');
+    expect(monte.lignes.map((l) => l.lettre)).toEqual(['B', 'B', 'B']);
+  });
+
+  it('la tolérance ne vaut que pour SON groupe, ni pour une ligne nouvelle figée, ni pour un exercice que le groupe ne touchait pas', async () => {
+    const autre = figeAvecEcart({ mode: 'SOLDE' });
+    await expect(autre.service.completer('t1', 'g9', ['e'], { groupeTolere: 'gAutre' })).rejects.toThrow(/est figée/);
+    const nouvelleFigee = figeAvecEcart({ ecart: { exercice: 'N', exerciceClos: true } });
+    await expect(nouvelleFigee.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' })).rejects.toThrow(/est figée/);
+    const exerciceNeuf = figeAvecEcart({ ecart: { exercice: 'N2' } });
+    await expect(exerciceNeuf.service.completer('t1', 'g9', ['e'], { groupeTolere: 'g9' })).rejects.toThrow(
+      /est reporté en mode Détail, et ces lignes appartiennent à 3 exercices/,
+    );
+    expect(exerciceNeuf.groupes[0].statut).toBe('PARTIEL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A6 bis, règle 2 · au SOLDE, le lettrage entre exercices est libre ; m1 ·
+// l'à-nouveau provisoire n'est jamais proposé
+// ---------------------------------------------------------------------------
+
+describe('Au SOLDE, un lettrage entre exercices est libre (A6 bis, B-2, m6)', () => {
+  // Le salaire de décembre payé en janvier · le 422 se reporte au SOLDE.
+  const salaire = () => ligne('s', 0, 500, { date: '2026-12-31', exercice: 'N' });
+  const paie = () => ligne('p', 500, 0, { date: '2027-01-05', exercice: 'N1' });
+
+  it('le lettrage manuel pose le groupe, et le complément l’accepte', async () => {
+    const { service: s, groupes } = service([salaire(), paie()], { mode: 'SOLDE' });
+    const r = await s.lettrerManuel('t1', 'c1', ['s', 'p'], 'u1');
+    expect(r.statut).toBe('SOLDE');
+    expect(groupes).toHaveLength(1);
+    const partiel = service([salaire(), ligne('a', 200, 0, { exercice: 'N' }), ligne('p', 300, 0, { date: '2027-01-05', exercice: 'N1' })], { mode: 'SOLDE' });
+    await partiel.service.lettrerManuel('t1', 'c1', ['s', 'a'], 'u1', { autoriserPartiel: true });
+    expect((await partiel.service.completer('t1', partiel.groupes[0].id, ['p'])).statut).toBe('SOLDE');
+  });
+
+  it('le lettrage automatique joue sur tout le compte', async () => {
+    const pose = service([salaire(), paie()], { mode: 'SOLDE' });
+    await pose.service.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(pose.lignes.every((l) => l.lettrageId !== null)).toBe(true);
+  });
+});
+
+describe('L’à-nouveau provisoire n’est jamais proposé (A6 bis, m1)', () => {
+  it('pré-lettrage et lettrage automatique l’écartent · sa clôture le remplacera', async () => {
+    const scene = () => [
+      ligne('ran', 0, 1000, { exercice: 'N1', provisoire: true }),
+      ligne('r', 1000, 0, { exercice: 'N1' }),
+      ligne('d', 300, 0, { exercice: 'N1' }),
+      ligne('c', 0, 300, { exercice: 'N1' }),
+    ];
+    const { service: s, prisma } = service(scene());
+    const pre = await s.preLettrage('t1', 'c1');
+    expect(pre.propositions.map((p) => [...p.ligneIds].sort())).toEqual([['c', 'd']]);
+    expect((prisma as any).ligneEcriture.findMany.mock.calls[0][0].where.ecriture).toMatchObject({ estANouveauProvisoire: false });
+    const pose = service(scene());
+    await pose.service.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(pose.lignes.find((l) => l.id === 'ran')!.lettrageId).toBeNull();
   });
 });

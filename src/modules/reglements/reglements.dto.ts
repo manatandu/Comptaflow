@@ -26,9 +26,16 @@ export class ReglementTiersDto {
   @IsUUID('4', { each: true })
   ligneIds!: string[];
 
-  /** Montant réglé, s'il est inférieur au dû · absent, le dû entier. */
-  @IsOptional()
+  /**
+   * Montant réglé, s'il est inférieur au dû · absent, le dû entier. En devise,
+   * le débit RÉEL en francs (le cours s'en déduit). FACULTATIF, MAIS JAMAIS
+   * `null`, ZÉRO NI NÉGATIF (A6 bis, B1) · `null` passait `@IsOptional()` et valait le dû
+   * entier en francs, ou zéro franc payé en devise, la pièce soldant le tiers
+   * contre une trésorerie vide et portant le dû en gain de change.
+   */
+  @FacultatifNonNul('Omettez le montant pour régler le dû entier · un montant payé est un nombre strictement positif.')
   @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   montant?: number;
 
   /** Numéro du chèque ou du virement, porté en référence de la pièce. */
@@ -135,4 +142,14 @@ export class PasserEcartChangeDto {
   @FacultatifNonNul("Omettez le compte d'écart de change quand le texte le donne.")
   @IsUUID('4')
   compteEcartChangeId?: string;
+
+  /**
+   * AUDCIF art. 22, 4° · le dénouement tombe dans une période clôturée ·
+   * l'écart s'enregistre au premier jour de la période non encore clôturée,
+   * sa date de valeur gardée (A6 bis, second tour, B2). Une demande
+   * expresse, jamais d'office, comme à la saisie.
+   */
+  @FacultatifNonNul('Omettez le report au premier jour ouvert, ou cochez-le.')
+  @IsBoolean()
+  reporterAuPremierJourOuvert?: boolean;
 }

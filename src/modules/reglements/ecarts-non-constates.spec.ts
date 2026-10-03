@@ -40,7 +40,8 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     expect(findMany.mock.calls[0][0].where).toEqual({
       lettrageId: { not: null },
       lettre: null,
-      lettrage: { statut: 'PARTIEL' },
+      // A6 bis, B2 · un groupe à cheval de deux exercices n'est pas lu ici.
+      lettrage: { statut: 'PARTIEL', lignes: { every: { ecriture: { exerciceId: 'n' } } } },
       ecriture: { tenantId: 't', exerciceId: 'n' },
     });
     expect(findMany.mock.calls[0][0].take).toBeGreaterThan(0);
@@ -72,6 +73,8 @@ describe('les écarts de change réalisés non constatés d’un exercice', () =
     expect(motif).toContain(
       "si le geste est refusé (réévaluation qui a lu le groupe, cours corrigé), suivez le motif du refus : annulez la réévaluation, passez l'écart, puis réévaluez. Ne délettrez pas le groupe, sans quoi l'écart ne serait plus constaté.",
     );
+    // A6 bis · un groupe à cheval n'est pas compté ici, et le motif dit où il se lit.
+    expect(motif).toContain('Un lettrage qui mêle deux exercices n\'est pas compté ici · le contrôle des comptes nomme son écart, avec son issue.');
     expect(motifClotureEcartsNonConstates({ ecarts: [] })).toBeNull();
   });
 });

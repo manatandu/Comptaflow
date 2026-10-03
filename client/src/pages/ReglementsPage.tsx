@@ -28,6 +28,8 @@ interface LigneEcheance {
   deviseId?: string | null;
   deviseCode?: string | null;
   montantDevise?: number | null;
+  /** Ligne d'à-nouveau réglée en partie par un lettrage à cheval de deux exercices (A6 bis, m1) · le dû est son reste. */
+  regleParLettrageACheval?: { groupe: string; montant: number } | null;
 }
 
 interface GroupeTiers {
@@ -38,6 +40,8 @@ interface GroupeTiers {
   /** A7 ter, mineur 1 · le compte porte une créance reclassée au 416 en vigueur · son encaissement passe par le module. */
   creanceReclassee?: { compte416: string; date: string } | null;
   lignes: LigneEcheance[];
+  /** Lignes d'à-nouveau PROVISOIRE écartées par le serveur (A6 bis, m6) · elles attendent la clôture de l'exercice précédent. */
+  aNouveauProvisoireEcartees?: number;
 }
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
@@ -205,7 +209,7 @@ export function ReglementsPage() {
       sens,
       factures: g.lignes
         .filter((l) => cochees.has(l.id) && l.montantDevise)
-        .map((l) => ({ francs: l.montant, montantDevise: l.montantDevise!, date: l.date })),
+        .map((l) => ({ id: l.id, francs: l.montant, montantDevise: l.montantDevise!, date: l.date })),
       montantDevise: nombreSaisi(montantsDevise[g.compteId]) ?? duDevise(g),
       francsPayes: francsDuGroupe(g, deviseId),
     });
@@ -645,6 +649,14 @@ export function ReglementsPage() {
                       ) : null}
                     </td>
                   </tr>
+                  {(g.aNouveauProvisoireEcartees ?? 0) > 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-warning">
+                        {g.aNouveauProvisoireEcartees} ligne(s) d'à-nouveau provisoire écartée(s) · attendez la clôture de l'exercice
+                        précédent, ou saisissez le règlement au journal de trésorerie.
+                      </td>
+                    </tr>
+                  )}
                   {g.creanceReclassee && (
                     <tr>
                       <td colSpan={5} className="px-2 py-1 text-[11.5px] text-warning">
@@ -677,6 +689,11 @@ export function ReglementsPage() {
                         {l.deviseId && l.montantDevise !== null && l.montantDevise !== undefined ? (
                           <div className="text-text-dim">
                             {fmt(l.montantDevise)} {l.deviseCode}
+                          </div>
+                        ) : null}
+                        {l.regleParLettrageACheval ? (
+                          <div className="text-text-dim">
+                            reste · {fmt(l.regleParLettrageACheval.montant)} réglés par le lettrage {l.regleParLettrageACheval.groupe}
                           </div>
                         ) : null}
                       </td>

@@ -75,14 +75,26 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
  *    FINANCIÈRES »). Les fournisseurs d'investissements, au 481 des deux
  *    plans · le ch. 22 § 1.1 dit de l'immobilisation payée à terme en devise
  *    que « la différence constitue une charge ou un produit financier (perte
- *    ou gain de change) ».
+ *    ou gain de change) ». POUR LA MÊME RAISON, le 404 du SYSCOHADA
+ *    (A6 bis, M3) · « Fournisseurs, acquisitions courantes
+ *    d'immobilisations » (Titre VII, fiche du compte 40) · c'est le prix payé
+ *    d'une immobilisation, que le § 1.1 met en résultat FINANCIER ; lu
+ *    commercial par sa racine 40, son écart allait au 656. Le SYCEBNL
+ *    n'ouvre pas de 404 (Partie 2 ch. 2).
+ *  · SANS NATURE, et dit (A6 bis, M3) · le 414 du SYSCOHADA, « Créances sur
+ *    cessions courantes d'immobilisations ». Le § 1.1 ne vise que le prix
+ *    PAYÉ par l'acquéreur ; la fiche du compte 41 range la créance parmi les
+ *    comptes rattachés au client sans la dire « commerciale » au sens du
+ *    § 2.3 · aucun texte lu ne tranche, le cabinet choisit parmi les comptes
+ *    de change. Le SYCEBNL n'ouvre pas de 414.
  *  · Tout autre compte · `null`, la nature reste au cabinet, dans les seuls
  *    comptes de change (`racinesAdmises`).
  */
 export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
-  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '481'] : ['18', '27', '481'];
+  if (referentiel === 'SYSCOHADA' && numero.startsWith('414')) return null;
+  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '404', '481'] : ['18', '27', '481'];
   if (financieres.some((r) => numero.startsWith(r))) return 'FINANCIERE';
+  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
   return null;
 }
 
@@ -197,13 +209,25 @@ export function libelleEcartRealise(ecart: number): string {
  * cours saisi donne la contrevaleur ; le débit réel saisi en francs prime, et
  * le cours s'en déduit à six décimales ; les deux saisis doivent s'accorder à
  * la tolérance près. Ni l'un ni l'autre · refus, jamais un cours deviné.
+ *
+ * RIEN DE NUL NI DE NÉGATIF NE PASSE (A6 bis, B1) · un règlement de 600 USD
+ * « payé » zéro franc soldait 1 008 000 au 401 contre un 52 à zéro, le tout
+ * porté en GAIN au 756 ; un montant de -600 rendait un cours de -1. La pièce
+ * était équilibrée et la balance bouclée (§ 10 bis). Le montant réglé en
+ * devise, les francs payés et le cours, saisi ou déduit, sont tous
+ * strictement positifs, contrôlés ICI, sur la valeur que la pièce porterait
+ * (arrondie), quelle que soit la porte · un `null` ou un `NaN` venu d'un
+ * appelant qui aurait sauté le DTO tombe sous le même refus.
  */
 export function coursEtFrancsDuReglement(p: {
   montantDevise: number;
-  cours?: number;
-  francs?: number;
+  cours?: number | null;
+  francs?: number | null;
   tolerance: (montantDevise: number, cours: number, francs: number) => boolean;
 }): { cours: number; francs: number } | { motif: string } {
+  if (!(p.montantDevise > 0)) {
+    return { motif: 'le montant réglé en devise doit être strictement positif · un règlement nul ou négatif ne règle rien.' };
+  }
   if (p.cours === undefined && p.francs === undefined) {
     return {
       motif:
@@ -211,18 +235,36 @@ export function coursEtFrancsDuReglement(p: {
         'se mesurant contre lui (AUDCIF art. 55).',
     };
   }
-  if (p.francs === undefined) return { cours: p.cours!, francs: Math.round(p.montantDevise * p.cours! * 100) / 100 };
-  const francs = Math.round(p.francs * 100) / 100;
-  if (p.cours === undefined) return { cours: Math.round((francs / p.montantDevise) * 1e6) / 1e6, francs };
-  if (!p.tolerance(p.montantDevise, p.cours, francs)) {
-    const attendu = Math.round(p.montantDevise * p.cours * 100) / 100;
+  const motifCours =
+    'le cours du jour du règlement doit être strictement positif · un cours nul ou négatif ferait passer ce que le tiers éteint pour un gain ' +
+    '(AUDCIF art. 52 et 55).';
+  const motifFrancs =
+    'le montant payé en francs doit être strictement positif · un règlement à zéro franc solderait le tiers contre une trésorerie vide ' +
+    'et ferait du dû entier un gain de change (AUDCIF art. 55).';
+  if (p.cours !== undefined && !(Number(p.cours) > 0)) return { motif: motifCours };
+  if (p.francs === undefined) {
+    const cours = Number(p.cours);
+    const francsDuCours = Math.round(p.montantDevise * cours * 100) / 100;
+    if (!(francsDuCours > 0)) return { motif: motifFrancs };
+    return { cours, francs: francsDuCours };
+  }
+  const francs = Math.round(Number(p.francs) * 100) / 100;
+  if (!(francs > 0)) return { motif: motifFrancs };
+  if (p.cours === undefined) {
+    const deduit = Math.round((francs / p.montantDevise) * 1e6) / 1e6;
+    if (!(deduit > 0)) return { motif: motifCours };
+    return { cours: deduit, francs };
+  }
+  const cours = Number(p.cours);
+  if (!p.tolerance(p.montantDevise, cours, francs)) {
+    const attendu = Math.round(p.montantDevise * cours * 100) / 100;
     return {
       motif:
-        `${p.montantDevise.toFixed(2)} au cours de ${p.cours} font ${attendu.toFixed(2)} en francs, et le montant saisi est ${francs.toFixed(2)} · ` +
+        `${p.montantDevise.toFixed(2)} au cours de ${cours} font ${attendu.toFixed(2)} en francs, et le montant saisi est ${francs.toFixed(2)} · ` +
         'saisissez le seul montant payé, le cours s’en déduit (AUDCIF art. 52).',
     };
   }
-  return { cours: p.cours, francs };
+  return { cours, francs };
 }
 
 /**
@@ -234,8 +276,15 @@ export function coursEtFrancsDuReglement(p: {
  * case cochée sans devise de trésorerie déclarée, lot à plusieurs devises ou
  * portant des factures en francs, devise déclarée autre que celle des
  * factures, RIB du journal tenu dans une autre devise ; et, case décochée, un
- * RIB tenu dans la devise des factures (le 52 recevrait des francs seuls).
- * `null` si admis.
+ * RIB tenu dans une devise étrangère, QUEL QUE SOIT LE LOT (A6 bis, B3) · le
+ * 52 recevrait des francs sans leur devise, et la conversion des
+ * disponibilités à la clôture (AUDCIF art. 57 ; fiche du compte 52 des deux
+ * plans, « les avoirs en monnaies étrangères sont évalués au dernier cours
+ * officiel de change connu ») porterait une position fausse. Le refus valait
+ * jusque-là pour un lot EN DEVISE seulement · une banque en USD qui payait
+ * des factures en francs passait C 52 sans devise. Payer une facture en
+ * francs PAR une trésorerie en devise n'est pas ouvert ici (relevé de la
+ * ligne) · le refus le dit et nomme l'issue. `null` si admis.
  */
 export function motifRefusTresorerieEnDevise(p: {
   tresorerieEnDevise: boolean;
@@ -249,13 +298,23 @@ export function motifRefusTresorerieEnDevise(p: {
 }): string | null {
   const enDevise = p.devisesDuLot.filter((d): d is { id: string; code: string } => d !== null);
   const codesLot = [...new Set(enDevise.map((d) => d.code))];
-  const rib = p.deviseRib ? p.deviseRib.trim().toUpperCase() : null;
+  const rib = p.deviseRib && p.deviseRib.trim() !== '' ? p.deviseRib.trim().toUpperCase() : null;
   const ribEtranger = rib !== null && rib !== p.monnaieDeTenue ? rib : null;
   if (!p.tresorerieEnDevise) {
     if (ribEtranger && enDevise.length > 0) {
       return (
         `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} · cochez « Moyen de paiement en devise », sans quoi le ` +
-        'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57).'
+        'compte de trésorerie recevrait des francs sans leur devise et échapperait à la conversion de clôture (AUDCIF art. 57) ; ' +
+        'ou, si le RIB est mal renseigné, corrigez sa devise (Banques).'
+      );
+    }
+    if (ribEtranger) {
+      return (
+        `Le RIB du journal ${p.journalCode} est tenu en ${ribEtranger} et les factures choisies sont en francs · le compte de trésorerie ` +
+        `recevrait des francs sans leur devise et la conversion des disponibilités à la clôture le fausserait (AUDCIF art. 57). ` +
+        'Réglez ces factures depuis le journal d’un compte tenu en francs, ou, si le RIB est mal renseigné, corrigez sa devise (Banques) ; ' +
+        'le paiement d’une facture en francs par une trésorerie en devise ne passe pas par le règlement des tiers, il se saisit au journal ' +
+        'avec sa devise et son cours.'
       );
     }
     return null;
@@ -299,22 +358,56 @@ const centimes = (x: number) => Math.round(x * 100);
  * 1 680. Plusieurs factures se règlent dans l'ordre de leurs dates, les plus
  * anciennes d'abord (convention d'OmegaX, celle des lots de virements) · seule
  * la dernière atteinte peut l'être en partie.
+ *
+ * DEUX FACTURES DU MÊME JOUR (A6 bis, M4) · l'ordre était celui où la base
+ * rendait les lignes, que rien ne garantit · deux factures du même jour à des
+ * cours différents donnaient deux coûts historiques, donc deux écarts, au gré
+ * de la requête. Elles se départagent par l'identifiant de LIGNE, à l'écran
+ * comme au passage (`client/src/lib/ecart-change.ts`, `ecartEstime`) et dans
+ * le signalement des anciens règlements (`reglements-sans-ecart.ts`, D4), qui
+ * rejoue la règle après coup · l'ordre où l'écran envoie `ligneIds` n'est
+ * gardé nulle part, et ne peut donc pas départager.
  */
+export function ordreDeReglement<T extends { id: string; date: Date }>(a: T, b: T): number {
+  return a.date.getTime() - b.date.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 export function coutHistoriqueRegle(factures: FactureEnDevise[], montantDeviseRegle: number): number {
-  const ordonnees = [...factures].sort((a, b) => a.date.getTime() - b.date.getTime());
-  let reste = montantDeviseRegle;
-  let total = 0;
-  for (const f of ordonnees) {
-    if (reste <= 1e-9) break;
-    if (reste + 1e-9 >= f.montantDevise) {
-      total += centimes(f.francs);
-      reste -= f.montantDevise;
-    } else {
-      total += centimes((f.francs * reste) / f.montantDevise);
-      reste = 0;
+  return coutsHistoriquesSuccessifs(factures, [montantDeviseRegle])[0]!;
+}
+
+/**
+ * LES COÛTS HISTORIQUES DE PLUSIEURS RÈGLEMENTS SUCCESSIFS d'un même groupe
+ * (A6 bis, M1) · chacun consomme les factures dans l'ordre de règlement, à
+ * partir de là où le précédent s'est arrêté. Une facture entamée garde son
+ * cours d'origine (sa contrevaleur au prorata de la devise réglée), et la
+ * part qui l'épuise prend ce qui reste de ses francs, jamais quantité ×
+ * cours (sinon un centime d'arrondi resterait au tiers). Le premier règlement
+ * rend exactement `coutHistoriqueRegle` · c'est la même règle, rejouée.
+ */
+export function coutsHistoriquesSuccessifs(factures: FactureEnDevise[], montantsDevise: number[]): number[] {
+  const file = [...factures].sort(ordreDeReglement).map((f) => ({ f, devise: f.montantDevise, francs: centimes(f.francs) }));
+  return montantsDevise.map((montant) => {
+    let reste = montant;
+    let total = 0;
+    for (const e of file) {
+      if (reste <= 1e-9) break;
+      if (e.devise <= 1e-9) continue;
+      if (reste + 1e-9 >= e.devise) {
+        total += e.francs;
+        reste -= e.devise;
+        e.devise = 0;
+        e.francs = 0;
+      } else {
+        const part = centimes((e.f.francs * reste) / e.f.montantDevise);
+        total += part;
+        e.devise -= reste;
+        e.francs -= part;
+        reste = 0;
+      }
     }
-  }
-  return total / 100;
+    return total / 100;
+  });
 }
 
 /**

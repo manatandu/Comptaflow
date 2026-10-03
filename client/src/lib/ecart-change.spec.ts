@@ -30,6 +30,30 @@ function casDuServeur(): Array<[Referentiel, NatureCreanceDette | null, SensEcar
   return lignes.map((m) => [m[1] as Referentiel, (m[2] ?? null) as NatureCreanceDette | null, m[3] as SensEcart, m[4], m[5] === 'true']);
 }
 
+/** La table des natures du serveur (`CAS_NATURE`, A6 bis, M3), relue de même. */
+function naturesDuServeur(): Array<[Referentiel, string, NatureCreanceDette | null]> {
+  const source = readFileSync(SPEC_SERVEUR, 'utf8');
+  const bloc = source.slice(source.indexOf('export const CAS_NATURE'), source.indexOf('];', source.indexOf('export const CAS_NATURE')));
+  const lignes = [...bloc.matchAll(/\['(SYSCOHADA|SYCEBNL)', '(\d+)', (?:'(COMMERCIALE|FINANCIERE)'|null)\]/g)];
+  return lignes.map((m) => [m[1] as Referentiel, m[2], (m[3] ?? null) as NatureCreanceDette | null]);
+}
+
+describe('la nature lue sur le compte, la table du serveur rejouée à l’écran', () => {
+  const cas = naturesDuServeur();
+
+  it('la table est lue · le 404 et le 414 du SYSCOHADA y sont', () => {
+    expect(cas.length).toBeGreaterThanOrEqual(10);
+    expect(cas).toContainEqual(['SYSCOHADA', '40410000', 'FINANCIERE']);
+    expect(cas).toContainEqual(['SYSCOHADA', '41420000', null]);
+  });
+
+  it('chaque cas du serveur donne la même nature à l’écran', () => {
+    for (const [referentiel, numero, nature] of cas) {
+      expect([referentiel, numero, natureDuCompte(numero, referentiel)]).toEqual([referentiel, numero, nature]);
+    }
+  });
+});
+
 describe('les comptes admis pour l’écart, la table du serveur rejouée à l’écran', () => {
   const cas = casDuServeur();
 
@@ -77,7 +101,17 @@ describe('comptes proposables pour un écart de change', () => {
 });
 
 describe('l’écart estimé, pour savoir s’il s’agit d’une perte ou d’un gain', () => {
-  const factures = [{ francs: 1_948_800, montantDevise: 1160, date: '2026-04-10' }];
+  const factures = [{ id: 'f', francs: 1_948_800, montantDevise: 1160, date: '2026-04-10' }];
+
+  // A6 bis, M4 · le même cas qu'au spec du serveur · deux factures du même
+  // jour à 1 600 et 1 700, l'identifiant de ligne départage, quel que soit
+  // l'ordre reçu · 100 USD à 1 750 · perte de 15 000, comme la pièce.
+  it('deux factures du même jour · départagées par l’identifiant de ligne, comme au passage', () => {
+    const a = { id: 'ja', francs: 160_000, montantDevise: 100, date: '2026-03-10T00:00:00.000Z' };
+    const b = { id: 'jb', francs: 170_000, montantDevise: 100, date: '2026-03-10T00:00:00.000Z' };
+    expect(ecartEstime({ sens: 'FOURNISSEUR', factures: [b, a], montantDevise: 100, francsPayes: 175_000 })).toBe(15_000);
+    expect(ecartEstime({ sens: 'FOURNISSEUR', factures: [a, b], montantDevise: 100, francsPayes: 175_000 })).toBe(15_000);
+  });
 
   it('MBIKAYI paie 600 USD à 1 750 · perte de 42 000', () => {
     expect(ecartEstime({ sens: 'FOURNISSEUR', factures, montantDevise: 600, francsPayes: 1_050_000 })).toBe(42_000);

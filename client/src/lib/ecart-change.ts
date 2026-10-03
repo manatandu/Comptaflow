@@ -18,13 +18,18 @@ export type NatureCreanceDette = 'COMMERCIALE' | 'FINANCIERE';
 /**
  * La nature d'une créance ou d'une dette, lue sur son compte · 40 et 41
  * commerciaux ; emprunts (16 SYSCOHADA, 18 SYCEBNL), location acquisition
- * (17 SYSCOHADA, 187 SYCEBNL sous le 18), prêts (27) et fournisseurs
- * d'investissements (481) financiers ; le reste `null`.
+ * (17 SYSCOHADA, 187 SYCEBNL sous le 18), prêts (27), fournisseurs
+ * d'investissements (481) et, au SYSCOHADA, fournisseurs d'acquisitions
+ * courantes d'immobilisations (404, Titre VIII ch. 22 § 1.1) financiers ; le
+ * 414 du SYSCOHADA (créances sur cessions courantes d'immobilisations) sans
+ * nature, aucun texte ne la disant (A6 bis, M3) ; le reste `null`. Recopie
+ * de `natureDuCompte` au serveur, rejouée par le spec sur `CAS_NATURE`.
  */
 export function natureDuCompte(numero: string, referentiel: Referentiel): NatureCreanceDette | null {
-  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
-  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '481'] : ['18', '27', '481'];
+  if (referentiel === 'SYSCOHADA' && numero.startsWith('414')) return null;
+  const financieres = referentiel === 'SYSCOHADA' ? ['16', '17', '27', '404', '481'] : ['18', '27', '481'];
   if (financieres.some((r) => numero.startsWith(r))) return 'FINANCIERE';
+  if (numero.startsWith('40') || numero.startsWith('41')) return 'COMMERCIALE';
   return null;
 }
 
@@ -68,6 +73,17 @@ export function libelleEcartRealise(ecart: number): string {
 }
 
 /**
+ * L'ORDRE DE RÈGLEMENT · les plus anciennes d'abord, et deux factures du même
+ * jour par leur identifiant de ligne, comme au serveur (`ordreDeReglement`,
+ * A6 bis, M4) · sans quoi deux factures du jour à des cours différents
+ * donnaient à l'écran un autre écart que la pièce.
+ */
+export function ordreDeReglement<T extends { id: string; date: string }>(a: T, b: T): number {
+  const parDate = Date.parse(a.date) - Date.parse(b.date);
+  return parDate || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+/**
  * L'ÉCART ESTIMÉ d'un règlement en devise, signé (positif = perte) · le coût
  * historique de ce qui est réglé, factures les plus anciennes d'abord, la
  * dernière au prorata de sa devise, contre les francs payés. Sert à l'écran à
@@ -75,11 +91,11 @@ export function libelleEcartRealise(ecart: number): string {
  */
 export function ecartEstime(p: {
   sens: 'FOURNISSEUR' | 'CLIENT';
-  factures: Array<{ francs: number; montantDevise: number; date: string }>;
+  factures: Array<{ id: string; francs: number; montantDevise: number; date: string }>;
   montantDevise: number;
   francsPayes: number;
 }): number {
-  const ordonnees = [...p.factures].sort((a, b) => a.date.localeCompare(b.date));
+  const ordonnees = [...p.factures].sort(ordreDeReglement);
   let reste = p.montantDevise;
   let historique = 0;
   for (const f of ordonnees) {
