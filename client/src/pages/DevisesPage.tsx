@@ -1,11 +1,12 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { exercicesDeContrePassation } from '../lib/contre-passation';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { exerciceDeContrePassation, libelleContrePassation } from '../lib/contre-passation';
 import { api, ApiError } from '../lib/api';
 import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
+import type { CandidatesContrePassationManuelle, Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
+import { lireVentilationSaisie } from '../lib/ventilation-disponibilites';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { sousFonctionServie } from '../lib/profil-dossier';
 import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
@@ -13,6 +14,8 @@ import { libelleExercice } from '../lib/libelle-exercice';
 import { ProvisionChangeOuverture } from '../components/ProvisionChangeOuverture';
 import { PortailModale } from '../components/PortailModale';
 import { MOTIF_ANNULATION_MAX, motifRefusMotifAnnulation } from '../lib/motif-annulation';
+import { ecouterEchap } from '../lib/echap';
+import { AVERTISSEMENT_ATTESTATION, MOTIF_ATTESTATION_MAX, motifRefusAttestation } from '../lib/attestation-etat';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -47,6 +50,13 @@ function cours(n: number | string): string {
 function aAjusterLaProvision(r: Pick<RapportReevaluation, 'ajustementsProvision'>): boolean {
   return r.ajustementsProvision.some((a) => a.dotation > 0.005 || a.reprise > 0.005);
 }
+
+/** Le titre de la modale du motif, par geste. */
+const TITRE_GESTE = {
+  REEVALUATION: 'Annuler la réévaluation',
+  CONTRE_PASSATION: 'Annuler la contre-passation',
+  DECLARATION: 'Retirer la déclaration',
+} as const;
 
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');
@@ -201,8 +211,14 @@ export function DevisesPage() {
    * à qui valide (`peutValider`) · le serveur refuse le reste.
    */
   // La réévaluation en cours d'annulation et son motif · une MODALE de
-  // l'interface (`PortailModale`), jamais `window.prompt`.
-  const [aAnnuler, setAAnnuler] = useState<{ reevaluation: Reevaluation; motif: string } | null>(null);
+  // l'interface (`PortailModale`), jamais `window.prompt`. La même modale sert
+  // l'annulation de la seule contre-passation (relecture adverse d'A5 bis,
+  // M1), pour la repasser dans l'exercice qui suit immédiatement.
+  const [aAnnuler, setAAnnuler] = useState<{
+    reevaluation: Reevaluation;
+    motif: string;
+    geste: 'REEVALUATION' | 'CONTRE_PASSATION' | 'DECLARATION';
+  } | null>(null);
   // L'erreur s'affiche DANS la modale (septième relecture, m3) · sous le
   // voile, le bandeau de la page est caché et le refus passerait inaperçu.
   const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
@@ -211,28 +227,229 @@ export function DevisesPage() {
     // La règle du DTO (3 à 500 caractères), vérifiée avant l'envoi.
     const refus = motifRefusMotifAnnulation(aAnnuler.motif);
     if (refus) {
-      setErreurAnnulation(refus);
+      setErreurAnnulation(aAnnuler.geste === 'DECLARATION' ? refus.replace("de l'annulation", 'du retrait') : refus);
       return;
     }
     setErreurAnnulation(null);
     try {
-      await api.post(`/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`, { motif: aAnnuler.motif.trim() });
+      const contrePassation = aAnnuler.geste === 'CONTRE_PASSATION';
+      if (aAnnuler.geste === 'DECLARATION') {
+        // Le retrait de la déclaration d'une contre-passation manuelle, motif exigé (quatrième tour, m3).
+        await api.delete(`/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation-manuelle`, { motif: aAnnuler.motif.trim() });
+      } else {
+        await api.post(
+          contrePassation
+            ? `/devises/reevaluations/${aAnnuler.reevaluation.id}/contre-passation/annuler`
+            : `/devises/reevaluations/${aAnnuler.reevaluation.id}/annuler`,
+          { motif: aAnnuler.motif.trim() },
+        );
+      }
+      const geste = aAnnuler.geste;
       setAAnnuler(null);
-      setInfo('Réévaluation annulée · ses écritures validées sont inscrites en négatif. Réévaluez l’exercice.');
+      setInfo(
+        geste === 'DECLARATION'
+          ? 'Déclaration retirée · l’écriture manuelle reste au journal ; corrigez-la par inscription en négatif avant de contre-passer.'
+          : contrePassation
+            ? 'Contre-passation annulée · validée, elle est inscrite en négatif. Contre-passez à l’ouverture de l’exercice qui suit.'
+            : 'Réévaluation annulée · ses écritures validées sont inscrites en négatif. Réévaluez l’exercice.',
+      );
       await charger();
     } catch (e) {
       setErreurAnnulation(e instanceof ApiError ? e.message : 'Annulation impossible');
     }
   };
 
-  const extourner = async (id: string, exerciceSuivantId: string) => {
+  // ÉCHAP FERME LA MODALE DU MOTIF (vérification finale d'A5 bis, m5), comme
+  // celle de la déclaration · la couche la plus haute consomme la touche
+  // (`ecouterEchap`, audit final F177).
+  const annulationOuverte = aAnnuler !== null;
+  useEffect(() => {
+    if (!annulationOuverte) return;
+    return ecouterEchap(() => {
+      setAAnnuler(null);
+      return true;
+    });
+  }, [annulationOuverte]);
+
+  const extourner = async (id: string, exerciceSuivantId: string, integrale: boolean) => {
     setErreur(null);
     try {
-      await api.post(`/devises/reevaluation/${id}/extourne`, { exerciceSuivantId });
-      setInfo("Écarts contre-passés à l'ouverture de l'exercice suivant.");
+      const r = await api.post<{ avertissement?: string | null }>(`/devises/reevaluation/${id}/extourne`, {
+        exerciceSuivantId,
+        ...(integrale ? { integrale: true } : {}),
+      });
+      // L'exception (contre-passation intégrale, B2 et M2) est servie par le
+      // serveur et dite ici, jamais tue.
+      setInfo(r?.avertissement ?? "Écarts de conversion contre-passés à l'ouverture de l'exercice suivant.");
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Contre-passation impossible');
+    }
+  };
+
+  /**
+   * VENTILER L'ÉCART DES DISPONIBILITÉS d'une réévaluation antérieure
+   * (relecture adverse d'A5 bis, B1) · quand la ligne passée sans devise sur
+   * une banque à plusieurs devises ne se relit pas, le cabinet déclare
+   * l'écart de chaque devise avec sa source ; le serveur le vérifie au
+   * centime contre la ligne passée.
+   */
+  const [aVentiler, setAVentiler] = useState<{ reevaluation: Reevaluation; ecarts: Record<string, string>; source: string } | null>(null);
+  const [erreurVentilation, setErreurVentilation] = useState<string | null>(null);
+  const [envoiVentilation, setEnvoiVentilation] = useState(false);
+  const declarerVentilation = async () => {
+    if (!aVentiler) return;
+    // Un champ VIDE n'est pas un zéro (troisième tour, mineur 2) · refusé ici,
+    // avant l'envoi, avec la devise et le compte nommés.
+    const { ventilation, refus } = lireVentilationSaisie(aVentiler.reevaluation.ventilationAExiger ?? [], aVentiler.ecarts);
+    if (refus !== null) {
+      setErreurVentilation(refus);
+      return;
+    }
+    setErreurVentilation(null);
+    setEnvoiVentilation(true);
+    try {
+      await api.post(`/devises/reevaluations/${aVentiler.reevaluation.id}/ventilation-disponibilites`, {
+        ventilation,
+        source: aVentiler.source.trim(),
+      });
+      setAVentiler(null);
+      setInfo("Ventilation de l'écart des disponibilités déclarée.");
+      await charger();
+    } catch (e) {
+      setErreurVentilation(e instanceof ApiError ? e.message : 'Déclaration impossible');
+    } finally {
+      setEnvoiVentilation(false);
+    }
+  };
+
+  // ÉCHAP FERME LA VENTILATION (m5) · pendant l'envoi elle ne ferme rien,
+  // la réponse du serveur reste à lire.
+  const ventilationOuverte = aVentiler !== null;
+  useEffect(() => {
+    if (!ventilationOuverte) return;
+    return ecouterEchap(() => {
+      if (!envoiVentilation) setAVentiler(null);
+      return true;
+    });
+  }, [ventilationOuverte, envoiVentilation]);
+
+  /**
+   * ATTESTER L'ÉTAT DE L'ÉCART (vérification finale d'A5 bis) · le cabinet
+   * répond par écrit de l'état des comptes de l'écart ; les refus de la règle
+   * d'état deviennent des avertissements pour cette réévaluation. Motif de
+   * 10 à 500 caractères ; auteur et date posés par le serveur. Réservé à qui
+   * valide (`peutValider`), comme la déclaration ; le retrait aussi.
+   */
+  const [aAttester, setAAttester] = useState<{ reevaluation: Reevaluation; motif: string; geste: 'ATTESTER' | 'RETIRER' } | null>(null);
+  const [erreurAttestation, setErreurAttestation] = useState<string | null>(null);
+  const [envoiAttestation, setEnvoiAttestation] = useState(false);
+  const attestationOuverte = aAttester !== null;
+  useEffect(() => {
+    if (!attestationOuverte) return;
+    return ecouterEchap(() => {
+      if (!envoiAttestation) setAAttester(null);
+      return true;
+    });
+  }, [attestationOuverte, envoiAttestation]);
+  const envoyerAttestation = async () => {
+    if (!aAttester) return;
+    const refus = motifRefusAttestation(aAttester.motif, aAttester.geste);
+    if (refus) {
+      setErreurAttestation(refus);
+      return;
+    }
+    setErreurAttestation(null);
+    setEnvoiAttestation(true);
+    try {
+      const chemin = `/devises/reevaluations/${aAttester.reevaluation.id}/attestation-etat`;
+      if (aAttester.geste === 'ATTESTER') await api.post(chemin, { motif: aAttester.motif.trim() });
+      else await api.delete(chemin, { motif: aAttester.motif.trim() });
+      const geste = aAttester.geste;
+      setAAttester(null);
+      setInfo(
+        geste === 'ATTESTER'
+          ? "État de l'écart attesté · les refus de la règle d'état seront dits en avertissement pour cette réévaluation."
+          : "Attestation retirée · la règle d'état s'applique de nouveau à cette réévaluation.",
+      );
+      await charger();
+    } catch (e) {
+      setErreurAttestation(e instanceof ApiError ? e.message : 'Attestation impossible');
+    } finally {
+      setEnvoiAttestation(false);
+    }
+  };
+
+  /**
+   * DÉCLARER UNE CONTRE-PASSATION FAITE À LA MAIN (A5 bis, troisième tour) ·
+   * le serveur propose les écritures qui inversent exactement l'écart de
+   * conversion, à sa place ; le cabinet en désigne une, avec un motif, et le
+   * serveur rejoue toutes les vérifications. Réservé à qui valide
+   * (`peutValider`) · la déclaration lève le portillon de la réévaluation
+   * suivante et retient l'écriture.
+   */
+  const [aDeclarer, setADeclarer] = useState<{
+    reevaluation: Reevaluation;
+    lues: CandidatesContrePassationManuelle | null;
+    ecritureId: string;
+    motif: string;
+  } | null>(null);
+  const [erreurDeclaration, setErreurDeclaration] = useState<string | null>(null);
+  const [envoiDeclaration, setEnvoiDeclaration] = useState(false);
+  // Le JETON de la lecture en cours (quatrième tour, m4) · une réponse qui
+  // arrive après la fermeture ou une autre ouverture est jetée, au succès
+  // comme à l'échec ; sans lui, l'erreur d'une lecture périmée s'affichait
+  // dans la modale suivante.
+  const jetonDeclaration = useRef(0);
+  const ouvrirDeclaration = async (r: Reevaluation) => {
+    const jeton = ++jetonDeclaration.current;
+    setErreurDeclaration(null);
+    setADeclarer({ reevaluation: r, lues: null, ecritureId: '', motif: '' });
+    try {
+      const lues = await api.get<CandidatesContrePassationManuelle>(`/devises/reevaluations/${r.id}/contre-passation-manuelle/candidates`);
+      if (jeton !== jetonDeclaration.current) return;
+      // Une seule candidate se présélectionne ; aucune se dit, avec l'issue.
+      setADeclarer((d) => (d ? { ...d, lues, ecritureId: lues.candidates.length === 1 ? lues.candidates[0].id : '' } : d));
+    } catch (e) {
+      if (jeton !== jetonDeclaration.current) return;
+      setErreurDeclaration(e instanceof ApiError ? e.message : 'Lecture des écritures impossible');
+    }
+  };
+  const fermerDeclaration = () => {
+    jetonDeclaration.current++;
+    setADeclarer(null);
+  };
+  // ÉCHAP FERME LA MODALE, ET ELLE SEULE (audit final F177) · pendant l'envoi
+  // elle ne ferme rien, la réponse du serveur reste à lire.
+  const declarationOuverte = aDeclarer !== null;
+  useEffect(() => {
+    if (!declarationOuverte) return;
+    return ecouterEchap(() => {
+      if (!envoiDeclaration) fermerDeclaration();
+      return true;
+    });
+  }, [declarationOuverte, envoiDeclaration]);
+  const declarerContrePassation = async () => {
+    if (!aDeclarer || !aDeclarer.ecritureId) return;
+    // La règle du DTO (3 à 500 caractères), vérifiée avant l'envoi.
+    if (motifRefusMotifAnnulation(aDeclarer.motif) !== null) {
+      setErreurDeclaration(`Le motif de la déclaration est obligatoire · de 3 à ${MOTIF_ANNULATION_MAX} caractères.`);
+      return;
+    }
+    setErreurDeclaration(null);
+    setEnvoiDeclaration(true);
+    try {
+      await api.post(`/devises/reevaluations/${aDeclarer.reevaluation.id}/contre-passation-manuelle`, {
+        ecritureId: aDeclarer.ecritureId,
+        motif: aDeclarer.motif.trim(),
+      });
+      fermerDeclaration();
+      setInfo('Contre-passation manuelle déclarée · la réévaluation est tenue pour contre-passée, l’écriture est retenue.');
+      await charger();
+    } catch (e) {
+      setErreurDeclaration(e instanceof ApiError ? e.message : 'Déclaration impossible');
+    } finally {
+      setEnvoiDeclaration(false);
     }
   };
 
@@ -695,8 +912,8 @@ export function DevisesPage() {
                   Réévaluations passées sur cet exercice
                   <Aide
                     titre="Contre-passation"
-                    texte="Les écarts de conversion se contre-passent à l'OUVERTURE de l'exercice suivant : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. C'est l'inverse de la reprise d'une régularisation, qui se fait à la fin de l'exercice concerné."
-                    source="Écarts de conversion · comptes 478 et 479"
+                    texte="Les écarts de conversion (478, 479 et comptes de tiers) se contre-passent à l'OUVERTURE de l'exercice qui suit immédiatement, ou du premier exercice ouvert après lui s'il est clôturé (la contre-passation ne touche que le bilan) : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. La banque et la caisse ne se contre-passent plus : leur écart est réalisé et reste au résultat de l'exercice où il est constaté. Deux exceptions, dites au bouton et au libellé : l'exercice suivant a été réévalué avant cette règle (contre-passation intégrale imposée), ou l'écriture des écarts ne se partage pas (contre-passation intégrale à demander). Une première période close reporte la pièce au premier jour non clôturé, sa date de valeur restant l'ouverture."
+                    source="AUDCIF art. 54 et 57 ; art. 22, 4° ; Guide, Partie 2 ch. 22, Applications 84 à 86"
                   />
                 </div>
                 {reevaluations.map((r) => (
@@ -715,12 +932,51 @@ export function DevisesPage() {
                           ? `Écarts pièce ${r.ecritureEcarts.numeroPiece ?? '·'}`
                           : 'Aucun écart'}
                       {!r.annuleeLe && r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
+                      {!r.annuleeLe && r.ventilationAExiger && r.ventilationAExiger.length > 0 && (
+                        <span className="block text-warning">
+                          Écart des disponibilités à ventiler par devise
+                          {peutEcrire && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setErreurVentilation(null);
+                                setAVentiler({ reevaluation: r, ecarts: {}, source: '' });
+                              }}
+                              className="ml-2 text-sel hover:underline"
+                            >
+                              Ventiler l'écart des disponibilités
+                            </button>
+                          )}
+                        </span>
+                      )}
+                      {!r.annuleeLe && r.ventilationDisponibilitesSource && (
+                        <span className="block" title={r.ventilationDisponibilitesSource}>
+                          Ventilation déclarée · {r.ventilationDisponibilitesSource}
+                        </span>
+                      )}
+                      {!r.annuleeLe && r.etatAtteste && (
+                        <span className="block text-warning" title={r.motifAttestation ?? undefined}>
+                          État de l'écart attesté{r.etatAttesteLe ? ` le ${jour(r.etatAttesteLe)}` : ''} · {r.motifAttestation ?? ''}
+                        </span>
+                      )}
+                      {peutValider && !r.annuleeLe && r.ecritureEcarts && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setErreurAttestation(null);
+                            setAAttester({ reevaluation: r, motif: '', geste: r.etatAtteste ? 'RETIRER' : 'ATTESTER' });
+                          }}
+                          className="ml-2 text-sel hover:underline"
+                        >
+                          {r.etatAtteste ? "Retirer l'attestation" : "Attester l'état de l'écart"}
+                        </button>
+                      )}
                       {peutValider && !r.annuleeLe && (
                         <button
                           type="button"
                           onClick={() => {
                             setErreurAnnulation(null);
-                            setAAnnuler({ reevaluation: r, motif: '' });
+                            setAAnnuler({ reevaluation: r, motif: '', geste: 'REEVALUATION' });
                           }}
                           className="ml-2 text-danger hover:underline"
                           title="Inscription en négatif des écritures validées, suppression de celles au brouillard (AUDCIF art. 20, al. 2)"
@@ -730,35 +986,23 @@ export function DevisesPage() {
                       )}
                     </span>
                     <span>
-                      {r.annuleeLe || !r.ecritureEcarts ? null : r.ecritureExtourne ? (
-                        <span className="text-[11.5px] text-positive font-semibold">
-                          Contre-passée le {jour(r.ecritureExtourne.date)}
-                        </span>
-                      ) : peutEcrire ? (
-                        exercicesDeContrePassation(exercices, r.dateReevaluation).length === 0 ? (
-                          <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>
-                        ) : (
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CHOIX DANS UNE
-                              // LISTE (audit final F79, comme les régularisations).
-                              const cible = exercices.find((ex) => ex.id === e.target.value);
-                              if (cible && window.confirm(`Contre-passer les écarts du ${jour(r.dateReevaluation)} sur l'exercice ${libelleExercice(cible)} ?`)) {
-                                void extourner(r.id, cible.id);
-                              }
-                            }}
-                            className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
-                          >
-                            <option value="">Contre-passer sur…</option>
-                            {exercicesDeContrePassation(exercices, r.dateReevaluation).map((ex) => (
-                              <option key={ex.id} value={ex.id}>
-                                Exercice {libelleExercice(ex)}
-                              </option>
-                            ))}
-                          </select>
-                        )
-                      ) : null}
+                      <ColonneContrePassation
+                        r={r}
+                        exercices={exercices}
+                        peutEcrire={peutEcrire}
+                        peutValider={peutValider}
+                        jour={jour}
+                        onContrePasser={(cible, integrale) => void extourner(r.id, cible.id, integrale)}
+                        onAnnuler={() => {
+                          setErreurAnnulation(null);
+                          setAAnnuler({ reevaluation: r, motif: '', geste: 'CONTRE_PASSATION' });
+                        }}
+                        onDeclarer={() => void ouvrirDeclaration(r)}
+                        onRetirerDeclaration={() => {
+                          setErreurAnnulation(null);
+                          setAAnnuler({ reevaluation: r, motif: '', geste: 'DECLARATION' });
+                        }}
+                      />
                     </span>
                   </div>
                 ))}
@@ -779,12 +1023,27 @@ export function DevisesPage() {
             >
               <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
                 <span className="flex items-center gap-1.5">
-                  Annuler la réévaluation du {jour(aAnnuler.reevaluation.dateReevaluation)}
-                  <Aide
-                    titre="Annulation"
-                    texte="Les écritures validées de la réévaluation sont inscrites en négatif, celles restées au brouillard sont supprimées ; la réévaluation reste, marquée annulée avec son motif, et l'exercice se réévalue ensuite au cours exact. Refusée si une ligne est lettrée ou pointée, si l'exercice est clôturé ou si une réévaluation postérieure n'est pas annulée."
-                    source="AUDCIF art. 20, al. 2 ; art. 22, 2° et 4°"
-                  />
+                  {TITRE_GESTE[aAnnuler.geste]} du{' '}
+                  {jour(aAnnuler.reevaluation.dateReevaluation)}
+                  {aAnnuler.geste === 'DECLARATION' ? (
+                    <Aide
+                      titre="Retrait de la déclaration"
+                      texte="La réévaluation redevient à contre-passer ; l'écriture manuelle reste au journal, et doit être corrigée par inscription en négatif avant toute contre-passation par le module, sans quoi l'écart serait inversé deux fois. Refusé si l'écriture est dans un exercice clôturé, ou si une réévaluation postérieure a été calculée avec elle."
+                      source="AUDCIF art. 20, al. 2 et 3"
+                    />
+                  ) : aAnnuler.geste === 'CONTRE_PASSATION' ? (
+                    <Aide
+                      titre="Annulation de la contre-passation"
+                      texte="La contre-passation validée est inscrite en négatif, celle restée au brouillard est supprimée ; la réévaluation garde la trace et redevient à contre-passer, à l'ouverture de l'exercice qui suit immédiatement. Refusée si l'exercice qui la porte est clôturé, s'il a déjà été réévalué, ou si une ligne est lettrée ou pointée."
+                      source="AUDCIF art. 20, al. 2 ; art. 22, 2° et 4°"
+                    />
+                  ) : (
+                    <Aide
+                      titre="Annulation"
+                      texte="Les écritures validées de la réévaluation sont inscrites en négatif, celles restées au brouillard sont supprimées ; la réévaluation reste, marquée annulée avec son motif, et l'exercice se réévalue ensuite au cours exact. Refusée si une ligne est lettrée ou pointée, si l'exercice est clôturé ou si une réévaluation postérieure n'est pas annulée."
+                      source="AUDCIF art. 20, al. 2 ; art. 22, 2° et 4°"
+                    />
+                  )}
                 </span>
                 <button type="button" onClick={() => setAAnnuler(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
                   ✕
@@ -812,7 +1071,7 @@ export function DevisesPage() {
                     disabled={motifRefusMotifAnnulation(aAnnuler.motif) !== null}
                     className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
                   >
-                    Annuler la réévaluation
+                    {TITRE_GESTE[aAnnuler.geste]}
                   </button>
                   <button type="button" onClick={() => setAAnnuler(null)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
                     Fermer
@@ -823,6 +1082,388 @@ export function DevisesPage() {
           </div>
         </PortailModale>
       )}
+      {aAttester && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void envoyerAttestation();
+              }}
+              role="dialog"
+              aria-modal="true"
+              className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  {aAttester.geste === 'ATTESTER' ? "Attester l'état de l'écart" : "Retirer l'attestation"} du {jour(aAttester.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Attestation de l'état de l'écart"
+                    texte="La règle d'état refuse ce qu'elle ne sait pas lire dans les comptes de l'écart : un écart antérieur traité hors du module, une ouverture reprise d'un autre logiciel. L'entité détermine, sous sa responsabilité, ses procédures : le cabinet atteste par écrit que l'état est justifié. Le retrait est refusé tant qu'une contre-passation, une déclaration ou une réévaluation postérieure a été passée sous l'attestation."
+                    source="AUDCIF art. 69 ; SYCEBNL art. 16, 2) ; AUDCIF art. 57 ; art. 20, al. 2"
+                  />
+                </span>
+                <button
+                  type="button"
+                  disabled={envoiAttestation}
+                  onClick={() => setAAttester(null)}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                {erreurAttestation && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurAttestation}
+                  </div>
+                )}
+                {aAttester.geste === 'ATTESTER' && (
+                  <div className="mb-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2">{AVERTISSEMENT_ATTESTATION}</div>
+                )}
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={aAttester.motif}
+                    onChange={(e) => setAAttester({ ...aAttester, motif: e.target.value })}
+                    maxLength={MOTIF_ATTESTATION_MAX}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[70px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={envoiAttestation || motifRefusAttestation(aAttester.motif, aAttester.geste) !== null}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    {aAttester.geste === 'ATTESTER' ? 'Attester' : "Retirer l'attestation"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={envoiAttestation}
+                    onClick={() => setAAttester(null)}
+                    className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+      {aDeclarer && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!envoiDeclaration) void declarerContrePassation();
+              }}
+              className="anim-modale w-full max-w-[560px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  Déclarer une contre-passation manuelle · réévaluation du {jour(aDeclarer.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Contre-passation faite à la main"
+                    texte="L'écart de conversion de cette réévaluation a déjà été contre-passé par une écriture du cabinet, hors du module. Désignez-la : elle doit inverser exactement, au centime, chaque compte de l'écart (le tiers et son 478 ou 479), dans l'exercice qui suit la réévaluation, le premier ouvert après des exercices clôturés, ou l'exercice réévalué lui-même à partir de la date de la réévaluation ; d'autres lignes, sur d'autres comptes, sont admises. La déclaration n'est admise que si les comptes de l'écart se lisent déjà contre-passés ; sinon le serveur nomme ce qu'il faut corriger ou rétablir d'abord. Déclarée, la réévaluation est tenue pour contre-passée et l'écriture ne se modifie, ni ne se supprime plus. Contre-passer par le module l'inverserait une seconde fois."
+                    source="Guide SYSCOHADA, Partie 2 ch. 22, Applications 84 et 85 ; AUDCIF art. 54"
+                  />
+                </span>
+                <button
+                  type="button"
+                  disabled={envoiDeclaration}
+                  onClick={fermerDeclaration}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                {erreurDeclaration && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurDeclaration}
+                  </div>
+                )}
+                {aDeclarer.lues === null ? (
+                  !erreurDeclaration && <p className="text-[11.5px] text-text-dim">Lecture des écritures…</p>
+                ) : (
+                  <>
+                    <p className="text-[11.5px] mb-2">À contre-passer · {aDeclarer.lues.montants}</p>
+                    {aDeclarer.lues.candidates.length === 0 ? (
+                      <p className="text-[11.5px] text-warning mb-2">
+                        {aDeclarer.lues.motifHorsModule ??
+                          "Les comptes de l'écart le portent encore en place · aucune écriture du cabinet ne l'a contre-passé · contre-passez par le module (« Contre-passer »)."}
+                      </p>
+                    ) : (
+                      <fieldset className="mb-3 border border-border px-3 py-2">
+                        <legend className="text-[11.5px] font-semibold px-1">Écriture du cabinet</legend>
+                        {aDeclarer.lues.candidates.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 text-[11.5px] mt-1">
+                            <input
+                              type="radio"
+                              name="ecriture-contre-passation"
+                              checked={aDeclarer.ecritureId === c.id}
+                              onChange={() => setADeclarer({ ...aDeclarer, ecritureId: c.id })}
+                            />
+                            <span>
+                              {c.journal.code} · pièce {c.numeroPiece ?? '·'} du {jour(c.date)} · {c.libelle}
+                              {c.statut === 'BROUILLARD' ? ' · au brouillard' : ''}
+                            </span>
+                          </label>
+                        ))}
+                        {aDeclarer.lues.tronque && (
+                          <p className="text-[11px] text-text-dim mt-1">Liste bornée · d'autres écritures peuvent convenir.</p>
+                        )}
+                      </fieldset>
+                    )}
+                  </>
+                )}
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={aDeclarer.motif}
+                    onChange={(e) => setADeclarer({ ...aDeclarer, motif: e.target.value })}
+                    maxLength={MOTIF_ANNULATION_MAX}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[60px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={envoiDeclaration || !aDeclarer.ecritureId || motifRefusMotifAnnulation(aDeclarer.motif) !== null}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    Déclarer
+                  </button>
+                  <button
+                    type="button"
+                    disabled={envoiDeclaration}
+                    onClick={fermerDeclaration}
+                    className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+      {aVentiler && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!envoiVentilation) void declarerVentilation();
+              }}
+              className="anim-modale w-full max-w-[520px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  Ventiler l'écart des disponibilités du {jour(aVentiler.reevaluation.dateReevaluation)}
+                  <Aide
+                    titre="Ventilation de l'écart des disponibilités"
+                    texte="Cette réévaluation, passée avant que chaque devise ne garde son écart, a porté sur une seule ligne sans devise l'écart d'une banque ou d'une caisse tenue en plusieurs devises, et la ligne ne se relit pas au centime. Déclarez l'écart de chaque devise, en francs, signé (perte en négatif), avec sa source : leur somme doit rendre la ligne passée sur le compte. La réévaluation suivante part de cette ventilation ; sans elle, la banque repartirait du coût historique et l'écart, réalisé, serait passé une seconde fois."
+                    source="AUDCIF art. 57 ; Titre VIII ch. 22"
+                  />
+                </span>
+                <button
+                  type="button"
+                  disabled={envoiVentilation}
+                  onClick={() => setAVentiler(null)}
+                  className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                {erreurVentilation && (
+                  <div role="alert" className="mb-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">
+                    {erreurVentilation}
+                  </div>
+                )}
+                {(aVentiler.reevaluation.ventilationAExiger ?? []).map((c) => {
+                  const somme = c.devises.reduce((t, d) => {
+                    const v = Number((aVentiler.ecarts[`${c.compteId}|${d.deviseId}`] ?? '').replace(',', '.'));
+                    return t + (Number.isFinite(v) ? v : 0);
+                  }, 0);
+                  return (
+                    <fieldset key={c.compteId} className="mb-3 border border-border px-3 py-2">
+                      <legend className="text-[11.5px] font-semibold px-1">
+                        Compte {c.numero} · ligne passée {montant(c.passe)}
+                      </legend>
+                      {c.devises.map((d) => (
+                        <label key={d.deviseId} className="flex items-center gap-2 text-[11.5px] mt-1">
+                          <span className="w-[150px]">
+                            {d.code} · {d.montantDevise} pour {montant(d.francs)}
+                          </span>
+                          <input
+                            inputMode="decimal"
+                            value={aVentiler.ecarts[`${c.compteId}|${d.deviseId}`] ?? ''}
+                            onChange={(e) =>
+                              setAVentiler({ ...aVentiler, ecarts: { ...aVentiler.ecarts, [`${c.compteId}|${d.deviseId}`]: e.target.value } })
+                            }
+                            className="flex-1 border border-border-dark px-2 py-1 text-[12px] text-right"
+                          />
+                          <span className="w-[110px] text-text-dim" title="Cours que l'écart saisi implique · (francs + écart) ÷ montant en devise">
+                            {coursImplique(d, aVentiler.ecarts[`${c.compteId}|${d.deviseId}`])}
+                          </span>
+                        </label>
+                      ))}
+                      <div className={`text-[11px] mt-1 ${Math.abs(somme - c.passe) < 0.005 ? 'text-positive' : 'text-warning'}`}>
+                        Somme saisie {montant(somme)} · ligne passée {montant(c.passe)}
+                      </div>
+                    </fieldset>
+                  );
+                })}
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Source
+                  <textarea
+                    required
+                    value={aVentiler.source}
+                    onChange={(e) => setAVentiler({ ...aVentiler, source: e.target.value })}
+                    maxLength={2000}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[60px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="submit"
+                    disabled={envoiVentilation || aVentiler.source.trim().length < 3}
+                    className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                  >
+                    Déclarer la ventilation
+                  </button>
+                  <button
+                    type="button"
+                    disabled={envoiVentilation}
+                    onClick={() => setAVentiler(null)}
+                    className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
     </div>
+  );
+}
+
+/**
+ * LE COURS QU'UN ÉCART DÉCLARÉ IMPLIQUE (second tour, m1) · (francs + écart)
+ * ÷ montant en devise, la seule borne que le calcul donne étant un cours
+ * positif, que le serveur vérifie ; montré pour que le cabinet le confronte à
+ * sa source. Un cours n'est pas un montant · six décimales, jamais
+ * `lib/montants.ts`. Une devise soldée en devise n'a pas de cours.
+ */
+function coursImplique(d: { montantDevise: number; francs: number }, saisi: string | undefined): string {
+  const ecart = Number((saisi ?? '').replace(',', '.'));
+  if (!saisi || !Number.isFinite(ecart) || Math.abs(d.montantDevise) < 0.005) return '';
+  const cours = (d.francs + ecart) / d.montantDevise;
+  return cours > 0 ? `cours ${cours.toFixed(6)}` : 'cours négatif';
+}
+
+/**
+ * LA COLONNE DE LA CONTRE-PASSATION d'une réévaluation (relecture adverse
+ * d'A5 bis, M1, M2, M8, B2) · ce que le serveur sert, jamais recalculé ·
+ * aucun « Contre-passer » pour une réévaluation des seules disponibilités
+ * (leur écart est réalisé, AUDCIF art. 57) ; la cible est l'exercice qui suit
+ * IMMÉDIATEMENT s'il est ouvert, sinon le premier ouvert après des clôturés
+ * (B-II), et lui seul ; l'exception intégrale est dite au bouton.
+ */
+function ColonneContrePassation(p: {
+  r: Reevaluation;
+  exercices: Exercice[];
+  peutEcrire: boolean;
+  peutValider: boolean;
+  jour: (d: string) => string;
+  onContrePasser: (cible: Exercice, integrale: boolean) => void;
+  onAnnuler: () => void;
+  onDeclarer: () => void;
+  onRetirerDeclaration: () => void;
+}) {
+  const { r } = p;
+  if (r.annuleeLe || !r.ecritureEcarts) return null;
+  // Contre-passée À LA MAIN, déclarée (troisième tour) · la pièce du cabinet,
+  // le motif en infobulle ; le retrait est un geste de validation.
+  if (r.contrePassationDeclaree) {
+    return (
+      <span className="text-[11.5px]">
+        <span className="text-positive font-semibold" title={r.motifContrePassationDeclaree ?? undefined}>
+          Contre-passée à la main · pièce {r.contrePassationDeclaree.numeroPiece ?? '·'} du {p.jour(r.contrePassationDeclaree.date)}
+        </span>
+        {p.peutValider && (
+          <button type="button" onClick={p.onRetirerDeclaration} className="ml-2 text-danger hover:underline">
+            Retirer la déclaration
+          </button>
+        )}
+      </span>
+    );
+  }
+  if (r.ecritureExtourne) {
+    return (
+      <span className="text-[11.5px]">
+        <span className="text-positive font-semibold">
+          Contre-passée le {p.jour(r.ecritureExtourne.date)}
+          {r.contrePassationIntegrale ? ', banque et caisse comprises' : ''}
+        </span>
+        {p.peutValider && (
+          <button type="button" onClick={p.onAnnuler} className="ml-2 text-danger hover:underline">
+            Annuler la contre-passation
+          </button>
+        )}
+      </span>
+    );
+  }
+  const libelle = libelleContrePassation(r.contrePassationAPasser);
+  if (!libelle) {
+    return (
+      <span className="text-[11.5px] text-text-dim" title="L'écart de la banque et de la caisse est réalisé et reste au résultat (AUDCIF art. 57).">
+        Rien à contre-passer
+      </span>
+    );
+  }
+  if (!p.peutEcrire) return null;
+  const cible =
+    (r.exerciceDeContrePassation && p.exercices.find((ex) => ex.id === r.exerciceDeContrePassation?.id)) ??
+    exerciceDeContrePassation(p.exercices, r.dateReevaluation);
+  // La cible est le premier exercice OUVERT après la réévaluation (B-II) ·
+  // un exercice suivant clôturé ne ferme plus la contre-passation.
+  if (!cible || cible.statut !== 'OUVERT') {
+    return <span className="text-[11.5px] text-warning">Ouvrez d'abord l'exercice suivant (Fin d'exercice…)</span>;
+  }
+  return (
+    <span className="flex flex-col items-start">
+      <button
+        type="button"
+        onClick={() => {
+          // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CLIC (audit final F79, comme les régularisations).
+          if (window.confirm(`${libelle} du ${p.jour(r.dateReevaluation)} à l'ouverture de l'exercice ${libelleExercice(cible)} ?`)) {
+            p.onContrePasser(cible, r.contrePassationAPasser === 'INTEGRALE_SUR_DEMANDE');
+          }
+        }}
+        className="text-[11.5px] text-sel hover:underline text-left"
+      >
+        {libelle} · exercice {libelleExercice(cible)}
+      </button>
+      {p.peutValider && (
+        <button
+          type="button"
+          onClick={p.onDeclarer}
+          className="text-[11.5px] text-text-dim hover:underline text-left"
+          title="Déjà contre-passée par une écriture du cabinet · la désigner, sans repasser l'écart"
+        >
+          Déclarer une contre-passation manuelle
+        </button>
+      )}
+    </span>
   );
 }

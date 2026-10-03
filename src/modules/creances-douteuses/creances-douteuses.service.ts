@@ -833,18 +833,26 @@ export class CreancesDouteusesService {
     // n° 10/001, art. 25, 2°), sans qu'aucun prix ne soit perçu. Le cabinet ne
     // lettre pas la facture avec cette pièce ; la ligne A7 bis du plan garde le
     // chantier de la TVA des créances douteuses.
-    const ecriture = await this.ecritures.creer(tenantId, userId, {
-      exerciceId: ex.id,
-      journalId: journal.id,
-      date: jour(date),
-      libelle: `Créance ${nature} reclassée · ${source.numero} ${source.intitule}`.slice(0, 190),
-      lignes: [
-        { compteId: c416.id, debit: centimes(dto.montant), credit: 0 },
-        { compteId: source.id, debit: 0, credit: centimes(dto.montant) },
-      ],
-    });
-    try {
-      const ligne = await transactionJournalisee(this.prisma, (tx) =>
+    // A7 QUATER, m1 · L'ÉCRITURE ET SA CRÉANCE DANS UNE SEULE TRANSACTION
+    // (`creerAvec`, sous `transactionJournalisee`). Écrites en deux, la pièce
+    // existait un instant sans détenteur · un lettrage automatique lancé dans
+    // cet intervalle ne la reconnaissait pas comme un reclassement et
+    // l'appariait à la facture, et un échec de la compensation la laissait au
+    // journal. Un refus de la seconde écriture défait la première.
+    const { suite: ligne } = await this.ecritures.creerAvec(
+      tenantId,
+      userId,
+      {
+        exerciceId: ex.id,
+        journalId: journal.id,
+        date: jour(date),
+        libelle: `Créance ${nature} reclassée · ${source.numero} ${source.intitule}`.slice(0, 190),
+        lignes: [
+          { compteId: c416.id, debit: centimes(dto.montant), credit: 0 },
+          { compteId: source.id, debit: 0, credit: centimes(dto.montant) },
+        ],
+      },
+      (tx, ecriture) =>
         tx.creanceDouteuse.create({
           data: {
             tenantId,
@@ -861,14 +869,9 @@ export class CreancesDouteusesService {
             createdBy: userId,
           },
         }),
-      );
-      // m9 · méthode des cotisations non déclarée · un avertissement, jamais un refus.
-      return { ...ligne, montant: n(ligne.montant), avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null) };
-    } catch (err) {
-      // Une ligne refusée ne laisse pas son écriture au journal.
-      await this.compenser(tenantId, ecriture.id);
-      throw err;
-    }
+    );
+    // m9 · méthode des cotisations non déclarée · un avertissement, jamais un refus.
+    return { ...ligne, montant: n(ligne.montant), avertissement: avertissementMethodeCotisations(referentiel, source.numero, methodeCotisations ?? null) };
   }
 
   /**
@@ -891,13 +894,17 @@ export class CreancesDouteusesService {
     const c491 = await this.compte491Choisi(tenantId, dto.nature, dto.compte491Id);
     const date = ex.dateDebut;
     const { ids } = await this.chaine(tenantId, ex);
-    const [ouverture, dejaPorte, enDevise] = await Promise.all([
+    const [ouverture, dejaPorte, positions] = await Promise.all([
       this.soldesALOuverture(tenantId, ex, c416.id, c491.id),
       this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
-      // m4 · une créance en devise non réglée, sur le compte du client ou le
-      // 416, à l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas.
-      this.positionEnDeviseOuverte(tenantId, [source.id, c416.id], ids, ex.dateDebut),
+      // m4 · une créance en devise non réglée sur le compte du client, à
+      // l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas ;
+      // A7 quater, m3 · sur le 416 partagé, ses francs sont retranchés de la
+      // borne, jamais un refus (une autre créance, d'un autre client).
+      this.positionsEnDevise(tenantId, [source.id, c416.id], ids, ex.dateDebut),
     ]);
+    const enDevise = positions.some((p) => p.ouverte && p.compteId === source.id);
+    const enDevise416 = centimes(positions.filter((p) => p.ouverte && p.compteId === c416.id).reduce((t, p) => t + p.francs, 0));
     let motif = motifRefusDeclaration({
       referentiel,
       nature: dto.nature,
@@ -917,6 +924,7 @@ export class CreancesDouteusesService {
       sourceEstDetail: source.typeCompte === TypeCompteDetailTotal.DETAIL,
       comptesEnSommeil: [source, c416, c491].filter((k) => 'estActif' in k && k.estActif === false).map((k) => k.numero),
       positionEnDevise: enDevise,
+      enDevise416,
       methodeCotisations: methodeCotisations ?? null,
     });
     // B1 · une borne lue sur le report reconstitué se dit, avec son issue.
@@ -970,33 +978,48 @@ export class CreancesDouteusesService {
    * d'un compte n'est pas soldée au centime.
    */
   private async positionEnDeviseOuverte(tenantId: string, comptes: string[], ids: string[], au: Date | null): Promise<boolean> {
+    return (await this.positionsEnDevise(tenantId, comptes, ids, au)).some((p) => p.ouverte);
+  }
+
+  /**
+   * Les positions en devise par compte et par devise (voir ci-dessus), avec
+   * les FRANCS qu'elles portent (débit moins crédit de leurs lignes) · A7
+   * quater, m3, la borne de la déclaration d'ouverture retranche ceux d'une
+   * position non soldée sur le 416 partagé.
+   */
+  private async positionsEnDevise(
+    tenantId: string,
+    comptes: string[],
+    ids: string[],
+    au: Date | null,
+  ): Promise<Array<{ compteId: string; deviseId: string; ouverte: boolean; francs: number }>> {
     const date = au ? { date: { lte: au } } : {};
+    const lire = (sens: Prisma.LigneEcritureWhereInput[]) =>
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: sens,
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true, debit: true, credit: true },
+      });
     const [debits, credits] = await Promise.all([
-      this.prisma.ligneEcriture.groupBy({
-        by: ['compteId', 'deviseId'],
-        where: {
-          compteId: { in: comptes },
-          deviseId: { not: null },
-          OR: [{ debit: { gt: 0 } }, { credit: { lt: 0 } }],
-          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
-        },
-        _sum: { montantDevise: true },
-      }),
-      this.prisma.ligneEcriture.groupBy({
-        by: ['compteId', 'deviseId'],
-        where: {
-          compteId: { in: comptes },
-          deviseId: { not: null },
-          OR: [{ credit: { gt: 0 } }, { debit: { lt: 0 } }],
-          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
-        },
-        _sum: { montantDevise: true },
-      }),
+      lire([{ debit: { gt: 0 } }, { credit: { lt: 0 } }]),
+      lire([{ credit: { gt: 0 } }, { debit: { lt: 0 } }]),
     ]);
-    const net = new Map<string, number>();
-    for (const g of debits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) + n(g._sum.montantDevise));
-    for (const g of credits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) - n(g._sum.montantDevise));
-    return [...net.values()].some((v) => Math.abs(v) >= 0.005);
+    const parCle = new Map<string, { compteId: string; deviseId: string; devise: number; francs: number }>();
+    const cumuler = (g: (typeof debits)[number], signe: 1 | -1) => {
+      const cle = `${g.compteId}|${g.deviseId}`;
+      const p = parCle.get(cle) ?? { compteId: g.compteId, deviseId: g.deviseId as string, devise: 0, francs: 0 };
+      p.devise += signe * n(g._sum.montantDevise);
+      p.francs += n(g._sum.debit) - n(g._sum.credit);
+      parCle.set(cle, p);
+    };
+    for (const g of debits) cumuler(g, 1);
+    for (const g of credits) cumuler(g, -1);
+    return [...parCle.values()].map((p) => ({ compteId: p.compteId, deviseId: p.deviseId, ouverte: Math.abs(p.devise) >= 0.005, francs: centimes(p.francs) }));
   }
 
   /**
@@ -1509,12 +1532,17 @@ export class CreancesDouteusesService {
     await this.exercice(tenantId, exerciceId);
     const lues = await this.lignesOuvertesDeLaCreance(tenantId, c, exerciceId);
     if ('motif' in lues) throw new BadRequestException(lues.motif);
-    const aNouveaux = await this.prisma.ligneEcriture.findMany({
+    // A7 QUATER, m4 · triées par DATE puis identifiant (un ordre d'uuid ne dit
+    // rien au lecteur), et lues une de plus que le plafond · à 200 pile, la
+    // liste n'est pas tronquée, et `length === plafond` le disait.
+    const luesAN = await this.prisma.ligneEcriture.findMany({
       where: { compteId: c.compte416Id, lettrageId: null, ecriture: { tenantId, exerciceId, ...A_NOUVEAU } },
       select: { id: true, debit: true, credit: true, libelle: true, ecriture: { select: { date: true, numeroPiece: true } } },
-      orderBy: { id: 'asc' },
-      take: PLAFOND_COMPTES_416_491,
+      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+      take: PLAFOND_COMPTES_416_491 + 1,
     });
+    const tronque = luesAN.length > PLAFOND_COMPTES_416_491;
+    const aNouveaux = luesAN.slice(0, PLAFOND_COMPTES_416_491);
     const reste = centimes(-lues.ouvertes.reduce((t, l) => t + l.net, 0));
     const seules = aNouveaux.filter((l) => Math.abs(centimes(n(l.debit) - n(l.credit)) - reste) < 0.005);
     return {
@@ -1530,7 +1558,7 @@ export class CreancesDouteusesService {
         libelle: l.libelle,
         montant: centimes(n(l.debit) - n(l.credit)),
       })),
-      tronque: aNouveaux.length === PLAFOND_COMPTES_416_491,
+      tronque,
       propose: seules.length === 1 ? [seules[0].id] : [],
     };
   }

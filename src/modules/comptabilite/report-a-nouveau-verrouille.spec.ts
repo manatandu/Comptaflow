@@ -20,6 +20,7 @@ function monter(ecriture: { exerciceId: string; estGenereeParCloture: boolean },
         id: 'e1', tenantId: 't1', statut: 'BROUILLARD', lignes: [], journal: {}, exercice: OUVERT, ...ecriture,
       }),
       delete: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     exercice: { findFirst: jest.fn().mockResolvedValue({ id: premierId }) },
     ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({}) },
@@ -39,7 +40,7 @@ describe('report à-nouveau et journal', () => {
     const { service, prisma } = monter({ exerciceId: 'ex2027', estGenereeParCloture: true }, 'ex2026');
     await expect(service.supprimer('t1', 'e1')).rejects.toThrow(ForbiddenException);
     await expect(service.supprimer('t1', 'e1')).rejects.toThrow(/report à-nouveau/);
-    expect((prisma.ecriture as { delete: jest.Mock }).delete).not.toHaveBeenCalled();
+    expect((prisma.ecriture as { deleteMany: jest.Mock }).deleteMany).not.toHaveBeenCalled();
   });
 
   it('modifier le refuse de même', async () => {

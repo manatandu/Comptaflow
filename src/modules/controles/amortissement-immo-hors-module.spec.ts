@@ -38,6 +38,8 @@ function service(lignes28: Ligne28[], o: { dotationsDuModule?: string[]; sorties
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     dotationAmortissement: { findMany: jest.fn().mockResolvedValue((o.dotationsDuModule ?? []).map((ecritureId) => ({ ecritureId }))) },

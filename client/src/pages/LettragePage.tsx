@@ -331,14 +331,18 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
 
   const lancerLettrageAuto = () =>
     executer(async () => {
-      const r = await api.post<{ groupes: number; parPiece: number; parMontant: number; lettres: string[] }>(
+      const r = await api.post<{ groupes: number; parPiece: number; parMontant: number; lettres: string[]; miseDeCote?: string | null }>(
         `/comptes/${compteId}/lettrage/auto`,
         {},
       );
-      if (r.groupes === 0) return 'Aucun rapprochement trouvé sur ce compte.';
+      // A7 quater, m7 · les lignes qu'un reclassement en créance douteuse
+      // laisse ouvertes se disent · sans un mot, elles passeraient pour des
+      // lignes que le logiciel n'a pas su rapprocher.
+      const miseDeCote = r.miseDeCote ? ` ${r.miseDeCote}` : '';
+      if (r.groupes === 0) return `Aucun rapprochement trouvé sur ce compte.${miseDeCote}`;
       return (
         `${r.groupes} groupe(s) lettré(s) : ${r.parPiece} par référence de pièce, ` +
-        `${r.parMontant} par montant (${r.lettres.join(', ')}).`
+        `${r.parMontant} par montant (${r.lettres.join(', ')}).${miseDeCote}`
       );
     });
 
@@ -406,6 +410,12 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               >
                 Lettrage automatique
               </button>
+              {/* A7 quater, second tour · la règle se dit dans la bulle, pas en paragraphe. */}
+              <Aide
+                titre="Compte qui porte un reclassement"
+                texte="Sur un compte client qui porte le reclassement d'une créance douteuse ou litigieuse au 416, le lettrage automatique et le pré-lettrage ne rapprochent rien par montant, tant que le reclassement est ouvert, dans cet exercice comme dans les suivants · rien ne dit quelles factures il a reclassées, et un rapprochement deviné daterait à tort la TVA d'une autre facture. Seuls les rapprochements par référence de pièce restent ; le reste se lettre à la main, jamais une facture avec le reclassement."
+                source="Convention d'OmegaX"
+              />
             </>
           )}
         </div>
@@ -517,6 +527,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               {preLettrage.nonProposees} ligne(s) ouverte(s) que le logiciel n'a pas su rapprocher · elles restent à
               lettrer à la main.
             </span>
+            {preLettrage.miseDeCote && <span className="text-[11.5px] text-text-dim">{preLettrage.miseDeCote}</span>}
           </div>
         </div>
       )}

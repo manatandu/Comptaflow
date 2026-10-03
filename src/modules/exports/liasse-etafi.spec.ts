@@ -14,6 +14,11 @@ import { ExportService } from './export.service';
 import { NOM_BALANCE } from './theme-etafi';
 import { RENVOI_IMMOBILISATIONS } from '../etats-financiers/correspondance-smt';
 
+// Chaque cas construit la liasse entière puis la relit par ExcelJS · sous une
+// suite chargée l'un d'eux a dépassé les cinq secondes par défaut de Jest
+// (2026-10-03), sans qu'aucune assertion ait changé.
+jest.setTimeout(30000);
+
 /**
  * LIASSE « ETAFI » · vérification de bout en bout sur un dossier synthétique
  * ÉQUILIBRÉ : les moteurs d'états RÉELS (bilan, compte de résultat, TFT,

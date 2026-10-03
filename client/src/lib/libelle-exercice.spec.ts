@@ -157,7 +157,7 @@ const APPELS: Record<string, string> = {
   'pages/RegistreDonateursPage.tsx': 'Exercice {libelleExercice(exerciceCourant)}',
   'pages/DocumentsObligatoiresPage.tsx': 'Exercice {libelleExercice(exerciceCourant)}',
   'pages/RegularisationPage.tsx': 'Exercice {libelleExercice(ex)}',
-  'pages/DevisesPage.tsx': 'Exercice {libelleExercice(ex)}',
+  'pages/DevisesPage.tsx': '{libelle} · exercice {libelleExercice(cible)}',
   'pages/ImmobilisationsPage.tsx': "passée pour l'exercice ${libelleExercice(exerciceCourant)}.",
   'pages/GroupePage.tsx': '{libelleExercice(e)}',
   'components/PlanFiscalDegressif.tsx': '{libelleExercice(l)}',

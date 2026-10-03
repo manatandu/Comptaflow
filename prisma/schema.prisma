@@ -1581,6 +1581,7 @@ model Ecriture {
   reevaluationEcarts         Reevaluation?               @relation("ReevalEcarts")
   reevaluationProvision      Reevaluation?               @relation("ReevalProvision")
   reevaluationExtourne       Reevaluation?               @relation("ReevalExtourne")
+  reevaluationContrePassationDeclaree Reevaluation?      @relation("ReevalContrePassationDeclaree")
   reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
   executionsEngagement       ExecutionEngagement[]
 
@@ -1947,7 +1948,7 @@ enum OrigineLettrage {
   MANUEL
   AUTOMATIQUE_PIECE // « a priori » · appariement par référence de pièce
   AUTOMATIQUE_MONTANT // « a posteriori » · appariement par montant
-  MODULE // posé par un module sur ses propres lignes (créance douteuse éteinte, ligne A7 ter) · lui seul le défait
+  MODULE // posé par un module sur ses propres lignes (créance douteuse éteinte, ligne A7 ter) · défait par ce module seul, le délettrage le refuse (A7 quater, m5)
 }
 
 model Lettrage {
@@ -3406,6 +3407,86 @@ model Reevaluation {
   // corrigé après la réévaluation ne se distinguait pas d'un compte retouché.
   // Nul sur les réévaluations antérieures.
   coursUtilises   Json?
+
+  // L'ÉCART DE CHAQUE DISPONIBILITÉ, par compte et par devise (ligne A5 bis,
+  // 2026-10-03) · [{ compteId, deviseId, ecart }]. AUDCIF art. 57 · l'écart
+  // d'une disponibilité est RÉALISÉ et ne se contre-passe pas ; la banque
+  // garde donc en N+1 la valeur de clôture de N, que ses lignes en devise
+  // (au cours historique) ne disent pas, l'écart étant passé sans devise.
+  // La réévaluation suivante la lit ici. Nul sur les réévaluations
+  // antérieures, relues par leur écriture (`ecartsDeDisponibilitesDe`) ·
+  // nul dit donc aussi « passée sous l'ancien régime », et la
+  // contre-passation de l'exercice précédent s'y règle (`extourner`). Jamais
+  // écrit après coup.
+  ecartsDisponibilites Json?
+
+  // LA VENTILATION DÉCLARÉE (relecture adverse d'A5 bis, B1) · une
+  // réévaluation antérieure a passé l'écart d'une banque tenue en plusieurs
+  // devises sur une seule ligne, sans devise ni cours gardé. Quand la ligne ne
+  // se relit pas au centime, le cabinet DÉCLARE l'écart de chaque devise,
+  // avec sa SOURCE, comme la provision d'ouverture · [{ compteId, deviseId,
+  // ecart }], vérifiée au centime contre la ligne passée. Au journal d'audit
+  // avec l'enregistrement.
+  ventilationDisponibilites        Json?
+  ventilationDisponibilitesSource  String?
+  ventilationDisponibilitesLe      DateTime?
+  ventilationDisponibilitesPar     String?
+
+  // LA CONTRE-PASSATION INTÉGRALE (relecture adverse d'A5 bis, B2 et M2) ·
+  // la banque et la caisse contre-passées avec le reste, par exception
+  // nommée · `EXERCICE_SUIVANT_ANCIEN_REGIME` (l'exercice qui reçoit la
+  // contre-passation a été réévalué sous l'ancien régime, depuis le coût
+  // historique) ou `PARTAGE_IMPOSSIBLE` (écriture des écarts qui ne se sépare
+  // pas, contre-passation intégrale demandée). Nul · seuls le 478, le 479 et
+  // les tiers l'ont été.
+  contrePassationIntegrale String?
+
+  // LES CONTRE-PASSATIONS ANNULÉES (M1) · une contre-passation passée hors de
+  // l'exercice qui suit immédiatement se défait (art. 20, al. 2) pour être
+  // repassée au bon endroit · [{ ecritureId, numeroPiece, traitement,
+  // negatifId?, motif, par, le }], jamais effacé.
+  annulationsContrePassation Json?
+
+  // LA CONTRE-PASSATION FAITE À LA MAIN, DÉCLARÉE (relecture adverse d'A5
+  // bis, troisième tour) · le cabinet a contre-passé l'écart de conversion
+  // par une écriture à lui, hors du module. Il la DÉSIGNE, avec un motif,
+  // comme les versions de la provision d'ouverture · sans quoi le portillon
+  // la redemandait, et la seule issue (contre-passer par le module)
+  // l'inversait une seconde fois. Vérifiée à la déclaration · elle inverse
+  // EXACTEMENT, au centime, chaque compte de l'écart de conversion, à la
+  // place où le module l'aurait posée. RETENUE tant que la réévaluation n'est
+  // pas annulée (detenteurs-ecriture.ts) · RESTRICT, une suppression qui
+  // passerait la garde est refusée par la base, jamais dénouée en silence.
+  // Au journal d'audit avec l'enregistrement.
+  contrePassationDeclareeId    String?   @unique
+  contrePassationDeclaree      Ecriture? @relation("ReevalContrePassationDeclaree", fields: [contrePassationDeclareeId], references: [id], onDelete: Restrict)
+  motifContrePassationDeclaree String?
+  contrePassationDeclareeLe    DateTime?
+  contrePassationDeclareePar   String?
+  // LES DÉCLARATIONS RETIRÉES (quatrième tour, m3) · [{ ecritureId,
+  // numeroPiece, motifDeclaration, declareeLe, declareePar, motif, par, le }],
+  // le motif du retrait exigé, jamais effacé.
+  retraitsContrePassationDeclaree Json?
+
+  // L'ÉTAT DE L'ÉCART ATTESTÉ (vérification finale d'A5 bis) · la règle
+  // d'état (`DevisesService.etatDeLEcart`) refuse ce qu'elle ne sait pas lire ·
+  // un écart antérieur traité hors du module, une ouverture reprise d'un
+  // autre logiciel. Sans issue, un dossier aux livres JUSTES restait enfermé.
+  // Le cabinet ATTESTE que l'état des comptes de l'écart est justifié, avec un
+  // motif (10 à 500 caractères), l'auteur et la date posés par le serveur ·
+  // les refus de la règle d'état deviennent des avertissements pour cette
+  // réévaluation (même modèle que la contestation expresse de la provision,
+  // ligne A5). Ne bascule PAS · la banque qui ne se contre-passe pas, le
+  // refus d'une seconde contre-passation du module, les négatifs et
+  // écritures corrigées refusés à la déclaration. Se retire tant qu'aucun
+  // geste ne s'y est appuyé ; au journal d'audit avec l'enregistrement.
+  etatAtteste      Boolean   @default(false)
+  motifAttestation String?
+  etatAttesteLe    DateTime?
+  etatAttestePar   String?
+  // LES ATTESTATIONS RETIRÉES · [{ motifAttestation, attesteLe, attestePar,
+  // motif, par, le }], le motif du retrait exigé, jamais effacé.
+  retraitsAttestation Json?
 
   // Une seule réévaluation NON ANNULÉE par exercice (audit final F54, D6) ·
   // une seconde repasserait l'écart entier. Posé en base contre deux clics ·

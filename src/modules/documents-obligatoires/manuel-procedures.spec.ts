@@ -190,6 +190,8 @@ function serviceControles(referentiel: Referentiel, manuel: Faux | null) {
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    // Le contrôle 34 lit les contre-passations de réévaluation de l'exercice · aucune ici.
+    reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);

@@ -6,7 +6,19 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AccesRolesCantonnes, ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
-import { AnnulerReevaluationDto, CreerDeviseDto, DeclarerProvisionOuvertureDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import {
+  AnnulerReevaluationDto,
+  CreerDeviseDto,
+  DeclarerContrePassationManuelleDto,
+  DeclarerProvisionOuvertureDto,
+  DeclarerVentilationDisponibilitesDto,
+  ExtournerReevaluationDto,
+  ModifierDeviseDto,
+  MotifAttestationEtatDto,
+  PoserCoursDto,
+  ReevaluerDto,
+  RetirerContrePassationManuelleDto,
+} from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
@@ -122,7 +134,76 @@ export class DevisesController {
     @Param('id') id: string,
     @Body() body: ExtournerReevaluationDto,
   ) {
-    return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId);
+    return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId, { integrale: body.integrale === true });
+  }
+
+  /**
+   * ANNULER UNE CONTRE-PASSATION (relecture adverse d'A5 bis, M1) · pour la
+   * repasser à l'ouverture de l'exercice qui suit immédiatement · inscription
+   * en négatif si validée, suppression au brouillard, motif au journal
+   * d'audit ; une décision de validation, réservée au comptable comme
+   * l'annulation de la réévaluation.
+   */
+  @Post('reevaluations/:id/contre-passation/annuler')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async annulerContrePassation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
+    return this.devises.annulerContrePassation(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * LA CONTRE-PASSATION FAITE À LA MAIN SE DÉCLARE (A5 bis, troisième tour) ·
+   * les écritures candidates (une proposition, rien n'est retenu), la
+   * déclaration et son retrait. Une décision de validation · elle lève le
+   * portillon de la réévaluation suivante et retient l'écriture désignée ·
+   * réservée au comptable, comme l'annulation de la contre-passation.
+   */
+  @Get('reevaluations/:id/contre-passation-manuelle/candidates')
+  async candidatesContrePassationManuelle(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.devises.candidatesContrePassationManuelle(user.tenantId, id);
+  }
+
+  @Post('reevaluations/:id/contre-passation-manuelle')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async declarerContrePassationManuelle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: DeclarerContrePassationManuelleDto,
+  ) {
+    return this.devises.declarerContrePassationManuelle(user.tenantId, user.userId, id, body.ecritureId, body.motif);
+  }
+
+  @Delete('reevaluations/:id/contre-passation-manuelle')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async retirerContrePassationManuelle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: RetirerContrePassationManuelleDto,
+  ) {
+    return this.devises.retirerContrePassationManuelle(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * ATTESTER L'ÉTAT DE L'ÉCART (vérification finale d'A5 bis) · le cabinet
+   * répond par écrit de l'état des comptes de l'écart ; les refus de la règle
+   * d'état deviennent des avertissements pour cette réévaluation. Une
+   * décision de validation, réservée au comptable, comme la déclaration ;
+   * son retrait aussi, avec son motif.
+   */
+  @Post('reevaluations/:id/attestation-etat')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async attesterEtatDeLEcart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: MotifAttestationEtatDto) {
+    return this.devises.attesterEtatDeLEcart(user.tenantId, user.userId, id, body.motif);
+  }
+
+  @Delete('reevaluations/:id/attestation-etat')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  async retirerAttestationEtatDeLEcart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: MotifAttestationEtatDto) {
+    return this.devises.retirerAttestationEtatDeLEcart(user.tenantId, user.userId, id, body.motif);
   }
 
   /**
@@ -135,5 +216,21 @@ export class DevisesController {
   @ReserveAuComptable()
   async annulerReevaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: AnnulerReevaluationDto) {
     return this.devises.annulerReevaluation(user.tenantId, user.userId, id, body.motif);
+  }
+
+  /**
+   * VENTILER L'ÉCART DES DISPONIBILITÉS d'une réévaluation antérieure
+   * (relecture adverse d'A5 bis, B1) · une déclaration avec sa source, comme
+   * la provision d'ouverture, mêmes rôles qu'elle ; rien n'est écrit au
+   * journal.
+   */
+  @Post('reevaluations/:id/ventilation-disponibilites')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async declarerVentilationDisponibilites(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: DeclarerVentilationDisponibilitesDto,
+  ) {
+    return this.devises.declarerVentilationDisponibilites(user.tenantId, user.userId, id, body);
   }
 }

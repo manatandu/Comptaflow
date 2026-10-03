@@ -1,3 +1,4 @@
+import { jourFr } from './jour-fr';
 import { montant } from './montants';
 import type { BalanceAgregeeGroupe } from './types';
 
@@ -38,17 +39,6 @@ export interface ControleAgregat {
  * écrivent « 1 250,50 ».
  */
 const somme = (n: number) => montant(n);
-
-/**
- * JJ/MM/AAAA depuis une date ISO, par découpage de la chaîne · passer par
- * `new Date()` ferait reculer d'un jour une date d'exercice servie à minuit
- * UTC dès que le poste est à l'ouest de Greenwich, et un exercice affiché au
- * 31/12 au lieu du 01/01 accuserait une cellule à tort.
- */
-function jourFr(iso: string): string {
-  const [annee, mois, jour] = iso.slice(0, 10).split('-');
-  return jour && mois && annee ? `${jour}/${mois}/${annee}` : iso;
-}
 
 export function controlesDeLAgregat(agregat: BalanceAgregeeGroupe): ControleAgregat[] {
   const c = agregat.controles;

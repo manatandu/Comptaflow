@@ -113,3 +113,58 @@ export async function refuserLignesDuCompteClientReclasse(
   const tenues = await lignesDuCompteClientReclasse(db, tenantId, [...new Set([...ligneIds, ...dejaDuGroupe])]);
   if (tenues.size > 0) throw new BadRequestException(MOTIF_LETTRAGE_RECLASSEMENT);
 }
+
+/**
+ * LIGNE A7 QUATER, (B) · UN RECLASSEMENT OUVERT SUR LE COMPTE SUSPEND TOUTES
+ * LES PASSES PAR MONTANT.
+ *
+ * Écarter la ligne R du reclassement, ou les groupes qui la portent, ne
+ * suffisait pas · la facture reclassée U restait candidate, et la passe des
+ * paires exactes la donnait au règlement P d'une AUTRE facture T dès que P
+ * précédait R (U 10/02, T 01/05, P 20/05, R 15/06 · [U,P] posé, T laissée
+ * ouverte, la TVA de T datée à tort, décret n° 011/42, art. 57 ; O.-L.
+ * n° 10/001, art. 25, 2°). Rien ne relie R aux lignes qu'il reclasse (le
+ * reclassement ne lettre pas le 411, règle d'A7).
+ *
+ * AUCUNE EXCEPTION, PAS MÊME LA « CANDIDATE UNIQUE » (second tour) · mettre
+ * de côté la seule facture de même montant que R était encore une devinette.
+ * Le montant de R peut couvrir PLUSIEURS factures ou une PARTIE d'une seule ·
+ * V 500 000, X 300 000, Y 200 000, R 500 000 qui reclasse X et Y, P 500 000
+ * qui paie V · V était mise de côté avec R, et la passe N pour 1 posait
+ * [P,X,Y], X et Y lues comme encaissées, V ouverte ; U 1 000 000 payée
+ * 600 000 par P1, R 400 000 qui reclasse le reste, W 400 000 payée par Q ·
+ * W partait avec R, et [U,P1,Q] était posé.
+ *
+ * Règle · dès qu'une ligne R ouverte existe sur le compte, les passes par
+ * montant s'ABSTIENNENT, toutes ; seule la passe par référence de pièce,
+ * saisie par un humain, reste, et un groupe qu'elle formerait avec R reste
+ * écarté. La ligne R, jamais lettrée, reste ouverte dans son exercice même
+ * clôturé · en N+1, les à-nouveaux de U et de R (celui de R sans liaison)
+ * restent donc hors des passes par montant eux aussi. Le lettrage du compte
+ * se fait à la main ou par référence de pièce (convention d'OmegaX).
+ */
+export interface LigneAMettreDeCote {
+  id: string;
+}
+
+export function lignesMisesDeCote(
+  lignes: readonly LigneAMettreDeCote[],
+  reclassees: ReadonlySet<string>,
+): { ecartees: Set<string>; passesParMontantSuspendues: boolean } {
+  const rs = lignes.filter((l) => reclassees.has(l.id));
+  return { ecartees: new Set(rs.map((r) => r.id)), passesParMontantSuspendues: rs.length > 0 };
+}
+
+/**
+ * Ce que le lettrage automatique et le pré-lettrage DISENT de la règle
+ * ci-dessus (A7 quater, m7) · une ligne laissée ouverte sans un mot passerait
+ * pour une ligne que le logiciel n'a pas su rapprocher.
+ */
+export function messageMiseDeCote(nombre: number, suspendues: boolean): string | null {
+  if (!suspendues) return null;
+  return (
+    `Un reclassement en créance douteuse ou litigieuse est ouvert sur ce compte, et rien ne dit quelles factures il a ` +
+    `reclassées · aucun rapprochement par montant n'est fait (${nombre} ligne(s) laissée(s) ouverte(s)), seuls ceux par ` +
+    `référence de pièce le sont. Lettrez le reste à la main, sans jamais lettrer une facture avec le reclassement.`
+  );
+}

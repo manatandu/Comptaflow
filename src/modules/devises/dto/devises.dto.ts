@@ -1,5 +1,19 @@
+import { Type } from 'class-transformer';
 import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
-import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class CreerDeviseDto {
   @IsString()
@@ -73,6 +87,15 @@ export class ReevaluerDto {
 export class ExtournerReevaluationDto {
   @IsUUID()
   exerciceSuivantId!: string;
+
+  /**
+   * La contre-passation INTÉGRALE, banque et caisse comprises (relecture
+   * adverse d'A5 bis, M2) · ouverte à la seule écriture des écarts qui ne se
+   * partage pas, refusée ailleurs par le service.
+   */
+  @FacultatifNonNul('La contre-passation intégrale est demandée ou non · omettez le champ pour ne rien demander.')
+  @IsBoolean()
+  integrale?: boolean;
 }
 
 /**
@@ -81,6 +104,39 @@ export class ExtournerReevaluationDto {
  * journal d'audit avec l'enregistrement marqué annulé.
  */
 export class AnnulerReevaluationDto {
+  @IsString()
+  @Length(3, 500)
+  motif!: string;
+}
+
+/**
+ * La contre-passation faite à la main, DÉCLARÉE (A5 bis, troisième tour) ·
+ * l'écriture désignée et le motif, au journal d'audit avec la réévaluation.
+ * Les vérifications (inversion exacte, place, liens) sont au service.
+ */
+export class DeclarerContrePassationManuelleDto {
+  @IsUUID()
+  ecritureId!: string;
+
+  @IsString()
+  @Length(3, 500)
+  motif!: string;
+}
+
+/** Le retrait d'une déclaration · son motif, gardé dans la trace (quatrième tour, m3). */
+/**
+ * L'attestation de l'état de l'écart et son retrait (vérification finale
+ * d'A5 bis) · le motif seul, de 10 à 500 caractères (`MOTIF_ATTESTATION_MIN`,
+ * `MOTIF_ATTESTATION_MAX` du service, qui le revérifie) ; l'auteur et la date
+ * sont posés par le serveur, jamais reçus.
+ */
+export class MotifAttestationEtatDto {
+  @IsString()
+  @Length(10, 500, { message: "Le motif de l'attestation compte de 10 à 500 caractères" })
+  motif!: string;
+}
+
+export class RetirerContrePassationManuelleDto {
   @IsString()
   @Length(3, 500)
   motif!: string;
@@ -128,4 +184,36 @@ export class DeclarerProvisionOuvertureDto {
   @IsString()
   @Length(0, 2000)
   motifContestation?: string;
+}
+
+/** Une ligne de la ventilation déclarée · l'écart d'une devise sur une banque ou une caisse, en francs, signé. */
+export class LigneVentilationDisponibiliteDto {
+  @IsUUID()
+  compteId!: string;
+
+  @IsUUID()
+  deviseId!: string;
+
+  /** Débit moins crédit de l'écart sur le compte, en francs (perte en négatif). */
+  @IsNumber()
+  ecart!: number;
+}
+
+/**
+ * VENTILER L'ÉCART DES DISPONIBILITÉS d'une réévaluation antérieure (relecture
+ * adverse d'A5 bis, B1) · quand la ligne passée sans devise ne se relit pas
+ * au centime, le cabinet déclare l'écart de chaque devise, avec sa SOURCE.
+ * La règle complète vit dans `motifRefusVentilationDeclaree`.
+ */
+export class DeclarerVentilationDisponibilitesDto {
+  @IsArray()
+  @ArrayMinSize(1, { message: "Déclarez l'écart d'au moins une devise." })
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => LigneVentilationDisponibiliteDto)
+  ventilation!: LigneVentilationDisponibiliteDto[];
+
+  @IsString()
+  @Length(3, 2000, { message: 'La source de la ventilation est exigée (pièce, relevé, calcul du cabinet).' })
+  source!: string;
 }

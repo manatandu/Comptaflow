@@ -24,6 +24,11 @@ function monter(options: { autreDetenteur?: boolean } = {}) {
         id: 'ecr1', tenantId: 't1', statut: 'BROUILLARD', exercice: EXERCICE, lignes: [], journal: {}, date: new Date('2026-03-31'),
       }),
       delete: jest.fn().mockImplementation(async () => ordre.push('ecriture')),
+      // A7 quater, m6 · la tête part par un `deleteMany` filtré sur le brouillard.
+      deleteMany: jest.fn().mockImplementation(async () => {
+        ordre.push('ecriture');
+        return { count: 1 };
+      }),
     },
     ligneEcriture: { deleteMany: jest.fn().mockImplementation(async () => ordre.push('lignes')) },
     liquidationTva: {

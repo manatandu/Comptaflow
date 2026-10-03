@@ -249,6 +249,8 @@ describe('le contrôle 35 · lettrage à cheval de deux exercices', () => {
       conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
       mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
       rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+      // A5 bis · les traces des contre-passations annulées (contrôle 32).
+      reevaluation: { findMany: jest.fn().mockResolvedValue([]) },
     };
     return { svc: new ControlesService(prisma as unknown as PrismaService), prisma };
   }

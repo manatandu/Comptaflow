@@ -1312,8 +1312,13 @@ export function CreancesDouteusesPage() {
                 )}
                 {lettrage416.proposition && lettrage416.proposition.ouvertes > 0 && (
                   <>
-                    <div>
+                    <div className="flex items-center gap-1.5">
                       À apporter par l'à-nouveau · <span className="tabular-nums font-semibold">{montant(lettrage416.proposition.aApporter)}</span>
+                      <Aide
+                        titre="À apporter par l'à-nouveau"
+                        texte="Le montant que les lignes d'à-nouveau désignées doivent porter au débit du 416 pour que le groupe solde · c'est l'opposé du solde des lignes ouvertes de la créance dans cet exercice (recouvrements et pertes au crédit). Il vaut d'ordinaire la part de la créance reportée de l'exercice précédent, ou déclarée à l'ouverture. Nul, les lignes de l'exercice soldent seules."
+                        source="Convention d'OmegaX"
+                      />
                     </div>
                     {lettrage416.proposition.aNouveaux.length === 0 ? (
                       <div className="text-text-dim">

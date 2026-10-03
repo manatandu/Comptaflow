@@ -32,6 +32,7 @@ function monter(p: {
   annuleeLe?: Date | null;
   posterieure?: { dateReevaluation: Date } | null;
   version?: { compteProvision: string; dateReference: Date } | null;
+  declaree?: boolean;
 }) {
   const reeval = {
     id: 'r1',
@@ -43,6 +44,7 @@ function monter(p: {
     ecritureEcarts: p.ecarts === undefined ? ecr('ecarts', StatutEcriture.VALIDEE) : p.ecarts,
     ecritureProvision: p.provision === undefined ? ecr('prov', StatutEcriture.BROUILLARD) : p.provision,
     ecritureExtourne: p.extourne ?? null,
+    contrePassationDeclareeId: p.declaree ? 'od' : null,
   };
   const tx = {
     reevaluation: {
@@ -117,6 +119,14 @@ describe('annuler une réévaluation des devises (D6)', () => {
     const version = monter({ version: { compteProvision: '4991', dateReference: new Date('2027-01-01') } });
     await expect(version.service.annulerReevaluation('t', 'u', 'r1', 'm')).rejects.toThrow(/déclarée au 2027-01-01 \(compte 4991\) s'appuie/);
     expect(version.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('troisième tour · contre-passée À LA MAIN et déclarée · refus nommé, l’issue dite (retirer la déclaration, puis corriger l’écriture manuelle), rien écrit', async () => {
+    const { service, prisma } = monter({ declaree: true });
+    await expect(service.annulerReevaluation('t', 'u', 'r1', 'm')).rejects.toThrow(
+      /contre-passée par une écriture manuelle déclarée · retirez la déclaration[\s\S]*inscription en négatif \(AUDCIF art\. 20, al\. 2\)/,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('les lectures « la réévaluation de l’exercice » écartent les annulées · la réévaluation EXACTE peut suivre', () => {

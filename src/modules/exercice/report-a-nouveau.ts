@@ -146,8 +146,11 @@ export function soldeDuCompte(c: CompteRan): number {
  * d'origine. En SOLDE, le solde se reporte PAR DEVISE · une ligne par devise,
  * au montant en francs et en devise de ses lignes, au cours moyen qu'ils
  * définissent, et une ligne en francs pour le reste (les écarts de
- * réévaluation, passés sans devise, y tombent, et l'extourne à l'ouverture
- * les solde). Une devise dont le solde en francs et le solde en devise ne
+ * réévaluation, passés sans devise, y tombent · celui d'une créance ou d'une
+ * dette, la contre-passation de l'ouverture le solde ; celui d'une banque ou
+ * d'une caisse, réalisé et jamais contre-passé (AUDCIF art. 57, ligne A5 bis),
+ * y reste, et la réévaluation suivante l'ajoute à la ligne de sa devise par
+ * `DevisesService.ecartsReportesDesDisponibilites`). Une devise dont le solde en francs et le solde en devise ne
  * sont pas de même sens ne se reporte pas en devise · le montant en devise
  * est gardé sans signe et c'est le sens de la ligne qui le donne, si bien
  * qu'aucune ligne ne saurait la porter. Elle reste dans le reste en francs.
