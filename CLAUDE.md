@@ -1920,6 +1920,26 @@ paierait deux fois ; omis, les acomptes sont sous-évalués.
 REPROPOSÉE chaque exercice avec montant et article, jamais inscrite d'office. Un
 compte plafonné ne propose que l'EXCÉDENT.
 
+**Écriture de l'impôt sur le résultat (ligne A11, 2026-10-03).** SYSCOHADA seul
+(`fiscalite/ecriture-impot-resultat.ts`, `constat-impot.service.ts`) · PROPOSÉE,
+passée au seul clic par le comptable (`@ReserveAuComptable`, comme la revue
+d'A7), montant REJOUÉ par le serveur, au brouillard au dernier jour de
+l'exercice, journal OD (repli dit). Fiche du compte 89 · D 89110000 / C 441 de
+l'impôt ENTIER « quelles que soient les modalités de règlement » (Application
+8) ; le MINIMUM de l'art. 57 (strictement supérieur, arrondi de l'art. 150
+d'abord) au 89500000, l'impôt que la loi n° 23/053 nomme « impôt minimum
+forfaitaire » (art. 42 al. 2, 2°, 45, 150) · lecture d'OmegaX, aucun texte ne
+nomme son compte. Imputation des acomptes DÉCIDÉE, bornée au plus petit des
+acomptes déclarés et de l'impôt, refusée au-delà du solde du 4492 (le Guide
+débite le 441 · double pratique dite) ; l'excédent reste au 4492 (art. 57 ter).
+La réintégration de l'impôt se compare aux seuls DÉBITS des 891, 892 et 895 ;
+le 899 (dégrèvements) est NOMMÉ, jamais déduit (art. 45 a contrario, aucun texte
+exprès). Constat qui RETIENT son écriture, une fois par exercice, s'annule
+(art. 20, al. 2) ; visible et annulable même si la forme a quitté l'IS. Refus
+nommés · forme non renseignée, personne physique (art. 3 ; AUDCIF compte
+1043), régime autre, exercice clos, brouillard des classes 6 à 8, 891 ou 895
+déjà mouvementé ; forme à condition (art. 4 à 6) · attestation écrite.
+
 États financiers et notes annexes · un écran par référentiel derrière
 l'aiguillage ; seules les aides techniques sont partagées
 (`etats-financiers.communs.ts`, `note-annexe.types.ts`,

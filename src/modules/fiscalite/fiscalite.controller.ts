@@ -110,9 +110,15 @@ export class FiscaliteController {
     return this.constats.etat(user.tenantId, exerciceId);
   }
 
-  /** Le clic · le montant est REJOUÉ par le serveur, le corps n'en porte aucun. Au brouillard. */
+  /**
+   * Le clic · le montant est REJOUÉ par le serveur, le corps n'en porte aucun. Au brouillard.
+   * Réservé au comptable, comme la revue des créances douteuses (A7) · le geste
+   * ne se réduit pas à une saisie, le cabinet y ATTESTE l'assujettissement et
+   * y DÉCIDE l'imputation des acomptes.
+   */
   @Post('exercices/:exerciceId/ecriture-impot')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   async passerEcritureImpot(
     @CurrentUser() user: AuthenticatedUser,
     @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
