@@ -20,11 +20,13 @@ const centimes = (x: unknown) => Math.round(Number(x) * 100);
  * règlement en devise).
  *
  * RECONNUE PAR LA LIAISON, JAMAIS PAR LE COMPTE NI LE LIBELLÉ · dans
- * l'exercice, l'écriture est celle d'une réévaluation (`reevaluationEcarts`) ;
+ * l'exercice, l'écriture est celle d'une réévaluation (`ecritureEcarts`) ou
+ * sa contre-passation (`ecritureExtourne`, qui inverse l'écart sur le compte
+ * du tiers et se présentait, chez un client, comme une créance à encaisser) ;
  * dans un exercice suivant, la ligne d'à-nouveau ne garde aucun lien avec ce
  * qu'elle reporte (`exercice/report-a-nouveau.ts`), et elle se reconnaît à ce
- * que la liaison dit des réévaluations ANTÉRIEURES · chaque ligne de leurs
- * écritures d'écarts sur le compte, non lettrée (seules les lignes sans
+ * que la liaison dit des écritures ANTÉRIEURES · chaque ligne d'une écriture
+ * d'écarts ou d'une contre-passation datée avant l'exercice, sur le compte, non lettrée (seules les lignes sans
  * lettre sont reportées au Détail), apparie UNE ligne d'à-nouveau en francs
  * non lettrée de même débit et de même crédit (Détail, de report en report) ;
  * au Solde, la seule ligne d'à-nouveau en francs restée sans paire dont le
@@ -43,34 +45,28 @@ export async function lignesDeReevaluationSurLesTiers(
 ): Promise<Set<string>> {
   const resultat = new Set<string>();
   if (p.compteIds.length === 0) return resultat;
+  // Les réévaluations du dossier, les plus récentes d'abord, bornées · leur
+  // écriture d'écarts et leur contre-passation, qui touche aussi le compte
+  // du tiers quand elle inverse l'écart de l'exercice précédent.
   const reevaluations = await prisma.reevaluation.findMany({
-    where: { tenantId: p.tenantId, ecritureEcartsId: { not: null }, exercice: { dateFin: { lt: p.exercice.dateDebut } } },
-    select: { ecritureEcartsId: true },
+    where: { tenantId: p.tenantId, OR: [{ ecritureEcartsId: { not: null } }, { ecritureExtourneId: { not: null } }] },
+    select: { ecritureEcartsId: true, ecritureExtourneId: true },
     orderBy: { dateReevaluation: 'desc' },
     take: PLAFOND_REEVALUATIONS,
   });
-  const [anterieures, deLExercice] = await Promise.all([
-    reevaluations.length === 0
-      ? Promise.resolve([] as Array<{ compteId: string; debit: unknown; credit: unknown }>)
-      : prisma.ligneEcriture.findMany({
-          where: {
-            ecritureId: { in: reevaluations.map((r) => r.ecritureEcartsId!) },
-            compteId: { in: p.compteIds },
-            lettre: null,
-            ecriture: { tenantId: p.tenantId },
-          },
-          select: { compteId: true, debit: true, credit: true },
-        }),
-    // Dans l'exercice, la liaison est directe.
-    prisma.ligneEcriture.findMany({
-      where: {
-        compteId: { in: p.compteIds },
-        ecriture: { tenantId: p.tenantId, exerciceId: p.exercice.id, reevaluationEcarts: { isNot: null } },
-      },
-      select: { id: true },
-    }),
-  ]);
-  for (const l of deLExercice) resultat.add(l.id);
+  const ecritures = reevaluations.flatMap((r) => [r.ecritureEcartsId, r.ecritureExtourneId]).filter((x): x is string => x !== null);
+  if (ecritures.length === 0) return resultat;
+  const liees = await prisma.ligneEcriture.findMany({
+    where: { ecritureId: { in: ecritures }, compteId: { in: p.compteIds }, ecriture: { tenantId: p.tenantId } },
+    select: { id: true, compteId: true, debit: true, credit: true, lettre: true, ecriture: { select: { exerciceId: true, date: true } } },
+  });
+  // Dans l'exercice, la liaison est directe ; d'un exercice ANTÉRIEUR, la
+  // ligne non lettrée est passée au report, où elle s'apparie.
+  const anterieures: typeof liees = [];
+  for (const l of liees) {
+    if (l.ecriture.exerciceId === p.exercice.id) resultat.add(l.id);
+    else if (l.ecriture.date.getTime() < p.exercice.dateDebut.getTime() && l.lettre === null) anterieures.push(l);
+  }
   if (anterieures.length === 0) return resultat;
 
   const candidates = await prisma.ligneEcriture.findMany({

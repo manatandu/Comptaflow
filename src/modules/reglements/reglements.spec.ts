@@ -311,12 +311,14 @@ type LigneEcheance = {
 };
 
 /** Une doublure qui HONORE la requête des échéances (F4b) · exercice, compte, sens, lettrage. */
-function echeancier(lignes: LigneEcheance[], reevaluations: Array<{ ecritureEcartsId: string; exerciceFin: Date }> = []) {
+function echeancier(lignes: LigneEcheance[], reevaluations: Array<{ ecritureEcartsId?: string; ecritureExtourneId?: string }> = []) {
   const prisma = {
-    // Les réévaluations ANTÉRIEURES à l'exercice (A6 ter) · la doublure honore la borne de date.
+    // Aucune créance reclassée (A7 ter, mineur 1).
+    creanceDouteuse: { findMany: jest.fn(async () => []) },
+    // Les réévaluations du dossier (A6 ter) · leur écriture d'écarts et leur contre-passation.
     reevaluation: {
       findMany: jest.fn(async ({ where }: { where: any }) =>
-        reevaluations.filter((r) => r.exerciceFin < where.exercice.dateFin.lt).map((r) => ({ ecritureEcartsId: r.ecritureEcartsId })),
+        where.tenantId === 't' ? reevaluations.map((r) => ({ ecritureEcartsId: r.ecritureEcartsId ?? null, ecritureExtourneId: r.ecritureExtourneId ?? null })) : [],
       ),
     },
     exercice: { findFirst: jest.fn(async () => ({ id: 'ex', dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31') })) },
@@ -329,7 +331,6 @@ function echeancier(lignes: LigneEcheance[], reevaluations: Array<{ ecritureEcar
             if (where.ecritureId?.in && !where.ecritureId.in.includes((l as any).ecritureId)) return false;
             if (where.deviseId === null && l.deviseId !== null) return false;
             if (where.lettre === null && ((l as any).lettre ?? null) !== null) return false;
-            if (where.ecriture?.reevaluationEcarts?.isNot === null && !(l.ecriture as any).reevaluationEcarts) return false;
             if (where.compteId?.in && !where.compteId.in.includes(l.compteId)) return false;
             const e = where.ecriture;
             if (e?.exerciceId && l.ecriture.exerciceId !== e.exerciceId) return false;
@@ -346,7 +347,7 @@ function echeancier(lignes: LigneEcheance[], reevaluations: Array<{ ecritureEcar
             if (where.debit?.gt !== undefined && !(l.debit > where.debit.gt)) return false;
             return true;
           })
-          .map((l) => ({ ...l, lettrage: l.lettrageId ? { code: 'A' } : null }));
+          .map((l) => ({ ...l, lettre: (l as any).lettre ?? null, lettrage: l.lettrageId ? { code: 'A' } : null }));
         const depart = cursor ? toutes.findIndex((l) => l.id === cursor.id) + 1 : 0;
         return take ? toutes.slice(depart, depart + take) : toutes.slice(depart);
       }),
@@ -433,15 +434,23 @@ describe('les échéances · l’à-nouveau provisoire écarté et dit (A6 bis, 
 // elle ne se présente plus comme une échéance à payer.
 describe('les échéances · l’écart d’une réévaluation n’est pas une facture (A6 ter)', () => {
   const ecartAnterieur = { ...ligneEcheance('eR1', 50_000, { exerciceId: 'n0', date: new Date('2026-12-31') }), ecritureId: 'eR' } as LigneEcheance;
+  // Chez un client, la contre-passation de N débite le 411 en N+1 · elle n'est pas une créance.
+  it('la contre-passation d’une réévaluation chez un client · écartée', async () => {
+    const extourne = { ...ligneEcheance('ext', 0, { date: new Date('2027-01-01'), journal: { code: 'OD' } }), ecritureId: 'eX', debit: 50_000, compteId: 'c411', compte: { id: 'c411', numero: '41110000', intitule: 'Client', lettrable: true, tiersCompte: null } } as LigneEcheance;
+    const facture = { ...ligneEcheance('fc', 0), debit: 2_800_000, compteId: 'c411', compte: { id: 'c411', numero: '41110000', intitule: 'Client', lettrable: true, tiersCompte: null } } as LigneEcheance;
+    const { service } = echeancier([extourne, facture], [{ ecritureExtourneId: 'eX' }]);
+    const r = await service.echeances('t', 'ex', 'CLIENT');
+    expect(r.map((g) => g.lignes.map((l) => l.id))).toEqual([['fc']]);
+  });
   it('reportée à l’à-nouveau ou passée dans l’exercice · écartée, la vraie facture reportée reste due', async () => {
     const { service } = echeancier(
       [
         ecartAnterieur,
         ligneEcheance('ranR', 50_000, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }),
         ligneEcheance('ranF', 600, { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false }),
-        ligneEcheance('reev', 30_000, { date: new Date('2027-12-31'), journal: { code: 'OD' }, reevaluationEcarts: { id: 'r27' } }),
+        { ...ligneEcheance('reev', 30_000, { date: new Date('2027-12-31'), journal: { code: 'OD' } }), ecritureId: 'eR27' } as LigneEcheance,
       ],
-      [{ ecritureEcartsId: 'eR', exerciceFin: new Date('2026-12-31') }],
+      [{ ecritureEcartsId: 'eR' }, { ecritureEcartsId: 'eR27' }],
     );
     const r = await service.echeances('t', 'ex', 'FOURNISSEUR');
     expect(r.map((g) => [g.numero, g.lignes.map((l) => l.id)])).toEqual([['40110000', ['ranF']]]);
