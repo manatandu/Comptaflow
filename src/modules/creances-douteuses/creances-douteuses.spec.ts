@@ -708,3 +708,22 @@ describe('créances douteuses · service', () => {
     expect(l.rapprochement?.provisoire).toBe(false);
   });
 });
+
+describe('créances douteuses · E1, la base est le TTC inscrit au 416 (décision de Manasse, fiches 41 et 49)', () => {
+  const revue = {
+    enPlace: 0,
+    reste: 1_160_000,
+    motif: 'Débiteur en liquidation',
+    pieces: piecesLisibles([{ nature: 'Jugement', reference: 'J-1' }]),
+    exerciceOuvert: true,
+    avantReclassement: false,
+    revuePosterieure: null,
+    anterieursSansRevue: [] as string[],
+    refusSmt: null,
+    journalGeneral: true,
+  };
+  it('une vente de 1 000 000 HT et 160 000 de TVA se déprécie jusqu’au TTC de 1 160 000, jamais au-delà', () => {
+    expect(motifRefusRevue({ ...revue, necessaire: 1_160_000 })).toBeNull();
+    expect(motifRefusRevue({ ...revue, necessaire: 1_160_000.01 })).toContain('jamais plus que la créance');
+  });
+});

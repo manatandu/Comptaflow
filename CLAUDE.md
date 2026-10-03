@@ -650,10 +650,12 @@ catalogue, `B6-COTISATION-DOUTEUSE` et `B6-DEPRECIATION-COTISATION` renvoient au
 module (`renvoiModule`, motif propre). (M6) gestes sous un verrou par dossier
 sans connexion retenue (`VerrouCreancesDouteuses`, 409 qui dit le geste). (M9) revue
 et annulation `@ReserveAuComptable()`, boutons sous `peutValider`. Une créance
-revue, même annulée, ne se retire plus. NON TRANCHÉ · hors taxe ou taxe comprise (aucune fiche ne le
-dit de la dépréciation, le ch. 15 § 1.3.1 ne le dit que de l'ABANDON), TVA d'une
-créance irrécouvrable (O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127) ·
-le cabinet déclare le montant, la question est à Manasse.
+revue, même annulée, ne se retire plus. (E1, décision de Manasse du 2026-10-03)
+LA BASE EST LE TTC INSCRIT AU 416 · la fiche du 49 compare à la « valeur
+comptable », que la fiche du 41 inscrit taxe comprise (crédit de la classe 7 hors
+taxes ET du 443) ; la seule mention « hors TVA » du corpus (Titre VIII ch. 15
+§ 1.3.1) vise l'ABANDON de créance. NON TRANCHÉ · TVA d'une créance irrécouvrable
+(O.-L. n° 10/001, art. 52 ; décret n° 011/42, art. 127) · la perte passe au TTC.
 
 **Procès-verbal de comptage par caisse.** Le PV de campagne (CPCC, étape 2) ne porte
 pas les espèces ; le § VI vise « la caisse SIÈGE, [...] la caisse AGENCE, [...] la

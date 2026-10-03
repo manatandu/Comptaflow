@@ -43,11 +43,20 @@ import { NatureCreanceDouteuse, Referentiel, TypeMouvementCreanceDouteuse } from
  *     moins-value quand « la valeur économique réelle des créances est
  *     inférieure à leur valeur comptable » (fiche du compte 49) · elle est
  *     bornée par ce qui reste de la créance au 416, au montant où elle y est
- *     inscrite. Le module ne dit PAS si l'estimation se fait hors taxe ou
- *     taxe comprise · aucune fiche lue ne le tranche pour la dépréciation
- *     (le Titre VIII ch. 15 § 1.3.1 ne le dit que de l'ABANDON de créance,
- *     « pour le montant hors TVA si l'abandon est passible de TVA »). Le
- *     cabinet déclare le montant ; la question est consignée pour Manasse.
+ *     inscrite.
+ *  4. LA BASE EST LE MONTANT TTC INSCRIT AU 416 (E1, décision de Manasse du
+ *     2026-10-03, « TTC mais réfère-toi quand même à la loi »). La fiche du
+ *     compte 49 compare la valeur économique réelle à la « VALEUR COMPTABLE »
+ *     des créances, et la valeur comptable est celle que la fiche du compte 41
+ *     inscrit · le 41 est « débité du montant des factures de ventes [...],
+ *     par le crédit des comptes concernés de la classe 7 (montant hors taxes
+ *     récupérables) [...] ; par le crédit du compte 443 (État, TVA
+ *     facturée) », donc TAXE COMPRISE. La seule mention « hors TVA » du corpus
+ *     (Titre VIII ch. 15 § 1.3.1, « pour le montant hors TVA si l'abandon est
+ *     passible de TVA ») vise l'ABANDON de créance, pas la dépréciation. La
+ *     TVA d'une créance devenue irrécouvrable se récupère au geste de PERTE,
+ *     sous ses conditions (O.-L. n° 10/001, art. 52), jamais par la
+ *     dépréciation.
  *
  * UN NUMÉRO, DEUX SENS · le 4161 et le 4162.
  *   SYSCOHADA · 4161 « Créances litigieuses », 4162 « Créances douteuses » ·

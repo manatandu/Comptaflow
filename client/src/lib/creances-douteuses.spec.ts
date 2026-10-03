@@ -58,3 +58,9 @@ describe('créances douteuses · écran (ligne A7)', () => {
     expect(page).not.toMatch(/toFixed\(/);
   });
 });
+
+describe('créances douteuses · E1 à l’écran', () => {
+  it('la bulle d’aide de la revue dit que la base est le TTC inscrit au 416', () => {
+    expect(page).toContain('Base de la dépréciation · le montant TTC inscrit au 416');
+  });
+});

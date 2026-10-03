@@ -545,6 +545,19 @@ export function CreancesDouteusesPage() {
                   )}
                   <label className="text-right">{form.geste === 'revue' ? 'Dépréciation nécessaire :' : 'Montant :'}</label>
                   <input required inputMode="decimal" value={form.montant} onChange={(e) => champ('montant', e.target.value)} className="border border-border-dark px-2 py-1" />
+                  {form.geste === 'revue' && (
+                    <>
+                      <span />
+                      <span className="flex items-center gap-1.5 text-text-dim">
+                        Base de la dépréciation · le montant TTC inscrit au 416
+                        <Aide
+                          titre="Base de la dépréciation"
+                          texte="La dépréciation se mesure sur la valeur comptable de la créance, celle inscrite au 41 puis au 416, taxe comprise. La TVA d'une créance irrécouvrable ne se reprend pas ici : elle se récupère au geste de perte, sur duplicata de la facture."
+                          source="AUDCIF Titre VII, fiches des comptes 41 et 49 ; décision de Manasse du 2026-10-03"
+                        />
+                      </span>
+                    </>
+                  )}
                   {form.geste === 'revue' && proposition && (
                     <>
                       <span />
