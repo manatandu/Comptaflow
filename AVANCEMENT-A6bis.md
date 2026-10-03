@@ -42,9 +42,11 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   (`report-a-nouveau-agrege.spec.ts`, double qui honore le filtre de groupe) ·
   partiel et soldé au Détail, soldé au SOLDE, groupe interne écarté, clôture
   et provisoire, report équilibré, requête bornée à l'exercice lu. (2) Un
-  NOUVEAU groupe entre exercices n'est refusé qu'au DÉTAIL (doctrine CPCC,
-  § 3 de `docs/organisation-comptable-cpcc.md`, « mode Détail des comptes de
-  tiers ») · lettrage manuel, complément, confirmation du pré-lettrage ; le
+  NOUVEAU groupe entre exercices n'est refusé qu'au DÉTAIL (CONVENTION
+  D'OMEGAX, pas une doctrine du CPCC · le cours dit que la clôture « autorise
+  : le lettrage et le pointage » ; l'écart est écrit au § 3 de
+  `docs/organisation-comptable-cpcc.md`, second tour m7) · lettrage manuel,
+  complément, confirmation du pré-lettrage ; le
   lettrage automatique et le pré-lettrage ne partitionnent par exercice
   qu'au Détail. Le refus nomme l'issue · lettrer contre l'à-nouveau DÉFINITIF
   une fois l'exercice antérieur clôturé, sinon attendre sa clôture. Libre au
@@ -59,7 +61,8 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   journal ou période clôturés), plus par le seul exercice.
 - m1 · le lettrage automatique et le pré-lettrage écartent les lignes
   `estANouveauProvisoire` (testé).
-- m4 · `ECART_CHANGE_A_CHEVAL_NON_CONSTATE` en AVERTISSEMENT · groupe à
+- m4 (premier tour ; son issue « écriture manuelle » est REMPLACÉE au second
+  tour, B2) · `ECART_CHANGE_A_CHEVAL_NON_CONSTATE` en AVERTISSEMENT · groupe à
   cheval partiel, soldé dans sa devise sur l'ensemble de ses lignes et pas en
   francs, dénoué dans l'exercice lu · montant, et issue par cas · figé,
   écriture manuelle au compte PRESCRIT (`comptesPrescrits` · 656 / 756 ou
@@ -111,13 +114,66 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   l'exercice non bornée, lot, client, lettrée ou annulée, ligne non lettrée
   de l'exercice sans effet, requête).
 
+## Second tour (relecture adverse sur 8efe29e, deux BLOQUANTS)
+
+Fait, dans l'ordre demandé (B2 et les mineurs, qui ne touchent pas
+`calculer`, avant B1) ·
+
+- B2 (459cb82) · le groupe figé reçoit son écart · `passerEcartChange`
+  complète le groupe de SA ligne de tiers sous la tolérance nommée de
+  `LettrageService.completer` (`groupeTolere`, même nom et même portée qu'à
+  A7 ter) · seule la ligne nouvelle doit être libre, aucune ligne figée
+  n'est déplacée, la lettre du groupe soldé ne se pose pas sur une ligne
+  d'exercice clôturé (posée sous une période close d'un exercice OUVERT,
+  sans quoi le report Détail la lirait ouverte), aucun exercice nouveau
+  n'entre au Détail. Dénouement dans une période close · report au premier
+  jour non clôturé sur demande, date de valeur gardée
+  (`reporterAuPremierJourOuvert`, case de l'écran Lettrage, AUDCIF art. 22,
+  4°). La proposition ne refuse plus les groupes figés ou à cheval
+  (`fige`, `aCheval`). Le contrôle 35 s'éteint une fois l'écart passé
+  (testé). Le cas chiffré de la provision (50 000 et non 150 000) dépend de
+  `calculer` · il est écrit avec B1.
+- m2 (459cb82) · plus aucun « délettrez » dans les issues du contrôle 35 ni
+  la proposition · rien à défaire, l'écart se passe sur le groupe, jamais
+  par une écriture libre que la réévaluation recompterait.
+- m7 (459cb82) · la règle 2 est une convention d'OmegaX · en-têtes de
+  `lettrage.service.ts` et `lettrages-a-cheval.ts`, § 3 de
+  `docs/organisation-comptable-cpcc.md`, et cette fiche.
+- m5, m4 (8732461) · le refus de la borne M6 nomme l'issue qui reste
+  (saisie au journal de trésorerie, puis lettrage à la main) ; un règlement
+  reporté en francs SANS devise revient en avertissement chiffré, non
+  bloquant.
+- m6 (58107db) · l'à-nouveau PROVISOIRE est écarté des échéances, compté
+  par compte (`aNouveauProvisoireEcartees`, dit à l'écran), et refusé s'il
+  est choisi, l'issue nommée · lettré, il ferait refuser la clôture de
+  l'exercice précédent.
+- m1 (65bd2d2) · `lettrage/paires-a-cheval.ts` · la ligne d'à-nouveau qui
+  reporte une facture lettrée avec un règlement de l'exercice et ce
+  règlement forment une PAIRE qui se compense, au règlement des tiers
+  (ligne éteinte retirée et refusée, reste seul dû et payé, lettrage
+  partiel dit) et aux relances. Au Détail, appariement par la copie que le
+  report recopie (compte, montants, devise, échéance, libellé), sinon rien ;
+  au Solde, sur le solde reporté de la devise. La balance âgée et les notes
+  par échéance ne la lisent pas · nommées par le contrôle 35.
+- m3 · inscrit à la ligne A7 bis du suivi, sans code · au Détail, le lien
+  facture → encaissement de l'exigibilité passe par la ligne d'à-nouveau.
+
 ## Reste
 
-- Premier tour fait. Bloc du § 3 passé le 2026-10-03 sur 4b60b84 · serveur
-  `tsc`, `jest --maxWorkers=2` (712 suites, 10 008 tests), `npm run build` ;
-  client `tsc`, `npm test` (208 fichiers, 1 696 tests), `npm run build`.
-  Restent la relecture, l'intégration sur `main` (relire alors le numéro du
-  contrôle · 35 si A5 bis a pris le 34) et les tests navigateur.
+- B1 avec B-3 (après A5 bis sur `main`) · `DevisesService.calculer` lit
+  chaque exercice pour lui-même · une ligne d'un groupe qui touche un autre
+  exercice se lit non lettrée, les lignes en francs de ces groupes (écart
+  réalisé) entrent dans la valeur comptable de la position, la paire se
+  compense et la position dénouée sort ; B-3 · une ligne lettrée par un
+  groupe dont une ligne est postérieure à la date de réévaluation se lit
+  ouverte. Tests chiffrés au Détail et au Solde (facture 1 000 USD à 2 800,
+  encaissement 2 700 en N+1, réalisé 100 000 passé, réévaluation N+1 au
+  cours 2 700 · rien à doter), B2 (provision 50 000 et non 150 000, charge
+  150 000 et non 250 000) et B-3.
+- Bloc complet du § 3 après B1, puis vérification ciblée des deux
+  BLOQUANTS. À l'intégration, relire le numéro du contrôle (35).
+- Premier tour · bloc du § 3 passé le 2026-10-03 sur 4b60b84 (712 suites,
+  10 008 tests serveur ; 208 fichiers, 1 696 tests client).
 
 ## Renvoyé après l'intégration d'A5 bis (B-3, ne pas toucher `calculer` avant)
 
@@ -132,6 +188,14 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 
 ## Relevés (hors périmètre, non traités)
 
+- Paire à cheval (m1) · une paire qui AJOUTERAIT au dû (au Solde, une
+  facture de l'exercice lettrée avec un acompte antérieur) n'est pas lue ·
+  le dû n'en est que minoré, jamais payé deux fois. La balance âgée et les
+  notes par échéance (`ouverteALaCloture`) ne lisent pas la paire.
+- Une ligne d'à-nouveau réglée EN PARTIE par une paire, payée par le
+  règlement des tiers, laisse son lettrage partiel de la part que le groupe
+  à cheval a réglée (les deux groupes ne se fondent pas).
+
 - Le règlement EN FRANCS d'une facture reportée entière en N+1 après un
   règlement partiel en N (même défaut que M6, sans devise) · le dû en
   francs n'est borné que par les factures choisies. Même remède possible,
@@ -145,11 +209,14 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
 - B3 · AUDCIF art. 57, fiche du compte 52 des deux plans (« les avoirs en
   monnaies étrangères sont évalués au dernier cours officiel de change
   connu ») · un compte tenu en devise ne reçoit pas de francs sans devise.
-- B2 (premier tour, consigne du coordinateur) · doctrine CPCC (§ 3 de
-  `docs/organisation-comptable-cpcc.md`, en tête de `lettrage.service.ts`) ·
-  « un règlement de mars qui solde une facture de décembre se lettre contre
-  la ligne de REPORT À-NOUVEAU de l'exercice ouvert (MODE DÉTAIL des comptes
-  de tiers) » · la règle vise le Détail, le SOLDE reste libre ; AUDCIF
+- B2 (premier tour, consigne du coordinateur) · CONVENTION D'OMEGAX (second
+  tour m7 · ce n'est pas une doctrine du CPCC, dont le § 2.3 dit que la
+  clôture « autorise : le lettrage et le pointage » ; l'écart est écrit au
+  § 3 de `docs/organisation-comptable-cpcc.md` et en tête de
+  `lettrage.service.ts`) · « un règlement de mars qui solde une facture de
+  décembre se lettre contre la ligne de REPORT À-NOUVEAU de l'exercice
+  ouvert (MODE DÉTAIL des comptes de tiers) » · la règle vise le Détail, le
+  SOLDE reste libre ; AUDCIF
   art. 20 · les groupes existants ne sont pas réécrits, le report les lit
   pour chaque exercice. Le cas « soldé, figé, part non nulle » du premier
   jet n'enferme plus rien (la règle 1 l'équilibre).
@@ -176,11 +243,26 @@ Fiche retirée à l'intégration (CLAUDE.md § 5, « RIEN NE SE PERD »).
   la sienne.
 - M4 · écart à la consigne · l'« ordre de `ligneIds` » n'est gardé nulle
   part, D4 ne pourrait pas le rejouer ; l'identifiant de ligne, si.
+- B2 (second tour) · AUDCIF art. 55 (« à la date de règlement [...] les
+  pertes et gains de change [...] sont constatés ») et Titre VIII ch. 22
+  § 2.3 · l'écart appartient au règlement qui dénoue ; le gel est une
+  convention de Sage i7 (`gel-cloture.ts`), qui ne peut pas l'empêcher.
+  AUDCIF art. 22, 4° · le dénouement daté dans une période close
+  s'enregistre au premier jour non clôturé, date de valeur gardée, sur
+  demande (arbitrage du 2026-09-24). AUDCIF art. 20 et « on ne peut pas
+  modifier les enregistrements d'exercice clôturé » (Sage i7) · la ligne
+  d'un exercice clôturé ne reçoit pas la lettre du groupe soldé.
+- m2 · A6, D3 (« jamais un second passage ni un délettrage, qui ferait
+  glisser le réalisé au 479 ») · l'issue n'est jamais de délettrer.
+- m6 · la clôture refuse de remplacer un à-nouveau provisoire lettré
+  (`ExerciceService`, « délettrez-les ») · l'à-nouveau provisoire ne se
+  règle pas par le règlement des tiers ; l'issue reste ouverte (saisie au
+  journal, lettrage avec l'à-nouveau définitif).
 
 ## Vérification
 
 ```bash
 npx tsc --noEmit
-npx jest src/modules/reglements src/modules/lettrage src/modules/exercice src/modules/controles --maxWorkers=2
-(cd client && npx tsc --noEmit && npx vitest run src/lib/ecart-change.spec.ts)
+npx jest src/modules/reglements src/modules/lettrage src/modules/relances src/modules/exercice src/modules/controles --maxWorkers=2
+(cd client && npx tsc --noEmit && npx vitest run src/lib/ecart-change.spec.ts src/pages)
 ```
