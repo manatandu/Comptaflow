@@ -106,7 +106,7 @@ describe('créances douteuses · le reclassement au 416 (fiche du compte 41)', (
     numero416EstDetail: true,
     montant: 1_160_000,
     soldeDebiteur: 1_160_000,
-    ligneEnDevise: false,
+    positionEnDevise: false,
     motif: 'Client en redressement judiciaire',
     pieces,
     exerciceOuvert: true,
@@ -124,7 +124,7 @@ describe('créances douteuses · le reclassement au 416 (fiche du compte 41)', (
     expect(motifRefusReclassement({ ...base, montant: 1_160_000.01 })).toContain('dépasse ce que le client doit');
     expect(motifRefusReclassement({ ...base, motif: '  ' })).toContain('justifier les motifs');
     expect(motifRefusReclassement({ ...base, pieces: [] })).toContain('pièce justificative');
-    expect(motifRefusReclassement({ ...base, ligneEnDevise: true })).toContain('devise');
+    expect(motifRefusReclassement({ ...base, positionEnDevise: true })).toContain('devise');
     expect(motifRefusReclassement({ ...base, journalGeneral: false })).toContain("opérations diverses");
     expect(motifRefusReclassement({ ...base, exerciceOuvert: false })).toContain('clôturé');
   });
@@ -417,7 +417,18 @@ describe('créances douteuses · service', () => {
        * HONORE la requête (compte, exercices, date, à-nouveau provisoire).
        * Absentes, `aggregate` rend `solde`.
        */
-      lignes?: Array<{ compteId: string; exerciceId: string; date: string; debit: number; credit: number; provisoire?: boolean; aNouveau?: boolean }>;
+      lignes?: Array<{
+        compteId: string;
+        exerciceId: string;
+        date: string;
+        debit: number;
+        credit: number;
+        provisoire?: boolean;
+        aNouveau?: boolean;
+        /** Mineur 2 · la devise de la ligne et son montant en devise, SANS SIGNE. */
+        deviseId?: string;
+        montantDevise?: number;
+      }>;
       revue?: Record<string, unknown> | null;
       verrouTenu?: boolean;
       mouvement?: Record<string, unknown> | null;
@@ -525,6 +536,30 @@ describe('créances douteuses · service', () => {
         ),
       },
       ligneEcriture: {
+        // Mineur 2 · la position en devise, par compte et par devise, honore
+        // la requête (comptes, exercices, date, à-nouveau provisoire, sens).
+        groupBy: jest.fn().mockImplementation(({ by, where }: any) => {
+          if (!options.lignes || !by.includes('deviseId')) return Promise.resolve([]);
+          const e = where.ecriture ?? {};
+          const auDebit = where.OR?.some((o: any) => o.debit?.gt === 0);
+          const retenues = options.lignes.filter(
+            (l) =>
+              l.deviseId &&
+              where.compteId.in.includes(l.compteId) &&
+              e.exerciceId.in.includes(l.exerciceId) &&
+              (!e.date?.lte || new Date(l.date) <= e.date.lte) &&
+              (e.estANouveauProvisoire !== false || !l.provisoire) &&
+              (auDebit ? l.debit > 0 || l.credit < 0 : l.credit > 0 || l.debit < 0),
+          );
+          const groupes = new Map<string, { compteId: string; deviseId: string; _sum: { montantDevise: number } }>();
+          for (const l of retenues) {
+            const cle = `${l.compteId}|${l.deviseId}`;
+            const g = groupes.get(cle) ?? { compteId: l.compteId, deviseId: l.deviseId!, _sum: { montantDevise: 0 } };
+            g._sum.montantDevise += l.montantDevise ?? 0;
+            groupes.set(cle, g);
+          }
+          return Promise.resolve([...groupes.values()]);
+        }),
         aggregate: jest
           .fn()
           .mockImplementation((args: any) =>
@@ -735,6 +770,68 @@ describe('créances douteuses · service', () => {
     await service.declarer('t', 'u', dto);
     expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
     await expect(service.declarer('t', 'u', { ...dto, montant: 500_000.01 })).rejects.toThrow(/report PROVISOIRE.*reprenez la déclaration/);
+  });
+
+  // A7 TER, MINEUR 2 · une facture en dollars de 2026 (400 USD, 1 000 000 FC)
+  // réglée en 2027 sur sa ligne d'à-nouveau PROVISOIRE · en 2026 la ligne
+  // reste non lettrée, et la position en dollars est NULLE sur la chaîne.
+  // La simple présence d'une ligne non lettrée refusait le reclassement
+  // d'une autre créance, en francs, du même client.
+  const factureUsdReglee = [
+    { compteId: 'cli', exerciceId: 'ex-26', date: '2026-10-01', debit: 1_000_000, credit: 0, deviseId: 'usd', montantDevise: 400 },
+    { compteId: 'cli', exerciceId: 'ex-27', date: '2027-01-01', debit: 1_000_000, credit: 0, deviseId: 'usd', montantDevise: 400, provisoire: true },
+    { compteId: 'cli', exerciceId: 'ex-27', date: '2027-01-20', debit: 0, credit: 1_000_000, deviseId: 'usd', montantDevise: 400 },
+    { compteId: 'cli', exerciceId: 'ex-26', date: '2026-11-10', debit: 1_160_000, credit: 0 },
+  ];
+
+  it('mineur 2 · la position en devise se juge NETTE · la facture en dollars réglée n’empêche plus le reclassement en francs', async () => {
+    const { service, creer, prisma } = monter({ aNouveauDans: [], reportProvisoireDans: ['ex-27'], lignes: factureUsdReglee });
+    await service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15' });
+    expect(creer).toHaveBeenCalledTimes(1);
+    const lecture = prisma.ligneEcriture.groupBy.mock.calls.find((c: any) => c[0].by.includes('deviseId'))[0];
+    expect(lecture.by).toEqual(['compteId', 'deviseId']);
+    expect(lecture.where).toMatchObject({ compteId: { in: ['cli'] }, deviseId: { not: null }, ecriture: { tenantId: 't', estANouveauProvisoire: false } });
+    // Non réglée, la facture en dollars refuse toujours.
+    const ouverte = monter({ aNouveauDans: [], reportProvisoireDans: ['ex-27'], lignes: factureUsdReglee.filter((l) => l.date !== '2027-01-20') });
+    await expect(ouverte.service.reclasser('t', 'u', { ...dtoReclassement, exerciceId: 'ex-27', date: '2027-02-15' })).rejects.toThrow(
+      /devise non réglée.*art\. 54/,
+    );
+  });
+
+  it('mineur 2 · une ligne inscrite en négatif se compte à l’envers · la facture annulée ne laisse aucune position', async () => {
+    const annulee = [
+      { compteId: 'cli', exerciceId: 'ex-26', date: '2026-10-01', debit: 1_000_000, credit: 0, deviseId: 'usd', montantDevise: 400 },
+      // L'inscription en négatif garde le montant en devise SANS SIGNE · le débit négatif le retranche.
+      { compteId: 'cli', exerciceId: 'ex-26', date: '2026-10-05', debit: -1_000_000, credit: 0, deviseId: 'usd', montantDevise: 400 },
+      { compteId: 'cli', exerciceId: 'ex-26', date: '2026-11-10', debit: 1_160_000, credit: 0 },
+    ];
+    // Seul 2026 a son à-nouveau · le solde le plus tard enregistré se lit sur la chaîne de 2027, qui remonte à 2026.
+    const { service, creer } = monter({ aNouveauDans: ['ex-26'], lignes: annulee });
+    await service.reclasser('t', 'u', dtoReclassement);
+    expect(creer).toHaveBeenCalledTimes(1);
+  });
+
+  it('mineur 2 · la déclaration d’ouverture passe aussi quand la facture en dollars est réglée', async () => {
+    const { service, prisma } = monter({
+      aNouveauDans: [],
+      reportProvisoireDans: ['ex-27'],
+      lignes: [
+        ...factureUsdReglee.filter((l) => l.date !== '2027-01-20'),
+        // Réglée avant la clôture de 2026, sur la facture elle-même.
+        { compteId: 'cli', exerciceId: 'ex-26', date: '2026-12-20', debit: 0, credit: 1_000_000, deviseId: 'usd', montantDevise: 400 },
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-06-30', debit: 500_000, credit: 0 },
+      ],
+    });
+    await service.declarer('t', 'u', {
+      exerciceId: 'ex-27',
+      compteCreanceId: 'cli',
+      compte416Id: 'c4162',
+      nature: NatureCreanceDouteuse.DOUTEUSE,
+      montant: 500_000,
+      depreciationOuverture: 0,
+      source: 'Balance de reprise',
+    });
+    expect(prisma.creanceDouteuse.create).toHaveBeenCalledTimes(1);
   });
 
   it('M6 · un second geste reçoit aussitôt un 409 qui dit le geste en cours', async () => {
@@ -1630,14 +1727,15 @@ describe('créances douteuses · service', () => {
   };
 
   it('m4 · la déclaration d’ouverture refuse une créance en devise, un compte de regroupement, un compte en sommeil', async () => {
-    const devise = monter({ solde: 1_000_000 });
-    devise.prisma.ligneEcriture.count.mockResolvedValue(1);
-    await expect(devise.service.declarer('t', 'u', dtoDeclaration)).rejects.toThrow(/en devise non lettrée.*art\. 54/);
-    expect(devise.prisma.ligneEcriture.count.mock.calls[0][0].where).toMatchObject({
-      compteId: { in: ['cli', 'c4162'] },
-      deviseId: { not: null },
-      lettre: null,
+    const devise = monter({
+      lignes: [
+        { compteId: 'c4162', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true },
+        { compteId: 'cli', exerciceId: 'ex-26', date: '2026-01-01', debit: 1_000_000, credit: 0, aNouveau: true, deviseId: 'usd', montantDevise: 400 },
+      ],
     });
+    await expect(devise.service.declarer('t', 'u', dtoDeclaration)).rejects.toThrow(/en devise non réglée.*art\. 54/);
+    const lecture = devise.prisma.ligneEcriture.groupBy.mock.calls.find((c: any) => c[0].by.includes('deviseId'))[0];
+    expect(lecture.where).toMatchObject({ compteId: { in: ['cli', 'c4162'] }, deviseId: { not: null }, ecriture: { date: { lte: new Date('2026-01-01') } } });
     const sommeil = monter({ solde: 1_000_000 });
     sommeil.prisma.compte.findFirst.mockImplementation(({ where }: any) =>
       Promise.resolve(where.id === 'c4162' ? { id: 'c4162', numero: '41620000', intitule: '4162', typeCompte: TypeCompteDetailTotal.DETAIL, estActif: false } : plan.find((c) => c.id === where.id) ?? plan.find((c) => c.numero.startsWith(where.numero?.startsWith)) ?? null),

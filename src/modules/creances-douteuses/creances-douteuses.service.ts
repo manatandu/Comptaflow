@@ -785,14 +785,7 @@ export class CreancesDouteusesService {
     const [soldeDebiteur, soldeDernier, enDevise, c491] = await Promise.all([
       this.solde(tenantId, { id: source.id }, ids, date),
       this.soldeAuPlusTard(tenantId, source.id, ex, ids),
-      this.prisma.ligneEcriture.count({
-        where: {
-          compteId: source.id,
-          deviseId: { not: null },
-          lettre: null,
-          ecriture: { tenantId, exerciceId: { in: ids }, ...HORS_REPORT_PROVISOIRE },
-        },
-      }),
+      this.positionEnDeviseOuverte(tenantId, [source.id], ids, null),
       this.compte491Choisi(tenantId, dto.nature, dto.compte491Id),
     ]);
     let motif = motifRefusReclassement({
@@ -805,7 +798,7 @@ export class CreancesDouteusesService {
       montant: dto.montant,
       soldeDebiteur,
       soldeDernier,
-      ligneEnDevise: enDevise > 0,
+      positionEnDevise: enDevise,
       motif: dto.motif,
       pieces,
       exerciceOuvert: ex.statut === StatutExercice.OUVERT,
@@ -890,16 +883,9 @@ export class CreancesDouteusesService {
     const [ouverture, dejaPorte, enDevise] = await Promise.all([
       this.soldesALOuverture(tenantId, ex, c416.id, c491.id),
       this.dejaPorteALOuverture(tenantId, ex.dateDebut, c416.id, c491.id),
-      // m4 · une créance en devise non lettrée, sur le compte du client ou le
+      // m4 · une créance en devise non réglée, sur le compte du client ou le
       // 416, à l'ouverture (à-nouveau, ou report reconstitué), ne se déclare pas.
-      this.prisma.ligneEcriture.count({
-        where: {
-          compteId: { in: [source.id, c416.id] },
-          deviseId: { not: null },
-          lettre: null,
-          ecriture: { tenantId, exerciceId: { in: ids }, date: { lte: ex.dateDebut }, ...HORS_REPORT_PROVISOIRE },
-        },
-      }),
+      this.positionEnDeviseOuverte(tenantId, [source.id, c416.id], ids, ex.dateDebut),
     ]);
     let motif = motifRefusDeclaration({
       referentiel,
@@ -919,7 +905,7 @@ export class CreancesDouteusesService {
       dejaDeclare491: dejaPorte.sur491,
       sourceEstDetail: source.typeCompte === TypeCompteDetailTotal.DETAIL,
       comptesEnSommeil: [source, c416, c491].filter((k) => 'estActif' in k && k.estActif === false).map((k) => k.numero),
-      ligneEnDevise: enDevise > 0,
+      positionEnDevise: enDevise,
       methodeCotisations: methodeCotisations ?? null,
     });
     // B1 · une borne lue sur le report reconstitué se dit, avec son issue.
@@ -961,6 +947,48 @@ export class CreancesDouteusesService {
    * brouillard laissait déclarer ce qui n'y était plus. Sans à-nouveau ni
    * exercice précédent, aucune borne · la déclaration est refusée.
    */
+  /**
+   * A7 TER, MINEUR 2 · LA POSITION NETTE EN DEVISE, par compte et par devise,
+   * sur la chaîne (`chaine`), à-nouveau provisoire exclu · somme des montants
+   * en devise des lignes au débit, et des lignes inscrites en négatif au
+   * crédit, moins celle des lignes au crédit, et des négatifs au débit (le
+   * montant en devise se garde SANS SIGNE, le sens de la ligne le donne,
+   * `lignesEnNegatif`). Une facture en dollars de N réglée en N+1 sur sa
+   * ligne d'à-nouveau provisoire laisse en N une ligne non lettrée et une
+   * position NULLE · la simple présence d'une ligne non lettrée refusait à
+   * tort le reclassement d'une créance en francs. `true` dès qu'une devise
+   * d'un compte n'est pas soldée au centime.
+   */
+  private async positionEnDeviseOuverte(tenantId: string, comptes: string[], ids: string[], au: Date | null): Promise<boolean> {
+    const date = au ? { date: { lte: au } } : {};
+    const [debits, credits] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: [{ debit: { gt: 0 } }, { credit: { lt: 0 } }],
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId', 'deviseId'],
+        where: {
+          compteId: { in: comptes },
+          deviseId: { not: null },
+          OR: [{ credit: { gt: 0 } }, { debit: { lt: 0 } }],
+          ecriture: { tenantId, exerciceId: { in: ids }, ...date, ...HORS_REPORT_PROVISOIRE },
+        },
+        _sum: { montantDevise: true },
+      }),
+    ]);
+    const net = new Map<string, number>();
+    for (const g of debits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) + n(g._sum.montantDevise));
+    for (const g of credits) net.set(`${g.compteId}|${g.deviseId}`, (net.get(`${g.compteId}|${g.deviseId}`) ?? 0) - n(g._sum.montantDevise));
+    return [...net.values()].some((v) => Math.abs(v) >= 0.005);
+  }
+
   private async soldesALOuverture(tenantId: string, ex: { id: string; dateDebut: Date }, compte416Id: string, compte491Id: string) {
     if (await this.aUnANouveau(tenantId, ex.id)) {
       const aNouveau = { tenantId, exerciceId: ex.id, ...A_NOUVEAU };

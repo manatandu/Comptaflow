@@ -271,9 +271,15 @@ export function motifRefus416Croise(
   );
 }
 
-/** Une créance en devise non lettrée ne se reclasse ni ne se déclare (AUDCIF art. 54 et 55). */
+/**
+ * Une créance en devise non réglée ne se reclasse ni ne se déclare (AUDCIF
+ * art. 54 et 55). Jugée sur la POSITION NETTE par devise (A7 ter, mineur 2),
+ * jamais sur la présence d'une ligne non lettrée · une facture en dollars de
+ * N réglée en N+1 sur sa ligne d'à-nouveau provisoire laisse en N une ligne
+ * non lettrée et une position nulle.
+ */
 export const MOTIF_CREANCE_EN_DEVISE =
-  "Le compte du client porte une créance en devise non lettrée · une créance en devise se réévalue à la clôture (AUDCIF art. 54) " +
+  "Le compte du client porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture (AUDCIF art. 54) " +
   'et se règle dans sa devise (art. 55), et son reclassement au 416 en perdrait la devise. Ce cas n’est pas servi par le module · ' +
   'lettrez ce qui est réglé, ou passez le reclassement à la main.';
 
@@ -293,8 +299,8 @@ export interface EntreeReclassement {
    * reclassement antidaté reprendrait.
    */
   soldeDernier?: number;
-  /** Une ligne en devise non lettrée sur le compte d'origine. */
-  ligneEnDevise: boolean;
+  /** Une position en devise non soldée sur le compte d'origine (mineur 2 · nette, par devise). */
+  positionEnDevise: boolean;
   motif: string | null | undefined;
   pieces: PieceJustificative[];
   exerciceOuvert: boolean;
@@ -323,7 +329,7 @@ export function motifRefusReclassement(e: EntreeReclassement): string | null {
   if (croise) return croise;
   const cotisations = e.methodeCotisations === undefined ? null : motifRefusCotisationsEncaissement(e.referentiel, e.numeroSource, e.methodeCotisations);
   if (cotisations) return cotisations;
-  if (e.ligneEnDevise) return MOTIF_CREANCE_EN_DEVISE;
+  if (e.positionEnDevise) return MOTIF_CREANCE_EN_DEVISE;
   if (!(e.montant > 0)) return 'Le montant reclassé doit être positif.';
   if (centimes(e.montant) > centimes(e.soldeDebiteur) + 0.005) {
     return (
@@ -723,8 +729,8 @@ export interface EntreeDeclaration {
   sourceEstDetail?: boolean;
   /** m4 · les comptes choisis en sommeil (numéros) · absent, non vérifié. */
   comptesEnSommeil?: string[];
-  /** m4 · une ligne en devise non lettrée sur le compte du client ou le 416. */
-  ligneEnDevise?: boolean;
+  /** m4 · une position en devise non soldée sur le compte du client ou le 416 (mineur 2 · nette, par devise). */
+  positionEnDevise?: boolean;
   /** m9 · la méthode des cotisations déclarée (SYCEBNL). */
   methodeCotisations?: MethodeCotisationsDeclaree;
 }
@@ -758,9 +764,9 @@ export function motifRefusDeclaration(e: EntreeDeclaration): string | null {
   }
   const cotisations = e.methodeCotisations === undefined ? null : motifRefusCotisationsEncaissement(e.referentiel, e.numeroSource, e.methodeCotisations);
   if (cotisations) return cotisations;
-  if (e.ligneEnDevise) {
+  if (e.positionEnDevise) {
     return (
-      'Le compte du client ou le 416 porte une créance en devise non lettrée · une créance en devise se réévalue à la clôture ' +
+      'Le compte du client ou le 416 porte une créance en devise non réglée (position en devise non soldée) · une créance en devise se réévalue à la clôture ' +
       '(AUDCIF art. 54) et se règle dans sa devise (art. 55), et sa déclaration au module en perdrait la devise. Ce cas n’est ' +
       'pas servi par le module.'
     );
