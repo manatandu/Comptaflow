@@ -88,6 +88,9 @@ const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ d
 const ConventionsFinancementPage = lazy(() => import('../pages/ConventionsFinancementPage').then((m) => ({ default: m.ConventionsFinancementPage })));
 const EngagementsPage = lazy(() => import('../pages/EngagementsPage').then((m) => ({ default: m.EngagementsPage })));
 const OdAnalytiquesPage = lazy(() => import('../pages/OdAnalytiquesPage').then((m) => ({ default: m.OdAnalytiquesPage })));
+const ComptabiliteGestionPage = lazy(() =>
+  import('../pages/ComptabiliteGestionPage').then((m) => ({ default: m.ComptabiliteGestionPage })),
+);
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
@@ -194,6 +197,14 @@ export const FENETRES: DefinitionFenetre[] = [
   { motif: /^\/libelles$/, titre: 'Libellés', titreCourt: 'Libellés', rendre: () => <LibellesPage /> },
   { motif: /^\/etats-personnalises$/, titre: 'États personnalisés', titreCourt: 'États perso.', rendre: () => <EtatsPersonnalisesPage /> },
   { motif: /^\/simulations-budgetaires$/, titre: 'Simulateur budgétaire', titreCourt: 'Simulateur', rendre: () => <SimulationsBudgetairesPage /> },
+  {
+    // Commune aux deux référentiels (ligne A20) · aucun texte ne réserve la
+    // comptabilité de gestion, le serveur ne la cloisonne pas.
+    motif: /^\/comptabilite-gestion$/,
+    titre: 'Comptabilité de gestion',
+    titreCourt: 'Gestion',
+    rendre: () => <ComptabiliteGestionPage />,
+  },
   {
     motif: /^\/journal$/,
     titre: 'Journal · Grand livre · Balance',

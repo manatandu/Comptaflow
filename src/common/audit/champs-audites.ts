@@ -151,6 +151,15 @@ export const MODELES_AUDITES = new Set<string>([
   // l'attestation qui fonde l'assujettissement et l'annulation avec son motif.
   // Retouchés après coup, le constat dirait un impôt que l'écriture ne porte pas.
   'ConstatImpotResultat',
+  // Comptabilité de gestion (ligne A20) · une clé de répartition justifie les
+  // OD qu'elle produit, et la capacité normale déclarée décide de la part des
+  // charges fixes portée au coût · retouchées en silence, le coût et la
+  // répartition montrés ne seraient plus ceux qu'on a établis.
+  'CleRepartition',
+  'CoutProductionDeclare',
+  // L'instantané qui fige les comportements d'un exercice clos · c'est lui que
+  // le seuil et le coût de cet exercice lisent désormais.
+  'ComportementsGestionFiges',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
@@ -309,6 +318,7 @@ export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
     "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",
   LigneAffectation: LIGNES_DE_LA_TETE,
   LigneOdAnalytique: LIGNES_DE_LA_TETE,
+  LigneCleRepartition: LIGNES_DE_LA_TETE,
   LigneModeleSaisie: LIGNES_DE_LA_TETE,
   EcheanceReglement: LIGNES_DE_LA_TETE,
   LigneRetraitementIfrs: LIGNES_DE_LA_TETE,

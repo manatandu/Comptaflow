@@ -111,7 +111,7 @@ export class OdAnalytiqueService {
    * vaut pour tous les journaux, l'atteint (exercice/gel-cloture.ts). La
    * clôture totale d'un journal ne la concerne pas, la partielle non plus.
    */
-  private async refuserSiPeriodeClose(tenantId: string, date: Date) {
+  async refuserSiPeriodeClose(tenantId: string, date: Date) {
     const clotures = await this.prisma.cloture.findMany({
       where: { tenantId, annuleeAt: null, granularite: GranulariteCloture.PERIODE },
       select: { granularite: true, journalId: true, dateLimite: true },

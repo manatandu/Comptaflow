@@ -43,6 +43,7 @@ export const CHEMINS_SANS_OBJET_SMT: readonly string[] = [
   '/od-analytiques',
   '/etats-analytiques',
   '/simulations-budgetaires',
+  '/comptabilite-gestion',
   '/etats-personnalises',
   '/palmares-journaux',
   '/engagements',

@@ -22,7 +22,7 @@ type Faux = Record<string, unknown>;
  * doublure qui répondrait « un » partout validerait une liste qu'aucune
  * requête ne ramène.
  */
-function prismaSuppression(usages: { engagements?: number; ventilations?: number; lignesOd?: number; ods?: number; budgetsClos?: number } = {}) {
+function prismaSuppression(usages: { engagements?: number; ventilations?: number; lignesOd?: number; ods?: number; budgetsClos?: number; cles?: number } = {}) {
   const ops: string[] = [];
   const compteur = (n: number | undefined, champ: string) =>
     jest.fn(({ where }: { where: Record<string, unknown> }) => {
@@ -51,6 +51,11 @@ function prismaSuppression(usages: { engagements?: number; ventilations?: number
     ventilationAnalytique: { count: compteur(usages.ventilations, 'sectionId') },
     ligneOdAnalytique: { count: compteur(usages.lignesOd, 'sectionId') },
     odAnalytique: { count: compteur(usages.ods, 'planId') },
+    // Ligne A20 · une clé de répartition retient la section qu'elle répartit
+    // ou qui la reçoit, et les données du coût de production la leur.
+    cleRepartition: { count: compteur(usages.cles, 'sectionSourceId') },
+    ligneCleRepartition: { count: compteur(undefined, 'sectionCibleId') },
+    coutProductionDeclare: { count: compteur(undefined, 'sectionId') },
     budgetSection: {
       deleteMany: tx.budgetSection.deleteMany,
       count: jest.fn(({ where }: { where: { exercice?: { statut: string } } }) =>
@@ -76,6 +81,11 @@ describe('F142 · une section utilisée ne se supprime pas, et le refus la nomme
     await expect(service(prisma).supprimerSection('t1', 's1')).rejects.toThrow(
       /ventilations analytiques \(2\).*lignes d'OD analytique \(1\)|lignes d'OD analytique \(1\).*ventilations analytiques \(2\)/,
     );
+  });
+
+  it('une clé de répartition retient la section qu’elle répartit (ligne A20), et le refus la nomme', async () => {
+    const { prisma } = prismaSuppression({ cles: 1 });
+    await expect(service(prisma).supprimerSection('t1', 's1')).rejects.toThrow(/clés de répartition \(section répartie\) \(1\)/);
   });
 
   it('libre, la section part avec ses budgets, dans une seule transaction', async () => {
