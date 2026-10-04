@@ -86,6 +86,33 @@ rentabilité, définitions d'OmegaX dites (relevé CPCC C17). Branche locale
   production est au ch. 14 (le ch. 13 est le portefeuille-titres). Corriger la
   ligne du suivi à l'intégration.
 
+## Seconde relecture (vérification indépendante, 2026-10-04)
+
+- **BLOQUANT corrigé · répartition concurrente.** Proposition relue,
+  confrontation des soldes et création des OD dans UNE `transactionJournalisee`,
+  sous `pg_advisory_xact_lock(hashtext('repartition-analytique:<dossier>'))`
+  pris dans la transaction (modèle des relances et du décompte final). Le second
+  clic attend, relit la section vidée et reçoit 409 (« la répartition est déjà
+  passée »). Spec · deux appels simultanés sur une doublure qui modélise le
+  verrou sans rien sérialiser d'elle-même (le test TOMBE si l'appel au verrou
+  est retiré, vérifié). Vraie base (`a20_2`) · deux POST parallèles, un 201, un
+  409, une seule OD, balance ATEL 0, PRODA -1 275 000, PRODB 175 000, total
+  -1 100 000, aux deux référentiels.
+- **Mineur a · exercice clos récrit.** Le plus petit geste licite · instantané
+  `ComportementsGestionFiges` (migration `20270134000000`), posé pour chaque
+  exercice clos qui n'en a pas AVANT toute déclaration (ce sont les
+  déclarations en vigueur, aucune n'ayant pu changer depuis sa clôture sans
+  passer par là) ; seuil et coût d'un exercice figé se lisent sur l'instantané,
+  « figés le » dit à l'écran. Vraie base · 624 passé de fixe à variable après
+  la clôture de N · seuil N (513 513,51) et coût N (664 000) inchangés ; N+1
+  ouvert prend le comportement nouveau.
+- **Mineur b** · « Brouillard compris. » sous le seuil.
+- **Mineur c** · jetons de réponse périmée (comportements, clés, sections,
+  proposition, coûts, seuil).
+- **(d)** · laissé au relevé de la vérification, non traité dans cette passe.
+- Renvoi · le coût de production est au Titre VIII **ch. 14** § 2.3 (et non
+  ch. 13, portefeuille-titres) ; le suivi est corrigé à l'intégration.
+
 ## Bloc § 3 (2026-10-04)
 
 Serveur · tsc vert, `npx jest --maxWorkers=2` 741 suites, 10 500 tests verts,

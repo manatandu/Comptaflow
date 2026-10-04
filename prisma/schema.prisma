@@ -718,6 +718,7 @@ model Tenant {
   clesRepartition          CleRepartition[]
   lignesCleRepartition     LigneCleRepartition[]
   coutsProductionDeclares  CoutProductionDeclare[]
+  comportementsGestionFiges ComportementsGestionFiges[]
   naturesCompte            NatureCompte[]
   conventionsFinancement   ConventionFinancement[]
   regularisations          Regularisation[]
@@ -1464,6 +1465,7 @@ model Exercice {
   odAnalytiques                OdAnalytique[]
   clesRepartition              CleRepartition[]
   coutsProductionDeclares      CoutProductionDeclare[]
+  comportementsGestionFiges    ComportementsGestionFiges?
   regularisations              Regularisation[]
   reevaluations                Reevaluation[]
   affectationResultat          AffectationResultat?
@@ -3137,6 +3139,28 @@ model CoutProductionDeclare {
   @@unique([exerciceId, sectionId])
   @@index([tenantId, exerciceId])
   @@map("couts_production_declares")
+}
+
+/// LES COMPORTEMENTS D'UN EXERCICE CLOS, FIGÉS (A20, seconde relecture) · le
+/// comportement se déclare sur le COMPTE, valable d'un exercice à l'autre ;
+/// changé après une clôture, il récrirait en silence le seuil et le coût d'un
+/// exercice arrêté. Avant toute déclaration, chaque exercice clos qui n'a pas
+/// encore son instantané reçoit celui des déclarations EN VIGUEUR · aucun
+/// changement n'a pu les toucher depuis sa clôture, puisque c'est le premier.
+/// Ses chiffres se lisent ensuite sur cet instantané, jamais sur le compte.
+model ComportementsGestionFiges {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String   @unique
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+  // { [compteId]: { comportement, partVariablePct } } · les seuls comptes
+  // déclarés ; un compte absent était non déclaré.
+  comportements Json
+  figeLe        DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("comportements_gestion_figes")
 }
 
 model LigneOdAnalytique {

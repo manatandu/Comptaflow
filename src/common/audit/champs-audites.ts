@@ -157,6 +157,9 @@ export const MODELES_AUDITES = new Set<string>([
   // répartition montrés ne seraient plus ceux qu'on a établis.
   'CleRepartition',
   'CoutProductionDeclare',
+  // L'instantané qui fige les comportements d'un exercice clos · c'est lui que
+  // le seuil et le coût de cet exercice lisent désormais.
+  'ComportementsGestionFiges',
   // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
   // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
   // que la commission avait à trancher, et le PV imprimé ne le dirait pas.

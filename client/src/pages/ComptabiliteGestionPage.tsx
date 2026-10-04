@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
@@ -86,6 +86,8 @@ interface DeclarationCout {
 
 interface Seuil {
   exercice: { mois: number };
+  brouillardCompris: boolean;
+  comportementsFigesLe: string | null;
   produits: number;
   chargesVariables: number;
   chargesFixes: number;
@@ -145,7 +147,7 @@ export function ComptabiliteGestionPage() {
         ))}
         <Aide
           titre="Comptabilité de gestion"
-          texte="Définitions d'OmegaX. La comptabilité analytique de gestion n'est ni normalisée ni obligatoire, et les comptes 92 à 99 sont laissés à l'initiative de l'entité, au SYSCOHADA comme au SYCEBNL · une association peut s'en servir. Rien de ce qui se calcule ici n'entre au grand livre : la répartition passe par des OD analytiques équilibrées, le coût de production et le seuil se lisent et ne se postent pas. Le comportement d'un compte (fixe, variable, semi-variable, produit d'activité, hors calcul) se déclare, il ne se déduit jamais de son numéro ; un compte mouvementé non déclaré rend le calcul incomplet."
+          texte="Définitions d'OmegaX. La comptabilité analytique de gestion n'est ni normalisée ni obligatoire, et les comptes 92 à 99 sont laissés à l'initiative de l'entité, au SYSCOHADA comme au SYCEBNL · une association peut s'en servir. Rien de ce qui se calcule ici n'entre au grand livre : la répartition passe par des OD analytiques équilibrées, le coût de production et le seuil se lisent et ne se postent pas. Le comportement d'un compte (fixe, variable, semi-variable, produit d'activité, hors calcul) se déclare, il ne se déduit jamais de son numéro ; un compte mouvementé non déclaré rend le calcul incomplet. Changer un comportement ne récrit pas un exercice clos · ses comportements sont figés avant la première déclaration qui suit sa clôture."
           source="AUDCIF Titre VI, « Comptabilité analytique de gestion », « Charges fixes et variables », « Répartition » ; Titre VII classe 9 ; SYCEBNL Partie 2 ch. 3, section 9"
         />
       </div>
@@ -176,14 +178,20 @@ function Comportements({ exerciceId, peutEcrire, notifier, echouer }: PropsOngle
   const [saisie, setSaisie] = useState<Record<string, { comportement: Comportement | ''; part: string }>>({});
   const [envoi, setEnvoi] = useState(false);
 
+  // RÉPONSES PÉRIMÉES JETÉES · un changement d'exercice relance la lecture ;
+  // la réponse de l'ancien, arrivée après, ne doit pas s'afficher sous le nouveau.
+  const jeton = useRef(0);
   const charger = useCallback(async () => {
+    const j = ++jeton.current;
     try {
       const r = await api.get<{ comptes: CompteGestion[]; total: number; tronque: boolean }>(`/comptabilite-gestion/comportements?exerciceId=${exerciceId}`);
+      if (jeton.current !== j) return;
       setLus(r);
       setSaisie(
         Object.fromEntries(r.comptes.map((c) => [c.compteId, { comportement: c.comportement ?? '', part: c.partVariablePct === null ? '' : String(c.partVariablePct) }])),
       );
     } catch (err) {
+      if (jeton.current !== j) return;
       setLus(null);
       echouer(err, 'Comptes de gestion illisibles');
     }
@@ -311,11 +319,16 @@ function Cles({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
   const [date, setDate] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
+  const jeton = useRef(0);
+  const jetonSections = useRef(0);
+  const jetonProposition = useRef(0);
   const charger = useCallback(async () => {
+    const j = ++jeton.current;
     try {
-      setCles(await api.get<Cle[]>(`/comptabilite-gestion/cles?exerciceId=${exerciceId}`));
+      const r = await api.get<Cle[]>(`/comptabilite-gestion/cles?exerciceId=${exerciceId}`);
+      if (jeton.current === j) setCles(r);
     } catch (err) {
-      echouer(err, 'Clés de répartition illisibles');
+      if (jeton.current === j) echouer(err, 'Clés de répartition illisibles');
     }
   }, [exerciceId, echouer]);
 
@@ -332,11 +345,16 @@ function Cles({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
 
   useEffect(() => {
     if (!planId) return;
+    const j = ++jetonSections.current;
     setSections(null);
-    api
-      .get<SectionAnalytique[]>(`/analytique/plans/${planId}/sections`)
-      .then(setSections)
-      .catch((err) => echouer(err, 'Sections du plan illisibles'));
+    api.get<SectionAnalytique[]>(`/analytique/plans/${planId}/sections`).then(
+      (r) => {
+        if (jetonSections.current === j) setSections(r);
+      },
+      (err) => {
+        if (jetonSections.current === j) echouer(err, 'Sections du plan illisibles');
+      },
+    );
   }, [planId, echouer]);
 
   const feuilles = (sections ?? []).filter((s) => s.type === 'DETAIL' && s.id !== sectionSourceId);
@@ -380,11 +398,14 @@ function Cles({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
   };
 
   const proposer = async (cleId: string) => {
+    // Deux « Proposer » d'affilée · seule la dernière proposition s'affiche, et
+    // c'est elle que « Passer » envoie.
+    const j = ++jetonProposition.current;
     try {
       const p = await api.get<Proposition>(`/comptabilite-gestion/cles/${cleId}/proposition${date ? `?date=${date}` : ''}`);
-      setProposition({ cleId, p });
+      if (jetonProposition.current === j) setProposition({ cleId, p });
     } catch (err) {
-      echouer(err, 'Proposition impossible');
+      if (jetonProposition.current === j) echouer(err, 'Proposition impossible');
     }
   };
 
@@ -609,12 +630,20 @@ function Couts({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
   const [source, setSource] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
+  const jeton = useRef(0);
+  const jetonSections = useRef(0);
+  const [figeLe, setFigeLe] = useState<string | null>(null);
   const charger = useCallback(async () => {
+    const j = ++jeton.current;
     try {
-      const r = await api.get<{ declarations: DeclarationCout[] }>(`/comptabilite-gestion/couts-production?exerciceId=${exerciceId}`);
+      const r = await api.get<{ declarations: DeclarationCout[]; comportementsFigesLe: string | null }>(
+        `/comptabilite-gestion/couts-production?exerciceId=${exerciceId}`,
+      );
+      if (jeton.current !== j) return;
       setLus(r.declarations);
+      setFigeLe(r.comportementsFigesLe);
     } catch (err) {
-      echouer(err, 'Coûts de production illisibles');
+      if (jeton.current === j) echouer(err, 'Coûts de production illisibles');
     }
   }, [exerciceId, echouer]);
 
@@ -631,11 +660,16 @@ function Couts({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
 
   useEffect(() => {
     if (!planId) return;
+    const j = ++jetonSections.current;
     setSections(null);
-    api
-      .get<SectionAnalytique[]>(`/analytique/plans/${planId}/sections`)
-      .then(setSections)
-      .catch((err) => echouer(err, 'Sections du plan illisibles'));
+    api.get<SectionAnalytique[]>(`/analytique/plans/${planId}/sections`).then(
+      (r) => {
+        if (jetonSections.current === j) setSections(r);
+      },
+      (err) => {
+        if (jetonSections.current === j) echouer(err, 'Sections du plan illisibles');
+      },
+    );
   }, [planId, echouer]);
 
   const declarer = async () => {
@@ -677,6 +711,7 @@ function Couts({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
           source="AUDCIF Titre VIII ch. 14 § 2.3.1 et § 2.3.2 ; art. 37 ; SYCEBNL Partie 2 ch. 3, section 3"
         />
       </div>
+      {figeLe && <div className="text-text-dim">Comportements figés le {new Date(figeLe).toLocaleDateString('fr-FR')} (exercice clos).</div>}
       {lus !== null && lus.length === 0 && <p className="text-text-dim">Aucune section déclarée sur cet exercice.</p>}
       {(lus ?? []).map((d) => (
         <div key={d.id} className="border border-border bg-surface p-3 space-y-1">
@@ -801,12 +836,18 @@ function Couts({ exerciceId, peutEcrire, notifier, echouer }: PropsOnglet) {
 
 function SeuilVue({ exerciceId, echouer }: { exerciceId: string; echouer: (e: unknown, d: string) => void }) {
   const [s, setS] = useState<Seuil | null>(null);
+  const jeton = useRef(0);
   useEffect(() => {
+    const j = ++jeton.current;
     setS(null);
-    api
-      .get<Seuil>(`/comptabilite-gestion/seuil-rentabilite?exerciceId=${exerciceId}`)
-      .then(setS)
-      .catch((err) => echouer(err, 'Seuil de rentabilité illisible'));
+    api.get<Seuil>(`/comptabilite-gestion/seuil-rentabilite?exerciceId=${exerciceId}`).then(
+      (r) => {
+        if (jeton.current === j) setS(r);
+      },
+      (err) => {
+        if (jeton.current === j) echouer(err, 'Seuil de rentabilité illisible');
+      },
+    );
   }, [exerciceId, echouer]);
   if (s === null) return null;
   const lignes: [string, string][] = [
@@ -829,6 +870,10 @@ function SeuilVue({ exerciceId, echouer }: { exerciceId: string; echouer: (e: un
           source="AUDCIF Titre VI, « Charges fixes et variables », « Marge » · définition d'OmegaX"
         />
       </div>
+      {s.brouillardCompris && <div className="text-text-dim">Brouillard compris.</div>}
+      {s.comportementsFigesLe && (
+        <div className="text-text-dim">Comportements figés le {new Date(s.comportementsFigesLe).toLocaleDateString('fr-FR')} (exercice clos).</div>
+      )}
       {s.motif && <div className="text-warning">{s.motif}</div>}
       <table className="w-full max-w-[520px]">
         <tbody>

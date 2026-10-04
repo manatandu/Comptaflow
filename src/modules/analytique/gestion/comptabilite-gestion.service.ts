@@ -36,6 +36,14 @@ function dateDuJour(texte: string): Date {
   return d;
 }
 
+/** Le client de lecture · le service, ou la transaction qui tient le verrou. */
+type Lecteur = Prisma.TransactionClient | PrismaService;
+
+interface ComportementLu {
+  comportement: Comportement | null;
+  partVariablePct: number | null;
+}
+
 @Injectable()
 export class ComptabiliteGestionService {
   constructor(
@@ -148,6 +156,7 @@ export class ComptabiliteGestionService {
       if (motif) throw new BadRequestException(motif);
     }
     await transactionJournalisee(this.prisma, async (tx) => {
+      await this.figerLesExercicesClos(tx, tenantId);
       for (const d of dto.declarations) {
         await tx.compte.update({
           where: { id: d.compteId },
@@ -161,15 +170,80 @@ export class ComptabiliteGestionService {
     return { declares: dto.declarations.length };
   }
 
+  /**
+   * FIGER LES EXERCICES CLOS (seconde relecture, mineur a) · le comportement vit
+   * sur le compte et vaut d'un exercice à l'autre. Sans instantané, le changer
+   * aujourd'hui récrirait le seuil et le coût d'un exercice déjà arrêté, sans
+   * que rien ne le dise. Avant toute déclaration, chaque exercice clos qui n'a
+   * pas encore d'instantané reçoit les déclarations EN VIGUEUR · ce sont bien
+   * les siennes, aucun changement n'ayant pu passer depuis sa clôture sans
+   * passer d'abord par ici. Le plus petit geste qui fige, sans toucher à la
+   * clôture des exercices.
+   */
+  private async figerLesExercicesClos(tx: Prisma.TransactionClient, tenantId: string) {
+    const clos = await tx.exercice.findMany({
+      where: { tenantId, statut: StatutExercice.CLOTURE, comportementsGestionFiges: null },
+      select: { id: true },
+    });
+    if (clos.length === 0) return;
+    const declares = await tx.compte.findMany({
+      where: { tenantId, comportementGestion: { not: null } },
+      select: { id: true, comportementGestion: true, partVariableGestionPct: true },
+    });
+    const instantane: Record<string, ComportementLu> = Object.fromEntries(
+      declares.map((c) => [
+        c.id,
+        { comportement: c.comportementGestion as Comportement, partVariablePct: c.partVariableGestionPct === null ? null : Number(c.partVariableGestionPct) },
+      ]),
+    );
+    for (const e of clos) {
+      await tx.comportementsGestionFiges.create({
+        data: { tenantId, exerciceId: e.id, comportements: instantane as unknown as Prisma.InputJsonValue },
+      });
+    }
+  }
+
+  /**
+   * Les comportements qui valent pour un exercice · l'instantané d'un exercice
+   * clos s'il existe, sinon ceux des comptes (exercice ouvert, ou clos dont
+   * aucune déclaration n'a encore bougé depuis sa clôture).
+   */
+  private async comportementsDe(tenantId: string, exerciceId: string, ids: string[]) {
+    const fige = await this.prisma.comportementsGestionFiges.findFirst({ where: { tenantId, exerciceId } });
+    if (fige) {
+      const instantane = fige.comportements as unknown as Record<string, ComportementLu>;
+      return {
+        figeLe: fige.figeLe.toISOString(),
+        lire: (id: string): ComportementLu => instantane[id] ?? { comportement: null, partVariablePct: null },
+      };
+    }
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, id: { in: ids } },
+      select: { id: true, comportementGestion: true, partVariableGestionPct: true },
+    });
+    const parId = new Map(comptes.map((c) => [c.id, c]));
+    return {
+      figeLe: null as string | null,
+      lire: (id: string): ComportementLu => {
+        const c = parId.get(id);
+        return {
+          comportement: (c?.comportementGestion ?? null) as Comportement | null,
+          partVariablePct: c?.partVariableGestionPct == null ? null : Number(c.partVariableGestionPct),
+        };
+      },
+    };
+  }
+
   /** Le seuil de rentabilité de l'exercice · définition d'OmegaX (`seuil-rentabilite.ts`). */
   async seuilRentabilite(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
     const mouvements = await this.mouvementsDeGestion(tenantId, exerciceId);
     const comptes = await this.prisma.compte.findMany({
       where: { tenantId, id: { in: [...mouvements.keys()] } },
-      select: { id: true, numero: true, intitule: true, classe: true, comportementGestion: true, partVariableGestionPct: true },
+      select: { id: true, numero: true, intitule: true, classe: true },
       orderBy: { numero: 'asc' },
     });
+    const comportements = await this.comportementsDe(tenantId, ex.id, comptes.map((c) => c.id));
     const mois = moisCouverts(ex);
     const resultat = seuilDeRentabilite(
       comptes.map((c) => ({
@@ -178,12 +252,16 @@ export class ComptabiliteGestionService {
         classe: classeChiffre(c.classe),
         mouvementDebit: mouvements.get(c.id)?.debit ?? 0,
         mouvementCredit: mouvements.get(c.id)?.credit ?? 0,
-        comportement: c.comportementGestion as Comportement | null,
-        partVariablePct: c.partVariableGestionPct === null ? null : Number(c.partVariableGestionPct),
+        ...comportements.lire(c.id),
       })),
       mois,
     );
-    return { exercice: { id: ex.id, dateDebut: jour(ex.dateDebut), dateFin: jour(ex.dateFin), mois }, brouillardCompris: true, ...resultat };
+    return {
+      exercice: { id: ex.id, dateDebut: jour(ex.dateDebut), dateFin: jour(ex.dateFin), mois },
+      brouillardCompris: true,
+      comportementsFigesLe: comportements.figeLe,
+      ...resultat,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -192,7 +270,7 @@ export class ComptabiliteGestionService {
   // tranches (F185) · une section peut porter une année de lignes.
   // ---------------------------------------------------------------------------
 
-  private async cumulsDeSection(tenantId: string, sectionId: string, exerciceId: string, du: Date, au: Date) {
+  private async cumulsDeSection(tenantId: string, sectionId: string, exerciceId: string, du: Date, au: Date, client: Lecteur = this.prisma) {
     const parCompte = new Map<string, { debit: number; credit: number }>();
     const ajouter = (compteId: string, d: number, c: number) => {
       const a = parCompte.get(compteId) ?? { debit: 0, credit: 0 };
@@ -203,7 +281,7 @@ export class ComptabiliteGestionService {
     };
     await lireParLots(
       (curseur) =>
-        this.prisma.ventilationAnalytique.findMany({
+        client.ventilationAnalytique.findMany({
           where: {
             sectionId,
             // La clôture qui solde les classes 6 à 8 ne porte aucune
@@ -217,7 +295,7 @@ export class ComptabiliteGestionService {
     );
     await lireParLots(
       (curseur) =>
-        this.prisma.ligneOdAnalytique.findMany({
+        client.ligneOdAnalytique.findMany({
           where: { tenantId, sectionId, od: { tenantId, exerciceId, date: { gte: du, lte: au } } },
           select: { id: true, debit: true, credit: true, od: { select: { compteId: true } } },
           ...pageApres(curseur, LOT_LECTURE),
@@ -225,7 +303,7 @@ export class ComptabiliteGestionService {
       (l) => ajouter(l.od.compteId, Number(l.debit), Number(l.credit)),
     );
     if (parCompte.size === 0) return [] as (CumulCompteSection & { classe: string })[];
-    const comptes = await this.prisma.compte.findMany({
+    const comptes = await client.compte.findMany({
       where: { tenantId, id: { in: [...parCompte.keys()] } },
       select: { id: true, numero: true, intitule: true, classe: true },
     });
@@ -271,8 +349,8 @@ export class ComptabiliteGestionService {
     }));
   }
 
-  private async sectionsDuPlan(tenantId: string, planId: string) {
-    const sections = await this.prisma.sectionAnalytique.findMany({
+  private async sectionsDuPlan(tenantId: string, planId: string, client: Lecteur = this.prisma) {
+    const sections = await client.sectionAnalytique.findMany({
       where: { tenantId, planId },
       select: { id: true, planId: true, code: true, type: true, estActive: true },
     });
@@ -391,9 +469,14 @@ export class ComptabiliteGestionService {
 
   /** La proposition de répartition à une date · rien n'est écrit. */
   async proposition(tenantId: string, cleId: string, dateTexte?: string) {
-    const cle = await this.prisma.cleRepartition.findFirst({
+    const { interne: _interne, ...servie } = await this.calculerProposition(this.prisma, tenantId, cleId, dateTexte);
+    return servie;
+  }
+
+  private async calculerProposition(client: Lecteur, tenantId: string, cleId: string, dateTexte?: string) {
+    const cle = await client.cleRepartition.findFirst({
       where: { id: cleId, tenantId },
-      include: { exercice: true, lignes: true, sectionSource: { select: { code: true, intitule: true } } },
+      include: { exercice: true, lignes: true, plan: true, sectionSource: { select: { code: true, intitule: true } } },
     });
     if (!cle) throw new NotFoundException('Clé de répartition introuvable pour ce dossier.');
     const ex = cle.exercice;
@@ -401,11 +484,11 @@ export class ComptabiliteGestionService {
     if (date < ex.dateDebut || date > ex.dateFin) throw new BadRequestException("La date de la répartition tombe hors de l'exercice.");
     // Fin du jour inclusive · une ligne ventilée datée du jour même se répartit.
     const au = new Date(date.getTime() + 24 * 3600 * 1000 - 1);
-    const cumuls = await this.cumulsDeSection(tenantId, cle.sectionSourceId, ex.id, ex.dateDebut, au);
+    const cumuls = await this.cumulsDeSection(tenantId, cle.sectionSourceId, ex.id, ex.dateDebut, au, client);
     const lignes = cle.lignes.map((l) => ({ sectionCibleId: l.sectionCibleId, valeur: Number(l.valeur) }));
     const ods = propositionRepartition(cumuls, cle.sectionSourceId, lignes);
     const codes = new Map(
-      (await this.prisma.sectionAnalytique.findMany({
+      (await client.sectionAnalytique.findMany({
         where: { tenantId, id: { in: [cle.sectionSourceId, ...lignes.map((l) => l.sectionCibleId)] } },
         select: { id: true, code: true },
       })).map((s) => [s.id, s.code]),
@@ -416,6 +499,8 @@ export class ComptabiliteGestionService {
       exerciceClos: ex.statut === StatutExercice.CLOTURE,
       ods: ods.map((o) => ({ ...o, lignes: o.lignes.map((l) => ({ ...l, code: codes.get(l.sectionId) ?? null })) })),
       total: ods.reduce((t, o) => t + Math.abs(o.solde), 0),
+      // Pour la seule répartition · retiré de ce que l'écran reçoit.
+      interne: { exerciceId: cle.exerciceId, planId: cle.planId, libelle: cle.libelle, classesVentilees: cle.plan.classesVentilees },
     };
   }
 
@@ -423,62 +508,84 @@ export class ComptabiliteGestionService {
    * PASSER LA RÉPARTITION · la proposition est REJOUÉE par le serveur (jamais
    * un montant reçu du client), confrontée aux soldes que l'écran a montrés ·
    * une ventilation passée entre-temps change le chiffre, et le 409 le dit
-   * plutôt que de passer un montant que personne n'a vu. Toutes les OD dans
-   * UNE transaction · une répartition à moitié passée laisserait la section
-   * source vidée sur un compte et pleine sur l'autre.
+   * plutôt que de passer un montant que personne n'a vu.
+   *
+   * LECTURE, CONFRONTATION ET ÉCRITURE DANS UNE SEULE TRANSACTION, SOUS UN
+   * VERROU PAR DOSSIER (seconde relecture, BLOQUANT). Lues hors de la
+   * transaction, deux demandes simultanées voyaient le même solde, passaient
+   * toutes deux leur confrontation et créaient chacune leurs OD · sur vraie
+   * base, la section répartie finissait à -320 000 au lieu de zéro, le total
+   * du plan restant juste, si bien que rien ne le montrait. Le verrou
+   * consultatif pris DANS la transaction (même modèle que les relances et le
+   * décompte final) fait attendre la seconde jusqu'à la validation de la
+   * première ; en lecture validée, elle relit alors la section VIDÉE et reçoit
+   * le 409. Toutes les OD d'une répartition partent ensemble, ou aucune.
    */
   async repartir(tenantId: string, userId: string, cleId: string, dto: RepartirDto) {
-    const prop = await this.proposition(tenantId, cleId, dto.date);
-    if (prop.exerciceClos) throw new BadRequestException("L'exercice est clôturé · son analytique ne se corrige plus.");
-    if (prop.ods.length === 0) throw new BadRequestException('La section à répartir ne porte aucun solde à cette date · rien à passer.');
-    const vus = dto.soldes ?? {};
-    const centimes = (n: number) => Math.round(n * 100);
-    const divergent =
-      Object.keys(vus).length !== prop.ods.length || prop.ods.some((o) => vus[o.compteId] === undefined || centimes(vus[o.compteId]) !== centimes(o.solde));
-    if (divergent) {
-      throw new ConflictException('Les soldes de la section ont changé depuis la proposition · relisez-la avant de passer la répartition.');
-    }
-    const date = dateDuJour(prop.date);
+    const date = dateDuJour(dto.date);
     await this.od.refuserSiPeriodeClose(tenantId, date);
-    const cle = await this.prisma.cleRepartition.findFirst({ where: { id: cleId, tenantId }, include: { plan: true } });
-    if (!cle) throw new NotFoundException('Clé de répartition introuvable pour ce dossier.');
-    const sections = await this.sectionsDuPlan(tenantId, cle.planId);
-    // La règle des OD se rejoue sur chacune · la répartition ne passe que ce
-    // que la saisie à la main admettrait.
-    const comptes = await this.prisma.compte.findMany({
-      where: { tenantId, id: { in: prop.ods.map((o) => o.compteId) } },
-      select: { id: true, classe: true },
-    });
-    const classeDe = new Map(comptes.map((c) => [c.id, classeChiffre(c.classe)]));
-    for (const o of prop.ods) {
-      const motif = motifRefusOd({
-        planId: cle.planId,
-        lignes: o.lignes,
-        sections: sections.map((s) => ({ id: s.id, planId: s.planId, code: s.code, estTotal: s.estTotal })),
-        classeCompte: classeDe.get(o.compteId) ?? '',
-        classesVentilees: cle.plan.classesVentilees,
-      });
-      if (motif) throw new BadRequestException(`Compte ${o.numero} · ${motif}`);
-    }
-    await transactionJournalisee(this.prisma, async (tx) => {
-      for (const o of prop.ods) {
-        await tx.odAnalytique.create({
-          data: {
-            tenantId,
-            exerciceId: cle.exerciceId,
-            planId: cle.planId,
-            compteId: o.compteId,
-            cleRepartitionId: cle.id,
-            date,
-            reference: 'REPARTITION',
-            libelle: `Répartition · ${cle.libelle}`.slice(0, 200),
-            createdBy: userId,
-            lignes: { create: o.lignes.map((l) => ({ tenantId, sectionId: l.sectionId, debit: l.debit, credit: l.credit })) },
-          },
+    return transactionJournalisee(
+      this.prisma,
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`repartition-analytique:${tenantId}`}))`;
+        const prop = await this.calculerProposition(tx, tenantId, cleId, dto.date);
+        if (prop.exerciceClos) throw new BadRequestException("L'exercice est clôturé · son analytique ne se corrige plus.");
+        if (prop.ods.length === 0) {
+          throw new ConflictException(
+            "La section ne porte plus aucun solde à cette date · la répartition est déjà passée, ou rien n'est à répartir.",
+          );
+        }
+        const vus = dto.soldes ?? {};
+        const centimes = (n: number) => Math.round(n * 100);
+        const divergent =
+          Object.keys(vus).length !== prop.ods.length ||
+          prop.ods.some((o) => vus[o.compteId] === undefined || centimes(vus[o.compteId]) !== centimes(o.solde));
+        if (divergent) {
+          throw new ConflictException(
+            'Les soldes de la section ont changé depuis la proposition (répartition déjà passée ou ventilation nouvelle) · relisez-la avant de passer la répartition.',
+          );
+        }
+        const { exerciceId, planId, libelle, classesVentilees } = prop.interne;
+        const sections = await this.sectionsDuPlan(tenantId, planId, tx);
+        // La règle des OD se rejoue sur chacune · la répartition ne passe que ce
+        // que la saisie à la main admettrait.
+        const comptes = await tx.compte.findMany({
+          where: { tenantId, id: { in: prop.ods.map((o) => o.compteId) } },
+          select: { id: true, classe: true },
         });
-      }
-    });
-    return { ods: prop.ods.length, total: prop.total };
+        const classeDe = new Map(comptes.map((c) => [c.id, classeChiffre(c.classe)]));
+        for (const o of prop.ods) {
+          const motif = motifRefusOd({
+            planId,
+            lignes: o.lignes,
+            sections: sections.map((s) => ({ id: s.id, planId: s.planId, code: s.code, estTotal: s.estTotal })),
+            classeCompte: classeDe.get(o.compteId) ?? '',
+            classesVentilees,
+          });
+          if (motif) throw new BadRequestException(`Compte ${o.numero} · ${motif}`);
+        }
+        for (const o of prop.ods) {
+          await tx.odAnalytique.create({
+            data: {
+              tenantId,
+              exerciceId,
+              planId,
+              compteId: o.compteId,
+              cleRepartitionId: cleId,
+              date,
+              reference: 'REPARTITION',
+              libelle: `Répartition · ${libelle}`.slice(0, 200),
+              createdBy: userId,
+              lignes: { create: o.lignes.map((l) => ({ tenantId, sectionId: l.sectionId, debit: l.debit, credit: l.credit })) },
+            },
+          });
+        }
+        return { ods: prop.ods.length, total: prop.total };
+      },
+      // L'attente du verrou compte dans le délai · une répartition dure
+      // quelques centaines de millisecondes.
+      { maxWait: 10_000, timeout: 60_000 },
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -493,15 +600,12 @@ export class ComptabiliteGestionService {
       orderBy: { createdAt: 'asc' },
     });
     const resultat = [];
+    let figeLe: string | null = null;
     for (const d of declarations) {
       const cumuls = await this.cumulsDeSection(tenantId, d.sectionId, ex.id, ex.dateDebut, ex.dateFin);
       const ids = cumuls.filter((c) => c.classe === '6').map((c) => c.compteId);
-      const comportements = new Map(
-        (await this.prisma.compte.findMany({
-          where: { tenantId, id: { in: ids } },
-          select: { id: true, comportementGestion: true, partVariableGestionPct: true },
-        })).map((c) => [c.id, c]),
-      );
+      const comportements = await this.comportementsDe(tenantId, ex.id, ids);
+      figeLe = comportements.figeLe;
       const charges = cumuls
         .filter((c) => c.classe === '6')
         .map((c) => ({
@@ -509,9 +613,7 @@ export class ComptabiliteGestionService {
           numero: c.numero,
           intitule: c.intitule,
           montant: Math.round((c.debit - c.credit) * 100) / 100,
-          comportement: (comportements.get(c.compteId)?.comportementGestion ?? null) as Comportement | null,
-          partVariablePct:
-            comportements.get(c.compteId)?.partVariableGestionPct == null ? null : Number(comportements.get(c.compteId)!.partVariableGestionPct),
+          ...comportements.lire(c.compteId),
         }))
         .sort((a, b) => a.numero.localeCompare(b.numero));
       const donnees = {
@@ -533,7 +635,11 @@ export class ComptabiliteGestionService {
         calcul: coutDeProduction(charges, donnees),
       });
     }
-    return { exercice: { id: ex.id, dateDebut: jour(ex.dateDebut), dateFin: jour(ex.dateFin) }, declarations: resultat };
+    return {
+      exercice: { id: ex.id, dateDebut: jour(ex.dateDebut), dateFin: jour(ex.dateFin) },
+      comportementsFigesLe: figeLe,
+      declarations: resultat,
+    };
   }
 
   async declarerCoutProduction(tenantId: string, userId: string, dto: DeclarerCoutProductionDto) {
