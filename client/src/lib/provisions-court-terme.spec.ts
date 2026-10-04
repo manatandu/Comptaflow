@@ -36,4 +36,9 @@ describe('provision à moins d’un an', () => {
     expect(page.match(/courtTerme: f\.courtTerme,/g)?.length).toBe(2);
     expect(page).toContain('Object.fromEntries(conditionsPropresDe(f.nature).map((c) => [c.cle, f.conditionsPropres[c.cle] === true]))');
   });
+
+  it('l’avertissement de reclassement renvoyé par le serveur est affiché', () => {
+    const page = readFileSync(join(__dirname, '../pages/ProvisionsPage.tsx'), 'utf8');
+    expect(page).toContain("if (r.avertissements?.length) setMessage(r.avertissements.join(' '));");
+  });
 });

@@ -110,6 +110,27 @@ rapprochements à zéro ; clôture ; report (deux lignes, horizon et
 conditions gardés) ; reprise N+1 D 4991 / C 7591 500 000, 4991 soldé et
 rapprochement à zéro. Tout concorde.
 
+Second tour (2026-10-04)
+- L'horizon ne REFUSE qu'à la création ou quand le compte, l'horizon ou
+  l'échéance changent (`horizonAJuger`) · jamais sur une reprise, une
+  utilisation ou une extinction, ni à montant de clôture nul, ni sur un
+  passif éventuel, une ligne écartée ou soldée. Une ligne existante dont
+  l'échéance est entrée dans l'année reçoit un AVERTISSEMENT (« à reclasser
+  au 499 (ou au 599) à la clôture »), renvoyé par `modifier` et affiché.
+  Spec · 191 de 500 000, échéance 2027-03-31, reprise de 500 000 en N+1 ·
+  passe ; 191 de 800 000, échéance 2028-06-30, modifiée en N+1 · passe avec
+  l'avertissement.
+- `DEPENSES_DIRECTES` transcrit le § 4.1.2 mot pour mot, phrase des pertes
+  futures identifiables comprise. Le refus dit le compte exact · quatre
+  conditions générales (le § 2.1 en compte trois) plus les conditions
+  propres (restructuration · « ses 9 conditions », 4 + 5).
+
+Relevés laissés en attente (mineurs)
+- Le DTO du renouvellement d'un composant ne porte pas de référence de
+  pièce (la sortie interne reste sans nature ni pièce).
+- `ACCORD_IRREVOCABLE` doit être cochée même quand la restructuration n'est
+  pas une revente de branche (« sinon, sans objet » dans le libellé).
+
 Reste · rien pour A16.
 
 ## Vérification

@@ -6,7 +6,9 @@ import { notePassifsEventuelsDuDossier } from '../notes-annexes/passifs-eventuel
 import { CreerProvisionDto, ModifierProvisionDto, StatuerProvisionDto } from './dto/provision.dto';
 import {
   CONDITIONS_PROPRES,
+  avertissementHorizon,
   clesInconnues,
+  horizonAJuger,
   comptesCourtTerme,
   conditionsPropresManquantes,
   motifRefusCompteCourtTerme,
@@ -208,11 +210,11 @@ export class ProvisionsService {
    * information que la ligne portait sur la qualité de l'estimation.
    */
   static montantCloture(p: {
-    montantOuverture: unknown;
-    dotationsExercice: unknown;
-    montantsUtilises: unknown;
-    reprisesNonUtilisees: unknown;
-    effetActualisation: unknown;
+    montantOuverture?: unknown;
+    dotationsExercice?: unknown;
+    montantsUtilises?: unknown;
+    reprisesNonUtilisees?: unknown;
+    effetActualisation?: unknown;
   }): number {
     const n = (v: unknown) => Number(v ?? 0);
     return Number(
@@ -369,10 +371,22 @@ export class ProvisionsService {
         : "PASSIF_EVENTUEL, qui la garde au registre sans rien inscrire au bilan · le jeu d'états de ce dossier " +
           "n'a pas de note d'actifs et passifs éventuels, et rien ne l'y porte d'office : décrivez-la aux Notes " +
           'annexes';
+      // LE COMPTE EXACT (second tour) · quatre conditions générales (le § 2.1
+      // en compte trois, le CPCC sépare « obligation actuelle » et
+      // « événement passé »), plus les conditions propres de la nature.
+      const propres = CONDITIONS_PROPRES[dto.nature] ?? [];
+      const total = 4 + propres.length;
+      const annonce = propres.length
+        ? `ses ${total} conditions sont réunies · les quatre conditions générales (AUDCIF Titre VIII ch. 18 § 2.1, ` +
+          `qui en compte trois · « Si ces trois conditions ne sont pas réunies, aucune provision ne peut être ` +
+          `constituée » ; le CPCC sépare l'obligation actuelle de l'événement passé) et les ${propres.length} ` +
+          `conditions propres de ce cas (${[...new Set(propres.map((c) => c.source))].join(', ')})`
+        : `les quatre conditions sont réunies · AUDCIF Titre VIII ch. 18 § 2.1, qui en compte trois (« Si ces trois ` +
+          `conditions ne sont pas réunies, aucune provision ne peut être constituée » ; le CPCC sépare l'obligation ` +
+          `actuelle de l'événement passé)`;
       throw new BadRequestException(
-        `Une provision ne se comptabilise que si les quatre conditions sont réunies · AUDCIF Titre VIII ch. 18 ` +
-          `§ 2.1 : « Si ces trois conditions ne sont pas réunies, aucune provision ne peut être constituée. » ` +
-          `Il manque ici : ${manques.join(' ; ')}. Le risque ne disparaît pas pour autant · portez la ligne en ` +
+        `Une provision ne se comptabilise que si ${annonce}. ` +
+          `Il en manque ${manques.length} : ${manques.join(' ; ')}. Le risque ne disparaît pas pour autant · portez la ligne en ` +
           `${destination}, ou en ECARTEE si ` +
           'la probabilité de sortie de ressources est TRÈS FAIBLE (§ 2.1.2, seul cas où aucune information ' +
           "n'est nécessaire).",
@@ -418,7 +432,11 @@ export class ProvisionsService {
       estimationFiable: false,
     });
     await this.verifierCompte(tenantId, dto.nature, dto.compteId, dto.courtTerme ?? false);
-    await this.verifierHorizon(tenantId, exerciceId, dto.courtTerme ?? false, dto.echeanceAttendue ? new Date(dto.echeanceAttendue) : null);
+    // Une création se juge, sauf passif éventuel, ligne écartée ou montant nul (horizonAJuger).
+    if (horizonAJuger(dto.statut ?? StatutProvision.EN_EXAMEN, ProvisionsService.montantCloture(dto))) {
+      const refus = await this.lireHorizon(tenantId, exerciceId, dto.courtTerme ?? false, dto.echeanceAttendue ? new Date(dto.echeanceAttendue) : null);
+      if (refus) throw new BadRequestException(refus.refus);
+    }
 
     return this.prisma.provisionRisqueCharge.create({
       data: {
@@ -451,13 +469,17 @@ export class ProvisionsService {
     });
   }
 
-  /** Ligne A16 · l'horizon déclaré contre l'échéance attendue, lu à la clôture de l'exercice de la ligne. */
-  private async verifierHorizon(tenantId: string, exerciceId: string, courtTerme: boolean, echeance: Date | null) {
-    if (!echeance) return;
+  /**
+   * Ligne A16 · l'horizon déclaré contre l'échéance attendue, lu à la clôture
+   * de l'exercice de la ligne · le refus et l'avertissement, au choix de
+   * l'appelant (horizonAJuger, court-terme-et-conditions.ts).
+   */
+  private async lireHorizon(tenantId: string, exerciceId: string, courtTerme: boolean, echeance: Date | null) {
+    if (!echeance) return null;
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
     if (!exercice) throw new NotFoundException('Exercice introuvable.');
     const refus = motifRefusHorizon(courtTerme, echeance, exercice.dateFin);
-    if (refus) throw new BadRequestException(refus);
+    return refus ? { refus, avertissement: avertissementHorizon(courtTerme, echeance, exercice.dateFin) } : null;
   }
 
   async modifier(tenantId: string, id: string, dto: ModifierProvisionDto) {
@@ -478,9 +500,28 @@ export class ProvisionsService {
       courtTerme,
     );
     const echeance = dto.echeanceAttendue !== undefined ? (dto.echeanceAttendue ? new Date(dto.echeanceAttendue) : null) : existante.echeanceAttendue;
-    await this.verifierHorizon(tenantId, existante.exerciceId, courtTerme, echeance);
+    // SECOND TOUR · l'horizon ne REFUSE que si le compte, l'horizon ou
+    // l'échéance CHANGENT ; une reprise, une utilisation ou une extinction
+    // passent, et une échéance entrée dans l'année se dit en avertissement.
+    const changeHorizon =
+      (dto.compteId !== undefined && dto.compteId !== existante.compteId) ||
+      (dto.courtTerme !== undefined && dto.courtTerme !== existante.courtTerme) ||
+      (dto.echeanceAttendue !== undefined && (echeance?.getTime() ?? null) !== (existante.echeanceAttendue?.getTime() ?? null));
+    const apres = {
+      montantOuverture: dto.montantOuverture ?? existante.montantOuverture,
+      dotationsExercice: dto.dotationsExercice ?? existante.dotationsExercice,
+      montantsUtilises: dto.montantsUtilises ?? existante.montantsUtilises,
+      reprisesNonUtilisees: dto.reprisesNonUtilisees ?? existante.reprisesNonUtilisees,
+      effetActualisation: dto.effetActualisation ?? existante.effetActualisation,
+    };
+    const avertissements: string[] = [];
+    if (horizonAJuger(dto.statut ?? existante.statut, ProvisionsService.montantCloture(apres))) {
+      const horizon = await this.lireHorizon(tenantId, existante.exerciceId, courtTerme, echeance);
+      if (horizon && changeHorizon) throw new BadRequestException(horizon.refus);
+      if (horizon?.avertissement) avertissements.push(horizon.avertissement);
+    }
 
-    return this.prisma.provisionRisqueCharge.update({
+    const miseAJour = await this.prisma.provisionRisqueCharge.update({
       where: { id },
       data: {
         ...(dto.objet !== undefined ? { objet: dto.objet } : {}),
@@ -513,6 +554,7 @@ export class ProvisionsService {
         ...(dto.conditionsPropres !== undefined ? { conditionsPropres: dto.conditionsPropres ?? Prisma.DbNull } : {}),
       },
     });
+    return { ...miseAJour, avertissements };
   }
 
   async statuer(tenantId: string, id: string, dto: StatuerProvisionDto) {

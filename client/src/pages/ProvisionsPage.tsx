@@ -361,7 +361,7 @@ export function ProvisionsPage() {
         // Le statut ne passe PAS par ici · il a sa route, qui porte le motif.
         // Un champ vidé part à null pour être effacé, sans quoi l'ancien
         // contenu survivrait sous un champ affiché vide.
-        await api.patch<ProvisionRisqueCharge>(`/provisions/${edition.id}`, {
+        const r = await api.patch<ProvisionRisqueCharge & { avertissements?: string[] }>(`/provisions/${edition.id}`, {
           objet: f.objet,
           nature: f.nature,
           compteId: f.compteId || null,
@@ -384,6 +384,8 @@ export function ProvisionsPage() {
           courtTerme: f.courtTerme,
           conditionsPropres: conditionsPropresDe(f.nature).length > 0 ? conditionsEnvoyees(f) : null,
         });
+        // Ligne A16, second tour · une échéance entrée dans l'année se dit, sans refus.
+        if (r.avertissements?.length) setMessage(r.avertissements.join(' '));
       }
       setEdition(null);
       setVersion((v) => v + 1);

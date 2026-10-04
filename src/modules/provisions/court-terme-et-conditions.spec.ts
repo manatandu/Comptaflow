@@ -130,7 +130,7 @@ describe('A16 · le service applique horizon et conditions propres', () => {
       service(Referentiel.SYSCOHADA).creer(
         't1',
         'ex',
-        LIGNE({ nature: NatureProvision.DIVERS_RISQUES_ET_CHARGES, compteId: 'c1988', echeanceAttendue: '2027-03-31' }) as never,
+        LIGNE({ nature: NatureProvision.DIVERS_RISQUES_ET_CHARGES, compteId: 'c1988', echeanceAttendue: '2027-03-31', dotationsExercice: 300_000 }) as never,
         'u1',
       ),
     ).rejects.toThrow(/Déclarez-la « à moins d’un an »/);
@@ -192,5 +192,89 @@ describe('A16 · le service applique horizon et conditions propres', () => {
     prisma.provisionRisqueCharge.findMany.mockResolvedValueOnce([source]).mockResolvedValueOnce([]);
     await svc.reporterALOuverture('t1', 'n', 'n1', 'u1');
     expect(prisma.provisionRisqueCharge.create.mock.calls[0][0].data).toMatchObject({ courtTerme: true, montantOuverture: 500_000 });
+  });
+});
+
+/**
+ * SECOND TOUR · l'horizon ne refuse qu'à la création ou quand compte, horizon
+ * ou échéance changent ; une reprise passe, une échéance entrée dans l'année
+ * se dit en avertissement. Chiffres du vérificateur, N+1 clos au 31/12/2027.
+ */
+function serviceN1(ligne: Record<string, unknown>) {
+  const prisma = {
+    tenant: { findFirst: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA, jeuEtatsFinanciersSycebnl: null, systemeComptableSyscohada: null }) },
+    exercice: { findFirst: jest.fn().mockResolvedValue({ dateFin: new Date('2027-12-31') }) },
+    compte: { findFirst: jest.fn().mockResolvedValue({ numero: '19100000' }) },
+    provisionRisqueCharge: {
+      findFirst: jest.fn().mockResolvedValue(ligne),
+      update: jest.fn().mockImplementation((a) => Promise.resolve({ ...ligne, ...a.data })),
+    },
+  } as unknown as PrismaService;
+  return new ProvisionsService(prisma, { balance: jest.fn() } as unknown as EcritureService);
+}
+const ligneN1 = (montant: number, echeance: string) => ({
+  id: 'l1',
+  exerciceId: 'n1',
+  nature: NatureProvision.LITIGE,
+  statut: StatutProvision.COMPTABILISEE,
+  compteId: 'c191',
+  courtTerme: false,
+  conditionsPropres: null,
+  ...QUATRE,
+  echeanceAttendue: new Date(echeance),
+  montantOuverture: montant,
+  dotationsExercice: 0,
+  montantsUtilises: 0,
+  reprisesNonUtilisees: 0,
+  effetActualisation: 0,
+});
+
+describe('A16 second tour · l’horizon d’une ligne existante', () => {
+  it('191 de 500 000, échéance 2027-03-31 · la reprise de 500 000 en N+1 passe, sans avertissement (montant nul)', async () => {
+    const r = await serviceN1(ligneN1(500_000, '2027-03-31')).modifier('t1', 'l1', { reprisesNonUtilisees: 500_000 } as never);
+    expect([Number(r.reprisesNonUtilisees), r.avertissements]).toEqual([500_000, []]);
+  });
+
+  it('191 de 800 000, échéance 2028-06-30 · modifiée en N+1, elle passe avec l’avertissement de reclassement', async () => {
+    const r = await serviceN1(ligneN1(800_000, '2028-06-30')).modifier('t1', 'l1', { incertitudes: 'Audience renvoyée' } as never);
+    expect(r.avertissements).toEqual([expect.stringMatching(/à reclasser au 499 \(ou au 599\) à la clôture/)]);
+  });
+
+  it('changer l’échéance d’une ligne active reste refusé si elle contredit l’horizon', async () => {
+    await expect(
+      serviceN1(ligneN1(800_000, '2029-06-30')).modifier('t1', 'l1', { echeanceAttendue: '2028-03-31' } as never),
+    ).rejects.toThrow(/Déclarez-la « à moins d’un an »/);
+  });
+
+  it('un passif éventuel n’est jamais jugé sur l’horizon', async () => {
+    await expect(
+      service(Referentiel.SYSCOHADA).creer(
+        't1',
+        'ex',
+        {
+          objet: 'Risque',
+          nature: NatureProvision.LITIGE,
+          justificationObligation: 'x',
+          statut: StatutProvision.PASSIF_EVENTUEL,
+          motifNonComptabilisation: 'Sortie non probable',
+          echeanceAttendue: '2027-03-31',
+          dotationsExercice: 100_000,
+        } as never,
+        'u1',
+      ),
+    ).resolves.toBeTruthy();
+  });
+
+  it('la restructuration annonce le compte exact de ses conditions · 4 + 5 = 9', async () => {
+    await expect(
+      service(Referentiel.SYSCOHADA).creer('t1', 'ex', LIGNE({ nature: NatureProvision.RESTRUCTURATION, compteId: 'c197' }) as never, 'u1'),
+    ).rejects.toThrow(/ses 9 conditions sont réunies .* et les 5 conditions propres .*Il en manque 5/);
+  });
+
+  it('§ 4.1.2 transcrit mot pour mot, pertes futures identifiables comprises', () => {
+    const c = CONDITIONS_PROPRES.RESTRUCTURATION!.find((x) => x.cle === 'DEPENSES_DIRECTES')!;
+    expect(c.libelle).toContain(
+      "De même, les pertes futures identifiables jusqu'à la date de restructuration ne peuvent pas faire l'objet de provision, sauf si elles concernent un contrat déficitaire.",
+    );
   });
 });

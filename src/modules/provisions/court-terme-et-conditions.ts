@@ -96,6 +96,28 @@ export function motifRefusHorizon(courtTerme: boolean, echeance: Date | null, fi
   return null;
 }
 
+/**
+ * SECOND TOUR · QUAND L'HORIZON SE JUGE. Le refus ne vaut qu'au moment où la
+ * ligne est CRÉÉE ou que son compte, son horizon ou son échéance CHANGENT ·
+ * jamais sur une reprise, une utilisation ou une extinction, ni quand le
+ * montant de clôture tombe à zéro, ni sur un passif éventuel, une ligne
+ * écartée ou soldée (aucun compte ne la porte). Une ligne existante dont
+ * l'échéance est entrée dans l'année reçoit un AVERTISSEMENT · on reclasse à
+ * la clôture, on n'efface pas l'échéance (ce serait la falsifier).
+ */
+export function horizonAJuger(statut: string, montantCloture: number): boolean {
+  if (statut === 'PASSIF_EVENTUEL' || statut === 'ECARTEE' || statut === 'SOLDEE') return false;
+  return Math.abs(montantCloture) > 0.005;
+}
+
+/** L'avertissement d'une ligne existante dont l'horizon ne concorde plus, ou `null`. */
+export function avertissementHorizon(courtTerme: boolean, echeance: Date | null, finExercice: Date): string | null {
+  if (!motifRefusHorizon(courtTerme, echeance, finExercice)) return null;
+  return courtTerme
+    ? "L'échéance attendue est désormais à plus d'un an de la clôture · ligne à reclasser au 19 à la clôture (fiches des comptes 19 et 49)."
+    : "L'échéance attendue tombe désormais dans l'année qui suit la clôture · ligne à reclasser au 499 (ou au 599) à la clôture (fiches des comptes 19 et 49).";
+}
+
 export interface ConditionPropre {
   cle: string;
   libelle: string;
@@ -128,8 +150,17 @@ export const CONDITIONS_PROPRES: Partial<Record<NatureProvision, ConditionPropre
     },
     {
       cle: 'DEPENSES_DIRECTES',
+      // Transcrit mot pour mot du § 4.1.2 (second tour · la phrase des pertes
+      // futures identifiables manquait).
       libelle:
-        'Le montant ne retient que les dépenses directement liées · ni reconversion ou délocalisation du personnel conservé, ni marketing, ni conduite future de l’activité, ni profits de sortie d’actifs',
+        "Le montant respecte le § 4.1.2 · « Une provision pour restructuration ne doit inclure que les dépenses directement " +
+        "liées à la restructuration, sans tenir compte des charges liées aux activités poursuivies par l'entité. La " +
+        "provision pour restructuration n'inclut pas les coûts : de reconversion ou une délocalisation du personnel " +
+        "conservé ; de marketing ; ou de charges liées à la conduite future de l'activité. De même, les pertes futures " +
+        "identifiables jusqu'à la date de restructuration ne peuvent pas faire l'objet de provision, sauf si elles " +
+        "concernent un contrat déficitaire. Les profits attendus sur la sortie des actifs ne sont pas pris en compte dans " +
+        "l'évaluation d'une provision pour restructuration, même s'ils correspondent à l'aboutissement de la " +
+        'restructuration. »',
       source: 'AUDCIF Titre VIII ch. 18 § 4.1.2',
     },
   ],
