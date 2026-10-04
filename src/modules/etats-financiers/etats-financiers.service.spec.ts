@@ -39,6 +39,8 @@ function serviceAvecExercices(
   virementsParExercice: Record<string, VirementsParCompte> = {},
   // Écriture de réévaluation du module, par exercice (lot 14) · par DÉFAUT aucune.
   reevaluationsParExercice: Record<string, VirementsParCompte> = {},
+  // Coûts d'emprunt incorporés par le module, par exercice (ligne A22) · par DÉFAUT aucun.
+  incorporationsParExercice: Record<string, VirementsParCompte> = {},
 ) {
   const ecritureService = {
     balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
@@ -56,6 +58,9 @@ function serviceAvecExercices(
     ),
     mouvementsDeReevaluation: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
       Promise.resolve((exerciceId && reevaluationsParExercice[exerciceId]) || new Map()),
+    ),
+    mouvementsDeCoutsEmpruntIncorpores: jest.fn().mockImplementation((_t: string, exerciceId: string | null) =>
+      Promise.resolve((exerciceId && incorporationsParExercice[exerciceId]) || new Map()),
     ),
   } as unknown as EcritureService;
   // Sans liste nommée, les exercices du dossier sont ceux dont la balance est
@@ -1303,6 +1308,34 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
     // en acquisition · la liaison décide, jamais le compte.
     const sansLiaison = await serviceAvecExercices(lignes, DEUX_EXERCICES).tableauFluxTresorerie('t1', 'eN');
     expect(ref(sansLiaison, 'FI').montant).toBe(-18_750_000);
+    expect(sansLiaison.controle.coherent).toBe(false);
+  });
+
+  // LIGNE A22 · au SYCEBNL, les intérêts incorporés au bien passent D bien / C
+  // 787 (fiches des comptes 67 et 72 du SYCEBNL) · l'intérêt est décaissé au
+  // 671, et le 787 est lu sans trésorerie. Sans retranchement, le débit du 239
+  // se lisait en seconde acquisition décaissée et le tableau ne bouclait plus.
+  it('A22 · les coûts d’emprunt incorporés par le module ne se lisent pas en acquisition (FI)', async () => {
+    const lignes = {
+      eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 10_000_000, 0)],
+      eN: [
+        ligneF('67120000', ClasseCompte.CLASSE_6, 1_000_000, 0),
+        ligneF('23910000', ClasseCompte.CLASSE_2, 1_000_000, 0),
+        ligneF('78700000', ClasseCompte.CLASSE_7, 0, 1_000_000),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 0, 1_000_000, [10_000_000, 0]),
+      ],
+    };
+    const incorporation: VirementsParCompte = new Map([
+      ['id-23910000', { debit: 1_000_000, credit: 0 }],
+      ['id-78700000', { debit: 0, credit: 1_000_000 }],
+    ]);
+    const tft = await serviceAvecExercices(lignes, DEUX_EXERCICES, {}, {}, { eN: incorporation }).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+    // Le même transfert SANS liaison (passé à la main) reste lu en acquisition ·
+    // la liaison décide, jamais le compte.
+    const sansLiaison = await serviceAvecExercices(lignes, DEUX_EXERCICES).tableauFluxTresorerie('t1', 'eN');
+    expect(ref(sansLiaison, 'FI').montant).toBe(-1_000_000);
     expect(sansLiaison.controle.coherent).toBe(false);
   });
 

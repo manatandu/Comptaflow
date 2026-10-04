@@ -81,6 +81,30 @@ describe('EcritureService.mouvementsDeReevaluation (lot 14)', () => {
   });
 });
 
+describe('EcritureService.mouvementsDeCoutsEmpruntIncorpores (ligne A22)', () => {
+  it('ne retient que les écritures qu’une incorporation désigne, au livre-journal, hors report à-nouveau', async () => {
+    const groupBy = jest.fn().mockResolvedValue([{ compteId: 'c239', _sum: { debit: '1000000', credit: null } }]);
+    const service = new EcritureService(
+      { ligneEcriture: { groupBy } } as unknown as PrismaService,
+      {} as JournalService,
+      {} as ExerciceService,
+      {} as AnalytiqueService,
+    );
+    const lus = await service.mouvementsDeCoutsEmpruntIncorpores('t1', 'e1');
+    const { where } = groupBy.mock.calls[0][0];
+    // La LIAISON (`CoutEmpruntIncorpore.ecritureId`), jamais le compte · un
+    // 787 passé à la main reste où la balance le met.
+    expect(where.ecriture.coutEmpruntIncorpore).toEqual({ isNot: null });
+    expect(where.ecriture.reevaluationBilan).toBeUndefined();
+    expect(where.ecriture.tenantId).toBe('t1');
+    expect(where.ecriture.exerciceId).toBe('e1');
+    expect(where.ecriture.statut).toBe(StatutEcriture.VALIDEE);
+    expect(where.ecriture.estGenereeParCloture).toBe(false);
+    expect(lus.get('c239')).toEqual({ debit: 1_000_000, credit: 0 });
+    expect(await service.mouvementsDeCoutsEmpruntIncorpores('t1', null)).toBe(AUCUN_VIREMENT);
+  });
+});
+
 describe('virementsDesLignes', () => {
   it('cumule les virements des seuls comptes d’une rubrique, débit et crédit à part', () => {
     const virements = new Map([

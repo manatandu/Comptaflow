@@ -2348,6 +2348,7 @@ describe('passe R2 · B3, la NOTE 34 SYSCOHADA est calculée depuis les trois é
     const ecriture = {
       balance: jest.fn().mockResolvedValue({ lignes: balance, totaux: { debit: 0, credit: 0 } }),
       virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
+      mouvementsDeCoutsEmpruntIncorpores: jest.fn().mockResolvedValue(new Map()),
       mouvementsDeReevaluation: jest.fn().mockResolvedValue(new Map()),
     } as unknown as EcritureService;
     const exercice = {

@@ -118,7 +118,13 @@ export function CoutsEmpruntIncorpores({
                   ? 'Au SYCEBNL, seuls les emprunts exclusivement affectés à la fabrication se capitalisent, par le crédit du 787.'
                   : 'Au SYSCOHADA, le transfert se fait par le crédit du compte 72.')
               }
-              source="AUDCIF Titre VIII ch. 7 ; fiches des comptes 67 et 72"
+              source={
+                // Ligne A22 · chaque plan dans son texte · le 787 vient des
+                // fiches 67 et 72 du SYCEBNL, le 72 de celles de l'AUDCIF.
+                referentiel === 'SYCEBNL'
+                  ? 'AUDCIF Titre VIII ch. 7 ; SYCEBNL, fiches des comptes 67 et 72'
+                  : 'AUDCIF Titre VIII ch. 7 ; AUDCIF Titre VII, fiches des comptes 67, 72 et 78'
+              }
             />
           </span>
           <select value={nature} onChange={(e) => setNature(e.target.value as typeof nature)} className={champ}>

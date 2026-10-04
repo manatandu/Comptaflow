@@ -38,6 +38,36 @@
  * SYCEBNL, fiche du compte 72, ne capitalise que « les frais financiers
  * supportés sur les emprunts EXCLUSIVEMENT AFFECTÉS au financement de la
  * fabrication » · la voie des emprunts généraux y est refusée.
+ *
+ * LE 787 CONTRE LE 72, RELU PAR LA LIGNE A22 (2026-10-04), chaque plan dans
+ * son texte.
+ *  · SYSCOHADA · le Guide d'application (Partie 1 ch. 5, « Bien produit par
+ *    l'entité ») crédite le 787 à côté du 72 ; l'AUDCIF dit 72 trois fois ·
+ *    fiche du compte 67 (ci-dessus), fiche du compte 72 (« frais financiers
+ *    supportés sur les emprunts exclusivement affectés » dans le coût de
+ *    production) et fiche du compte 78 (« Exclusions · Les transferts de
+ *    charges en actif immobilisé → 72 » ; crédité « par le débit des comptes
+ *    de bilan concernés (autres que les comptes d'immobilisation) »). L'Acte
+ *    uniforme prime sur le Guide · 72, anomalie du Guide signalée, non suivie.
+ *  · SYCEBNL · son plan est le texte de l'Acte (Acte uniforme SYCEBNL, art. 1,
+ *    « Système comptable [...] annexé au présent Acte uniforme »), et ce texte
+ *    se contredit · fiches des comptes 67 (« par le crédit du compte 787
+ *    Transferts de charges financières ») et 72 (« capitalisés dans le coût de
+ *    l'actif éligible via le compte 787 ») contre fiche du compte 78
+ *    (« ne doit pas servir à enregistrer les transferts de charges en actif
+ *    immobilisé [...] 72 - Production immobilisée »). Les deux premières
+ *    visent nommément les intérêts intercalaires, la troisième tout transfert ·
+ *    la règle particulière l'emporte, 787, anomalie écrite ici. L'AUDCIF ne
+ *    tranche pas, ses fiches de compte étant celles du plan SYSCOHADA.
+ *  · Conséquence relevée par la même ligne · le tableau des flux des
+ *    associations lit le 78 sans trésorerie et le débit du bien en
+ *    acquisition ; l'incorporation, reconnue par sa liaison, est retranchée du
+ *    poste FI (`correspondance-tft.ts`, `coutsEmpruntARetrancher`).
+ *  · Anomalie non tranchée · les fiches du compte 72 des deux textes ne
+ *    nomment au débit que les 21, 23 et 24, et leurs fiches du compte 22 ne
+ *    citent pas le 72 · la fiche du compte 67 dit « le compte d'immobilisation
+ *    concerné », sans exclure le terrain, et le ch. 7 n'exclut que les prêts et
+ *    créances · un aménagement de terrain (22) reste admis, au 7221 de l'AUDCIF.
  */
 
 import { moisEntre } from '../../common/mois-entre';

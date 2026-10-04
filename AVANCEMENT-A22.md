@@ -51,7 +51,35 @@ positif ou pas encore lisible, le reliquat est dit, la durée n'est demandée
 et envoyée qu'avec un fonds qui naît ; le serveur refuse une durée du fonds
 commercial sans reliquat ou hors fonds de commerce (déclaration sans fiche).
 
-## Relevé 3 · 787 du Guide contre 72 de l'AUDCIF · À FAIRE
+## Relevé 3 · 787 du Guide contre 72 de l'AUDCIF · FAIT
+
+Textes lus · SYSCOHADA · AUDCIF Titre VII, fiches des comptes 67 (« transférés
+au débit du compte d'immobilisation concerné par le crédit du compte 72 »), 72
+et 78 (« Exclusions · Les transferts de charges en actif immobilisé → 72 ») ;
+Guide, Partie 1 ch. 5, « Bien produit par l'entité » (72 ET 787 au crédit).
+L'Acte uniforme prime sur le Guide · 72, comme le code. SYCEBNL · Acte art. 1
+(le Système comptable est annexé à l'Acte) ; fiches 67 (« par le crédit du
+compte 787 Transferts de charges financières ») et 72 (« via le compte
+787 ») contre fiche 78 (exclusion « transferts de charges en actif immobilisé
+→ 72 ») · contradiction interne, la règle particulière (intérêts
+intercalaires) l'emporte · 787, comme le code ; anomalie écrite dans
+`couts-emprunt-incorpores.ts`.
+
+Incohérence trouvée et corrigée · le tableau des flux des associations
+(SYCEBNL) lisait le 78 sans trésorerie et le débit du bien en acquisition
+décaissée (poste FI), l'intérêt étant déjà décaissé au 671 · le tableau ne
+bouclait plus. L'incorporation, reconnue par sa LIAISON
+(`EcritureService.mouvementsDeCoutsEmpruntIncorpores`), est retranchée de FI
+(`coutsEmpruntARetrancher`). Au SYSCOHADA le 72 est déjà dans l'EBE et le
+ch. 5 range la production immobilisée en acquisitions · aller-retour exact,
+rien à changer. Bulle `Aide` de l'écran · source par référentiel.
+
+Relevés non codés · (a) les fiches du compte 72 des deux textes ne nomment au
+débit que 21, 23, 24 et leurs fiches 22 ne citent pas le 72 · un 22 reste
+admis (fiche 67, « compte d'immobilisation concerné ») ; (b) le tableau
+emplois-ressources des projets ne neutralise pas les transferts en
+immobilisations (limite déjà écrite dans `correspondance-projet-emplois-ressources.ts`),
+une incorporation sur un projet y compterait l'intérêt deux fois.
 
 ## Vérification
 

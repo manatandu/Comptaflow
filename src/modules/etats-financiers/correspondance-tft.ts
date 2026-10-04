@@ -222,6 +222,12 @@ export interface PosteFluxTresorerie {
    * réévalué n'est ni une acquisition ni un décaissement.
    */
   reevaluationARetrancher?: string;
+  /**
+   * Débits des COÛTS D'EMPRUNT INCORPORÉS par le module (lot 13), reconnus par
+   * leur liaison (`CoutEmpruntIncorpore.ecritureId`), à retrancher des comptes
+   * que le poste lit au débit · porte le fondement (ligne A22).
+   */
+  coutsEmpruntARetrancher?: string;
 }
 
 /**
@@ -437,6 +443,18 @@ export const POSTES_INVESTISSEMENT: PosteFluxTresorerie[] = [
       "d'acquisitions et de cessions » et ne nomme pas la réévaluation ; le tableau de l'AUDCIF, lu par analogie, " +
       "l'écrit · « les variations d'immobilisations qui n'ont pas généré un flux de trésorerie ne figurent pas » et « – Écart et " +
       "provision spéciale de réévaluation de l'exercice de réévaluation uniquement » (Titre IX ch. 5 § 1.3).",
+    // LIGNE A22 · au SYCEBNL, les intérêts incorporés au coût du bien passent
+    // D bien / C 787 (fiches des comptes 67 et 72 du SYCEBNL), et le 78 est
+    // lu sans trésorerie (liste des comptes non encaissables) · le débit du
+    // bien sortait alors en second décaissement, l'intérêt payé l'étant déjà
+    // au 671 (poste des charges financières), et le tableau ne bouclait plus.
+    // Au SYSCOHADA le transfert passe au 72, retranché ci-dessous. Reconnu par
+    // la LIAISON de l'incorporation, jamais par le compte · un 787 passé à la
+    // main reste où la balance le met.
+    coutsEmpruntARetrancher:
+      "Coûts d'emprunt incorporés par le module (AUDCIF Titre VIII ch. 7 ; SYCEBNL, fiches des COMPTES 67 et 72 · " +
+      "« transférés au débit du compte d'immobilisation concerné par le crédit du compte 787 ») · l'intérêt est " +
+      "décaissé au 671, son transfert au coût du bien n'est pas une acquisition décaissée.",
     misesEnServiceARetrancher:
       "Mise en service d'un bien inscrit en cours (fiches des COMPTES 21 à 24 ; 219 et 229 offerts par décision " +
       'de Manasse du 2026-10-01) · virement de poste à poste, sans trésorerie, dont le paiement a déjà été lu au ' +
