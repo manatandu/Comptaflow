@@ -88,9 +88,14 @@ clôture 2025 faite ; 2026 · 445 report 80 000 + mouvement 160 000 = 240 000,
 nommait le dossier (contrepartie) au lieu du fournisseur (émetteur), gelé par
 un test. Drift `prisma migrate diff` · aucune différence.
 
+## Bloc § 3 (2026-10-04)
+
+Serveur · tsc, jest 729 suites / 10 362 tests, build. Client · tsc, vitest
+213 fichiers / 1 740 tests, build. Tous verts.
+
 ## Reste
 
-- Bloc § 3 complet.
+- Relectures (comptable, échecs silencieux) et intégration sur `main`.
 
 ## Vérification
 

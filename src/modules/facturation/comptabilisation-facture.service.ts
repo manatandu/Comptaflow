@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SensFacture, TypeJournal } from '@prisma/client';
+import { SensFacture, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ecritureDeFacture } from './ecriture-facture';
@@ -179,10 +179,12 @@ export class ComptabilisationFactureService {
     // lecture et ici retire l'écriture qu'il vient de créer.
     // La réception déclarée ici se pose avec le lien, sur une facture qui ne
     // l'a toujours pas · une déclaration concurrente ne s'écrase pas.
-    const lien: Prisma.FactureUpdateManyArgs = nouvelleReception
-        ? { where: { id: f.id, tenantId, ecritureId: null, dateReception: null }, data: { ecritureId: e.id, dateReception: nouvelleReception } }
-        : { where: { id: f.id, tenantId, ecritureId: null }, data: { ecritureId: e.id } };
-    const { count } = await this.prisma.facture.updateMany(lien);
+    const { count } = nouvelleReception
+      ? await this.prisma.facture.updateMany({
+          where: { id: f.id, tenantId, ecritureId: null, dateReception: null },
+          data: { ecritureId: e.id, dateReception: nouvelleReception },
+        })
+      : await this.prisma.facture.updateMany({ where: { id: f.id, tenantId, ecritureId: null }, data: { ecritureId: e.id } });
     if (count === 0) {
       // Lignes puis tête (F1) · la tête seule levait P2003, un 500 brut, et
       // laissait l'écriture du second clic orpheline au journal.
