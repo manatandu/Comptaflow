@@ -574,9 +574,10 @@ export class ReevaluationBilanService {
     // cédé ou mis hors service n'en est plus un ; le sort de son écart est
     // celui du § 6 (« le solde de l'écart de réévaluation d'un bien cédé ou
     // mis hors service doit faire l'objet d'un transfert à un poste de réserve
-    // non distribuable ») et de la loi n° 23/053, art. 133 al. 3, que le
-    // module ne passe pas · le bien est NOMMÉ à part, jamais retiré en
-    // silence, et sa provision restante dite.
+    // non distribuable ») et de la loi n° 23/053, art. 133 al. 3, que la
+    // SORTIE passe depuis la ligne A15 (reste du 154 repris au 861 à la
+    // cession, `sortDesEcarts`) · le bien est NOMMÉ à part, jamais retiré en
+    // silence, et sa provision restante dite (nulle après une cession).
     const sortiALaCloture = (l: (typeof lignes)[number]) =>
       l.immobilisation.statut !== StatutImmobilisation.EN_SERVICE &&
       (!l.immobilisation.dateSortie || l.immobilisation.dateSortie <= exercice.dateFin);
@@ -587,7 +588,8 @@ export class ReevaluationBilanService {
       resteProvision: centimes(n(l.ecart) - n(l.provisionReprise)),
       motif:
         'Bien sorti · la reprise annuelle ne vise que les éléments d’actif réévalués (AUDCIF Titre VIII ch. 28 § 4.2.4.2) ; ' +
-        'le sort de l’écart d’un bien cédé (§ 6 ; loi n° 23/053, art. 133 al. 3) n’est pas passé par ce module.',
+        'à la cession, le reste de la provision est repris à la sortie du bien (loi n° 23/053, art. 133 al. 3) ; celui d’un ' +
+        'bien mis hors service n’est pas repris, les textes ne le réglant pas.',
     }));
     const servies = lues.filter((l) => !sortiALaCloture(l)).map((l) => {
       const reste = centimes(n(l.ecart) - n(l.provisionReprise));

@@ -63,11 +63,40 @@ ce42a64.
 
 ## Fait
 
-(au fil des commits)
+- Serveur · `reevaluation-suites.ts` (règles pures · `supplementDeLaDotation`,
+  `sortDesEcarts`, `motifRefusCompteReserve`, `lignesSortDeLEcart`,
+  `posteDuBien`, `vueDeLExercice`) ; `ReevaluationBilanService` ·
+  `noteReevaluations`, `declarationSpeciale`, `comptesReserve`,
+  `ecartALaSortie` et leurs routes GET ; `sortir` passe l'écriture de l'écart
+  (retenue, `ecritureSortieEcartReevaluationId`), échange et renouvellement
+  transmettent la réserve ; `tableauAmortissements` relu à l'exercice
+  (`ajustementReevaluation`, `reevaluation`) ; contrôle
+  REEVALUATION_IMMO_HORS_MODULE qui écarte l'écriture de sortie de l'écart.
+- Migration `20270132000000_sortie_bien_reevalue` (colonne retenue et
+  `ecartTransfere`), dérive vérifiée nulle sur base jetable.
+- Écran · encadré `ReevaluationsEnNote` (NOTE 3E, 5H), cadre « Amortissements
+  après réévaluation » sous le tableau, `EcartReevaluationSortie` dans la
+  sortie, l'échange et le renouvellement, édition « Déclaration spéciale ».
+- Specs · `reevaluation-suites.spec.ts`, `sortie-bien-reevalue.spec.ts`,
+  `tableau-apres-reevaluation.spec.ts`, `reevaluation-note-declaration.spec.ts`,
+  client `reevaluation-suites.spec.ts`.
+- Rejeu sur vraie base (PostgreSQL 16, `a15_1`, serveur compilé, port 8106) ·
+  deux dossiers SYSCOHADA à travers la clôture de 2026, 43 contrôles, aucun
+  écart (scratchpad `l15/rejeu.mjs`).
 
-## Reste
+## Reste / relevés (non faits)
 
-(au fil des commits)
+- 154 d'un bien mis hors service, 106 d'un dossier SYCEBNL · non passés, textes
+  en tension ou muets (à Manasse s'il veut trancher).
+- La levée d'option d'un contrat de location-acquisition (sortie interne) ne
+  transmet pas de réserve · un bien réévalué ainsi levé est refusé avec le
+  motif ; la sortie ordinaire reste l'issue.
+- Le tableau des IMMOBILISATIONS à une date d'arrêté antérieure relit encore la
+  valeur d'aujourd'hui (réévaluations postérieures comprises).
+- Le solde transféré n'est pas borné par le solde du 106 au jour de la sortie
+  (incorporation au capital à la main non suivie par bien).
+- Écart incorporé au capital (à la dotation) · non tenu par le module, rubrique
+  à la saisie.
 
 ## Vérification
 
