@@ -29,6 +29,8 @@ export type EtatEmissionDecompte = {
   /** Les avantages compris dans le préavis ou les dommages-intérêts, et leur ventilation. */
   readonly avantagesFc?: number;
   readonly avantagesVentilesFc?: number;
+  /** A18 · une stipulation entamée et illisible (`motifStipulationsIncompletes`). */
+  readonly motifStipulations?: string | null;
 };
 
 export const MOTIF_ARRIERES_ET_ELEMENTS =
@@ -45,6 +47,7 @@ export function motifDecompteNonEmissible(e: EtatEmissionDecompte): string | nul
   if (e.anneesAnciennete.trim() === '') return 'Renseignez l’ancienneté en années, zéro compris.';
   if (e.moisNonCouvertsParUnConge.trim() === '') return 'Renseignez les mois non couverts par un congé, zéro compris.';
   if (e.arrieresFc.trim() !== '' && e.nombreElementsDuMois > 0) return MOTIF_ARRIERES_ET_ELEMENTS;
+  if (e.motifStipulations) return e.motifStipulations;
   const avantages = e.avantagesFc ?? 0;
   if (avantages > 0 && Math.round((e.avantagesVentilesFc ?? 0) * 100) !== Math.round(avantages * 100)) {
     return 'Ventilez les avantages compris dans l’indemnité (logement, transport, soins, autres), au centime.';
@@ -177,4 +180,104 @@ export function allocationsDuTempsRestant(
     return 'Travailleur parti avant la moitié du préavis · celles du temps restant ne sont pas dues, les jours saisis ne les comptent pas.';
   }
   return 'Le préavis restant à courir n’en porte qu’après un départ à mi-préavis.';
+}
+
+/**
+ * A18 · LA GRATIFICATION ET L'INDEMNITÉ STIPULÉES, telles que saisies.
+ * Aucune n'est légale (Code du travail, art. 7, point 8 ; art. 37) · une
+ * saisie VIDE n'envoie rien, et le serveur ne propose rien (null, jamais
+ * zéro). Une saisie entamée part telle quelle · c'est le serveur qui nomme la
+ * source manquante ; l'écran ne retient que ce qui empêcherait de lire la
+ * demande (montant ou période illisibles).
+ */
+export type SaisieStipulations = {
+  readonly gratificationAnnuelleFc: string;
+  readonly gratificationSource: string;
+  readonly gratificationDebut: string;
+  readonly gratificationFin: string;
+  readonly indemniteStipuleeFc: string;
+  readonly indemniteSource: string;
+};
+
+export const SAISIE_STIPULATIONS_VIDE: SaisieStipulations = {
+  gratificationAnnuelleFc: '',
+  gratificationSource: '',
+  gratificationDebut: '',
+  gratificationFin: '',
+  indemniteStipuleeFc: '',
+  indemniteSource: '',
+};
+
+const DATE_AAAA_MM_JJ = /^\d{4}-\d{2}-\d{2}$/;
+
+const gratificationEntamee = (s: SaisieStipulations) =>
+  [s.gratificationAnnuelleFc, s.gratificationSource, s.gratificationDebut, s.gratificationFin].some((v) => v.trim() !== '');
+const indemniteEntamee = (s: SaisieStipulations) => [s.indemniteStipuleeFc, s.indemniteSource].some((v) => v.trim() !== '');
+
+/** Ce qui empêche d'envoyer une stipulation entamée, ou null. */
+export function motifStipulationsIncompletes(s: SaisieStipulations): string | null {
+  if (gratificationEntamee(s)) {
+    if (lireMontant(s.gratificationAnnuelleFc) === undefined) {
+      return 'Renseignez le montant annuel stipulé de la gratification, ou videz la stipulation.';
+    }
+    if (!DATE_AAAA_MM_JJ.test(s.gratificationDebut.trim()) || !DATE_AAAA_MM_JJ.test(s.gratificationFin.trim())) {
+      return 'Renseignez la période de référence de la gratification (début et fin), ou videz la stipulation.';
+    }
+  }
+  if (indemniteEntamee(s) && lireMontant(s.indemniteStipuleeFc) === undefined) {
+    return 'Renseignez le montant de l’indemnité stipulée, ou videz la stipulation.';
+  }
+  return null;
+}
+
+/** Les deux stipulations, à ajouter aux faits du décompte · absentes quand rien n'est saisi. */
+export function stipulationsDuDecompte(s: SaisieStipulations): {
+  gratificationStipulee?: { montantAnnuelFc: number; source: string; debutPeriode: string; finPeriode: string };
+  indemniteStipulee?: { montantFc: number; source: string };
+} {
+  if (motifStipulationsIncompletes(s) !== null) return {};
+  return {
+    ...(gratificationEntamee(s)
+      ? {
+          gratificationStipulee: {
+            montantAnnuelFc: lireMontant(s.gratificationAnnuelleFc) as number,
+            source: s.gratificationSource.trim(),
+            debutPeriode: s.gratificationDebut.trim(),
+            finPeriode: s.gratificationFin.trim(),
+          },
+        }
+      : {}),
+    ...(indemniteEntamee(s)
+      ? { indemniteStipulee: { montantFc: lireMontant(s.indemniteStipuleeFc) as number, source: s.indemniteSource.trim() } }
+      : {}),
+  };
+}
+
+/** A18 · une retenue proposée par le serveur (Code du travail, art. 112, c et f). */
+export type RetenueProposee = {
+  avanceId: string;
+  littera: 'c' | 'f';
+  libelle: string;
+  soldeFc: number;
+  montantProposeFc: number;
+  reserve: string | null;
+};
+
+/**
+ * LES RETENUES PROPOSÉES REPRISES DANS LA SAISIE · au centime, écrites comme
+ * le champ les relit. Une proposition à zéro (net épuisé) ne part pas · le
+ * solde reste dû au registre, et l'émission le dira. Les retenues déjà
+ * saisies pour d'autres avances sont gardées · la reprise ne retire rien.
+ */
+export function retenuesReprises(
+  saisies: Readonly<Record<string, string>>,
+  proposees: readonly RetenueProposee[],
+): Record<string, string> {
+  const resultat: Record<string, string> = { ...saisies };
+  for (const r of proposees) {
+    const centimes = Math.round(r.montantProposeFc * 100);
+    if (centimes > 0) resultat[r.avanceId] = (centimes / 100).toFixed(2);
+    else delete resultat[r.avanceId];
+  }
+  return resultat;
 }

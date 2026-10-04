@@ -25,6 +25,16 @@ import {
   type TypeAvance,
 } from './avances-salaire';
 import { quotiteSaisissable } from './quotite-saisissable';
+import {
+  FONDEMENT_RETENUES_DECOMPTE,
+  RESERVE_PRET_EXIGIBILITE,
+  avertissementsSoldesRestants,
+  propositionRetenuesDecompte,
+  type AvanceARetenir,
+} from './decompte-retenues-stipulations';
+
+/** A18 · la borne de la lecture des avances d'un salarié au décompte, dite si atteinte. */
+export const PLAFOND_AVANCES_DECOMPTE = 200;
 import { reserveIndemniteLogementKinshasa } from './indemnite-logement-kinshasa';
 import {
   AVERTISSEMENT_ARTICLE_89,
@@ -1468,6 +1478,19 @@ export class PersonnelService {
       montantConvenuCommunAccordFc: dto.montantConvenuCommunAccordFc ?? null,
       arrieresFc: dto.arrieresFc ?? null,
       gratificationFc: dto.gratificationFc ?? null,
+      // A18 · les dates de la période se lisent au jour (AAAA-MM-JJ) · une
+      // heure portée par le client ne déplace pas le compte des mois entiers.
+      gratificationStipulee: dto.gratificationStipulee
+        ? {
+            montantAnnuelFc: dto.gratificationStipulee.montantAnnuelFc,
+            source: dto.gratificationStipulee.source,
+            debutPeriode: dto.gratificationStipulee.debutPeriode.slice(0, 10),
+            finPeriode: dto.gratificationStipulee.finPeriode.slice(0, 10),
+          }
+        : null,
+      indemniteStipulee: dto.indemniteStipulee
+        ? { montantFc: dto.indemniteStipulee.montantFc, source: dto.indemniteStipulee.source }
+        : null,
       enfantsBeneficiairesAllocations: dto.enfantsBeneficiairesAllocations ?? null,
       joursAllocationsFamiliales: dto.joursAllocationsFamiliales ?? null,
       allocationFamilialeParEnfantFc,
@@ -1736,6 +1759,110 @@ export class PersonnelService {
     dto: EmissionDecompteFinalDto,
     maintenant: Date = new Date(),
   ) {
+    const p = await this.preparerDecompteFinal(tenantId, salarieId, dto, maintenant, true);
+    if (p.etat !== 'CHIFFRE') throw refusNomme('Décompte final non émis', p.motifs);
+    const { mois, salarie, contrat, paieComplete, simulation, verdict, faits, indemnites } = p;
+
+    // A8 (n) · UNE NATURE SANS COMPTE se remet au travailleur, mais ne passera
+    // pas au journal · l'émission le DIT, dans la réponse et sur le document.
+    const avertissements = avertissementsPassation(indemnites, NATURES_SANS_IMPUTATION);
+    // A18 · UNE AVANCE OU UN PRÊT QUE LE DÉCOMPTE NE SOLDE PAS reste dû au
+    // registre · le dernier document remis au travailleur le dit, sans refus
+    // (le cabinet peut le recouvrer hors de la paie).
+    const { avances } = await this.avancesARetenir(tenantId, salarieId);
+    const retenuesDuDecompte = Object.fromEntries(simulation.retenuesAvances.map((r) => [r.avanceId, r.montantFc]));
+    avertissements.push(...avertissementsSoldesRestants(avances, retenuesDuDecompte));
+    const reservesDecompteEmis = [RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR, DECOMPTE_A_LA_RUPTURE];
+    if (indemnites.some((e) => e.reserve === RESERVE_ASSIETTE_SOCIALE_INDEMNITE)) {
+      reservesDecompteEmis.push(RESERVE_ASSIETTE_SOCIALE_INDEMNITE);
+    }
+    if (simulation.retenuesAvances.some((r) => r.type === 'PRET')) reservesDecompteEmis.push(RESERVE_PRET_EXIGIBILITE);
+
+    const cree = await this.figerBulletin(tenantId, userId, {
+      salarieId,
+      salarie,
+      contrat,
+      moisDePaie: mois,
+      nature: NatureBulletinPaie.DECOMPTE_FINAL,
+      simulation,
+      entree: { ...paieComplete, decompte: faits, ventilationAvantages: dto.ventilationAvantages ?? [] },
+      calculEnPlus: {
+        decompte: verdict,
+        reservesDecompteEmis,
+        avertissementsDecompteEmis: avertissements,
+      },
+    });
+    return { ...(await this.lireBulletin(tenantId, cree.id)), avertissements };
+  }
+
+  /**
+   * A18 · LES RETENUES D'AVANCE ET DE PRÊT PROPOSÉES AU DÉCOMPTE (Code du
+   * travail, art. 112, c et f). Le décompte est REJOUÉ sans aucune retenue
+   * d'avance, pour lire le net qui reste dû au travailleur ; les soldes sont
+   * RELUS au registre (bulletins non annulés). Rien n'est stocké · le cabinet
+   * confirme en reportant les montants dans les retenues, et l'émission
+   * rejoue tout (solde, net négatif refusé).
+   */
+  async proposerRetenuesDecompte(
+    tenantId: string,
+    salarieId: string,
+    dto: EmissionDecompteFinalDto,
+    maintenant: Date = new Date(),
+  ) {
+    const sansRetenues: EmissionDecompteFinalDto = { ...dto, paie: { ...dto.paie, retenuesAvances: [] } };
+    const p = await this.preparerDecompteFinal(tenantId, salarieId, sansRetenues, maintenant, false);
+    const { avances, tronque } = await this.avancesARetenir(tenantId, salarieId);
+    const net = p.etat === 'CHIFFRE' ? p.simulation.net.netAPayerFc : null;
+    const proposition = propositionRetenuesDecompte(avances, net);
+    return {
+      ...proposition,
+      fondement: FONDEMENT_RETENUES_DECOMPTE,
+      // Ce qui empêche de chiffrer le net, nommé · jamais lu comme un net nul.
+      motifsNetNonChiffre: p.etat === 'CHIFFRE' ? [] : p.motifs,
+      tronque,
+    };
+  }
+
+  /** Les avances, acomptes, prêts et saisies du salarié, avec leur solde relu (bulletins non annulés). */
+  private async avancesARetenir(tenantId: string, salarieId: string): Promise<{ avances: AvanceARetenir[]; tronque: boolean }> {
+    const lignes = await this.prisma.avanceSalaire.findMany({
+      where: { tenantId, salarieId },
+      orderBy: [{ dateOctroi: 'asc' }, { id: 'asc' }],
+      // Une borne, dite · un salarié n'en porte jamais autant, et une liste
+      // tronquée en silence laisserait une avance hors de la proposition.
+      take: PLAFOND_AVANCES_DECOMPTE + 1,
+      include: { retenues: { select: { montantFc: true, bulletin: { select: { statut: true } } } } },
+    });
+    const tronque = lignes.length > PLAFOND_AVANCES_DECOMPTE;
+    const avances = lignes.slice(0, PLAFOND_AVANCES_DECOMPTE).map((a) => ({
+      avanceId: a.id,
+      type: a.type as TypeAvance,
+      dateOctroi: a.dateOctroi.toISOString().slice(0, 10),
+      libelle:
+        a.type === 'SAISIE_ARRET'
+          ? `Saisie-arrêt notifiée le ${a.dateOctroi.toISOString().slice(0, 10)} (acte ${a.referenceActe ?? '·'}) · ${a.objet}`
+          : `${a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du ${a.dateOctroi.toISOString().slice(0, 10)} · ${a.objet}`,
+      soldeFc: soldeAvance(
+        Number(a.montantFc),
+        a.retenues.map((x) => ({ montantFc: Number(x.montantFc), bulletinAnnule: x.bulletin.statut !== StatutBulletinPaie.EMIS })),
+      ),
+    }));
+    return { avances, tronque };
+  }
+
+  /**
+   * LE DÉCOMPTE PRÉPARÉ · faits rejoués, éléments du mois relus, simulation
+   * du mois de cessation. `pourEmettre` lève les refus de l'émission ; sans
+   * lui (proposition des retenues, A18), ce qui empêche de chiffrer est RENDU
+   * en motifs, jamais lu comme un net nul.
+   */
+  private async preparerDecompteFinal(
+    tenantId: string,
+    salarieId: string,
+    dto: EmissionDecompteFinalDto,
+    maintenant: Date,
+    pourEmettre: boolean,
+  ) {
     const mois = dto.paie.moisDePaie;
     if (!moisValide(mois)) {
       throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
@@ -1810,10 +1937,21 @@ export class PersonnelService {
       );
     }
 
+    // A18 · LA PÉRIODE DE LA GRATIFICATION NE DÉPASSE PAS LA CESSATION · un
+    // mois compté après la fin du contrat serait un mois de service inventé.
+    const finContrat = (contrat.dateFin as Date).toISOString().slice(0, 10);
+    const finGratification = dto.decompte.gratificationStipulee?.finPeriode?.slice(0, 10);
+    if (finGratification && finGratification > finContrat) {
+      throw new BadRequestException(
+        `La période de référence de la gratification finit le ${finGratification}, après la fin du contrat (${finContrat}) · le prorata ne compte que les mois de service.`,
+      );
+    }
+
     const faits: DecompteFinalDto = { ...dto.decompte, moisDeCessation: mois, arrieresFc };
     const verdict = await this.decompteFinal(tenantId, faits);
     const { elements: indemnites, refus } = elementsDuDecompte(verdict, dto.ventilationAvantages ?? []);
     if (refus.length > 0) {
+      if (!pourEmettre) return { etat: 'NON_CHIFFRE' as const, motifs: refus };
       throw refusNomme(`Décompte final non émis · un solde partiel se lit comme un solde. ${TEXTE_ARTICLE_103}`, refus);
     }
 
@@ -1857,6 +1995,7 @@ export class PersonnelService {
     const simulation = await this.simulerPaie(tenantId, salarieId, paieComplete, maintenant);
     const motifs = motifsRefusEmission(simulation);
     if (motifs.length > 0) {
+      if (!pourEmettre) return { etat: 'NON_CHIFFRE' as const, motifs };
       throw refusNomme(`Décompte final non émis · ${motifs.length} montant(s) non calculé(s). ${TEXTE_ARTICLE_103}`, motifs);
     }
     // LES DEUX MOTEURS PARLENT DU MÊME DÉCOMPTE (A8, k) · chaque rubrique est
@@ -1872,29 +2011,17 @@ export class PersonnelService {
       );
     }
 
-    // A8 (n) · UNE NATURE SANS COMPTE se remet au travailleur, mais ne passera
-    // pas au journal · l'émission le DIT, dans la réponse et sur le document.
-    const avertissements = avertissementsPassation(indemnites, NATURES_SANS_IMPUTATION);
-    const reservesDecompteEmis = [RESERVE_VERSEMENT_UNIQUE, RESERVE_DU_PAR_LE_TRAVAILLEUR, DECOMPTE_A_LA_RUPTURE];
-    if (indemnites.some((e) => e.reserve === RESERVE_ASSIETTE_SOCIALE_INDEMNITE)) {
-      reservesDecompteEmis.push(RESERVE_ASSIETTE_SOCIALE_INDEMNITE);
-    }
-
-    const cree = await this.figerBulletin(tenantId, userId, {
-      salarieId,
+    return {
+      etat: 'CHIFFRE' as const,
+      mois,
       salarie,
       contrat,
-      moisDePaie: mois,
-      nature: NatureBulletinPaie.DECOMPTE_FINAL,
+      paieComplete,
       simulation,
-      entree: { ...paieComplete, decompte: faits, ventilationAvantages: dto.ventilationAvantages ?? [] },
-      calculEnPlus: {
-        decompte: verdict,
-        reservesDecompteEmis,
-        avertissementsDecompteEmis: avertissements,
-      },
-    });
-    return { ...(await this.lireBulletin(tenantId, cree.id)), avertissements };
+      verdict,
+      faits,
+      indemnites,
+    };
   }
 
   /**

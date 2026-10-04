@@ -215,6 +215,22 @@ export class PersonnelController {
     return this.personnel.emettreDecompteFinal(user.tenantId, user.userId, salarieId, dto);
   }
 
+  /**
+   * A18 · LES RETENUES D'AVANCE ET DE PRÊT PROPOSÉES AU DÉCOMPTE (Code du
+   * travail, art. 112, c et f) · le même corps que l'émission, rejoué sans
+   * retenue d'avance pour lire le net ; rien n'est stocké. En POST pour la
+   * même raison que le calcul du décompte · le corps est nominatif.
+   */
+  @Post('salaries/:salarieId/decompte-final/retenues-proposees')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async proposerRetenuesDecompte(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('salarieId') salarieId: string,
+    @Body() dto: EmissionDecompteFinalDto,
+  ) {
+    return this.personnel.proposerRetenuesDecompte(user.tenantId, salarieId, dto);
+  }
+
   @Post('bulletins/:id/annulation')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async annulerBulletin(

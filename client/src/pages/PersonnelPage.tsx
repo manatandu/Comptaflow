@@ -12,6 +12,7 @@ import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 import { montant } from '../lib/montants';
+import { montantPourChamp } from '../lib/creances-douteuses';
 import {
   allocationsDuTempsRestant,
   avantagesDesSeulsJoursAvantLaMoitie,
@@ -21,6 +22,12 @@ import {
   totalVentile,
   ventilationDesAvantages,
   type SaisieVentilation,
+  SAISIE_STIPULATIONS_VIDE,
+  motifStipulationsIncompletes,
+  retenuesReprises,
+  stipulationsDuDecompte,
+  type RetenueProposee,
+  type SaisieStipulations,
 } from '../lib/decompte-emis';
 
 /**
@@ -354,6 +361,20 @@ interface Decompte {
   duParLeTravailleur: RubriqueDecompte[];
   echeancePaiement: string;
   reserves: string[];
+  /** A18 · le prorata d'une gratification stipulée, proposé · null sans stipulation. */
+  propositionGratification?: { montantFc: number; moisEntiers: number; base: string } | null;
+}
+
+/** A18 · la proposition des retenues d'avance et de prêt au décompte (art. 112, c et f), rien de stocké. */
+interface PropositionRetenues {
+  retenues: RetenueProposee[];
+  saisiesNonProposees: { avanceId: string; libelle: string; soldeFc: number }[];
+  netDisponibleFc: number | null;
+  resteNonRetenuFc: number;
+  reserves: string[];
+  fondement: string;
+  motifsNetNonChiffre: string[];
+  tronque: boolean;
 }
 
 interface Effectif {
@@ -647,6 +668,13 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   // transport et soins sortent de l'assiette sociale sous leur nature (Code du
   // travail, art. 7, point 8) ; le serveur refuse un montant non ventilé.
   const [ventil, setVentil] = useState<SaisieVentilation>({ logement: '', transport: '', soins: '', autres: '' });
+  // A18 · gratification et indemnité STIPULÉES, saisies telles que le contrat
+  // ou la convention les porte · vides, rien ne part (null, jamais zéro).
+  const [stip, setStip] = useState<SaisieStipulations>(SAISIE_STIPULATIONS_VIDE);
+  // A18 · la proposition des retenues parle d'UN salarié, d'UN mois et d'UNE
+  // saisie · une réponse arrivée après un changement est jetée.
+  const [propositionRetenues, setPropositionRetenues] = useState<PropositionRetenues | null>(null);
+  const jetonPropositionRetenues = useRef(0);
   // A8 (c, d) · un clic ne part qu'une fois, et une réponse arrivée après un
   // changement de salarié ou de mois est jetée · elle parlerait d'un autre.
   const emissionDecompteEnVol = useRef(false);
@@ -958,6 +986,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
       moisDeCessation: dec.moisDeCessation || undefined,
       enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
       joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
+      ...stipulationsDuDecompte(stip),
     };
   };
 
@@ -1015,11 +1044,41 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
     nombreElementsDuMois: lignesDuMois,
     avantagesFc: avantagesDuPreavisFc + lireMontantSaisi(dec.avantagesJusquAuTermeFc),
     avantagesVentilesFc: totalVentile(ventilation),
+    motifStipulations: motifStipulationsIncompletes(stip),
   });
 
   // A8 (d) · le message de succès et les avertissements parlent d'UN salarié
   // et d'UN mois · ils tombent quand l'un ou l'autre change, et une réponse
   // encore en vol est jetée (son jeton n'est plus le bon).
+  useEffect(() => {
+    jetonPropositionRetenues.current += 1;
+    setPropositionRetenues(null);
+  }, [selection, dec.moisDeCessation]);
+
+  /**
+   * A18 · PROPOSER LES RETENUES · le serveur rejoue le décompte sans retenue
+   * d'avance pour lire le net, relit les soldes au registre, et rend ce qu'il
+   * propose. Rien n'est repris d'office · le cabinet confirme par « Reprendre
+   * dans la paie », et l'émission rejoue tout.
+   */
+  const proposerRetenues = () => {
+    if (!selection || motifEmissionDecompte !== null) return;
+    const jeton = ++jetonPropositionRetenues.current;
+    setErreur('');
+    setPropositionRetenues(null);
+    const corps = corpsEmissionDecompte(corpsDecompte(), corpsSimulation(), dec.moisDeCessation, ventilation);
+    api.post<PropositionRetenues>(`/personnel/salaries/${selection}/decompte-final/retenues-proposees`, corps).then(
+      (p) => {
+        if (jeton !== jetonPropositionRetenues.current) return;
+        setPropositionRetenues(p);
+      },
+      (e: ApiError) => {
+        if (jeton !== jetonPropositionRetenues.current) return;
+        setErreur(e.message);
+      },
+    );
+  };
+
   useEffect(() => {
     jetonEmissionDecompte.current += 1;
     setAvertissementsDecompte([]);
@@ -3643,6 +3702,80 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             </div>
 
             <div className="flex flex-wrap gap-3 items-end mt-2">
+              <span className={`${etiquette} flex items-center gap-1 self-center`}>
+                Gratification stipulée
+                <Aide
+                  titre="Gratification stipulée"
+                  texte="Aucun article n’impose de gratification · sans stipulation, rien n’est proposé. Stipulée, OmegaX propose le montant annuel × mois entiers de service de la période de référence, date à date, / 12 (lecture d’OmegaX) ; reprenez la proposition dans le champ Gratification, ou saisissez le montant que la stipulation donne."
+                  source="Code du travail, art. 7, point 8"
+                />
+              </span>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Montant annuel (FC)</span>
+                <input
+                  value={stip.gratificationAnnuelleFc}
+                  onChange={(e) => setStip({ ...stip, gratificationAnnuelleFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Source</span>
+                <input
+                  value={stip.gratificationSource}
+                  onChange={(e) => setStip({ ...stip, gratificationSource: e.target.value })}
+                  placeholder="Contrat, convention collective"
+                  className="border border-border bg-transparent px-2 py-1 w-[200px]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Début de la période</span>
+                <input
+                  type="date"
+                  value={stip.gratificationDebut}
+                  onChange={(e) => setStip({ ...stip, gratificationDebut: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Fin de la période</span>
+                <input
+                  type="date"
+                  value={stip.gratificationFin}
+                  onChange={(e) => setStip({ ...stip, gratificationFin: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mt-2">
+              <span className={`${etiquette} flex items-center gap-1 self-center`}>
+                Indemnité de fin de contrat stipulée
+                <Aide
+                  titre="Indemnité stipulée"
+                  texte="Recopiée avec sa source, jamais calculée par OmegaX. Elle s’ajoute aux sommes légales du décompte, qu’elle ne peut réduire, et passe au 6614 avec les indemnités de préavis et de licenciement."
+                  source="Code du travail, art. 37 et 64, al. 1er ; fiche du compte 66"
+                />
+              </span>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Montant (FC)</span>
+                <input
+                  value={stip.indemniteStipuleeFc}
+                  onChange={(e) => setStip({ ...stip, indemniteStipuleeFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Source</span>
+                <input
+                  value={stip.indemniteSource}
+                  onChange={(e) => setStip({ ...stip, indemniteSource: e.target.value })}
+                  placeholder="Clause du contrat, convention collective"
+                  className="border border-border bg-transparent px-2 py-1 w-[240px]"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mt-2">
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Mois de cessation (AAAA-MM)</span>
                 <input
@@ -3697,6 +3830,15 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   >
                     Émettre le décompte final
                   </button>
+                  <button
+                    type="button"
+                    disabled={enCours || motifEmissionDecompte !== null}
+                    onClick={proposerRetenues}
+                    title={motifEmissionDecompte ?? undefined}
+                    className="border border-accent text-accent px-3 py-1 disabled:opacity-40"
+                  >
+                    Proposer les retenues d’avance
+                  </button>
                   <Aide
                     titre="Décompte final émis"
                     texte="Rejoue le décompte et la paie du mois de cessation (éléments saisis dans l’onglet Simulation pour le salarié choisi), puis fige le document dans la numérotation des bulletins. Il remplace le bulletin de ce mois. Une erreur se corrige en l’annulant. Les arriérés SONT les éléments du mois · si la paie porte des éléments, le champ Arriérés reste vide ; sans éléments, déclarez les arriérés, zéro compris. Les avantages compris dans l’indemnité se ventilent par nature · logement, transport et soins sortent de l’assiette sociale (art. 7, point 8). L’indemnité elle-même reste dans l’assiette sociale · lecture d’OmegaX, aucun texte lu ne la range, et le document le dit."
@@ -3744,6 +3886,67 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   <li key={a}>{a}</li>
                 ))}
               </ul>
+            )}
+            {propositionRetenues && (
+              <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                <div className={`${etiquette} mb-1 flex items-center gap-1`}>
+                  Retenues d’avance et de prêt proposées
+                  <Aide titre="Retenues proposées" texte={propositionRetenues.fondement} source="Code du travail, art. 112, c et f" />
+                </div>
+                {propositionRetenues.retenues.length === 0 ? (
+                  <div className="text-[11px] text-text-dim">Aucune avance ni aucun prêt à solder pour ce salarié.</div>
+                ) : (
+                  <table className="w-full text-[11.5px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left py-1">Avance ou prêt</th>
+                        <th className="text-right py-1 pr-2">Solde dû</th>
+                        <th className="text-right py-1 pr-2">Proposé</th>
+                        <th className="text-left py-1">Observation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {propositionRetenues.retenues.map((r) => (
+                        <tr key={r.avanceId} className="border-b border-border/40 align-top">
+                          <td className="py-1 pr-2">{r.libelle}</td>
+                          <td className="py-1 pr-2 text-right">{fc(r.soldeFc)}</td>
+                          <td className="py-1 pr-2 text-right">{fc(r.montantProposeFc)}</td>
+                          <td className="py-1 text-[11px] text-text-dim">{r.reserve ?? ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="text-[11px] mt-1">
+                  Net du décompte avant retenues ·{' '}
+                  {propositionRetenues.netDisponibleFc === null ? 'non chiffré' : fc(propositionRetenues.netDisponibleFc)}
+                  {propositionRetenues.resteNonRetenuFc > 0 && <> · reste dû au registre {fc(propositionRetenues.resteNonRetenuFc)}</>}
+                </div>
+                {[...propositionRetenues.motifsNetNonChiffre, ...propositionRetenues.reserves].map((m) => (
+                  <div key={m} role="status" className="text-[11px] text-warning mt-0.5">
+                    {m}
+                  </div>
+                ))}
+                {propositionRetenues.saisiesNonProposees.map((sa) => (
+                  <div key={sa.avanceId} className="text-[11px] text-text-dim mt-0.5">
+                    {sa.libelle} · non proposée, retenue fixée par l’acte
+                  </div>
+                ))}
+                {propositionRetenues.tronque && (
+                  <div role="status" className="text-[11px] text-warning mt-0.5">
+                    Liste des avances tronquée · la proposition ne les couvre pas toutes.
+                  </div>
+                )}
+                {peutEcrire && propositionRetenues.retenues.some((r) => r.montantProposeFc > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => setRetenuesAvances((avant) => retenuesReprises(avant, propositionRetenues.retenues))}
+                    className="border border-accent text-accent px-3 py-1 mt-1.5"
+                  >
+                    Reprendre dans la paie du mois
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -3810,6 +4013,27 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         {decompte.echeancePaiement}
                       </td>
                     </tr>
+                    {decompte.propositionGratification && (
+                      <tr className="border-b border-border/40 align-top">
+                        <td className="py-1 pr-2">Gratification proposée</td>
+                        <td className="py-1 pr-2 text-right font-mono">{fc(decompte.propositionGratification.montantFc)}</td>
+                        <td className="py-1 text-[11px] text-text-dim">
+                          {decompte.propositionGratification.base}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDec({
+                                ...dec,
+                                gratificationFc: montantPourChamp(decompte.propositionGratification?.montantFc),
+                              })
+                            }
+                            className="border border-accent text-accent px-2 py-0.5 ml-2"
+                          >
+                            Reprendre la proposition
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                     {decompte.horsBrut.map((r) => (
                       <tr key={r.cle} className="border-b border-border/40 align-top">
                         <td className="py-1 pr-2">{r.libelle}</td>
