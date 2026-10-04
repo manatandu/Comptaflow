@@ -7,6 +7,11 @@ import { PrismaService } from '../../common/prisma.service';
 import { PLAFOND_ECRITURES_PAR_FENETRE, perimetreJournal } from '../comptabilite/ecriture.service';
 import { LIGNE_ENTETE, PREMIERE_LIGNE_DONNEES, OPTIONS_CLASSEUR_EN_FLUX } from './classeur-en-flux';
 
+// Chaque cas écrit puis relit un classeur en flux · sous une suite chargée l'un
+// d'eux a dépassé les cinq secondes par défaut de Jest (2026-10-04), sans
+// qu'aucune assertion ait changé.
+jest.setTimeout(30000);
+
 /**
  * LE JOURNAL EXPORTÉ SORTAIT FAUX, ET RIEN NE LE DISAIT.
  *
