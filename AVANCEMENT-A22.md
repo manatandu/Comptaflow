@@ -81,10 +81,39 @@ emplois-ressources des projets ne neutralise pas les transferts en
 immobilisations (limite déjà écrite dans `correspondance-projet-emplois-ressources.ts`),
 une incorporation sur un projet y compterait l'intérêt deux fois.
 
+## Rejeu sur vraie base, à travers une clôture (2026-10-04)
+
+Base jetable `a22_1` (cluster local, port 55439), serveur compilé sur le port
+8104, par l'API, deux dossiers, 2026 clôturé puis 2027.
+
+SYSCOHADA · entrepôt de 10 000 000 inscrit au 2391 ; dotation 2026 au 2931
+refusée (« encore inscrit en cours »), au 2939 passée · 2939 = -1 000 000,
+2391 = 10 000 000. Fonds de commerce · prix 5 000 000 = mobilier 3 000 000 +
+stock 2 000 000, durée du fonds refusée, sans elle aucun 215 (0) ; prix
+6 500 000 · 215 = 1 500 000, 311 = 4 000 000. Clôture 2026 · 2939 à
+l'ouverture 2027 = -1 000 000. Mise en service au 2027-03-01 · 231 =
+10 000 000, 2391 = 0, 2939 = -1 000 000 (non viré), avertissement servi.
+Reprise 2027 au 2931 refusée, au 2939 de 400 000 passée · 2939 = -600 000,
+2931 = 0.
+
+SYCEBNL · emprunt de 20 000 000, intérêts payés 1 200 000 ; bien de
+15 000 000 au 2391 ; incorporation 20 000 000 × 6 % × 10/12 = 1 000 000 ·
+787 = -1 000 000, 2391 = 16 000 000. TFT 2026 · FI = -15 000 000 (le seul
+bien payé), contrôle cohérent, écart 0. Clôture 2026 · TFT 2027, FI N-1 =
+-15 000 000, FI N = 0, cohérent.
+
 ## Vérification
+
+Bloc du § 3 passé le 2026-10-04 · serveur `tsc`, `jest --maxWorkers=2`
+(10 446 tests, un seul échec · `liasse-syscohada.spec.ts`, délai de 5 s
+dépassé sous charge, 33 sur 33 relancé seul et 175 sur 175 pour
+`src/modules/exports`), `npm run build` ; client `tsc`, `npm test` (1 776),
+`npm run build`. Reste · relecture comptable et agents de relecture (§ 11),
+tests navigateur à l'intégration.
 
 ```bash
 npx tsc --noEmit
-npx jest src/modules/immobilisations --maxWorkers=2
-(cd client && npx tsc --noEmit && npx vitest run src/lib/depreciation-en-cours.spec.ts)
+npx jest --maxWorkers=2
+npm run build
+(cd client && npx tsc --noEmit && npm test && npm run build)
 ```
