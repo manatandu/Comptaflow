@@ -54,7 +54,7 @@ function monde(o: { sens?: 'VENTE' | 'ACHAT'; dateReception?: Date | null; exerc
   ];
   const creees: Record<string, unknown>[] = [];
   const facture = {
-    id: 'f1', tenantId: 't', sens: o.sens ?? 'ACHAT', nature: 'FACTURE', numeroSerie: 'FA-12', contrepartieNom: 'Fournisseur SA',
+    id: 'f1', tenantId: 't', sens: o.sens ?? 'ACHAT', nature: 'FACTURE', numeroSerie: 'FA-12', emetteurNom: 'Fournisseur SA', contrepartieNom: 'Le dossier',
     autresImpotsEtTaxes: null, ecritureId: null as string | null, dateFacture: J('2025-12-28'),
     dateReception: o.dateReception === undefined ? J('2026-01-05') : o.dateReception,
     tiers: { comptesRattaches: [{ compteId: 'c401' }] },
@@ -103,6 +103,12 @@ describe('passer l’écriture d’une facture reçue (service)', () => {
     const r = await m.s.comptabiliser('t', 'u', 'f1', { journalId: 'ja', compteGestionId: 'c601' });
     expect(m.creees[0]).toMatchObject({ exerciceId: 'ex26', date: '2026-01-05', reference: 'FA-12', libelle: 'Facture FA-12 du 28/12/2025 · Fournisseur SA' });
     expect(r).toMatchObject({ ecritureId: 'e1', date: '2026-01-05', avertissement: expect.stringMatching(/408/) });
+  });
+
+  it('le libellé d’un achat nomme le FOURNISSEUR (émetteur), jamais le dossier (contrepartie)', async () => {
+    const m = monde({ dateReception: J('2025-12-30') });
+    await m.s.comptabiliser('t', 'u', 'f1', { journalId: 'ja', compteGestionId: 'c601' });
+    expect(m.creees[0].libelle).toBe('Facture FA-12 du 28/12/2025 · Fournisseur SA');
   });
 
   it('une facture reçue sans réception est REFUSÉE, sans écriture, tant qu’elle n’est pas déclarée', async () => {

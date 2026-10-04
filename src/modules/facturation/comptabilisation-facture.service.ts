@@ -105,7 +105,11 @@ export class ComptabilisationFactureService {
         nature: f.nature,
         numeroSerie: f.numeroSerie,
         dateFacture: f.dateFacture,
-        contrepartieNom: f.contrepartieNom,
+        // LE TIERS DE LA PIÈCE · sur un achat, c'est l'ÉMETTEUR (le
+        // fournisseur) ; la contrepartie y est le dossier lui-même, et le
+        // libellé nommait le dossier comme son propre fournisseur (relevé au
+        // rejeu sur vraie base de la ligne A21).
+        contrepartieNom: f.sens === SensFacture.ACHAT ? f.emetteurNom : f.contrepartieNom,
         compteTiersId: f.tiers?.comptesRattaches[0]?.compteId ?? null,
         autresImpotsEtTaxes: f.autresImpotsEtTaxes === null ? null : Number(f.autresImpotsEtTaxes),
         lignes: f.lignes.map((l) => ({

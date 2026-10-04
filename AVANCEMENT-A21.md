@@ -72,9 +72,24 @@ Branche de sauvegarde · `travail/a21` (base `f46165b`).
 - Specs · `facture-date-reception.spec.ts`, `tva-facture-recue-a21.spec.ts`,
   `client/src/lib/reception-facture.spec.ts`.
 
+## Rejeu sur vraie base (2026-10-04, base `a21_1`, serveur compilé, port 8102)
+
+Dossier SYSCOHADA assujetti, exercices 2025 et 2026. FA-12 datée 28/12/2025
+reçue 05/01/2026 (HT 1 000 000, TVA 160 000) ; FA-13 datée 10/12/2025
+enregistrée sans réception (HT 500 000, TVA 80 000), refusée au passage puis
+déclarée reçue le 15/12/2025. Résultats, tous conformes au calcul à la main ·
+écriture FA-12 au 05/01/2026 dans 2026, libellé « Facture FA-12 du 28/12/2025 ·
+Fournisseur Kin SARL », avertissement 408 ; déclaration décembre 2025 = 80 000,
+janvier 2026 = 160 000 ; état détaillé décembre = FA-13, janvier = FA-12 ;
+clôture 2025 faite ; 2026 · 445 report 80 000 + mouvement 160 000 = 240 000,
+401 report 580 000 + mouvement 1 160 000 ; 601 · 500 000 en 2025, 1 000 000 en
+2026 ; janvier 2026 inchangé après clôture ; janvier 2027 · 240 000 hors délai
+(jalon de la facture). Défaut trouvé et corrigé · le libellé d'un achat
+nommait le dossier (contrepartie) au lieu du fournisseur (émetteur), gelé par
+un test. Drift `prisma migrate diff` · aucune différence.
+
 ## Reste
 
-- Rejeu sur vraie base à travers une clôture.
 - Bloc § 3 complet.
 
 ## Vérification
