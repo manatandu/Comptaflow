@@ -1075,6 +1075,8 @@ export interface DepreciationImmobilisation {
   exerciceId: string;
   /** L'indice de perte de valeur retenu · sans indice, aucun test n'est requis. */
   indice: string;
+  /** Le compte 29 mouvementé (ligne A22) · celui qui porte la dépréciation en place se présélectionne. */
+  compteDepreciationId?: string | null;
 }
 
 // --------------------------------------------------------------------------

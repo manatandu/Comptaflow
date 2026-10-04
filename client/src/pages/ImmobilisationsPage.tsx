@@ -54,6 +54,7 @@ import {
   numerosNonProposesPourNature,
 } from '../lib/bareme-fiscal';
 import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
+import { compte29EnPlace } from '../lib/depreciation-en-cours';
 import { compteUnique, motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
 import { usePreselectionUnique } from '../lib/preselection-unique';
 import {
@@ -616,12 +617,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     setInfo(null);
     setEnvoi(true);
     try {
-      await api.patch(`/immobilisations/${immo.id}/mise-en-service`, {
+      const r = await api.patch<{ avertissementDepreciation?: string | null }>(`/immobilisations/${immo.id}/mise-en-service`, {
         date: msDate,
         ...(immo.compteEnCoursId ? { exerciceId: exerciceCourant?.id, journalId: msJournalId } : {}),
       });
       setMiseEnServiceOuvertePour(null);
-      setInfo(`${immo.designation} mis en service au ${msDate.split('-').reverse().join('/')}.`);
+      // Ligne A22 · la dépréciation laissée au 29x9 est dite, jamais virée.
+      setInfo(
+        `${immo.designation} mis en service au ${msDate.split('-').reverse().join('/')}.` +
+          (r?.avertissementDepreciation ? ` ${r.avertissementDepreciation}` : ''),
+      );
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de poser la mise en service');
@@ -1749,7 +1754,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                             setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id);
                             // Un seul 29 pour la division du bien · proposé.
                             const c29 = comptes29DuBien(comptes29 ?? [], immo.compteImmobilisation?.numero);
-                            setDCompte29(compteUnique(c29));
+                            // Ligne A22 · la dépréciation en place garde son compte 29
+                            // (le 29x9 d'un bien achevé compris) · le serveur refuse tout autre.
+                            setDCompte29(compte29EnPlace(immo.depreciations) ?? compteUnique(c29));
                             // La contrepartie unique se présélectionne aussi (§ 9 ter).
                             setDContrepartie(compteUnique(contrepartiesDepreciation(comptesFinancement ?? [], syscohada, dSens)));
                           }}

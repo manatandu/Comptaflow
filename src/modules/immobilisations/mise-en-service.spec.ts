@@ -145,7 +145,8 @@ function harnaisMiseEnService(immo: Faux | null, echecCourse = false) {
   const prisma = {
     immobilisation: {
       findFirst: jest.fn(({ where }: { where: { id: string; tenantId: string } }) =>
-        Promise.resolve(immo && where.id === 'i1' && where.tenantId === 't1' ? immo : null),
+        // La lecture réelle rend toujours les dépréciations demandées (ligne A22).
+        Promise.resolve(immo && where.id === 'i1' && where.tenantId === 't1' ? { depreciations: [], ...immo } : null),
       ),
       update,
       updateMany,

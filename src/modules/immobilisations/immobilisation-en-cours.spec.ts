@@ -192,7 +192,8 @@ function harnaisMiseEnService(
       : Promise.resolve({ id: where.id, ...data }),
   );
   const prisma = {
-    immobilisation: { findFirst: jest.fn().mockResolvedValue(immo), update },
+    // La lecture réelle rend toujours les dépréciations demandées (ligne A22).
+    immobilisation: { findFirst: jest.fn().mockResolvedValue({ depreciations: [], ...immo }), update },
     exercice: {
       findFirst: jest.fn().mockResolvedValue({ id: 'e26', statut: o.statutExercice ?? StatutExercice.OUVERT, dateDebut: D('2026-01-01'), dateFin: D('2026-12-31') }),
     },

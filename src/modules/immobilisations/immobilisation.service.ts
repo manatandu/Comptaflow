@@ -146,6 +146,7 @@ import {
   motifRefusTantQueEnCours,
   motifSansEnCours,
 } from './immobilisation-en-cours';
+import { avertissementDepreciationEnCours, cumulsParCompte29, motifRefusCompte29DuBien } from './depreciation-en-cours';
 import { amortissementsHorsDotations, detacherPartieRemplacee } from './partie-remplacee';
 import {
   annuiteDegressive,
@@ -244,8 +245,10 @@ function versImmobilisation<
     // Une VCN calculée sans elles se lirait comme un désaccord entre la fiche
     // du bien et la balance, sans qu'on sache lequel des deux a tort.
     depreciations: (immo.depreciations ?? []).map((d) => {
-      const dep = d as { id: string; sens: SensDepreciation; montant: unknown; exerciceId: string; indice: string };
-      return { id: dep.id, sens: dep.sens, montant: Number(dep.montant), exerciceId: dep.exerciceId, indice: dep.indice };
+      const dep = d as { id: string; sens: SensDepreciation; montant: unknown; exerciceId: string; indice: string; compteDepreciationId?: string };
+      // Le compte 29 est servi (ligne A22) · l'écran présélectionne celui qui
+      // porte la dépréciation en place, le seul que le serveur admet ensuite.
+      return { id: dep.id, sens: dep.sens, montant: Number(dep.montant), exerciceId: dep.exerciceId, indice: dep.indice, compteDepreciationId: dep.compteDepreciationId ?? null };
     }),
   };
 }
@@ -786,6 +789,8 @@ export class ImmobilisationService {
         valeurOrigine: true,
         compteImmobilisationId: true,
         compteEnCoursId: true,
+        // Ligne A22 · la dépréciation constatée pendant les travaux, pour la dire.
+        depreciations: { select: { sens: true, montant: true, compteDepreciationId: true, compteDepreciation: { select: { numero: true } } } },
       },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable');
@@ -857,12 +862,25 @@ export class ImmobilisationService {
       });
       ecritureId = ecriture.id;
     }
+    // LIGNE A22 · la dépréciation passée au 29x9 pendant les travaux RESTE où
+    // elle est · aucun texte ne la vire (fiches du compte 29, dotation et
+    // reprise seulement), et refuser la mise en service enfermerait le bien
+    // (une dépréciation par exercice, reprise et dotation à la clôture
+    // seulement). La réponse le DIT, montant et compte nommés
+    // (`depreciation-en-cours.ts`).
+    const avertissement = avertissementDepreciationEnCours(
+      cumulsParCompte29(
+        immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant), compteDepreciationId: d.compteDepreciationId })),
+      ),
+      new Map(immo.depreciations.map((d) => [d.compteDepreciationId, d.compteDepreciation.numero])),
+    );
     try {
-      return await this.prisma.immobilisation.update({
+      const misEnService = await this.prisma.immobilisation.update({
         where: { id, tenantId, dateMiseEnService: null },
         data: { dateMiseEnService: date, ...(ecritureId ? { ecritureMiseEnServiceId: ecritureId } : {}) },
         select: { id: true, dateMiseEnService: true, ecritureMiseEnServiceId: true },
       });
+      return { ...misEnService, avertissementDepreciation: avertissement };
     } catch (err) {
       // L'écriture de CETTE requête ne reste pas au journal sans le bien qui la porte.
       if (ecritureId) await this.annulerEcritureOrpheline(ecritureId);
@@ -1016,7 +1034,12 @@ export class ImmobilisationService {
         // amortissable ET la valeur comptable nette de sortie. Les charger à
         // la demande aurait laissé un chemin où le module continue de
         // raisonner au coût historique sans que rien ne le signale.
-        depreciations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } },
+        // Le numéro du 29 de chaque mouvement (ligne A22) · un bien, un compte
+        // 29, et le 29x9 d'un bien en cours se reconnaît à son numéro.
+        depreciations: {
+          orderBy: { exercice: { dateDebut: 'asc' } },
+          include: { exercice: true, compteDepreciation: { select: { numero: true } } },
+        },
       },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable pour ce tenant');
@@ -3398,6 +3421,25 @@ export class ImmobilisationService {
       motifRefusContrepartieDepreciation(referentiel, dto.sens, contrepartie.numero) ??
       motifRefusDepreciationDivision20(referentiel, immo.compteImmobilisation.numero, dto.sens, compte29.numero, contrepartie.numero);
     if (refusCompte) throw new BadRequestException(refusCompte);
+    // Ligne A22 · un bien, un compte 29 tant qu'une dépréciation est en place,
+    // et au SYSCOHADA la première dotation d'un bien EN COURS au 29x9 de sa
+    // division, celle d'un bien achevé jamais au 29x9
+    // (`depreciation-en-cours.ts`). Le bien est lu à la date de l'écriture,
+    // la clôture de l'exercice, par le seul lecteur du compte inscrit.
+    const cumuls29 = cumulsParCompte29(
+      immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant), compteDepreciationId: d.compteDepreciationId })),
+    );
+    const numeros29 = new Map<string, string>(
+      immo.depreciations.flatMap((d) => (d.compteDepreciation ? [[d.compteDepreciationId, d.compteDepreciation.numero] as [string, string]] : [])),
+    );
+    const refusCompteDuBien = motifRefusCompte29DuBien({
+      syscohada: referentiel === Referentiel.SYSCOHADA,
+      compteChoisi: { id: compte29.id, numero: compte29.numero },
+      cumuls: cumuls29,
+      numeros: numeros29,
+      inscritEnCours: !!immo.compteEnCoursId && compteInscritALaDate(immo, exercice.dateFin) === immo.compteEnCoursId,
+    });
+    if (refusCompteDuBien) throw new BadRequestException(refusCompteDuBien);
 
     const cumul = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
