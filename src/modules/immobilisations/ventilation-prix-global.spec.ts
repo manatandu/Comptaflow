@@ -242,6 +242,37 @@ describe('le service · prix global, une pièce par bien', () => {
     expect(creer.mock.calls[1][2]).toMatchObject({ compteImmobilisationId: 'c215', valeurOrigine: 700 });
     expect(creer.mock.calls[1][2].dureeAmortissementAns).toBeUndefined();
   });
+
+  // Ligne A22 · le fonds commercial n'est que « l'élément RÉSIDUEL » (ch. 2
+  // § 7.2.1) · sans reliquat, aucune fiche au 21500000, et une durée déclarée
+  // pour lui n'aurait rien à porter.
+  const fondsSansReliquat = {
+    ...ensemble,
+    prix: 500,
+    nature: 'FONDS_DE_COMMERCE' as const,
+    fondement: undefined,
+    compteContrepartieId: 'banque',
+    biens: [{ compteImmobilisationId: 'c241', designation: 'Matériel', montant: 350, dureeAmortissementAns: 5 }],
+    stocks: [{ compteId: 'stock', montant: 150 }],
+  };
+
+  it('prix entièrement ventilé · aucun fonds commercial ne naît', async () => {
+    const { svc, creer } = monter();
+    await svc.acquerirAPrixGlobal('t', 'u', fondsSansReliquat);
+    expect(creer.mock.calls.map((c) => c[2].compteImmobilisationId)).toEqual(['c241']);
+  });
+
+  it('prix entièrement ventilé · une durée du fonds commercial est refusée, rien n’est créé', async () => {
+    const { svc, creer } = monter();
+    await expect(svc.acquerirAPrixGlobal('t', 'u', { ...fondsSansReliquat, dureeFondsCommercialAns: 10 })).rejects.toThrow(/aucun fonds commercial ne s'inscrit/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('biens acquis ensemble · une durée du fonds commercial est refusée', async () => {
+    const { svc, creer } = monter();
+    await expect(svc.acquerirAPrixGlobal('t', 'u', { ...ensemble, dureeFondsCommercialAns: 10 })).rejects.toThrow(/qu'avec un fonds de commerce/);
+    expect(creer).not.toHaveBeenCalled();
+  });
 });
 
 describe('le service · remplacement imprévu (D-19)', () => {

@@ -220,6 +220,7 @@ function fabriquerExport(
     }),
     // Aucune mise en service liée à une fiche (D6) · les mouvements restent tels quels.
     virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
+    mouvementsDeCoutsEmpruntIncorpores: jest.fn().mockResolvedValue(new Map()),
     mouvementsDeReevaluation: jest.fn().mockResolvedValue(new Map()),
   } as unknown as EcritureService;
   const exerciceService = {

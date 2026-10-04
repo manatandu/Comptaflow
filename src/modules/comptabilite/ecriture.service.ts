@@ -3384,6 +3384,18 @@ export class EcritureService {
     return this.mouvementsLiesParCompte(tenantId, exerciceId, { reevaluationBilan: { isNot: null } }, arreteAu);
   }
 
+  /**
+   * LES MOUVEMENTS DES COÛTS D'EMPRUNT INCORPORÉS D'UN EXERCICE, par compte
+   * (lot 13, `immobilisations/couts-emprunt-incorpores.ts`), reconnus par la
+   * LIAISON (`CoutEmpruntIncorpore.ecritureId`). Lus par le tableau des flux
+   * des associations (poste FI) · au SYCEBNL le transfert passe au 787, que le
+   * tableau lit sans trésorerie, et le débit du bien s'y lisait en
+   * acquisition décaissée (ligne A22).
+   */
+  async mouvementsDeCoutsEmpruntIncorpores(tenantId: string, exerciceId: string | null): Promise<VirementsParCompte> {
+    return this.mouvementsLiesParCompte(tenantId, exerciceId, { coutEmpruntIncorpore: { isNot: null } });
+  }
+
   /** Une seule lecture des écritures LIÉES à un module, par compte · une somme demandée à la base. */
   private async mouvementsLiesParCompte(
     tenantId: string,

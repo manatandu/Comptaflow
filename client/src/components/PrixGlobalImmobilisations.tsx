@@ -7,12 +7,14 @@ import { Aide } from './chrome/Aide';
 import { ChampReglePar } from './ChampReglePar';
 import type { CibleReglePar } from '../lib/regle-par';
 import { compteUnique, motifAucunCompteRetenu } from '../lib/comptes-proposes';
+import { reliquatFondsCommercial } from '../lib/prix-global';
 
 /**
  * LA VENTILATION D'UN PRIX GLOBAL (lot 8) · terrain et bâtiment, ou fonds
  * de commerce (SYSCOHADA). Le serveur ventile, contrôle et crée une fiche et
  * une pièce par bien (`ImmobilisationService.acquerirAPrixGlobal`) · l'écran
- * ne calcule rien.
+ * ne calcule que le reliquat du fonds de commerce, pour savoir s'il vise le
+ * fonds commercial (ligne A22), et le serveur le rejoue.
  */
 type Fondement = 'ACTE' | 'VALEURS_ATTRIBUABLES' | 'COMPARAISON_TERRAINS_NUS' | 'COUT_RECONSTRUCTION' | 'PRIX_DE_MARCHE' | 'FORFAIT';
 const FONDEMENTS: { cle: Fondement; libelle: string }[] = [
@@ -75,10 +77,12 @@ export function PrixGlobalImmobilisations({
     donc l'intersection des listes fermées des biens (`lib/regle-par.ts`).
     Le fonds commercial (21500000, le seul compte que le serveur ouvre pour
     le reliquat, `immobilisation.service.ts`) n'est créé que si un reliquat
-    reste · l'écran ne calcule pas la ventilation et le compte toujours, ce
-    qui peut écarter un compte qu'un reliquat nul aurait admis, jamais
-    proposer un compte refusé. Absent du plan, il n'est pas visé · le serveur
-    le refuse alors avec son propre motif.
+    reste · il n'entre dans l'intersection que si le reliquat lu à l'écran
+    (`lib/prix-global.ts`, même calcul au centime) est positif, ou pas
+    encore lisible (ligne A22 · il y entrait toujours, et un prix entièrement
+    ventilé écartait des contreparties que le serveur admettait). Absent du
+    plan, il n'est pas visé · le serveur le refuse alors avec son propre
+    motif.
   */
   /*
     LE FONDS COMMERCIAL N'EST PAS UN CHOIX · le serveur l'ouvre d'office au
@@ -100,7 +104,18 @@ export function PrixGlobalImmobilisations({
       vivant = false;
     };
   }, [nature, planDesBiens]);
-  const fondsCommercial = nature === 'FONDS_DE_COMMERCE' ? planDesBiens?.find((c) => c.numero === '21500000') : undefined;
+  const reliquat =
+    nature === 'FONDS_DE_COMMERCE'
+      ? reliquatFondsCommercial(
+          prix,
+          biens.map((b) => b.montant),
+          stocks.map((s) => s.montant),
+        )
+      : null;
+  // Pas encore lisible · le fonds reste visé, pour ne jamais proposer un
+  // compte que le serveur refuserait au fonds commercial.
+  const avecFondsCommercial = nature === 'FONDS_DE_COMMERCE' && (reliquat === null || reliquat > 0);
+  const fondsCommercial = avecFondsCommercial ? planDesBiens?.find((c) => c.numero === '21500000') : undefined;
   const ciblesReglement: CibleReglePar[] = [
     ...biens.map((b) => ({ compteImmobilisationId: b.compteImmobilisationId || null })),
     ...(fondsCommercial ? [{ compteImmobilisationId: fondsCommercial.id }] : []),
@@ -152,7 +167,9 @@ export function PrixGlobalImmobilisations({
         ...(nature === 'FONDS_DE_COMMERCE'
           ? {
               stocks: stocks.map((s) => ({ compteId: s.compteId, montant: Number(s.montant) })),
-              ...(dureeFonds ? { dureeFondsCommercialAns: Number(dureeFonds) } : {}),
+              // Une durée ne part qu'avec un fonds commercial qui naît · le
+              // serveur refuse celle d'un fonds sans reliquat.
+              ...(dureeFonds && avecFondsCommercial ? { dureeFondsCommercialAns: Number(dureeFonds) } : {}),
             }
           : {}),
       });
@@ -306,10 +323,24 @@ export function PrixGlobalImmobilisations({
                   </button>
                 </div>
               ))}
-              <label className="flex flex-col w-fit">
-                Durée du fonds commercial (ans)
-                <input type="number" min="1" max="100" value={dureeFonds} onChange={(e) => setDureeFonds(e.target.value)} className={`${champ} w-20`} />
-              </label>
+              {reliquat !== null && (
+                <div className={reliquat < 0 ? 'text-danger' : ''}>
+                  {reliquat > 0
+                    ? `Reliquat au fonds commercial (21500000) · ${montant(reliquat)}`
+                    : reliquat === 0
+                      ? 'Aucun reliquat · aucun fonds commercial ne sera inscrit.'
+                      : `Les éléments et les stocks dépassent le prix de ${montant(-reliquat)}.`}
+                </div>
+              )}
+              {planDesBiens && avecFondsCommercial && !fondsCommercial && (
+                <div className="text-warning">Le compte 21500000 Fonds commercial est absent du plan du dossier.</div>
+              )}
+              {avecFondsCommercial && (
+                <label className="flex flex-col w-fit">
+                  Durée du fonds commercial (ans)
+                  <input type="number" min="1" max="100" value={dureeFonds} onChange={(e) => setDureeFonds(e.target.value)} className={`${champ} w-20`} />
+                </label>
+              )}
             </>
           )}
           <div className="flex gap-2">

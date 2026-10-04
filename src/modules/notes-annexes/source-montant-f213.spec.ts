@@ -55,6 +55,7 @@ describe('rubriques de notes · le solde, et lui seul (audit final F213)', () =>
     const ecriture = {
       balance: jest.fn(() => Promise.resolve({ lignes, totaux: { debit: 900_000, credit: 415_000 } })),
       virementsDeMiseEnService: jest.fn().mockResolvedValue(new Map()),
+      mouvementsDeCoutsEmpruntIncorpores: jest.fn().mockResolvedValue(new Map()),
       mouvementsDeReevaluation: jest.fn().mockResolvedValue(new Map()),
     } as unknown as EcritureService;
     const exercice = {
