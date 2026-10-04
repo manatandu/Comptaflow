@@ -59,6 +59,16 @@ import { DECOMPTE_A_LA_RUPTURE, SANCTION_ARTICLE_103 } from './livre-de-paie';
 // (art. 7, point 9). Son `estJourOuvrable`, lui, écarte le samedi du guichet
 // fiscal et NE S'APPLIQUE PAS à un préavis (voir l'en-tête).
 import { jourFerie } from '../retenues/jour-ouvrable';
+import {
+  FONDEMENT_INDEMNITE_STIPULEE,
+  RESERVE_PRORATA_GRATIFICATION,
+  motifRefusGratificationStipulee,
+  motifRefusIndemniteStipulee,
+  propositionGratification,
+  type GratificationStipulee,
+  type IndemniteStipulee,
+  type PropositionGratification,
+} from './decompte-retenues-stipulations';
 
 /** Article 64 · « ne peut être inférieure à quatorze jours ouvrables ». */
 export const PREAVIS_PLANCHER_JOURS = 14;
@@ -535,7 +545,20 @@ export type VerdictDecompteFinal = {
   readonly duParLeTravailleur: readonly RubriqueDecompte[];
   readonly echeancePaiement: string;
   readonly reserves: readonly string[];
+  /**
+   * A18 · le prorata d'une gratification STIPULÉE, proposé au cabinet, qui le
+   * confirme en saisissant le montant retenu. `null` sans stipulation, ou
+   * quand elle est refusée · jamais un zéro inventé.
+   */
+  readonly propositionGratification: PropositionGratification | null;
 };
+
+/**
+ * A18 · la réserve de la rubrique gratification commence par ce préfixe dès
+ * qu'une stipulation est déclarée · l'émission rend alors cette réserve (le
+ * montant proposé, ou le motif du refus) au lieu du motif générique.
+ */
+export const PREFIXE_GRATIFICATION_STIPULEE = 'GRATIFICATION STIPULÉE';
 
 export type ParametresDecompte = {
   anneesAnciennete: number;
@@ -585,8 +608,12 @@ export type ParametresDecompte = {
   montantConvenuCommunAccordFc?: number | null;
   /** Arriérés de salaire et jours prestés non payés · saisis. */
   arrieresFc?: number | null;
-  /** Gratification due, si l'entité en paie · saisie. */
+  /** Gratification due, si l'entité en paie · saisie (A18 · le montant que le cabinet CONFIRME). */
   gratificationFc?: number | null;
+  /** A18 · la gratification que le contrat ou la convention stipule · déclarée, jamais présumée. */
+  gratificationStipulee?: GratificationStipulee | null;
+  /** A18 · l'indemnité de fin de contrat que le contrat ou la convention stipule · recopiée, jamais calculée. */
+  indemniteStipulee?: IndemniteStipulee | null;
   /** Articles 66, al. 2 et 142, al. 3 · nombre d'enfants bénéficiaires. */
   enfantsBeneficiairesAllocations?: number | null;
   /** Jours pour lesquels les allocations sont dues · saisis, jamais déduits. */
@@ -1085,17 +1112,58 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
   }
 
   // 5 · Gratification.
+  // A18 · SANS STIPULATION, rien n'est proposé (aucun article n'impose de
+  // gratification, art. 7, point 8) · le montant reste celui que le cabinet
+  // saisit, et `null` tant qu'il ne l'a pas fait. STIPULÉE, son prorata est
+  // PROPOSÉ (`decompte-retenues-stipulations.ts`) et le cabinet le confirme ·
+  // OmegaX ne pose jamais lui-même un montant qu'aucun texte ne fixe.
+  const gratificationSaisie = saisi(params.gratificationFc);
+  const stipulee = params.gratificationStipulee ?? null;
+  const refusStipulation = stipulee ? motifRefusGratificationStipulee(stipulee) : null;
+  const proposition = stipulee && refusStipulation === null ? propositionGratification(stipulee) : null;
+  let reserveGratification: string | null;
+  if (stipulee && refusStipulation !== null) {
+    reserveGratification = `${PREFIXE_GRATIFICATION_STIPULEE} · ${refusStipulation}`;
+  } else if (proposition && gratificationSaisie === null) {
+    reserveGratification =
+      `${PREFIXE_GRATIFICATION_STIPULEE} · proposée ${proposition.montantFc.toFixed(2)} FC (${proposition.base}) · ` +
+      'confirmez-la, ou saisissez le montant que la stipulation donne. ' + RESERVE_PRORATA_GRATIFICATION;
+  } else if (proposition && gratificationSaisie !== null) {
+    reserveGratification =
+      Math.round(gratificationSaisie * 100) === Math.round(proposition.montantFc * 100)
+        ? `${PREFIXE_GRATIFICATION_STIPULEE} · confirmée sur la proposition (${proposition.base}) ${RESERVE_PRORATA_GRATIFICATION}`
+        : `${PREFIXE_GRATIFICATION_STIPULEE} · le montant retenu (${gratificationSaisie.toFixed(2)} FC) diffère de la proposition ` +
+          `(${proposition.montantFc.toFixed(2)} FC, ${proposition.base}) · c'est la stipulation qui fixe la gratification, et le cabinet l'a lue.`;
+  } else {
+    reserveGratification =
+      gratificationSaisie === null
+        ? "La gratification n'est pas légale · son absence n'est pas un manque, et OmegaX ne la présume ni due ni nulle."
+        : null;
+  }
   rubriques.push({
     cle: 'gratification',
     libelle: 'Gratification',
-    montantFc: saisi(params.gratificationFc),
+    // Une stipulation refusée ne laisse pas passer un montant saisi à côté ·
+    // la source manquante est précisément ce que le cabinet doit écrire.
+    montantFc: refusStipulation !== null ? null : gratificationSaisie,
     fondement:
       "Article 7, point 8 · les sommes versées à titre de gratification sont des éléments de la rémunération. AUCUN article n'en impose le versement.",
-    reserve:
-      saisi(params.gratificationFc) === null
-        ? "La gratification n'est pas légale · son absence n'est pas un manque, et OmegaX ne la présume ni due ni nulle."
-        : null,
+    reserve: reserveGratification,
   });
+
+  // 5 bis · A18 · l'indemnité de fin de contrat STIPULÉE, recopiée avec sa
+  // source, jamais calculée. Absente, aucune rubrique · ce n'est pas un manque.
+  const indemnite = params.indemniteStipulee ?? null;
+  if (indemnite) {
+    const refusIndemnite = motifRefusIndemniteStipulee(indemnite);
+    rubriques.push({
+      cle: 'indemnite-stipulee',
+      libelle: 'Indemnité de fin de contrat stipulée',
+      montantFc: refusIndemnite === null ? indemnite.montantFc : null,
+      fondement: `${FONDEMENT_INDEMNITE_STIPULEE} Source déclarée · ${indemnite.source?.trim() || 'aucune'}.`,
+      reserve: refusIndemnite,
+    });
+  }
 
   // 6 · Allocations familiales, hors du brut (audit D2-B6).
   const enfants = saisi(params.enfantsBeneficiairesAllocations);
@@ -1155,5 +1223,6 @@ export function decompteFinal(params: ParametresDecompte): VerdictDecompteFinal 
       ...preavis.reserves,
       ...conge.reserves,
     ],
+    propositionGratification: proposition,
   };
 }

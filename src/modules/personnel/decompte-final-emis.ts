@@ -46,7 +46,7 @@
 
 import type { NatureElementPaie } from './assiettes-paie';
 import { estVerseEnEspeces } from './passation-paie';
-import type { RubriqueDecompte, VerdictDecompteFinal } from './decompte-final';
+import { PREFIXE_GRATIFICATION_STIPULEE, type RubriqueDecompte, type VerdictDecompteFinal } from './decompte-final';
 
 /**
  * LA NATURE DE CHAQUE RUBRIQUE DU DÉCOMPTE, et la seule table qui la donne.
@@ -73,6 +73,11 @@ export const NATURE_DES_RUBRIQUES: Readonly<Record<string, NatureElementPaie>> =
   conge: 'ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE',
   // Art. 7, point 8 · « les sommes versées à titre de gratification ».
   gratification: 'GRATIFICATION_OU_MOIS_COMPLEMENTAIRE',
+  // A18 · l'indemnité de fin de contrat STIPULÉE (contrat, convention
+  // collective), recopiée et jamais calculée · une somme payée « par suite de
+  // cessation de travail » (loi n° 23/053, art. 68, 6°), au 6614 avec les
+  // indemnités de préavis et de licenciement (fiche du compte 66).
+  'indemnite-stipulee': 'INDEMNITE_DE_FIN_DE_CONTRAT',
   // Art. 66, al. 2 et 142, al. 3 · hors du brut, une exclusion de l'art. 7.
   'allocations-familiales': 'ALLOCATIONS_FAMILIALES_LEGALES',
 };
@@ -203,7 +208,15 @@ export function elementsDuDecompte(
   const ventilees = new Set<string>();
   for (const r of toutes) {
     if (r.montantFc === null) {
-      refus.push(r.cle === 'gratification' ? MOTIF_GRATIFICATION : `${r.libelle} non chiffrée · ${r.reserve ?? r.fondement}`);
+      // A18 · une gratification STIPULÉE dit ce qui manque (la proposition à
+      // confirmer, ou la source), jamais le seul « déclarez-la ».
+      refus.push(
+        r.cle === 'gratification'
+          ? r.reserve?.startsWith(PREFIXE_GRATIFICATION_STIPULEE)
+            ? r.reserve
+            : MOTIF_GRATIFICATION
+          : `${r.libelle} non chiffrée · ${r.reserve ?? r.fondement}`,
+      );
       continue;
     }
     if (r.cle === CLE_ARRIERES) continue;

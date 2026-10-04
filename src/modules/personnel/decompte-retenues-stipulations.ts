@@ -279,8 +279,6 @@ export type IndemniteStipulee = {
   readonly source: string;
 };
 
-export const CLE_INDEMNITE_STIPULEE = 'indemnite-stipulee';
-
 export function motifRefusIndemniteStipulee(i: IndemniteStipulee): string | null {
   if (!(i.montantFc > 0)) return "Le montant de l'indemnité de fin de contrat stipulée doit être positif · sans stipulation, ne la déclarez pas.";
   if (!i.source?.trim()) {
