@@ -62,7 +62,7 @@ function monde(
 describe('passer l’écriture d’une facture · service', () => {
   it('crée l’écriture au journal choisi, à la date de la facture, puis lie la facture', async () => {
     const m = monde();
-    await expect(m.s.comptabiliser('t', 'u', 'f1', { journalId: 'jv', compteGestionId: 'c706' })).resolves.toEqual({ ecritureId: 'e1', lignes: 3 });
+    await expect(m.s.comptabiliser('t', 'u', 'f1', { journalId: 'jv', compteGestionId: 'c706' })).resolves.toEqual({ ecritureId: 'e1', lignes: 3, date: '2026-10-15' });
     expect(m.creees[0]).toMatchObject({ exerciceId: 'ex', journalId: 'jv', date: '2026-10-15', reference: 'F-7' });
     expect(m.prisma.facture.updateMany).toHaveBeenCalledWith({ where: { id: 'f1', tenantId: 't', ecritureId: null }, data: { ecritureId: 'e1' } });
   });

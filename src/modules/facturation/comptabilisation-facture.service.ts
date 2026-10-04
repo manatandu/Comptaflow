@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { SensFacture, TypeJournal } from '@prisma/client';
+import { Prisma, SensFacture, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ecritureDeFacture } from './ecriture-facture';
+import { avertissementExerciceDeLaFacture, dateDeValeurComptable, motifRefusDateReception } from './date-reception';
+import { jourDeKinshasa } from '../../common/echeance';
 import { compteTvaCollectee, compteTvaPourContrepartie, compteTvaRecuperable, estTauxZero } from '../tva/routage-tva';
 
 export interface DemandeComptabilisation {
@@ -10,6 +12,12 @@ export interface DemandeComptabilisation {
   compteGestionId: string | null;
   /** Compte de gestion par ligne de la facture (identifiant de ligne → compte), s'il diffère. */
   comptesParLigne?: Record<string, string>;
+  /**
+   * Date de réception d'une facture d'achat enregistrée SANS elle (pièce
+   * antérieure à la ligne A21) · déclarée ici, une fois, et gardée sur la
+   * facture avec le lien de l'écriture. Jamais déduite (AUDCIF art. 16, al. 2).
+   */
+  dateReception?: string | null;
 }
 
 /**
@@ -96,6 +104,7 @@ export class ComptabilisationFactureService {
         sens: f.sens,
         nature: f.nature,
         numeroSerie: f.numeroSerie,
+        dateFacture: f.dateFacture,
         contrepartieNom: f.contrepartieNom,
         compteTiersId: f.tiers?.comptesRattaches[0]?.compteId ?? null,
         autresImpotsEtTaxes: f.autresImpotsEtTaxes === null ? null : Number(f.autresImpotsEtTaxes),
@@ -113,12 +122,45 @@ export class ComptabilisationFactureService {
     );
     if ('refus' in p) throw new BadRequestException(p.refus);
 
-    const date = f.dateFacture.toISOString().slice(0, 10);
+    // LA DATE DE VALEUR COMPTABLE (AUDCIF art. 16, al. 2, ligne A21) · celle
+    // de l'émission pour une vente, celle de la RÉCEPTION pour une facture
+    // reçue. Une réception déjà portée par la facture ne se réécrit pas ici ·
+    // la déclarer autrement à chaque passage ferait de la date de l'écriture
+    // un choix du moment.
+    const declaree = d.dateReception ? new Date(d.dateReception) : null;
+    if (declaree && Number.isNaN(declaree.getTime())) throw new BadRequestException('Date de réception illisible.');
+    if (declaree && f.dateReception && declaree.toISOString().slice(0, 10) !== f.dateReception.toISOString().slice(0, 10)) {
+      throw new BadRequestException(
+        `La facture porte déjà sa date de réception (${f.dateReception.toISOString().slice(0, 10)}) · elle ne se change pas au passage de l’écriture.`,
+      );
+    }
+    const nouvelleReception = declaree && !f.dateReception ? declaree : null;
+    const piece = { sens: f.sens, dateFacture: f.dateFacture, dateReception: f.dateReception ?? nouvelleReception };
+    const motif = motifRefusDateReception(piece, jourDeKinshasa(new Date()));
+    if (motif) throw new BadRequestException(motif);
+    const valeur = dateDeValeurComptable(piece);
+    if ('refus' in valeur) throw new BadRequestException(valeur.refus);
+
+    const date = valeur.date.toISOString().slice(0, 10);
     const exercice = await this.prisma.exercice.findFirst({
-      where: { tenantId, dateDebut: { lte: f.dateFacture }, dateFin: { gte: f.dateFacture } },
+      where: { tenantId, dateDebut: { lte: valeur.date }, dateFin: { gte: valeur.date } },
       select: { id: true },
     });
-    if (!exercice) throw new BadRequestException(`Aucun exercice ne couvre le ${date}, date de la facture.`);
+    if (!exercice) {
+      throw new BadRequestException(
+        `Aucun exercice ne couvre le ${date}, ${f.sens === SensFacture.VENTE ? 'date de la facture' : 'date de réception de la facture'}.`,
+      );
+    }
+    // La facture d'un exercice reçue dans le suivant · dit, jamais corrigé
+    // (fiche du compte 60, factures non parvenues).
+    const exerciceDeLaFacture =
+      valeur.date.getTime() === f.dateFacture.getTime()
+        ? null
+        : await this.prisma.exercice.findFirst({
+            where: { tenantId, dateDebut: { lte: f.dateFacture }, dateFin: { gte: f.dateFacture } },
+            select: { dateDebut: true, dateFin: true },
+          });
+    const avertissement = avertissementExerciceDeLaFacture(f.dateFacture, valeur.date, exerciceDeLaFacture);
 
     const e = (await this.ecritures.creer(tenantId, userId, {
       exerciceId: exercice.id,
@@ -131,13 +173,18 @@ export class ComptabilisationFactureService {
 
     // Le lien se pose SUR une facture encore libre · un second clic entre la
     // lecture et ici retire l'écriture qu'il vient de créer.
-    const { count } = await this.prisma.facture.updateMany({ where: { id: f.id, tenantId, ecritureId: null }, data: { ecritureId: e.id } });
+    // La réception déclarée ici se pose avec le lien, sur une facture qui ne
+    // l'a toujours pas · une déclaration concurrente ne s'écrase pas.
+    const lien: Prisma.FactureUpdateManyArgs = nouvelleReception
+        ? { where: { id: f.id, tenantId, ecritureId: null, dateReception: null }, data: { ecritureId: e.id, dateReception: nouvelleReception } }
+        : { where: { id: f.id, tenantId, ecritureId: null }, data: { ecritureId: e.id } };
+    const { count } = await this.prisma.facture.updateMany(lien);
     if (count === 0) {
       // Lignes puis tête (F1) · la tête seule levait P2003, un 500 brut, et
       // laissait l'écriture du second clic orpheline au journal.
       await this.ecritures.retirerCompensation(tenantId, e.id);
       throw new BadRequestException('Cette facture vient d’être liée à une autre écriture · rien n’a été passé.');
     }
-    return { ecritureId: e.id, lignes: p.lignes.length };
+    return { ecritureId: e.id, lignes: p.lignes.length, date, ...(avertissement ? { avertissement } : {}) };
   }
 }

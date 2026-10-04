@@ -44,6 +44,8 @@ type Facture = {
   barree: boolean;
   numeroSerie: string;
   dateFacture: string;
+  /** Réception d'une pièce reçue (ligne A21) · null sur une vente ou non renseignée. */
+  dateReception: string | null;
   tiers: { id: string; code: string; nom: string } | null;
   emetteurNom: string;
   emetteurAdresse: string | null;
@@ -177,6 +179,9 @@ export function FacturationPage() {
   const [sens, setSens] = useState<'VENTE' | 'ACHAT'>('VENTE');
   const [numeroSerie, setNumeroSerie] = useState('');
   const [dateFacture, setDateFacture] = useState('');
+  // Ligne A21 · une facture reçue se date à sa réception (AUDCIF art. 16,
+  // al. 2). Facultative ici, demandée au passage de l'écriture si elle manque.
+  const [dateReception, setDateReception] = useState('');
   const [contrepartieNom, setContrepartieNom] = useState('');
   const [contrepartieAdresse, setContrepartieAdresse] = useState('');
   const [contrepartieNumeroImpot, setContrepartieNumeroImpot] = useState('');
@@ -298,6 +303,7 @@ export function FacturationPage() {
         sens,
         numeroSerie,
         dateFacture,
+        dateReception: sens === 'ACHAT' && dateReception ? dateReception : undefined,
         tiersId: tiersId || undefined,
         // Décret n° 011/42, art. 60 · DUE par celui qui délivre, sur une vente ;
         // LUE sur la pièce du fournisseur, sur un achat, où la déclaration de
@@ -325,6 +331,7 @@ export function FacturationPage() {
         ],
       });
       setNumeroSerie('');
+      setDateReception('');
       setDesignation('');
       setMentionDebits(null);
       // Une pièce datée hors de la période affichée ne s'y verra pas · le dire.
@@ -480,6 +487,12 @@ export function FacturationPage() {
             Date
             <input type="date" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={dateFacture} onChange={(e) => setDateFacture(e.target.value)} />
           </label>
+          {sens === 'ACHAT' && (
+            <label className="text-[11.5px]" title="AUDCIF art. 16, al. 2 · l’écriture d’une facture reçue se date à sa réception">
+              Reçue le
+              <input type="date" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={dateReception} onChange={(e) => setDateReception(e.target.value)} />
+            </label>
+          )}
           <label className="text-[11.5px]">
             {sens === 'VENTE' ? 'Client' : 'Fournisseur'}
             <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieNom} onChange={(e) => setContrepartieNom(e.target.value)} />
@@ -796,7 +809,15 @@ export function FacturationPage() {
                           )}
                         </div>
                       )}
-                      {peutEcrire && !f.ecritureId && <PasserEcritureFacture facture={f} onFait={() => void recharger()} />}
+                      {peutEcrire && !f.ecritureId && (
+                        <PasserEcritureFacture
+                          facture={f}
+                          onFait={(avis) => {
+                            setAvisListe(avis ?? null);
+                            void recharger();
+                          }}
+                        />
+                      )}
                       {f.ecritureId && <p className="text-[11px] text-text-dim mt-1">Écriture passée</p>}
                       {/* Ni une pièce passée au journal, ni une facture barrée, ni une note de
                           crédit, qui débarrerait la facture qu'elle annule (audit final F119). */}
@@ -840,7 +861,10 @@ export function FacturationPage() {
                         )
                       )}
                     </td>
-                    <td className="py-1 pr-2">{f.dateFacture.slice(0, 10)}</td>
+                    <td className="py-1 pr-2">
+                      {f.dateFacture.slice(0, 10)}
+                      {f.dateReception && <p className="text-[11px] text-text-dim">Reçue le {f.dateReception.slice(0, 10)}</p>}
+                    </td>
                     <td className="py-1 pr-2">{f.sens === 'VENTE' ? f.contrepartieNom : f.emetteurNom}</td>
                     <td className="py-1 pr-2 text-right">{montant(f.totaux.montantHT)}</td>
                     <td className="py-1 pr-2 text-right">{montant(f.totaux.montantTva)}</td>

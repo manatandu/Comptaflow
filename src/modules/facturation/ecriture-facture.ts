@@ -19,6 +19,8 @@
  * compte PRINCIPAL. Il manque l'un des trois, et rien n'est proposé.
  */
 
+import { libelleDeFacture } from './date-reception';
+
 export interface LigneFacturePourEcriture {
   designation: string;
   montantHT: number;
@@ -43,6 +45,11 @@ export interface FacturePourEcriture {
   sens: 'VENTE' | 'ACHAT';
   nature: 'FACTURE' | 'NOTE_DE_CREDIT';
   numeroSerie: string;
+  /**
+   * Date de la PIÈCE · portée au libellé, l'écriture d'un achat étant datée à
+   * la réception (AUDCIF art. 16, al. 2, ligne A21), et non plus à elle.
+   */
+  dateFacture: Date;
   contrepartieNom: string;
   compteTiersId: string | null;
   autresImpotsEtTaxes: number | null;
@@ -71,7 +78,7 @@ export function ecritureDeFacture(
   }
   if (!f.lignes.length) return { refus: 'La facture n’a aucune ligne.' };
 
-  const libelle = `${f.nature === 'NOTE_DE_CREDIT' ? 'Note de crédit' : 'Facture'} ${f.numeroSerie} · ${f.contrepartieNom}`.slice(0, 250);
+  const libelle = libelleDeFacture(f.nature, f.numeroSerie, f.dateFacture, f.contrepartieNom);
   // Le sens « naturel » de chaque bloc pour une FACTURE de vente ; tout le
   // reste s'en déduit par deux inversions (achat, note de crédit).
   const inverse = (f.sens === 'ACHAT') !== (f.nature === 'NOTE_DE_CREDIT');

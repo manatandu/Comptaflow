@@ -63,6 +63,15 @@ export class EnregistrerFactureDto {
   @IsDateString()
   dateFacture!: string;
 
+  /**
+   * Date de réception d'une facture d'ACHAT (AUDCIF art. 16, al. 2, ligne
+   * A21) · l'écriture s'y date. Refusée sur une vente, qui se date à son
+   * émission. Facultative à l'enregistrement, exigée au passage de l'écriture.
+   */
+  @IsOptional()
+  @IsDateString()
+  dateReception?: string | null;
+
   @IsOptional()
   @IsString()
   tiersId?: string;
@@ -119,6 +128,11 @@ export class EmettreNoteDeCreditDto {
   @IsDateString()
   dateNote!: string;
 
+  /** Date de réception d'une note reçue d'un fournisseur (pièce d'origine externe, ligne A21). */
+  @IsOptional()
+  @IsDateString()
+  dateReception?: string | null;
+
   /** L'écriture d'annulation, celle qui débite le 443 sur une vente. */
   @IsOptional()
   @IsString()
@@ -138,6 +152,11 @@ export class ComptabiliserFactureDto {
   @IsOptional()
   @IsObject()
   comptesParLigne?: Record<string, string>;
+
+  /** Réception d'une facture d'achat enregistrée sans elle · déclarée une fois (ligne A21). */
+  @IsOptional()
+  @IsDateString()
+  dateReception?: string | null;
 }
 
 /**

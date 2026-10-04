@@ -14,6 +14,8 @@ import { construireEtatDetaille, FactureAchatSource } from './etat-detaille-tva'
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { identiteSociete, mentionsRecopiees, SELECT_IDENTITE_SOCIETE, type MentionsRecopiees } from '../tenant/mentions-societe';
 import { lirePeriodeDeListe } from '../../common/periode-de-liste';
+import { motifRefusDateReception } from './date-reception';
+import { jourDeKinshasa } from '../../common/echeance';
 
 const nombre = (d: Prisma.Decimal | number | null): number | null =>
   d === null || d === undefined ? null : Number(d);
@@ -207,6 +209,8 @@ export class FacturationService {
           barree: f.noteDeCredit !== null,
           numeroSerie: f.numeroSerie,
           dateFacture: f.dateFacture,
+          /** Réception d'une pièce reçue (ligne A21) · null sur une vente ou une pièce non renseignée. */
+          dateReception: f.dateReception,
           tiers: f.tiers,
           emetteurNom: f.emetteurNom,
           emetteurAdresse: f.emetteurAdresse,
@@ -246,6 +250,11 @@ export class FacturationService {
     // pièce de 2026 sur l'art. 26 du décret n° 23/10, et le renvoi passe par la
     // fonction qui choisit la liste vérifiée.
     const dateFacture = new Date(dto.dateFacture);
+    // LA DATE DE RÉCEPTION D'UNE PIÈCE REÇUE (AUDCIF art. 16, al. 2, ligne
+    // A21) · refusée sur une vente, jamais antérieure à la pièce ni future.
+    const dateReception = dto.dateReception ? new Date(dto.dateReception) : null;
+    const motifReception = motifRefusDateReception({ sens: dto.sens, dateFacture, dateReception }, jourDeKinshasa(new Date()));
+    if (motifReception) throw new BadRequestException(motifReception);
 
     // L'IDENTITÉ DE LA CONTREPARTIE VIENT DU TIERS QUAND IL EST DONNÉ, ET DE LA
     // SAISIE SINON · une facture reçue d'un fournisseur non ouvert au plan des
@@ -316,6 +325,7 @@ export class FacturationService {
         sens: dto.sens,
         numeroSerie: dto.numeroSerie.trim(),
         dateFacture,
+        dateReception,
         tiersId: dto.tiersId ?? null,
         // L'ÉMETTEUR EST LE DOSSIER SUR UNE VENTE, LA CONTREPARTIE SUR UN ACHAT.
         // L'art. 26 a), comme l'art. 100 avant lui, demande le vendeur ou
@@ -415,6 +425,15 @@ export class FacturationService {
       );
     }
 
+    // Une note REÇUE d'un fournisseur est une pièce d'origine externe, comme
+    // la facture qu'elle annule · même règle (ligne A21).
+    const dateReceptionNote = dto.dateReception ? new Date(dto.dateReception) : null;
+    const motifReception = motifRefusDateReception(
+      { sens: initiale.sens, dateFacture: dateNote, dateReception: dateReceptionNote },
+      jourDeKinshasa(new Date()),
+    );
+    if (motifReception) throw new BadRequestException(motifReception);
+
     const numeroSerie = dto.numeroSerie.trim();
     const doublon = await this.prisma.facture.findFirst({
       where: { tenantId, sens: initiale.sens, numeroSerie },
@@ -443,6 +462,7 @@ export class FacturationService {
         factureAnnuleeId: initiale.id,
         numeroSerie,
         dateFacture: dateNote,
+        dateReception: dateReceptionNote,
         tiersId: initiale.tiersId,
         emetteurNom: initiale.emetteurNom,
         emetteurAdresse: initiale.emetteurAdresse,
@@ -561,7 +581,19 @@ export class FacturationService {
         tenantId,
         sens: SensFacture.ACHAT,
         nature: NatureFacture.FACTURE,
-        dateFacture: { gte: debut, lt: finExclue },
+        // LE MOIS DE LA RÉCEPTION, à défaut celui de la facture (ligne A21).
+        // L'état est joint « pour exercer le droit à déduction » (art. 56) ·
+        // il accompagne la déclaration où la taxe est déduite. Une facture
+        // reçue s'enregistre à sa réception (AUDCIF art. 16, al. 2), et sa
+        // taxe, qui ne se déduit que figurant sur la facture (O.-L. n° 10/001,
+        // art. 38, 1°), entre dans la déclaration de ce mois-là · la lister au
+        // mois de sa date ferait justifier en décembre une déduction déclarée
+        // en janvier. Une facture sans date de réception (enregistrée avant
+        // A21) reste à son mois, comme avant.
+        OR: [
+          { dateReception: { gte: debut, lt: finExclue } },
+          { dateReception: null, dateFacture: { gte: debut, lt: finExclue } },
+        ],
       },
       include: {
         lignes: { orderBy: { ordre: 'asc' } },

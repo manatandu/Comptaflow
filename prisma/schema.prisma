@@ -6494,6 +6494,23 @@ model Facture {
   numeroSerie String
   dateFacture DateTime
 
+  /// DATE DE RÉCEPTION D'UNE PIÈCE REÇUE (ligne A21) · AUDCIF art. 16, al. 2,
+  /// non exclu par l'art. 3 du SYCEBNL : « Les mouvements affectant le
+  /// patrimoine de l'entité sont enregistrés en comptabilité, opération par
+  /// opération, dans l'ordre de leur date de valeur comptable. Cette date est
+  /// celle de l'émission par l'entité de la pièce justificative de
+  /// l'opération, ou celle de la réception des pièces d'origine externe. »
+  /// Une facture d'ACHAT (et la note de crédit reçue d'un fournisseur) est
+  /// d'origine externe · son écriture se date ici, la date de facture
+  /// restant celle de la pièce. Une VENTE est émise par le dossier · le
+  /// champ y est refusé (contrainte `factures_date_reception_achat`).
+  ///
+  /// NULLABLE ET SANS DÉFAUT · une facture enregistrée avant la ligne A21 n'a
+  /// pas de date de réception, et aucune ne se déduit (ni la date de facture,
+  /// ni le jour de la saisie ne le sont). Elle se déclare au passage de
+  /// l'écriture, une fois, sinon l'écriture est refusée.
+  dateReception DateTime?
+
   tiersId String?
   tiers   Tiers?  @relation(fields: [tiersId], references: [id])
 
@@ -6565,6 +6582,8 @@ model Facture {
   @@unique([tenantId, sens, numeroSerie])
   /// L'état détaillé interroge un MOIS de factures d'achat.
   @@index([tenantId, sens, dateFacture])
+  /// L'état détaillé d'un mois lit les achats REÇUS dans ce mois (ligne A21).
+  @@index([tenantId, sens, dateReception])
   @@map("factures")
 }
 

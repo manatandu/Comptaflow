@@ -4,6 +4,7 @@ const base = (x: Partial<FacturePourEcriture> = {}): FacturePourEcriture => ({
   sens: 'VENTE',
   nature: 'FACTURE',
   numeroSerie: 'F-1',
+  dateFacture: new Date('2026-03-04T00:00:00Z'),
   contrepartieNom: 'Client',
   compteTiersId: 'c411',
   autresImpotsEtTaxes: null,

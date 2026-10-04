@@ -3,13 +3,21 @@ import { api, ApiError } from '../lib/api';
 import type { Compte, Journal } from '../lib/types';
 import { useAuth } from '../lib/auth';
 import { compteUnique, motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
+import { corpsComptabilisation, passageComplet, receptionADeclarer } from '../lib/reception-facture';
 
 /**
  * PASSER L'ÉCRITURE D'UNE FACTURE · le comptable choisit le journal et le
  * compte de produit ou de charge, le serveur compose l'écriture (tiers, TVA
  * par taux) et la pose au brouillard. Rien n'est deviné à l'écran.
  */
-export function PasserEcritureFacture({ facture, onFait }: { facture: { id: string; sens: 'VENTE' | 'ACHAT' }; onFait: () => void }) {
+export function PasserEcritureFacture({
+  facture,
+  onFait,
+}: {
+  facture: { id: string; sens: 'VENTE' | 'ACHAT'; dateReception?: string | null };
+  /** `avis` · l'avertissement du serveur (facture d'un exercice reçue dans le suivant). */
+  onFait: (avis?: string) => void;
+}) {
   // Passer l'écriture d'une facture la pose AU BROUILLARD, comme la saisie
   // que l'aide-comptable fait déjà à la main · la route ne la lui refuse pas
   // (`@Roles` sans `@ReserveAuComptable`), l'écran la lui ouvre donc aussi.
@@ -24,6 +32,10 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
   const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [journalId, setJournalId] = useState('');
   const [compteId, setCompteId] = useState('');
+  // Réception d'une facture reçue qui ne la porte pas (ligne A21) · vide,
+  // jamais préremplie de la date de facture ni d'aujourd'hui.
+  const [dateReception, setDateReception] = useState('');
+  const aDeclarer = receptionADeclarer(facture);
   const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,9 +62,12 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
   const passer = async () => {
     setErreur(null);
     try {
-      await api.post(`/facturation/${facture.id}/comptabiliser`, { journalId, compteGestionId: compteId || null });
+      const r = await api.post<{ avertissement?: string }>(
+        `/facturation/${facture.id}/comptabiliser`,
+        corpsComptabilisation(facture, journalId, compteId, dateReception),
+      );
       setOuvert(false);
-      onFait();
+      onFait(r?.avertissement);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'L’écriture n’a pas pu être passée.');
     }
@@ -84,7 +99,23 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
           </option>
         ))}
       </select>
-      <button className="border border-border px-1.5 py-0.5" disabled={!journalId || !compteId} onClick={() => void passer()}>
+      {aDeclarer && (
+        <label className="inline-flex items-center gap-1" title="AUDCIF art. 16, al. 2 · l’écriture d’une facture reçue se date à sa réception">
+          Reçue le
+          <input
+            type="date"
+            aria-label="Date de réception"
+            className="border border-border px-1 py-0.5"
+            value={dateReception}
+            onChange={(e) => setDateReception(e.target.value)}
+          />
+        </label>
+      )}
+      <button
+        className="border border-border px-1.5 py-0.5"
+        disabled={!passageComplet(facture, journalId, compteId, dateReception)}
+        onClick={() => void passer()}
+      >
         Passer au brouillard
       </button>
       <button className="px-1.5 py-0.5 text-text-dim" onClick={() => setOuvert(false)}>
