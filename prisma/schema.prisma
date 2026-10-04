@@ -3822,6 +3822,22 @@ enum StatutImmobilisation {
   MISE_HORS_SERVICE
 }
 
+/// Ligne A14 · la NATURE de la sortie, liste fermée lue aux textes ·
+/// « vente, échange, mise au rebut ou destruction » (fiche du compte 81 des
+/// deux plans), « vol ou disparition » (AUDCIF Titre V § 5.8 ; SYCEBNL cadre
+/// conceptuel § 5.5), remise gratuite et restitution au bailleur (SYCEBNL
+/// Partie 3 ch. 3 § 2.5.2 et § 2.5.3). Voir immobilisations/nature-sortie.ts.
+enum NatureSortieImmobilisation {
+  VENTE
+  ECHANGE
+  MISE_AU_REBUT
+  DESTRUCTION
+  VOL
+  DISPARITION
+  REMISE_GRATUITE
+  RESTITUTION
+}
+
 // Gabarit réutilisable (ex. "Matériel informatique", "Véhicules") : comptes
 // et durée d'amortissement par défaut, pré-remplis à la création d'une
 // immobilisation mais toujours modifiables au cas par cas (voir
@@ -4022,6 +4038,14 @@ model Immobilisation {
   // Renseigné uniquement en cas de cession (par opposition à une mise hors
   // service/rebut, sans produit) · voir ImmobilisationService.sortir.
   prixCession Decimal?             @db.Decimal(18, 2)
+  /// Ligne A14 · nature de la sortie et pièce qui la justifie (AUDCIF art. 17,
+  /// 3° et 5° · « pièces datées » et « références de la pièce justificative »),
+  /// recopiées dans l'écriture de sortie. Nulles pour une sortie antérieure à
+  /// la ligne et pour les gestes qui portent leur propre pièce (renouvellement
+  /// d'un composant, levée d'option).
+  natureSortie         NatureSortieImmobilisation?
+  referencePieceSortie String?
+  datePieceSortie      DateTime?
 
   // Écriture d'acquisition (débit du compte d'immobilisation, crédit
   // trésorerie/tiers/dotation selon le mode de financement choisi à la
@@ -5686,6 +5710,16 @@ model ProvisionRisqueCharge {
   /// statut n'est pas COMPTABILISEE. « Si les 4 conditions ne sont pas
   /// réunies, il faut expliquer en annexe la nature des passifs éventuels. »
   motifNonComptabilisation String?
+
+  /// Ligne A16 · risque à MOINS D'UN AN, porté au 499 ou au 599 et non au 19
+  /// (AUDCIF, fiche du compte 49 ; SYCEBNL, fiche du compte 19, exclusions).
+  /// Voir provisions/court-terme-et-conditions.ts.
+  courtTerme Boolean @default(false)
+
+  /// Ligne A16 · les conditions PROPRES de la restructuration (§ 4.1), du
+  /// contrat déficitaire (§ 4.3) et du déménagement (§ 4.10), cochées une à
+  /// une, { clé: vrai }. Nul pour une nature qui n'en a pas.
+  conditionsPropres Json?
 
   createdAt DateTime @default(now())
   createdBy String

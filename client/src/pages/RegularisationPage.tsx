@@ -26,6 +26,7 @@ import {
   type MomentReprise,
   type NatureTiers,
 } from '../lib/regularisation-types';
+import { chargeInteretsAdmise, chargeInteretsProposee, interetsCourusDe } from '../lib/interets-courus';
 import { montant } from '../lib/montants';
 import { libelleExercice } from '../lib/libelle-exercice';
 import { motifAucunCompteRetenu, RETENUS } from '../lib/comptes-proposes';
@@ -160,6 +161,8 @@ export function RegularisationPage() {
   const [libelle, setLibelle] = useState('');
   const [compteId, setCompteId] = useState('');
   const [natureTiers, setNatureTiers] = useState<NatureTiers | ''>('');
+  // Ligne A12 · l'emprunt dont on rattache les intérêts courus.
+  const [compteEmpruntId, setCompteEmpruntId] = useState('');
   const [montantTotal, setMontantTotal] = useState('');
   const [montantTva, setMontantTva] = useState('');
   const [periodeDebut, setPeriodeDebut] = useState('');
@@ -239,6 +242,7 @@ export function RegularisationPage() {
     periodeDebut,
     periodeFin,
     ...(estRattachement(type) && natureTiers ? { natureTiers } : {}),
+    ...(natureTiers === 'PRETEURS' && compteEmpruntId ? { compteEmpruntId } : {}),
     ...(compteTva && Number(montantTva) > 0 ? { montantTva: Number(montantTva) } : {}),
   });
 
@@ -462,6 +466,7 @@ export function RegularisationPage() {
                     <option value="">Choisir…</option>
                     {comptes
                       .filter((c) => (porteUneCharge(type) ? c.numero.startsWith('6') : c.numero.startsWith('7')))
+                      .filter((c) => natureTiers !== 'PRETEURS' || chargeInteretsAdmise(c.numero))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.numero} · {c.intitule}
@@ -498,6 +503,51 @@ export function RegularisationPage() {
                         </option>
                       ))}
                     </select>
+                  </label>
+                )}
+
+                {estRattachement(type) && natureTiers === 'PRETEURS' && (
+                  <label className="text-[11.5px] font-semibold text-text-dim">
+                    <span className="flex items-center gap-1.5">
+                      Emprunt
+                      <Aide
+                        titre="Intérêts courus sur emprunts"
+                        texte="À la clôture, les intérêts courus jusqu'au jour de la clôture sont portés au crédit du compte d'intérêts courus de l'emprunt, par le débit des intérêts des emprunts ; à l'ouverture de l'exercice suivant, ils sont contre-passés. Le montant se déclare d'après le tableau d'amortissement ou le décompte du prêteur, aucun taux n'est calculé."
+                        source={estSycebnl ? 'SYCEBNL, Partie 2 ch. 3, fiche du compte 18' : 'AUDCIF, Titre VII, fiche du compte 16'}
+                      />
+                    </span>
+                    <select
+                      required
+                      value={compteEmpruntId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setCompteEmpruntId(id);
+                        setSimulation(null);
+                        // La charge proposée, si le plan la porte et qu'aucune n'est choisie.
+                        const emprunt = comptes.find((c) => c.id === id);
+                        const proposee = emprunt ? chargeInteretsProposee(utilisateur?.tenant.referentiel, emprunt.numero) : null;
+                        const charge = proposee ? comptes.find((c) => c.numero.startsWith(proposee)) : undefined;
+                        if (charge && !compteId) setCompteId(charge.id);
+                      }}
+                      className={champ}
+                    >
+                      <option value="">Choisir…</option>
+                      {comptes
+                        .filter((c) => interetsCourusDe(utilisateur?.tenant.referentiel, c.numero))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.numero} · {c.intitule}
+                          </option>
+                        ))}
+                    </select>
+                    {comptesLus && (
+                      <span className="block font-normal text-[11px] text-warning">
+                        {motifAucunCompteRetenu(
+                          comptesLus.filter((c) => interetsCourusDe(utilisateur?.tenant.referentiel, c.numero)),
+                          estSycebnl ? "d'emprunt (18)" : "d'emprunt (16)",
+                        )}
+                      </span>
+                    )}
                   </label>
                 )}
 

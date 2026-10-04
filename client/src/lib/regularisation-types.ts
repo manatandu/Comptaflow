@@ -14,7 +14,7 @@ import type { Exercice, Referentiel, TypeRegularisation } from './types';
  * fournisseur (409) · aucune des deux n'est offerte.
  */
 
-export type NatureTiers = 'FOURNISSEURS' | 'CLIENTS' | 'PERSONNEL' | 'ORGANISMES_SOCIAUX' | 'ETAT';
+export type NatureTiers = 'FOURNISSEURS' | 'CLIENTS' | 'PERSONNEL' | 'ORGANISMES_SOCIAUX' | 'ETAT' | 'PRETEURS';
 
 export const LIBELLE_NATURE_TIERS: Record<NatureTiers, string> = {
   FOURNISSEURS: 'Fournisseurs',
@@ -22,6 +22,8 @@ export const LIBELLE_NATURE_TIERS: Record<NatureTiers, string> = {
   PERSONNEL: 'Personnel',
   ORGANISMES_SOCIAUX: 'Organismes sociaux',
   ETAT: 'État et collectivités publiques',
+  // Ligne A12 · intérêts courus sur emprunts, le compte se lit sur l'emprunt.
+  PRETEURS: 'Prêteurs (intérêts courus sur emprunts)',
 };
 
 export function estRattachement(type: TypeRegularisation): boolean {
@@ -34,7 +36,7 @@ export function porteUneCharge(type: TypeRegularisation): boolean {
 }
 
 export function naturesTiersProposees(type: TypeRegularisation): NatureTiers[] {
-  if (type === 'CHARGE_A_PAYER') return ['FOURNISSEURS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'];
+  if (type === 'CHARGE_A_PAYER') return ['FOURNISSEURS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT', 'PRETEURS'];
   if (type === 'PRODUIT_A_RECEVOIR') return ['CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'];
   return [];
 }

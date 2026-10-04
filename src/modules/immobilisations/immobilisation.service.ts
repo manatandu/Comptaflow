@@ -30,6 +30,7 @@ import {
   soldeDetteAleatoire,
 } from './acquisition-prix-aleatoire';
 import { compteStockRecupere, motifRefusMaterielRecupere } from './materiel-recupere';
+import { libelleSortie, motifRefusNatureSortie, motifRefusPieceSortie } from './nature-sortie';
 import {
   contrepartieAReserveDePropriete,
   frappeDeReserveALaDate,
@@ -61,7 +62,7 @@ import {
   PasserDotationDto,
   ReclasserImmobilisationDto,
   SaisirConsommationDto,
-  SortirImmobilisationDto,
+  SortieImmobilisation,
   TypeSortie,
   MiseEnServiceDto,
   RecevoirLegsDto,
@@ -984,6 +985,9 @@ export class ImmobilisationService {
           statut: StatutImmobilisation.EN_SERVICE,
           dateSortie: null,
           prixCession: null,
+          natureSortie: null,
+          referencePieceSortie: null,
+          datePieceSortie: null,
           ecritureSortieId: null,
           ecritureProduitCessionId: null,
         },
@@ -3658,7 +3662,7 @@ export class ImmobilisationService {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         cessionCourante: dto.cessionCourante,
-      } as SortirImmobilisationDto);
+      } as SortieImmobilisation);
     } catch (err) {
       await this.retirerRemplacant(tenantId, remplacant.id, dto.designation);
       throw err;
@@ -4026,7 +4030,10 @@ export class ImmobilisationService {
         prixCession: dto.prixDeReprise,
         compteContrepartieId: dto.compteCreanceId,
         cessionCourante: !!dto.cessionCourante,
-      });
+        // Ligne A14 · l'échange est une des natures de cession de la fiche du
+        // compte 81 ; la pièce est celle de l'acquisition, qu'il porte déjà.
+        natureSortie: 'ECHANGE',
+      }, { depuisEchange: true });
       return { nouveau, sortie, libelle, valeurOrigine: valeur };
     } catch (err) {
       // Le bien reçu ne reste pas au bilan d'un échange qui n'a pas eu lieu.
@@ -4040,7 +4047,7 @@ export class ImmobilisationService {
     }
   }
 
-  async sortir(tenantId: string, userId: string, id: string, dto: SortirImmobilisationDto) {
+  async sortir(tenantId: string, userId: string, id: string, dto: SortieImmobilisation, opts: { depuisEchange?: boolean } = {}) {
     const immo = await this.trouver(tenantId, id);
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
       throw new BadRequestException('Cette immobilisation est déjà sortie');
@@ -4114,6 +4121,26 @@ export class ImmobilisationService {
           '(D 280 / C 2011, SYCEBNL Partie 3 ch. 2 § 2.3.2). Sortez-le en mise hors service.',
       );
     }
+    // LIGNE A14 · NATURE ET PIÈCE DE LA SORTIE (nature-sortie.ts). La nature,
+    // quand elle est déclarée, doit convenir au type et au régime ; la pièce
+    // est exigée dès qu'une référence ou une date est fournie, et la route
+    // exige les deux (SortirImmobilisationDto). Refus avant le verrou.
+    const datePieceSortie = dto.datePieceSortie ? new Date(dto.datePieceSortie) : null;
+    if (dto.natureSortie) {
+      const refusNature = motifRefusNatureSortie({
+        nature: dto.natureSortie,
+        type: dto.type,
+        projetDeveloppement: regime.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT,
+        usufruit: nature === 'USUFRUIT',
+        depuisEchange: !!opts.depuisEchange,
+      });
+      if (refusNature) throw new BadRequestException(refusNature);
+    }
+    if (dto.referencePieceSortie !== undefined || dto.datePieceSortie !== undefined) {
+      const refusPiece = motifRefusPieceSortie(dto.referencePieceSortie, datePieceSortie);
+      if (refusPiece) throw new BadRequestException(refusPiece);
+    }
+    const referencePiece = dto.referencePieceSortie?.trim() || undefined;
     let comptes = nature === 'USUFRUIT' ? null : COMPTES_SORTIE[nature];
     if (dto.cessionCourante) {
       if (referentiel !== Referentiel.SYSCOHADA) {
@@ -4354,7 +4381,14 @@ export class ImmobilisationService {
     const statutFinal = dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE;
     const verrou = await this.prisma.immobilisation.updateMany({
       where: { id, tenantId, statut: StatutImmobilisation.EN_SERVICE },
-      data: { statut: statutFinal, dateSortie, prixCession: dto.prixCession },
+      data: {
+        statut: statutFinal,
+        dateSortie,
+        prixCession: dto.prixCession,
+        natureSortie: dto.natureSortie ?? null,
+        referencePieceSortie: referencePiece ?? null,
+        datePieceSortie,
+      },
     });
     if (verrou.count === 0) {
       throw new ConflictException('Cette immobilisation vient déjà d\'être sortie par une autre opération');
@@ -4369,6 +4403,7 @@ export class ImmobilisationService {
           journalId: dto.journalId,
           date: dto.dateSortie,
           libelle: `Dotation complémentaire (sortie) · ${immo.designation}`,
+          reference: referencePiece,
           lignes: [
             { compteId: immo.compteDotationId, debit: montantComplement, credit: 0 },
             { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
@@ -4395,7 +4430,8 @@ export class ImmobilisationService {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         date: dto.dateSortie,
-        libelle: `${projet ? 'Fin de projet · ' : ''}${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
+        libelle: libelleSortie({ projet, type: dto.type, nature: dto.natureSortie, designation: immo.designation }),
+        reference: referencePiece,
         lignes: lignesSortie,
       });
       ecrituresPosees.push(ecritureSortie.id);
@@ -4407,6 +4443,7 @@ export class ImmobilisationService {
           journalId: dto.journalId,
           date: dto.dateSortie,
           libelle: `Produit de cession · ${immo.designation}`,
+          reference: referencePiece,
           lignes: [
             { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
             { compteId: compteProduit.id, debit: 0, credit: dto.prixCession },

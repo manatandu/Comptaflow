@@ -430,7 +430,15 @@ serait muette). Remboursement jamais COMPENSÉ (§ 3.1.4, « que s'il est certai
 l'entité le recevra », « actif DISTINCT, NON COMPENSÉ avec la provision »). Tableau
 du § 5.3, utilisations et reprises SÉPARÉES ; rapprochement en VALEUR ABSOLUE, aucun
 solde pour un passif éventuel. Ni écriture, ni montant (§ 3.1.1), ni actualisation
-(§ 3.1.2, colonne saisie).
+(§ 3.1.2, colonne saisie). LIGNE A16 (2026-10-03, `court-terme-et-conditions.ts`) ·
+le risque À MOINS D'UN AN se porte au 499 ou au 599, jamais au 19 (AUDCIF, fiche du
+compte 49 ; SYCEBNL, fiche du compte 19, exclusions) · `courtTerme`, 4991 / 4997 /
+4998 / 599 au SYSCOHADA, 4991 / 4998 / 599 au SYCEBNL (aucun 4997), dotation
+6591, 6791, 839 ou 679 DITE à l'écran (§ 2.2.1), un 499 sur une ligne à long terme
+refusé, l'échéance attendue concordante. CONDITIONS PROPRES cochées une à une ·
+restructuration (§ 4.1, § 4.1.1, § 4.1.2), contrat déficitaire (§ 4.3),
+déménagement (§ 4.10), même refus et même issue que les quatre, clé étrangère à la
+nature refusée ; horizon et conditions suivent le report.
 
 **Registre des faiblesses du contrôle interne (ISA 265).** Le CPCC dit seulement
 « faire le suivi des faiblesses relevées lors de l'audit précédent ».
@@ -1722,6 +1730,14 @@ ch. 4, section 1, `dateReprise`). Rattachement selon le tiers · 408, 418,
 établir au SYSCOHADA, appels de fonds au SYCEBNL (factures au 4182). Reprise =
 inverse exact, lue sur `debiteLeCompteDeGestion` (audit final F66) ; l'écran sert
 les cinq types, la nature du tiers et une simulation sans prorata (F67).
+INTÉRÊTS COURUS SUR EMPRUNTS (ligne A12, 2026-10-03, `interets-courus.ts`) · nature
+`PRETEURS` de la charge à payer, l'EMPRUNT désigné décide du compte (fiche du compte
+16 · « crédité, à la clôture […] par le débit du compte 671 », « débité, à
+l'ouverture »). Un numéro, deux plans · 16x vers 166x au SYSCOHADA, 18x vers 186x
+au SYCEBNL (son 16 est un fonds). Refus · SYCEBNL 184 (sa fiche n'ouvre aucun
+1864, écriture à la main), 1681 (Titre VIII ch. 11), dettes de location
+acquisition. Charge 6711, 6712 (671) ou 6741, 6742, 6748 (fiche du 67) ; montant
+DÉCLARÉ, aucun taux ; période close au plus tard à la clôture.
 
 **Balance âgée · un périmètre, un sens.** 42, 43, 44 et 47 s'ajoutent aux 40 et
 41, chacun avec sa phrase au-dessus du tableau (un solde de 42, 43, 44 au 31
@@ -1925,7 +1941,14 @@ dette au 4816 et jamais contredite par elle ; ni sur un bien sorti, ni de
 façon à changer la liste d'un exercice clos. MATÉRIEL RÉCUPÉRÉ · 388 au
 SYSCOHADA, 378 au SYCEBNL (`STOCK_PROVENANT_D_IMMOBILISATIONS`, nomenclature
 des stocks), « par le crédit du compte d'immobilisation », jamais au-delà de la
-valeur nette (aucun compte pour l'excédent).
+valeur nette (aucun compte pour l'excédent). NATURE ET PIÈCE DE LA SORTIE (ligne
+A14, 2026-10-03, `nature-sortie.ts`) · liste fermée · vente, échange, mise au
+rebut, destruction (fiche du compte 81), vol, disparition (AUDCIF Titre V § 5.8 ;
+SYCEBNL cadre conceptuel § 5.5), remise gratuite et restitution (SYCEBNL Partie 3
+ch. 3 § 2.5). Le pillage n'est nommé par aucun texte · déclaré en vol. L'échange
+par son geste seul ; la vente seule porte un prix. Référence et date de la pièce
+EXIGÉES à la route (art. 17, 3° et 5°), nature au libellé, référence sur les
+écritures ; nulles pour les gestes internes qui portent leur pièce.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

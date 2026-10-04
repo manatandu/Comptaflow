@@ -211,7 +211,17 @@ describe('F28 · un refus ne laisse jamais le bien sorti sans écriture', () => 
     expect(supprimees).toEqual(['e1']);
     expect(updateMany).toHaveBeenLastCalledWith({
       where: { id: 'i1', tenantId: 't1' },
-      data: { statut: 'EN_SERVICE', dateSortie: null, prixCession: null, ecritureSortieId: null, ecritureProduitCessionId: null },
+      data: {
+        statut: 'EN_SERVICE',
+        dateSortie: null,
+        prixCession: null,
+        // Ligne A14 · nature et pièce défaites avec la sortie.
+        natureSortie: null,
+        referencePieceSortie: null,
+        datePieceSortie: null,
+        ecritureSortieId: null,
+        ecritureProduitCessionId: null,
+      },
     });
   });
 

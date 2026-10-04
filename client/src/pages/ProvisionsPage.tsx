@@ -7,7 +7,14 @@ import { PortailModale } from '../components/PortailModale';
 import type { Compte, Exercice, ProvisionRisqueCharge, TableauVariationProvisions } from '../lib/types';
 import { useExercice } from '../lib/exercice';
 import { montant } from '../lib/montants';
-import { compteApresChangementDeNature, compteInitial, comptesDeLaNature, motifListeComptesVide } from '../lib/provisions-compte';
+import {
+  compteApresChangementDeNature,
+  compteApresChangementDHorizon,
+  compteInitial,
+  comptesDeLaNature,
+  comptesDuCourtTerme,
+  motifListeComptesVide,
+} from '../lib/provisions-compte';
 
 /**
  * REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES.
@@ -111,6 +118,8 @@ type Formulaire = {
   remboursementCertain: boolean;
   remboursementTiers: string;
   motifNonComptabilisation: string;
+  courtTerme: boolean;
+  conditionsPropres: Record<string, boolean>;
 };
 
 const texte = (v: string | number | null | undefined) => (v === null || v === undefined ? '' : String(v));
@@ -137,6 +146,8 @@ function formulaireVide(nature: string): Formulaire {
     remboursementCertain: false,
     remboursementTiers: '',
     motifNonComptabilisation: '',
+    courtTerme: false,
+    conditionsPropres: {},
   };
 }
 
@@ -162,6 +173,8 @@ function formulaireDe(p: ProvisionRisqueCharge): Formulaire {
     remboursementCertain: p.remboursementCertain,
     remboursementTiers: texte(p.remboursementTiers),
     motifNonComptabilisation: texte(p.motifNonComptabilisation),
+    courtTerme: p.courtTerme ?? false,
+    conditionsPropres: p.conditionsPropres ?? {},
   };
 }
 
@@ -282,7 +295,14 @@ export function ProvisionsPage() {
 
   // Pourquoi la liste des comptes est vide, et quoi faire d'abord (§ 9 ter) ·
   // les racines par nature viennent du serveur, voir `lib/provisions-compte.ts`.
-  const motifComptesVides = edition ? motifListeComptesVide(comptes, erreurComptes, naturesServies, edition.f.nature) : null;
+  const motifComptesVides = edition && !edition.f.courtTerme ? motifListeComptesVide(comptes, erreurComptes, naturesServies, edition.f.nature) : null;
+  // Ligne A16 · comptes du court terme et conditions propres, SERVIS par le serveur.
+  const racinesCourtTerme = t?.comptesCourtTerme ?? [];
+  const conditionsPropresDe = (nature: string) => t?.conditionsPropres?.[nature] ?? [];
+  // Seules les clés de la nature partent · une case d'une autre nature restée
+  // cochée serait refusée par le serveur.
+  const conditionsEnvoyees = (f: Formulaire) =>
+    Object.fromEntries(conditionsPropresDe(f.nature).map((c) => [c.cle, f.conditionsPropres[c.cle] === true]));
 
   function ouvrirCreation() {
     setErreurEdition(null);
@@ -334,12 +354,14 @@ export function ProvisionsPage() {
           remboursementCertain: f.remboursementCertain,
           remboursementTiers: f.remboursementTiers || undefined,
           motifNonComptabilisation: f.motifNonComptabilisation || undefined,
+          courtTerme: f.courtTerme,
+          ...(conditionsPropresDe(f.nature).length > 0 ? { conditionsPropres: conditionsEnvoyees(f) } : {}),
         });
       } else {
         // Le statut ne passe PAS par ici · il a sa route, qui porte le motif.
         // Un champ vidé part à null pour être effacé, sans quoi l'ancien
         // contenu survivrait sous un champ affiché vide.
-        await api.patch<ProvisionRisqueCharge>(`/provisions/${edition.id}`, {
+        const r = await api.patch<ProvisionRisqueCharge & { avertissements?: string[] }>(`/provisions/${edition.id}`, {
           objet: f.objet,
           nature: f.nature,
           compteId: f.compteId || null,
@@ -359,7 +381,11 @@ export function ProvisionsPage() {
           remboursementCertain: f.remboursementCertain,
           remboursementTiers: f.remboursementTiers || null,
           motifNonComptabilisation: f.motifNonComptabilisation || null,
+          courtTerme: f.courtTerme,
+          conditionsPropres: conditionsPropresDe(f.nature).length > 0 ? conditionsEnvoyees(f) : null,
         });
+        // Ligne A16, second tour · une échéance entrée dans l'année se dit, sans refus.
+        if (r.avertissements?.length) setMessage(r.avertissements.join(' '));
       }
       setEdition(null);
       setVersion((v) => v + 1);
@@ -708,8 +734,10 @@ export function ProvisionsPage() {
                     onChange={(e) => {
                       // Le compte est GARDÉ s'il convient encore, retiré en le
                       // disant sinon, et un compte unique se présélectionne.
-                      const choix = compteApresChangementDeNature(comptes, naturesServies, e.target.value, edition.f.compteId);
                       champ('nature', e.target.value);
+                      // À moins d'un an, le compte (499, 599) ne dépend pas de la nature.
+                      if (edition.f.courtTerme) return;
+                      const choix = compteApresChangementDeNature(comptes, naturesServies, e.target.value, edition.f.compteId);
                       champ('compteId', choix.compteId);
                       setAvisCompte(choix.avis);
                     }}
@@ -738,7 +766,10 @@ export function ProvisionsPage() {
                     className="border border-border-dark px-2 py-1"
                   >
                     <option value="">Aucun (non comptabilisée)</option>
-                    {comptesDeLaNature(comptes ?? [], naturesServies, edition.f.nature, edition.f.compteId).map((c) => (
+                    {(edition.f.courtTerme
+                      ? comptesDuCourtTerme(comptes ?? [], racinesCourtTerme, edition.f.compteId)
+                      : comptesDeLaNature(comptes ?? [], naturesServies, edition.f.nature, edition.f.compteId)
+                    ).map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.numero} · {c.intitule}
                       </option>
@@ -753,6 +784,31 @@ export function ProvisionsPage() {
                       </div>
                     </>
                   )}
+                  <span className="text-right flex items-center justify-end gap-1">
+                    Horizon :
+                    <Aide
+                      titre="Provision à moins d'un an"
+                      texte={`Un risque à moins d'un an ne se porte pas au 19 · ${racinesCourtTerme
+                        .map((r) => `${r.compte} (dotation ${r.dotation}, reprise ${r.reprise})`)
+                        .join(', ')}. Le 19 reçoit les risques à plus d'un an. L'échéance attendue, si elle est saisie, doit concorder.`}
+                      source="AUDCIF Titre VII, fiche du compte 49 · ch. 18 § 2.2.1 et tableau synoptique · SYCEBNL, fiche du compte 19, exclusions"
+                    />
+                  </span>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={edition.f.courtTerme}
+                      onChange={(e) => {
+                        const courtTerme = e.target.checked;
+                        champ('courtTerme', courtTerme);
+                        // Le compte change de classe avec l'horizon · gardé, retiré en le disant, ou présélectionné.
+                        const choix = compteApresChangementDHorizon(comptes, naturesServies, racinesCourtTerme, edition.f.nature, courtTerme, edition.f.compteId);
+                        champ('compteId', choix.compteId);
+                        setAvisCompte(choix.avis);
+                      }}
+                    />
+                    Échéance à moins d'un an
+                  </label>
                   {edition.id === null && (
                     <>
                       <label className="text-right">Statut :</label>
@@ -781,6 +837,31 @@ export function ProvisionsPage() {
                       </label>
                     ))}
                   </div>
+                  {conditionsPropresDe(edition.f.nature).length > 0 && (
+                    <>
+                      <span className="text-right self-start pt-1 flex items-center justify-end gap-1">
+                        Conditions propres :
+                        <Aide
+                          titre="Conditions propres au cas"
+                          texte="Ce cas particulier ajoute ses conditions aux quatre · la provision ne se comptabilise que si toutes sont cochées, sinon la ligne passe en passif éventuel avec son motif."
+                          source="AUDCIF Titre VIII ch. 18 § 4.1, § 4.3, § 4.10"
+                        />
+                      </span>
+                      <div className="space-y-[2px]">
+                        {conditionsPropresDe(edition.f.nature).map((c) => (
+                          <label key={c.cle} className="flex items-start gap-1.5" title={c.source}>
+                            <input
+                              type="checkbox"
+                              className="mt-[2px]"
+                              checked={edition.f.conditionsPropres[c.cle] === true}
+                              onChange={(e) => champ('conditionsPropres', { ...edition.f.conditionsPropres, [c.cle]: e.target.checked })}
+                            />
+                            {c.libelle}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <label className="text-right self-start pt-1">Source de l'obligation :</label>
                   <textarea required rows={2} value={edition.f.justificationObligation} onChange={(e) => champ('justificationObligation', e.target.value)} className="border border-border-dark px-2 py-1" />
                   <label className="text-right">Échéance attendue :</label>

@@ -29,6 +29,7 @@ import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
 import { fondsPreselectionne, messageFondsProjet, type ReponseFondsProjet } from '../lib/fonds-projet-sortie';
+import { LIBELLES_NATURE_SORTIE, naturesSortieOffertes, type NatureSortie } from '../lib/nature-sortie';
 import {
   avertissementPetitMateriel,
   compteEnCoursInitial,
@@ -294,6 +295,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   const [fondsProjet, setFondsProjet] = useState<ReponseFondsProjet | null>(null);
   const [erreurFondsProjet, setErreurFondsProjet] = useState<string | null>(null);
   const [sJournalId, setSJournalId] = useState('');
+  // Ligne A14 · nature de la sortie et pièce qui la justifie (AUDCIF art. 17,
+  // 3° et 5°), exigées par le serveur. Rien n'est présélectionné sauf un
+  // choix unique (la vente d'une cession).
+  const [sNature, setSNature] = useState<NatureSortie | ''>('');
+  const [sRefPiece, setSRefPiece] = useState('');
+  const [sDatePiece, setSDatePiece] = useState('');
 
   // Dépréciation · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
   // COMPTE 29. Rien n'est prérempli : ni le montant, qui suppose une valeur
@@ -623,7 +630,7 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     }
   };
 
-  const onSortir = async (e: FormEvent, immoId: string) => {
+  const onSortir = async (e: FormEvent, immoId: string, natureSortie: NatureSortie | '') => {
     e.preventDefault();
     if (!exerciceCourant) return;
     setErreur(null);
@@ -632,6 +639,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       await api.post(`/immobilisations/${immoId}/sortie`, {
         dateSortie: sDateSortie,
         type: sType,
+        natureSortie,
+        referencePieceSortie: sRefPiece,
+        datePieceSortie: sDatePiece,
         exerciceId: exerciceCourant.id,
         journalId: sJournalId,
         prixCession: sType === 'CESSION' ? Number(sPrixCession) : undefined,
@@ -646,6 +656,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
       setSPrixCession('');
       setSValeurRecuperee('');
       setSSourceRecuperee('');
+      setSNature('');
+      setSRefPiece('');
+      setSDatePiece('');
       setInfo('Sortie enregistrée.');
       await charger();
     } catch (err) {
@@ -2168,8 +2181,16 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                     </div>
                   </form>
                 )}
-                {sortieOuvertePour === immo.id && (
-                  <form onSubmit={(e) => onSortir(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
+                {sortieOuvertePour === immo.id && (() => {
+                  const naturesOffertes = naturesSortieOffertes({
+                    type: sType,
+                    projetDeveloppement,
+                    usufruit: !syscohada && (immo.compteImmobilisation?.numero ?? '').startsWith('2011'),
+                  });
+                  const natureRetenue: NatureSortie | '' =
+                    sNature && naturesOffertes.includes(sNature) ? sNature : naturesOffertes.length === 1 ? naturesOffertes[0] : '';
+                  return (
+                  <form onSubmit={(e) => onSortir(e, immo.id, natureRetenue)} className="bg-chrome border-b border-border px-4 py-3">
                     <div className="grid grid-cols-4 gap-3 items-end">
                       <label className="text-[11.5px] font-semibold text-text-dim">
                         Type
@@ -2181,6 +2202,37 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       <label className="text-[11.5px] font-semibold text-text-dim">
                         Date
                         <input required type="date" value={sDateSortie} onChange={(e) => setSDateSortie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-mono" />
+                      </label>
+                      <label className="text-[11.5px] font-semibold text-text-dim">
+                        <span className="flex items-center gap-1.5">
+                          Nature
+                          <Aide
+                            titre="Nature de la sortie"
+                            texte="Par cession, il faut entendre vente, échange, mise au rebut ou destruction ; un bien volé ou disparu sort aussi du patrimoine. Un pillage se déclare en vol, la pièce le décrit. L'échange a son propre geste, qui fait entrer le bien reçu. La nature est recopiée dans le libellé de l'écriture de sortie."
+                            source="AUDCIF et SYCEBNL, fiche du compte 81 · AUDCIF Titre V § 5.8 · SYCEBNL cadre conceptuel § 5.5 et Partie 3 ch. 3 § 2.5"
+                          />
+                        </span>
+                        <select required value={natureRetenue} onChange={(e) => setSNature(e.target.value as NatureSortie)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                          <option value="" />
+                          {naturesOffertes.map((n) => (
+                            <option key={n} value={n}>{LIBELLES_NATURE_SORTIE[n]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[11.5px] font-semibold text-text-dim">
+                        <span className="flex items-center gap-1.5">
+                          Pièce justificative
+                          <Aide
+                            titre="Pièce de la sortie"
+                            texte="Référence du document qui justifie la sortie · procès-verbal de mise au rebut ou de destruction, facture de vente, procès-verbal de constat d'un vol, décision de l'organe compétent. Elle est portée en référence des écritures de sortie."
+                            source="AUDCIF art. 17, 3° et 5° · fiche du compte 81, éléments de contrôle"
+                          />
+                        </span>
+                        <input required maxLength={120} value={sRefPiece} onChange={(e) => setSRefPiece(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                      <label className="text-[11.5px] font-semibold text-text-dim">
+                        Date de la pièce
+                        <input required type="date" value={sDatePiece} onChange={(e) => setSDatePiece(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
                       </label>
                       {projetDeveloppement && (
                         <label className="text-[11.5px] font-semibold text-text-dim">
@@ -2270,7 +2322,8 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                       <button type="button" onClick={() => setSortieOuvertePour(null)} className="text-[11.5px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
                     </div>
                   </form>
-                )}
+                  );
+                })()}
               </div>
             ))}
             {immobilisations.length === 0 && <div className="p-3 text-[11.5px] text-text-dim">Aucune immobilisation.</div>}

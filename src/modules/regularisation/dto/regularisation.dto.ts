@@ -58,8 +58,17 @@ export class CreerRegularisationDto {
    * prévoient aucun compte fourre-tout.
    */
   @IsOptional()
-  @IsIn(['FOURNISSEURS', 'CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'])
+  @IsIn(['FOURNISSEURS', 'CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT', 'PRETEURS'])
   natureTiers?: NatureTiersRattachement;
+
+  /**
+   * Ligne A12 · l'EMPRUNT dont on rattache les intérêts courus, exigé pour la
+   * nature « PRETEURS » et refusé ailleurs · le compte d'intérêts courus
+   * (166 ou 186) se lit sur lui (regularisation/interets-courus.ts).
+   */
+  @IsOptional()
+  @IsUUID()
+  compteEmpruntId?: string;
 
   /**
    * TVA d'une charge à payer (4455) ou d'un produit à recevoir (4435), au

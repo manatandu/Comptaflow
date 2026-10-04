@@ -644,7 +644,15 @@ test('SYCEBNL · projet de développement, le bien sort par le 162, sans 81', as
   await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/dotation`, { exerciceId: exercice.id, journalId: od.id })).rejects.toThrow(
     /art\. 7 et 9/,
   );
-  const sortie = { dateSortie: exercice.dateFin.slice(0, 10), type: 'MISE_HORS_SERVICE', exerciceId: exercice.id, journalId: od.id };
+  const sortie = {
+    dateSortie: exercice.dateFin.slice(0, 10),
+    type: 'MISE_HORS_SERVICE',
+    natureSortie: 'RESTITUTION',
+    referencePieceSortie: 'PV de restitution au bailleur n° 1',
+    datePieceSortie: exercice.dateFin.slice(0, 10),
+    exerciceId: exercice.id,
+    journalId: od.id,
+  };
   await expect(appelApi(page, 'POST', `/immobilisations/${bien.id}/sortie`, sortie)).rejects.toThrow(/162, 163 ou 164/);
   await appelApi(page, 'POST', `/immobilisations/${bien.id}/sortie`, { ...sortie, compteFondsProjetId: fonds.id });
 
@@ -1648,6 +1656,9 @@ test('SYSCOHADA · un immeuble acquis en viager (Application 43) · bouquet, 168
   await appelApi(page, 'POST', `/immobilisations/${presse.id}/sortie`, {
     dateSortie: `${annee}-06-30`,
     type: 'MISE_HORS_SERVICE',
+    natureSortie: 'MISE_AU_REBUT',
+    referencePieceSortie: 'PV de mise au rebut n° 7',
+    datePieceSortie: `${annee}-06-30`,
     exerciceId: exercice.id,
     journalId: od.id,
     valeurMaterielRecupere: 1_000_000,

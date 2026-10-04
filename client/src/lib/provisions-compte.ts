@@ -80,6 +80,53 @@ export function compteApresChangementDeNature(
   return { compteId: '', avis: retire };
 }
 
+/**
+ * Ligne A16 · les comptes d'une provision À MOINS D'UN AN · 499 ou 599, jamais
+ * le 19 de la nature (fiches des comptes 19 et 49). Les racines viennent du
+ * serveur (`comptesCourtTerme`), le compte courant reste lisible.
+ */
+export function comptesDuCourtTerme(
+  comptes: CompteChoisissable[],
+  racines: { compte: string }[],
+  compteIdCourant: string,
+): CompteChoisissable[] {
+  return comptes.filter((c) => racines.some((r) => c.numero.startsWith(r.compte)) || c.id === compteIdCourant);
+}
+
+/**
+ * Ligne A16 · le compte quand l'HORIZON change · gardé s'il convient encore,
+ * sinon retiré en le disant, et le seul admis présélectionné (mêmes règles
+ * qu'au changement de nature).
+ */
+export function compteApresChangementDHorizon(
+  comptes: CompteChoisissable[] | null,
+  natures: NatureServie[],
+  racinesCourtTerme: { compte: string }[],
+  nature: string,
+  courtTerme: boolean,
+  compteIdActuel: string,
+): { compteId: string; avis: string | null } {
+  if (comptes === null) return { compteId: compteIdActuel, avis: null };
+  const servie = natures.find((n) => n.nature === nature);
+  const admis = courtTerme
+    ? comptes.filter((c) => racinesCourtTerme.some((r) => c.numero.startsWith(r.compte)))
+    : servie
+      ? comptes.filter((c) => c.numero.startsWith(servie.compte))
+      : [];
+  if (compteIdActuel && admis.some((c) => c.id === compteIdActuel)) return { compteId: compteIdActuel, avis: null };
+  const actuel = compteIdActuel ? comptes.find((c) => c.id === compteIdActuel) : undefined;
+  const retire = compteIdActuel
+    ? `Le compte ${actuel ? actuel.numero : 'choisi'} a été retiré · une provision ${
+        courtTerme ? "à moins d'un an se porte au 499 ou au 599" : "à plus d'un an se porte au 19"
+      }.`
+    : null;
+  if (admis.length === 1) {
+    const pose = `Seul compte admis du plan, ${admis[0].numero} est présélectionné.`;
+    return { compteId: admis[0].id, avis: retire ? `${retire} ${pose}` : pose };
+  }
+  return { compteId: '', avis: retire };
+}
+
 /** Le compte à présélectionner à l'ouverture d'une création · le seul admis, ou aucun. */
 export function compteInitial(comptes: CompteChoisissable[] | null, natures: NatureServie[], nature: string): string {
   if (comptes === null) return '';
