@@ -92,6 +92,8 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   EngagementDepense: 'Engagement de dépense',
   ExecutionEngagement: "Exécution d'un engagement",
   OdAnalytique: 'OD analytique',
+  CleRepartition: 'Clé de répartition',
+  CoutProductionDeclare: 'Données du coût de production',
   ModeleAbonnement: "Modèle d'abonnement",
   NiveauRelance: 'Niveau de relance',
   ReclassementImmobilisation: "Reclassement d'immobilisation",

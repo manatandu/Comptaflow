@@ -69,6 +69,10 @@ const LIBELLES: Record<string, string> = {
   'LigneOdAnalytique.sectionId': "lignes d'OD analytique",
   'EngagementDepense.sectionId': 'engagements de dépense',
   'OdAnalytique.planId': 'OD analytiques',
+  'CleRepartition.sectionSourceId': 'clés de répartition (section répartie)',
+  'LigneCleRepartition.sectionCibleId': 'clés de répartition (section receveuse)',
+  'CleRepartition.planId': 'clés de répartition',
+  'CoutProductionDeclare.sectionId': 'données du coût de production',
 };
 
 function relationsVers(cible: string, exclure: string[]) {

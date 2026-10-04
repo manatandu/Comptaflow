@@ -60,6 +60,11 @@ export const MODELES_CLOISONNES = new Set<string>([
   'AjustementCreanceDouteuse',
   'MouvementCreanceDouteuse',
   'ConstatImpotResultat',
+  // Comptabilité de gestion (ligne A20) · clés, leurs lignes et données du
+  // coût de production, chacune portant son tenantId.
+  'CleRepartition',
+  'LigneCleRepartition',
+  'CoutProductionDeclare',
   'ProcesVerbalComptageCaisse',
   'CoupureComptee',
   'FamilleImmobilisation',
