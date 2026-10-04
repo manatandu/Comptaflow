@@ -1958,7 +1958,7 @@ cumul d'ouverture ; réévaluations postérieures retranchées) et dit la part d
 l'annuité due à la réévaluation et la reprise de l'exercice sur l'écart (loi
 n° 23/053, art. 135) ; déclaration spéciale ÉDITÉE par catégorie (art. 136,
 137), modèle CPCC hors corpus dit, jamais dite déposée. À LA SORTIE · 106 au
-SYSCOHADA transféré à une réserve non distribuable CHOISIE sous 111, 112 ou 113
+SYSCOHADA transféré à une réserve non distribuable CHOISIE sous 111, 112 ou 1138
 (ch. 28 § 6 ; fiche du compte 11, le 118 des réserves libres refusé), toute
 sortie ; 154 repris au 861 à la CESSION seule (art. 133 al. 3 ; fiche du compte
 15) ; 154 hors service et 106 du SYCEBNL NON PASSÉS, motif rendu (textes en

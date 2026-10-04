@@ -23,7 +23,7 @@ type LigneReev = { id: string; immobilisationId: string; compteEcart: string; ec
 const COMPTES: Record<string, { id: string; numero: string; estActif: boolean; typeCompte: TypeCompteDetailTotal }> = {
   r112: { id: 'r112', numero: '11200000', estActif: true, typeCompte: TypeCompteDetailTotal.DETAIL },
   r118: { id: 'r118', numero: '11810000', estActif: true, typeCompte: TypeCompteDetailTotal.DETAIL },
-  t113: { id: 't113', numero: '113', estActif: true, typeCompte: TypeCompteDetailTotal.TOTAL },
+  t113: { id: 't113', numero: '111', estActif: true, typeCompte: TypeCompteDetailTotal.TOTAL },
   c485: { id: 'c485', numero: '48520000', estActif: true, typeCompte: TypeCompteDetailTotal.DETAIL },
 };
 

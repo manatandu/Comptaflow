@@ -53,7 +53,7 @@ ce42a64.
      fiche du compte 15 (reprises H.A.O. seulement) se contredisent, la loi ne
      vise que la cession.
    - 106, SYSCOHADA, toute sortie · transfert du solde (écart moins pertes
-     imputées) à une réserve non distribuable CHOISIE sous 111, 112 ou 113
+     imputées) à une réserve non distribuable CHOISIE sous 111, 112 ou 1138
      (ch. 28 § 6 ; fiche du compte 11), exigé à la sortie. Fiscalement, l'art.
      133 al. 3 et l'art. 19 sont dits, rien n'est retraité (le logiciel se
      souvient, il ne qualifie pas).
@@ -84,13 +84,29 @@ ce42a64.
   deux dossiers SYSCOHADA à travers la clôture de 2026, 43 contrôles, aucun
   écart (scratchpad `l15/rejeu.mjs`).
 
+## Second tour (vérification du coordinateur)
+
+- Non-levée de l'option · `compteReserveEcartId` porté par le DTO, le service
+  (`declarerOption` vers `sortir`) et l'écran des contrats
+  (`EcartReevaluationSortie`, type CESSION) · un bien loué réévalué au 106 se
+  cède au bailleur avec sa réserve (ch. 28 § 6).
+- Bien du contrat déjà sorti par une sortie ordinaire · la non-levée se déclare
+  SANS seconde cession, motif nommé rendu (`sortieDejaPassee`) et affiché, le
+  capital restant dû au 17 restant au cabinet (§ 2.1.9) ; la liste des contrats
+  sert `immobilisationId` et `bienSorti`.
+- Réserve restreinte à 111, 112 et 1138 · les 1131 à 1134 ont leur objet propre
+  (fiche du compte 11), refus nommé qui renvoie au 1138.
+- Note · ligne « dont biens sortis dans l'exercice », les totaux par poste les
+  comprenant.
+- Specs · `location-acquisition.service.spec.ts` (réserve transmise, bien déjà
+  sorti, double envoi 409), `reevaluation-suites.spec.ts` (1131 à 1134).
+- Le rejeu sur vraie base n'a pas été relancé pour ce tour (sa réserve 112
+  reste admise).
+
 ## Reste / relevés (non faits)
 
 - 154 d'un bien mis hors service, 106 d'un dossier SYCEBNL · non passés, textes
   en tension ou muets (à Manasse s'il veut trancher).
-- La levée d'option d'un contrat de location-acquisition (sortie interne) ne
-  transmet pas de réserve · un bien réévalué ainsi levé est refusé avec le
-  motif ; la sortie ordinaire reste l'issue.
 - Le tableau des IMMOBILISATIONS à une date d'arrêté antérieure relit encore la
   valeur d'aujourd'hui (réévaluations postérieures comprises).
 - Le solde transféré n'est pas borné par le solde du 106 au jour de la sortie

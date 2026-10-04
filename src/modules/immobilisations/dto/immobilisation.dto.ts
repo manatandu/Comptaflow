@@ -587,7 +587,7 @@ export class SortirImmobilisationDto {
   /**
    * Ligne A15 · la RÉSERVE NON DISTRIBUABLE qui reçoit le solde de l'écart de
    * réévaluation (106) du bien sorti (AUDCIF Titre VIII ch. 28 § 6),
-   * SYSCOHADA seul, choisie sous 111, 112 ou 113 (`reevaluation-suites.ts`).
+   * SYSCOHADA seul, choisie sous 111, 112 ou 1138 (`reevaluation-suites.ts`).
    * Exigée seulement quand le bien porte un tel solde.
    */
   @IsOptional()
@@ -928,6 +928,15 @@ export class DeclarerOptionLocationAcquisitionDto {
   @IsOptional()
   @IsBoolean()
   cessionCourante?: boolean;
+
+  /**
+   * Ligne A15 · non-levée d'un bien réévalué dont l'écart est au 106 · la
+   * réserve non distribuable qui reçoit le solde à sa sortie (AUDCIF Titre
+   * VIII ch. 28 § 6), transmise à `sortir`.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  compteReserveEcartId?: string;
 }
 
 /** La reprise au 799 d'une subvention en nature, pour un exercice. */

@@ -25,7 +25,7 @@ const CONTRAT = {
   bienDeFaibleValeur: false,
   optionLevee: null as boolean | null,
   immobilisationId: 'b1',
-  immobilisation: { designation: 'Presse' },
+  immobilisation: { designation: 'Presse', statut: 'EN_SERVICE', dateSortie: null as Date | null },
 };
 
 function monter(o: { contrat?: Partial<typeof CONTRAT>; sortieEchoue?: boolean; clotures?: unknown[]; exercice?: typeof E2026; anterieurs?: unknown[]; porte623?: number; doublon?: boolean; referentiel?: Referentiel } = {}) {
@@ -159,6 +159,38 @@ describe('levée de l’option (§ 2.1.9)', () => {
     const { svc, prisma } = monter({ contrat: avecOption, sortieEchoue: true });
     await expect(svc.declarerOption('t', 'u', 'k1', { levee: false, exerciceId: 'e26', journalId: 'j' })).rejects.toThrow('sortie refusée');
     expect(prisma.contratLocationAcquisition.update.mock.calls[1][0].data).toEqual({ optionLevee: null, dateDecisionOption: null });
+  });
+
+  // SECONDE RELECTURE A15 · le bien loué a été réévalué (écart au 106) · la
+  // non-levée le cède au bailleur, et la réserve choisie (1138) voyage jusqu'à
+  // `sortir`, qui transfère le solde du 106 (AUDCIF Titre VIII ch. 28 § 6).
+  it('non levée d’un bien réévalué · la réserve choisie est transmise à la sortie', async () => {
+    const { svc, sortir } = monter({ contrat: avecOption });
+    await svc.declarerOption('t', 'u', 'k1', { levee: false, exerciceId: 'e26', journalId: 'j', compteReserveEcartId: 'id-11380000' });
+    expect(sortir).toHaveBeenCalledTimes(1);
+    expect(sortir.mock.calls[0][3]).toMatchObject({ type: 'CESSION', compteReserveEcartId: 'id-11380000' });
+  });
+
+  it('bien déjà sorti par une sortie ordinaire · la non-levée se déclare sans seconde cession, motif nommé', async () => {
+    const { svc, sortir, prisma } = monter({
+      contrat: { ...avecOption, immobilisation: { designation: 'Presse', statut: 'CEDEE', dateSortie: new Date('2026-06-30T00:00:00Z') } },
+    });
+    const r = (await svc.declarerOption('t', 'u', 'k1', { levee: false })) as { sortieDejaPassee?: { dateSortie: string | null; motif: string } };
+    expect(sortir).not.toHaveBeenCalled();
+    expect(prisma.contratLocationAcquisition.update.mock.calls[0][0]).toMatchObject({
+      where: { id: 'k1', tenantId: 't', optionLevee: null },
+      data: { optionLevee: false },
+    });
+    expect(r.sortieDejaPassee?.dateSortie).toBe('2026-06-30');
+    expect(r.sortieDejaPassee?.motif).toMatch(/déjà sorti le 2026-06-30 par une sortie ordinaire.*capital restant dû au 17/);
+  });
+
+  it('bien déjà sorti · un double envoi tombe sur la déclaration (409)', async () => {
+    const { svc, prisma } = monter({
+      contrat: { ...avecOption, immobilisation: { designation: 'Presse', statut: 'MISE_HORS_SERVICE', dateSortie: null } },
+    });
+    prisma.contratLocationAcquisition.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('x', { code: 'P2025', clientVersion: '5' }));
+    await expect(svc.declarerOption('t', 'u', 'k1', { levee: false })).rejects.toThrow('déjà déclarée');
   });
 
   it('refus · contrat sans option, déclaration déjà faite, non-levée sans journal', async () => {

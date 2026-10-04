@@ -184,7 +184,7 @@ describe('A15 · les éléments de la déclaration spéciale (art. 136, 137)', (
 });
 
 describe('A15 · les réserves proposées pour l’écart d’un bien sorti', () => {
-  it('SYSCOHADA · sous 111, 112, 113 seulement (le 118 des réserves libres n’est pas lu)', async () => {
+  it('SYSCOHADA · sous 111, 112, 1138 seulement (le 118 des réserves libres n’est pas lu)', async () => {
     const r = await monter({ referentiel: Referentiel.SYSCOHADA }).comptesReserve('tn');
     expect(r.comptes.map((c) => c.numero)).toEqual(['11100000']);
   });

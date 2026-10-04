@@ -36,7 +36,7 @@ export class LocationAcquisitionService {
   private async contrat(tenantId: string, id: string) {
     const c = await this.prisma.contratLocationAcquisition.findFirst({
       where: { id, tenantId },
-      include: { immobilisation: { select: { designation: true } }, clotures: true },
+      include: { immobilisation: { select: { designation: true, statut: true, dateSortie: true } }, clotures: true },
     });
     if (!c) throw new NotFoundException('Contrat de location-acquisition introuvable');
     return c;
@@ -75,7 +75,7 @@ export class LocationAcquisitionService {
     const contrats = await this.prisma.contratLocationAcquisition.findMany({
       where: { tenantId },
       include: {
-        immobilisation: { select: { designation: true } },
+        immobilisation: { select: { designation: true, statut: true, dateSortie: true } },
         clotures: { where: { exerciceId }, select: { id: true, loyers: true, interetsCourus: true } },
       },
       orderBy: { datePriseEffet: 'asc' },
@@ -96,6 +96,10 @@ export class LocationAcquisitionService {
       reference: c.reference,
       nature: c.nature,
       designation: c.immobilisation.designation,
+      // Ligne A15 · l'écran de la non-levée lit l'écart de réévaluation du
+      // bien, et ne propose pas de seconde cession d'un bien déjà sorti.
+      immobilisationId: c.immobilisationId,
+      bienSorti: c.immobilisation.statut !== 'EN_SERVICE',
       datePriseEffet: c.datePriseEffet,
       dette: n(c.dette),
       cloture: c.clotures[0] ? { loyers: n(c.clotures[0].loyers), interetsCourus: n(c.clotures[0].interetsCourus) } : null,
@@ -352,7 +356,7 @@ export class LocationAcquisitionService {
     tenantId: string,
     userId: string,
     contratId: string,
-    dto: { levee: boolean; exerciceId?: string; journalId?: string; cessionCourante?: boolean },
+    dto: { levee: boolean; exerciceId?: string; journalId?: string; cessionCourante?: boolean; compteReserveEcartId?: string },
   ) {
     const c = await this.contrat(tenantId, contratId);
     if (!(n(c.prixOption) > 0)) {
@@ -368,6 +372,33 @@ export class LocationAcquisitionService {
     if (dto.levee) {
       try {
         return await reclamer(true, new Date());
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException("La levée de l'option est déjà déclarée pour ce contrat.");
+        }
+        throw err;
+      }
+    }
+    // LIGNE A15 · LE BIEN EST DÉJÀ SORTI par une sortie ordinaire (vol,
+    // destruction, ou sortie passée avant la déclaration, écart de
+    // réévaluation compris) · une seconde cession est impossible (« déjà
+    // sortie »), et sans déclaration la clôture du contrat réclamerait la
+    // levée ou la non-levée pour toujours. La non-levée se DÉCLARE alors sans
+    // écriture, et la réponse dit pourquoi · la dette restant au 17 envers le
+    // bailleur se solde par le cabinet, rien n'est deviné (§ 2.1.9).
+    if (c.immobilisation.statut !== 'EN_SERVICE') {
+      try {
+        const declare = await reclamer(false, option.date);
+        return {
+          ...declare,
+          sortieDejaPassee: {
+            dateSortie: c.immobilisation.dateSortie ? c.immobilisation.dateSortie.toISOString().slice(0, 10) : null,
+            motif:
+              `« ${c.immobilisation.designation} » est déjà sorti${c.immobilisation.dateSortie ? ` le ${c.immobilisation.dateSortie.toISOString().slice(0, 10)}` : ''} ` +
+              'par une sortie ordinaire · la non-levée est déclarée sans seconde cession, et le capital restant dû au 17 ' +
+              'envers le bailleur reste à solder par le cabinet (AUDCIF Titre VIII ch. 8 § 2.1.9).',
+          },
+        };
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
           throw new ConflictException("La levée de l'option est déjà déclarée pour ce contrat.");
@@ -402,6 +433,8 @@ export class LocationAcquisitionService {
         prixCession: option.capital,
         compteContrepartieId: id17,
         cessionCourante: !!dto.cessionCourante,
+        // Ligne A15 · le bien réévalué sort avec son écart (ch. 28 § 6).
+        compteReserveEcartId: dto.compteReserveEcartId,
       });
     } catch (err) {
       await this.prisma.contratLocationAcquisition.update({

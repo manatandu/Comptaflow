@@ -135,24 +135,36 @@ export function sortDesEcarts(o: { referentiel: Ref; cession: boolean; lignes: L
  * § 6 ne nomme pas le compte. La fiche du compte 11 le circonscrit · « réserves
  * indisponibles (légales, réglementées, statutaires) et réserves libres ou
  * facultatives » · d'où 111 Réserve légale, 112 Réserves statutaires ou
- * contractuelles et 113 Réserves réglementées. Le 118 « Autres réserves »
- * (1181 Réserves facultatives, 1188 Réserves diverses) porte les réserves
- * LIBRES, distribuables · refusé. Le choix entre les trois racines est celui du
- * cabinet (décision des organes, statuts), jamais présumé.
+ * contractuelles et, parmi les réglementées, le seul 1138 « Autres réserves
+ * réglementées ». Les 1131 à 1134 ont chacun leur objet nommé par la même
+ * fiche (plus-values nettes à long terme, attribution gratuite d'actions,
+ * subventions d'investissement, valeurs mobilières donnant accès au capital)
+ * · y verser un écart de réévaluation le rangerait sous un objet qui n'est pas
+ * le sien (seconde relecture A15). Le 118 « Autres réserves » (1181 Réserves
+ * facultatives, 1188 Réserves diverses) porte les réserves LIBRES · refusé. Le
+ * choix est celui du cabinet (décision des organes, statuts), jamais présumé.
  */
-export const RACINES_RESERVE_NON_DISTRIBUABLE = ['111', '112', '113'] as const;
+export const RACINES_RESERVE_NON_DISTRIBUABLE = ['111', '112', '1138'] as const;
 
 export function motifRefusCompteReserve(numero: string | null | undefined): string | null {
   if (!numero) {
     return (
       'Choisissez la réserve non distribuable qui reçoit le solde de l’écart de réévaluation (AUDCIF Titre VIII ' +
-      'ch. 28 § 6) · un compte sous 111, 112 ou 113, réserves indisponibles de la fiche du compte 11.'
+      'ch. 28 § 6) · un compte sous 111, 112 ou 1138, réserves indisponibles de la fiche du compte 11.'
+    );
+  }
+  if (/^113[1-4]/.test(numero)) {
+    return (
+      `Le compte ${numero} a son propre objet (fiche du compte 11 · 1131 plus-values nettes à long terme, 1132 ` +
+      'attribution gratuite d’actions, 1133 subventions d’investissement, 1134 valeurs mobilières donnant accès au ' +
+      'capital) · parmi les réserves réglementées, l’écart de réévaluation va au 1138 « Autres réserves réglementées » ' +
+      '(AUDCIF Titre VIII ch. 28 § 6).'
     );
   }
   if (!RACINES_RESERVE_NON_DISTRIBUABLE.some((r) => numero.startsWith(r))) {
     return (
       `Le compte ${numero} n’est pas une réserve non distribuable · le solde de l’écart de réévaluation va à une ` +
-      'réserve indisponible (111 Réserve légale, 112 Réserves statutaires ou contractuelles, 113 Réserves ' +
+      'réserve indisponible (111 Réserve légale, 112 Réserves statutaires ou contractuelles, 1138 Autres réserves ' +
       'réglementées · fiche du compte 11), jamais au 118, qui porte les réserves libres (AUDCIF Titre VIII ch. 28 § 6).'
     );
   }

@@ -111,6 +111,15 @@ export function ReevaluationsEnNote({ exerciceId, referentiel }: { exerciceId: s
                   <td className="px-4 py-1 text-right">{montant(n.total.repriseExercice)}</td>
                 </tr>
               )}
+              {/* Seconde relecture A15 · les totaux par poste comprennent les biens sortis dans l'exercice
+                  (cadre de la note, ch. 28 § 8) · la ligne le dit, le détail est sous le tableau. */}
+              {n.sortis.length > 0 && (
+                <tr className="border-t border-border text-text-dim">
+                  <td className="px-4 py-1" colSpan={7}>
+                    dont biens sortis dans l’exercice · {n.sortis.length}, compris dans les totaux par poste
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

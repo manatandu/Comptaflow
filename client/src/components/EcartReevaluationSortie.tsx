@@ -84,8 +84,8 @@ export function EcartReevaluationSortie({
           titre="Écart de réévaluation à la sortie"
           texte={
             'La plus-value ou moins-value se calcule sur la valeur réévaluée. Au SYSCOHADA, le solde de l’écart d’un bien cédé ' +
-            'ou mis hors service est transféré à une réserve non distribuable (réserve légale, statutaire ou réglementée, ' +
-            'jamais une réserve libre). À la cession, le reste de la provision spéciale de réévaluation est repris au 861, ' +
+            'ou mis hors service est transféré à une réserve non distribuable (réserve légale, réserves statutaires ' +
+            'ou autres réserves réglementées du 1138, jamais une réserve libre ni une réserve réglementée à objet propre). À la cession, le reste de la provision spéciale de réévaluation est repris au 861, ' +
             'pour que le résultat ne change pas. Ce qu’aucun texte ne règle (provision spéciale d’un bien mis hors service, ' +
             'écart d’un dossier SYCEBNL) n’est pas passé, et c’est dit. La réintégration au résultat fiscal reste au cabinet.'
           }

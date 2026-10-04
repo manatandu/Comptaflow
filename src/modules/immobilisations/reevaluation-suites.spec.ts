@@ -111,18 +111,22 @@ describe('sortDesEcarts · ch. 28 § 6 et loi n° 23/053, art. 133 al. 3', () =>
 });
 
 describe('la réserve non distribuable · fiche du compte 11', () => {
-  it('111, 112 et 113 admises ; 118 (réserves libres) et un autre compte refusés ; l’absence est nommée', () => {
+  it('111, 112 et 1138 admises ; 1131 à 1134 (objet propre), 118 (réserves libres) et un autre compte refusés ; l’absence est nommée', () => {
     expect(motifRefusCompteReserve('11100000')).toBeNull();
     expect(motifRefusCompteReserve('11200000')).toBeNull();
     expect(motifRefusCompteReserve('11380000')).toBeNull();
+    // Seconde relecture A15 · les 1131 à 1134 ont chacun leur objet (fiche du compte 11).
+    for (const n of ['11310000', '11320000', '11330000', '11340000']) {
+      expect(motifRefusCompteReserve(n)).toMatch(/a son propre objet.*va au 1138/);
+    }
     expect(motifRefusCompteReserve('11810000')).toMatch(/118, qui porte les réserves libres/);
     expect(motifRefusCompteReserve('12100000')).toMatch(/n’est pas une réserve non distribuable/);
     expect(motifRefusCompteReserve(null)).toMatch(/Choisissez la réserve non distribuable/);
   });
   it('chaque racine est ouverte au plan SYSCOHADA semé, sous l’intitulé que la fiche lui donne', () => {
-    const intitules: Record<string, RegExp> = { '111': /Réserve légale/, '112': /Réserves statutaires/, '113': /Réserves réglementées/ };
+    const intitules: Record<string, RegExp> = { '111': /Réserve légale/, '112': /Réserves statutaires/, '1138': /Autres réserves réglementées/ };
     for (const r of RACINES_RESERVE_NON_DISTRIBUABLE) {
-      const c = SEMIS_SYSCOHADA.find((x) => x.numero === r || x.numero === `${r}00000`);
+      const c = SEMIS_SYSCOHADA.find((x) => x.numero === r || x.numero === r.padEnd(8, '0'));
       expect({ r, intitule: c?.intitule ?? null }).toEqual({ r, intitule: expect.stringMatching(intitules[r]) });
     }
     // Le 118 est bien celui des réserves LIBRES (« Réserves facultatives »).

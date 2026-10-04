@@ -5,6 +5,7 @@ import { montant } from '../lib/montants';
 import type { Journal } from '../lib/types';
 import { Aide } from './chrome/Aide';
 import { LIBELLES_NATURE, NatureLocationAcquisition } from '../lib/location-acquisition';
+import { EcartReevaluationSortie } from './EcartReevaluationSortie';
 
 /**
  * LA CLÔTURE DES CONTRATS DE LOCATION-ACQUISITION, dans la fenêtre
@@ -17,6 +18,9 @@ interface ContratListe {
   reference: string | null;
   nature: NatureLocationAcquisition;
   designation: string;
+  /** Ligne A15 · le bien du contrat, et s'il est déjà sorti par une sortie ordinaire. */
+  immobilisationId?: string;
+  bienSorti?: boolean;
   dette: number;
   cloture: { loyers: number; interetsCourus: number } | null;
   prixOption: number;
@@ -59,6 +63,10 @@ export function ClotureLocationAcquisition({
   const [envoi, setEnvoi] = useState(false);
   const [nonLeveePour, setNonLeveePour] = useState<string | null>(null);
   const [cessionCourante, setCessionCourante] = useState(false);
+  // Ligne A15 · réserve non distribuable du 106 d'un bien réévalué cédé au bailleur.
+  const [compteReserve, setCompteReserve] = useState('');
+  // Bien déjà sorti · la non-levée est déclarée sans seconde cession, et le serveur dit pourquoi.
+  const [motifSortieDejaPassee, setMotifSortieDejaPassee] = useState<string | null>(null);
   const journalOd = journaux.find((j) => j.code === 'OD') ?? journaux[0];
 
   const charger = useCallback(async () => {
@@ -101,16 +109,21 @@ export function ClotureLocationAcquisition({
     }
   };
 
-  const declarerOption = async (id: string, levee: boolean) => {
-    if (!levee && (!exerciceId || !journalOd)) return;
+  const declarerOption = async (id: string, levee: boolean, bienSorti = false) => {
+    if (!levee && !bienSorti && (!exerciceId || !journalOd)) return;
     setEnvoi(true);
     setErreur(null);
+    setMotifSortieDejaPassee(null);
     try {
-      await api.post(
+      const r = await api.post<{ sortieDejaPassee?: { motif: string } }>(
         `/immobilisations/location-acquisition/contrats/${id}/option`,
-        levee ? { levee } : { levee, exerciceId, journalId: journalOd!.id, cessionCourante },
+        levee || bienSorti
+          ? { levee }
+          : { levee, exerciceId, journalId: journalOd!.id, cessionCourante, ...(compteReserve ? { compteReserveEcartId: compteReserve } : {}) },
       );
+      if (r?.sortieDejaPassee) setMotifSortieDejaPassee(r.sortieDejaPassee.motif);
       setNonLeveePour(null);
+      setCompteReserve('');
       await charger();
       if (!levee) onSortie?.();
     } catch (err) {
@@ -148,6 +161,7 @@ export function ClotureLocationAcquisition({
         />
       </div>
       {erreur && <div className="px-3.5 py-1.5 text-[11.5px] text-danger">{erreur}</div>}
+      {motifSortieDejaPassee && <div className="px-3.5 py-1.5 text-[11.5px] text-warning">{motifSortieDejaPassee}</div>}
       {(contrats ?? []).map((c) => (
         <div key={c.id} className="border-b border-border last:border-0">
           <div className="grid grid-cols-[1.4fr_150px_110px_120px_200px_auto] gap-2.5 px-3.5 py-1.5 items-center text-[11.5px]">
@@ -206,24 +220,52 @@ export function ClotureLocationAcquisition({
               )}
             </span>
           </div>
-          {nonLeveePour === c.id && (
-            <div className="px-3.5 pb-3 text-[11.5px] flex items-center gap-3">
-              <span>Sortie du bien à la date de l'option</span>
-              <label className="flex items-center gap-1">
-                <input type="checkbox" checked={cessionCourante} onChange={(e) => setCessionCourante(e.target.checked)} />
-                Cession courante
-              </label>
+          {nonLeveePour === c.id && c.bienSorti && (
+            <div className="px-3.5 pb-3 text-[11.5px] flex flex-wrap items-center gap-3">
+              <span>Bien déjà sorti · la non-levée est déclarée sans seconde cession</span>
               <button
                 type="button"
-                disabled={envoi || !journalOd}
-                onClick={() => void declarerOption(c.id, false)}
+                disabled={envoi}
+                onClick={() => void declarerOption(c.id, false, true)}
                 className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1 disabled:opacity-50"
               >
-                {envoi ? '…' : 'Confirmer la sortie'}
+                {envoi ? '…' : 'Déclarer la non-levée'}
               </button>
               <button type="button" onClick={() => setNonLeveePour(null)} className="text-[11.5px] font-semibold text-text-dim px-2 py-1">
                 Annuler
               </button>
+            </div>
+          )}
+          {nonLeveePour === c.id && !c.bienSorti && (
+            <div className="px-3.5 pb-3 text-[11.5px]">
+              <div className="flex flex-wrap items-center gap-3">
+                <span>Sortie du bien à la date de l'option</span>
+                <label className="flex items-center gap-1">
+                  <input type="checkbox" checked={cessionCourante} onChange={(e) => setCessionCourante(e.target.checked)} />
+                  Cession courante
+                </label>
+                <button
+                  type="button"
+                  disabled={envoi || !journalOd}
+                  onClick={() => void declarerOption(c.id, false)}
+                  className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1 disabled:opacity-50"
+                >
+                  {envoi ? '…' : 'Confirmer la sortie'}
+                </button>
+                <button type="button" onClick={() => setNonLeveePour(null)} className="text-[11.5px] font-semibold text-text-dim px-2 py-1">
+                  Annuler
+                </button>
+              </div>
+              {c.immobilisationId && (
+                <div className="mt-2">
+                  <EcartReevaluationSortie
+                    immobilisationId={c.immobilisationId}
+                    type="CESSION"
+                    compteReserve={compteReserve}
+                    setCompteReserve={setCompteReserve}
+                  />
+                </div>
+              )}
             </div>
           )}
           {ouvert === c.id && proposition && (
