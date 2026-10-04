@@ -715,6 +715,9 @@ model Tenant {
   engagementsDepense       EngagementDepense[]
   odAnalytiques            OdAnalytique[]
   lignesOdAnalytique       LigneOdAnalytique[]
+  clesRepartition          CleRepartition[]
+  lignesCleRepartition     LigneCleRepartition[]
+  coutsProductionDeclares  CoutProductionDeclare[]
   naturesCompte            NatureCompte[]
   conventionsFinancement   ConventionFinancement[]
   regularisations          Regularisation[]
@@ -778,24 +781,24 @@ model Tenant {
   lieuxBiens                       LieuBien[]
   modelesBulletin                  ModeleBulletin[]
 
-  contratsLocationAcquisition ContratLocationAcquisition[]
-  cloturesLocationAcquisition ClotureLocationAcquisition[]
-  reprisesSubvention          RepriseSubventionImmobilisation[]
-  subventionsImmobilisations  SubventionImmobilisation[]
-  reductionsSubvention        ReductionSubventionImmobilisation[]
-  revisionsPlanAmortissement  RevisionPlanAmortissement[]
-  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
-  reevaluationsBilan          ReevaluationBilan[]
-  lignesReevaluationBilan     LigneReevaluationBilan[]
-  reprisesProvisionReeval     RepriseProvisionReevaluation[]
-  mouvementsDemantelement     MouvementDemantelement[]
-  provisionsChangeOuverture   ProvisionChangeOuverture[]
-  verrouProvisionChange       VerrouProvisionChange?
-  creancesDouteuses           CreanceDouteuse[]
+  contratsLocationAcquisition  ContratLocationAcquisition[]
+  cloturesLocationAcquisition  ClotureLocationAcquisition[]
+  reprisesSubvention           RepriseSubventionImmobilisation[]
+  subventionsImmobilisations   SubventionImmobilisation[]
+  reductionsSubvention         ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement   RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
+  reevaluationsBilan           ReevaluationBilan[]
+  lignesReevaluationBilan      LigneReevaluationBilan[]
+  reprisesProvisionReeval      RepriseProvisionReevaluation[]
+  mouvementsDemantelement      MouvementDemantelement[]
+  provisionsChangeOuverture    ProvisionChangeOuverture[]
+  verrouProvisionChange        VerrouProvisionChange?
+  creancesDouteuses            CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
-  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
-  verrouCreancesDouteuses     VerrouCreancesDouteuses?
-  constatsImpotResultat       ConstatImpotResultat[]
+  mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
+  verrouCreancesDouteuses      VerrouCreancesDouteuses?
+  constatsImpotResultat        ConstatImpotResultat[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1151,6 +1154,18 @@ model Compte {
   /// pas rendre un dossier illisible.
   codeRetraitementFiscal String?
 
+  /// COMPTABILITÉ DE GESTION (ligne A20, relevé CPCC C17) · le comportement
+  /// du compte face au niveau d'activité, DÉCLARÉ par le cabinet, jamais lu
+  /// sur le numéro. Le glossaire de l'AUDCIF (Titre VI, « CHARGES FIXES ET
+  /// VARIABLES ») distingue charges fixes, variables et semi-variables ; un
+  /// même 6x est fixe chez l'un et variable chez l'autre (un loyer, une
+  /// main-d'œuvre). Null = non déclaré, et le calcul qui le rencontre se dit
+  /// incomplet plutôt que de le ranger d'office.
+  comportementGestion    ComportementGestion?
+  /// Part VARIABLE d'une charge semi-variable, en pour cent (0 < p < 100) ·
+  /// exigée pour ce comportement seul, nulle sinon.
+  partVariableGestionPct Decimal?             @db.Decimal(5, 2)
+
   // Rattachement à un Bailleur (§3.7, comptabilité analytique par
   // projet/bailleur · ajouté le 2026-08-28, docs/plan-de-construction.md
   // item 14) : utile principalement pour les sous-comptes 162-164/462-464
@@ -1176,9 +1191,9 @@ model Compte {
   rapprochements                RapprochementBancaire[]
   // Créances douteuses (ligne A7) · le compte client d'origine, le 416 qui
   // reçoit la créance et le 491 qui porte sa dépréciation.
-  creancesDouteusesSource       CreanceDouteuse[] @relation("CreanceDouteuseSource")
-  creancesDouteuses416          CreanceDouteuse[] @relation("CreanceDouteuse416")
-  creancesDouteuses491          CreanceDouteuse[] @relation("CreanceDouteuse491")
+  creancesDouteusesSource       CreanceDouteuse[]            @relation("CreanceDouteuseSource")
+  creancesDouteuses416          CreanceDouteuse[]            @relation("CreanceDouteuse416")
+  creancesDouteuses491          CreanceDouteuse[]            @relation("CreanceDouteuse491")
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
@@ -1427,30 +1442,32 @@ model Exercice {
   /// une date que personne n'a décidée.
   dateArreteComptes DateTime?
 
-  ecritures                   Ecriture[]
-  clotures                    Cloture[]
-  dotationsAmortissement      DotationAmortissement[]
-  reprisesSubvention          RepriseSubventionImmobilisation[]
-  reductionsSubvention        ReductionSubventionImmobilisation[]
-  revisionsPlanAmortissement  RevisionPlanAmortissement[]
-  coutsEmpruntIncorpores      CoutEmpruntIncorpore[]
-  reevaluationsBilan          ReevaluationBilan[]
-  reprisesProvisionReeval     RepriseProvisionReevaluation[]
-  mouvementsDemantelement     MouvementDemantelement[]
-  creancesDouteuses           CreanceDouteuse[]
+  ecritures                    Ecriture[]
+  clotures                     Cloture[]
+  dotationsAmortissement       DotationAmortissement[]
+  reprisesSubvention           RepriseSubventionImmobilisation[]
+  reductionsSubvention         ReductionSubventionImmobilisation[]
+  revisionsPlanAmortissement   RevisionPlanAmortissement[]
+  coutsEmpruntIncorpores       CoutEmpruntIncorpore[]
+  reevaluationsBilan           ReevaluationBilan[]
+  reprisesProvisionReeval      RepriseProvisionReevaluation[]
+  mouvementsDemantelement      MouvementDemantelement[]
+  creancesDouteuses            CreanceDouteuse[]
   ajustementsCreancesDouteuses AjustementCreanceDouteuse[]
-  mouvementsCreancesDouteuses MouvementCreanceDouteuse[]
-  constatsImpotResultat       ConstatImpotResultat[]
-  cloturesLocationAcquisition ClotureLocationAcquisition[]
-  depreciationsImmo           DepreciationImmobilisation[]
-  reclassementsImmo           ReclassementImmobilisation[]
-  budgetsSection              BudgetSection[]
-  engagementsDepense          EngagementDepense[]
-  odAnalytiques               OdAnalytique[]
-  regularisations             Regularisation[]
-  reevaluations               Reevaluation[]
-  affectationResultat         AffectationResultat?
-  saisiesNotes                SaisieNote[]
+  mouvementsCreancesDouteuses  MouvementCreanceDouteuse[]
+  constatsImpotResultat        ConstatImpotResultat[]
+  cloturesLocationAcquisition  ClotureLocationAcquisition[]
+  depreciationsImmo            DepreciationImmobilisation[]
+  reclassementsImmo            ReclassementImmobilisation[]
+  budgetsSection               BudgetSection[]
+  engagementsDepense           EngagementDepense[]
+  odAnalytiques                OdAnalytique[]
+  clesRepartition              CleRepartition[]
+  coutsProductionDeclares      CoutProductionDeclare[]
+  regularisations              Regularisation[]
+  reevaluations                Reevaluation[]
+  affectationResultat          AffectationResultat?
+  saisiesNotes                 SaisieNote[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -1523,7 +1540,7 @@ model Ecriture {
   reevaluationBilan           ReevaluationBilan?
   repriseProvisionReeval      RepriseProvisionReevaluation?
   mouvementDemantelement      MouvementDemantelement?
-  creanceDouteuseReclassement CreanceDouteuse?           @relation("CreanceDouteuseReclassement")
+  creanceDouteuseReclassement CreanceDouteuse?                   @relation("CreanceDouteuseReclassement")
   ajustementCreanceDouteuse   AjustementCreanceDouteuse?
   mouvementCreanceDouteuse    MouvementCreanceDouteuse?
   constatImpotResultat        ConstatImpotResultat?
@@ -1575,15 +1592,15 @@ model Ecriture {
   secondRegardMotif String?
 
   // Régularisations et abonnements dont cette écriture est l'aboutissement.
-  regularisationConstatee    Regularisation?             @relation("RegulConstatation")
-  regularisationReprise      Regularisation?             @relation("RegulReprise")
-  echeanceAbonnement         EcheanceAbonnement?
-  reevaluationEcarts         Reevaluation?               @relation("ReevalEcarts")
-  reevaluationProvision      Reevaluation?               @relation("ReevalProvision")
-  reevaluationExtourne       Reevaluation?               @relation("ReevalExtourne")
-  reevaluationContrePassationDeclaree Reevaluation?      @relation("ReevalContrePassationDeclaree")
-  reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
-  executionsEngagement       ExecutionEngagement[]
+  regularisationConstatee             Regularisation?             @relation("RegulConstatation")
+  regularisationReprise               Regularisation?             @relation("RegulReprise")
+  echeanceAbonnement                  EcheanceAbonnement?
+  reevaluationEcarts                  Reevaluation?               @relation("ReevalEcarts")
+  reevaluationProvision               Reevaluation?               @relation("ReevalProvision")
+  reevaluationExtourne                Reevaluation?               @relation("ReevalExtourne")
+  reevaluationContrePassationDeclaree Reevaluation?               @relation("ReevalContrePassationDeclaree")
+  reclassementImmobilisation          ReclassementImmobilisation? @relation("ReclassementEcriture")
+  executionsEngagement                ExecutionEngagement[]
 
   // À-NOUVEAU · l'écriture porte le solde d'OUVERTURE de l'exercice, et non un
   // mouvement de l'année. Deux sources la posent, pour la même raison :
@@ -2631,8 +2648,9 @@ model PlanAnalytique {
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  sections      SectionAnalytique[]
-  odAnalytiques OdAnalytique[]
+  sections        SectionAnalytique[]
+  odAnalytiques   OdAnalytique[]
+  clesRepartition CleRepartition[]
 
   @@unique([tenantId, code])
   @@map("plans_analytiques")
@@ -2669,10 +2687,13 @@ model SectionAnalytique {
   estActive Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  budgets      BudgetSection[]
-  ventilations VentilationAnalytique[]
-  engagements  EngagementDepense[]
-  lignesOd     LigneOdAnalytique[]
+  budgets         BudgetSection[]
+  ventilations    VentilationAnalytique[]
+  engagements     EngagementDepense[]
+  lignesOd        LigneOdAnalytique[]
+  clesSource      CleRepartition[]        @relation("CleSource")
+  lignesCle       LigneCleRepartition[]
+  coutsProduction CoutProductionDeclare[]
 
   @@unique([planId, code])
   @@index([tenantId])
@@ -2999,13 +3020,123 @@ model OdAnalytique {
   reference  String?
   libelle    String
 
+  // L'OD née d'une clé de répartition (ligne A20) la nomme · la clé ne se
+  // retire pas tant qu'une OD qu'elle a produite existe (RESTRICT déclaré,
+  // sans quoi Prisma poserait SET NULL et l'OD perdrait sa justification).
+  cleRepartitionId String?
+  cleRepartition   CleRepartition? @relation(fields: [cleRepartitionId], references: [id], onDelete: Restrict)
+
   createdAt DateTime @default(now())
   createdBy String
 
   lignes LigneOdAnalytique[]
 
   @@index([tenantId, exerciceId])
+  @@index([cleRepartitionId])
   @@map("od_analytiques")
+}
+
+// ---------------------------------------------------------------------------
+// COMPTABILITÉ DE GESTION (ligne A20, relevé CPCC C17)
+//
+// AUDCIF Titre VI, « COMPTABILITÉ ANALYTIQUE DE GESTION (CAGE) » · « Sa
+// finalité est la gestion. Elle n'est ni normalisée, ni obligatoire. » Les
+// comptes 92 à 99 sont « laissés à l'initiative des entités » aux deux plans
+// (AUDCIF Titre VII classe 9 ; SYCEBNL Partie 2 ch. 3 section 9). Ce qui suit
+// est donc une DÉFINITION D'OMEGAX, dite à l'écran, et rien n'en entre au
+// grand livre : la répartition passe par des OD analytiques (table à part,
+// équilibrées), le coût de production et le seuil se calculent et se
+// montrent.
+// ---------------------------------------------------------------------------
+
+/// Comportement d'un compte de gestion face au niveau d'activité.
+enum ComportementGestion {
+  CHARGE_FIXE
+  CHARGE_VARIABLE
+  CHARGE_SEMI_VARIABLE
+  PRODUIT_ACTIVITE
+  HORS_CALCUL
+}
+
+/// Une clé se déclare en POURCENTAGES (somme de cent) ou en UNITÉS
+/// (« relevés statistiques », glossaire, « RÉPARTITION » · mètres carrés,
+/// heures, effectifs), dont la part se déduit.
+enum ModeCleRepartition {
+  POURCENTAGE
+  UNITES
+}
+
+/// Clé de répartition d'une section (auxiliaire) sur d'autres sections du
+/// même plan, PAR EXERCICE · une clé de N ne vaut pas pour N+1 sans être
+/// reprise ou redéclarée (les surfaces, les effectifs changent).
+model CleRepartition {
+  id              String             @id @default(uuid())
+  tenantId        String
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  exerciceId      String
+  exercice        Exercice           @relation(fields: [exerciceId], references: [id])
+  planId          String
+  plan            PlanAnalytique     @relation(fields: [planId], references: [id])
+  sectionSourceId String
+  sectionSource   SectionAnalytique  @relation("CleSource", fields: [sectionSourceId], references: [id])
+  libelle         String
+  mode            ModeCleRepartition
+  // Nom de l'unité en mode UNITES (« m² », « heures »).
+  unite           String?
+  // D'où viennent les valeurs · le glossaire veut une clé « fondée sur des
+  // relevés statistiques ou des raisonnements techniques et économiques ».
+  source          String
+  createdAt       DateTime           @default(now())
+  createdBy       String
+
+  lignes LigneCleRepartition[]
+  ods    OdAnalytique[]
+
+  @@unique([exerciceId, sectionSourceId])
+  @@index([tenantId, exerciceId])
+  @@map("cles_repartition")
+}
+
+model LigneCleRepartition {
+  id             String            @id @default(uuid())
+  tenantId       String
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  cleId          String
+  cle            CleRepartition    @relation(fields: [cleId], references: [id], onDelete: Cascade)
+  sectionCibleId String
+  sectionCible   SectionAnalytique @relation(fields: [sectionCibleId], references: [id])
+  valeur         Decimal           @db.Decimal(18, 4)
+
+  @@unique([cleId, sectionCibleId])
+  @@index([tenantId, cleId])
+  @@map("lignes_cle_repartition")
+}
+
+/// Données DÉCLARÉES du coût de production d'une section, par exercice ·
+/// AUDCIF Titre VIII ch. 14 § 2.3.2, l'imputation rationnelle des charges
+/// fixes se lit sur « la capacité normale des installations de production ».
+/// Ni la capacité ni l'activité ne se tirent des comptes · le cabinet les
+/// déclare, avec leur source.
+model CoutProductionDeclare {
+  id               String            @id @default(uuid())
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  exerciceId       String
+  exercice         Exercice          @relation(fields: [exerciceId], references: [id])
+  sectionId        String
+  section          SectionAnalytique @relation(fields: [sectionId], references: [id])
+  unite            String
+  capaciteNormale  Decimal           @db.Decimal(18, 4)
+  activiteReelle   Decimal           @db.Decimal(18, 4)
+  // Quantité produite, pour un coût unitaire · facultative.
+  quantiteProduite Decimal?          @db.Decimal(18, 4)
+  source           String
+  createdAt        DateTime          @default(now())
+  createdBy        String
+
+  @@unique([exerciceId, sectionId])
+  @@index([tenantId, exerciceId])
+  @@map("couts_production_declares")
 }
 
 model LigneOdAnalytique {
@@ -3339,8 +3470,8 @@ model Devise {
   estActive Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  cours  CoursDevise[]
-  lignes LigneEcriture[]
+  cours            CoursDevise[]
+  lignes           LigneEcriture[]
   // PV de caisse comptés dans cette devise (ligne A10).
   pvComptageCaisse ProcesVerbalComptageCaisse[]
 
@@ -3406,7 +3537,7 @@ model Reevaluation {
   // l'écriture des écarts ne porte ni devise ni cours. Sans lui, un cours
   // corrigé après la réévaluation ne se distinguait pas d'un compte retouché.
   // Nul sur les réévaluations antérieures.
-  coursUtilises   Json?
+  coursUtilises Json?
 
   // L'ÉCART DE CHAQUE DISPONIBILITÉ, par compte et par devise (ligne A5 bis,
   // 2026-10-03) · [{ compteId, deviseId, ecart }]. AUDCIF art. 57 · l'écart
@@ -3427,10 +3558,10 @@ model Reevaluation {
   // avec sa SOURCE, comme la provision d'ouverture · [{ compteId, deviseId,
   // ecart }], vérifiée au centime contre la ligne passée. Au journal d'audit
   // avec l'enregistrement.
-  ventilationDisponibilites        Json?
-  ventilationDisponibilitesSource  String?
-  ventilationDisponibilitesLe      DateTime?
-  ventilationDisponibilitesPar     String?
+  ventilationDisponibilites       Json?
+  ventilationDisponibilitesSource String?
+  ventilationDisponibilitesLe     DateTime?
+  ventilationDisponibilitesPar    String?
 
   // LA CONTRE-PASSATION INTÉGRALE (relecture adverse d'A5 bis, B2 et M2) ·
   // la banque et la caisse contre-passées avec le reste, par exception
@@ -3458,11 +3589,11 @@ model Reevaluation {
   // pas annulée (detenteurs-ecriture.ts) · RESTRICT, une suppression qui
   // passerait la garde est refusée par la base, jamais dénouée en silence.
   // Au journal d'audit avec l'enregistrement.
-  contrePassationDeclareeId    String?   @unique
-  contrePassationDeclaree      Ecriture? @relation("ReevalContrePassationDeclaree", fields: [contrePassationDeclareeId], references: [id], onDelete: Restrict)
-  motifContrePassationDeclaree String?
-  contrePassationDeclareeLe    DateTime?
-  contrePassationDeclareePar   String?
+  contrePassationDeclareeId       String?   @unique
+  contrePassationDeclaree         Ecriture? @relation("ReevalContrePassationDeclaree", fields: [contrePassationDeclareeId], references: [id], onDelete: Restrict)
+  motifContrePassationDeclaree    String?
+  contrePassationDeclareeLe       DateTime?
+  contrePassationDeclareePar      String?
   // LES DÉCLARATIONS RETIRÉES (quatrième tour, m3) · [{ ecritureId,
   // numeroPiece, motifDeclaration, declareeLe, declareePar, motif, par, le }],
   // le motif du retrait exigé, jamais effacé.
@@ -3480,10 +3611,10 @@ model Reevaluation {
   // refus d'une seconde contre-passation du module, les négatifs et
   // écritures corrigées refusés à la déclaration. Se retire tant qu'aucun
   // geste ne s'y est appuyé ; au journal d'audit avec l'enregistrement.
-  etatAtteste      Boolean   @default(false)
-  motifAttestation String?
-  etatAttesteLe    DateTime?
-  etatAttestePar   String?
+  etatAtteste         Boolean   @default(false)
+  motifAttestation    String?
+  etatAttesteLe       DateTime?
+  etatAttestePar      String?
   // LES ATTESTATIONS RETIRÉES · [{ motifAttestation, attesteLe, attestePar,
   // motif, par, le }], le motif du retrait exigé, jamais effacé.
   retraitsAttestation Json?
@@ -3516,38 +3647,38 @@ model Reevaluation {
 // toujours le DÉBUT d'un exercice du dossier (fiche du compte 77, « existant
 // au début de l'exercice »).
 model ProvisionChangeOuverture {
-  id              String   @id @default(uuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  id                              String   @id @default(uuid())
+  tenantId                        String
+  tenant                          Tenant   @relation(fields: [tenantId], references: [id])
   // Racine du compte de provision · 194, 4991 ou 4997 au SYSCOHADA, 194 seul
   // au SYCEBNL (`motifRefusDeclarationOuverture`).
-  compteProvision String
-  montant         Decimal  @db.Decimal(18, 2)
+  compteProvision                 String
+  montant                         Decimal  @db.Decimal(18, 2)
   // Date à laquelle la provision existait · seules les réévaluations
   // POSTÉRIEURES s'y ajoutent.
-  dateReference   DateTime @db.Date
+  dateReference                   DateTime @db.Date
   // Pièce ou raisonnement qui fonde le montant · exigé, jamais vide.
-  source          String
+  source                          String
   // Motif de la nouvelle version · exigé dès qu'une version antérieure existe.
-  motif           String?
+  motif                           String?
   // CONTESTATION de la provision du module (huitième relecture) · seule elle
   // admet une version SOUS la provision que les réévaluations OmegaX ont
   // passée jusqu'à la clôture précédente. Déclaration explicite, distincte du
   // motif de correction, qui ne l'ouvre jamais (une correction exige déjà un
   // motif, et rouvrirait la double dotation).
-  provisionModuleContestee Boolean @default(false)
+  provisionModuleContestee        Boolean  @default(false)
   // Son motif · exigé, non vide, quand la contestation est déclarée ; nul sinon.
-  motifContestation        String?
+  motifContestation               String?
   // La provision du module CONTESTÉE, figée par le SERVEUR à la déclaration
   // (jamais reçue du client) · la contestation ne vaut que tant que la
   // provision du module à la clôture précédente lui reste égale. Une
   // réévaluation passée ensuite la change, et la contestation ne couvre pas
   // ce qu'elle n'a pas vu (neuvième relecture, Y9).
   provisionModuleContesteeMontant Decimal? @db.Decimal(18, 2)
-  createdAt       DateTime @default(now())
-  createdBy       String
-  updatedAt       DateTime @updatedAt
-  modifiedBy      String?
+  createdAt                       DateTime @default(now())
+  createdBy                       String
+  updatedAt                       DateTime @updatedAt
+  modifiedBy                      String?
 
   @@unique([tenantId, compteProvision, dateReference])
   @@map("provisions_change_ouverture")
@@ -4033,11 +4164,11 @@ model Immobilisation {
   tauxActualisationDemantelementPourcent Decimal?                    @db.Decimal(9, 4)
   mouvementsDemantelement                MouvementDemantelement[]
 
-  statut      StatutImmobilisation @default(EN_SERVICE)
-  dateSortie  DateTime?
+  statut               StatutImmobilisation        @default(EN_SERVICE)
+  dateSortie           DateTime?
   // Renseigné uniquement en cas de cession (par opposition à une mise hors
   // service/rebut, sans produit) · voir ImmobilisationService.sortir.
-  prixCession Decimal?             @db.Decimal(18, 2)
+  prixCession          Decimal?                    @db.Decimal(18, 2)
   /// Ligne A14 · nature de la sortie et pièce qui la justifie (AUDCIF art. 17,
   /// 3° et 5° · « pièces datées » et « références de la pièce justificative »),
   /// recopiées dans l'écriture de sortie. Nulles pour une sortie antérieure à
@@ -6195,10 +6326,10 @@ model ProcesVerbalComptageCaisse {
   /// (AUDCIF art. 16, al. 4 et 5 ; art. 42). Les quatre colonnes vont
   /// ensemble · toutes nulles ou toutes renseignées. Nulles sur un PV établi
   /// avant la règle, et l'écran le dit.
-  soldeALaCloture          Decimal? @db.Decimal(18, 2)
-  encaissementsPosterieurs Decimal? @db.Decimal(18, 2)
-  decaissementsPosterieurs Decimal? @db.Decimal(18, 2)
-  mouvementsPosterieurs    Int?
+  soldeALaCloture              Decimal? @db.Decimal(18, 2)
+  encaissementsPosterieurs     Decimal? @db.Decimal(18, 2)
+  decaissementsPosterieurs     Decimal? @db.Decimal(18, 2)
+  mouvementsPosterieurs        Int?
   /// Opérations d'un exercice suivant à date de valeur au plus tard à la
   /// clôture (net) · au solde du jour du comptage, hors des mouvements
   /// intercalés. Nulle quand rien n'est reconstitué.
@@ -9058,6 +9189,7 @@ enum MotifRepriseDemantelement {
   ENGAGEMENT_COUTS
   CESSION_SOUS_JACENT
 }
+
 // ---------------------------------------------------------------------------
 // CRÉANCES DOUTEUSES OU LITIGIEUSES · dépréciation dossier par dossier (ligne
 // A7, relevé CPCC C3, décision de Manasse du 2026-10-02).
@@ -9264,11 +9396,11 @@ model ConstatImpotResultat {
 
   /// L'impôt dû de l'exercice au débit du 89110000 (loi n° 23/053, art. 56,
   /// ou l'impôt minimum de l'art. 57), figé au clic.
-  montantImpot    Decimal @db.Decimal(18, 2)
-  minimumApplique Boolean
+  montantImpot      Decimal @db.Decimal(18, 2)
+  minimumApplique   Boolean
   /// Acomptes imputés sur la dette d'impôt (D 441 / C 4492, art. 57 bis,
   /// al. 3 LPF) · zéro quand le cabinet ne l'a pas demandé.
-  montantImpute   Decimal @default(0) @db.Decimal(18, 2)
+  montantImpute     Decimal @default(0) @db.Decimal(18, 2)
   /// Ce que le cabinet déclare quand l'assujettissement de sa forme dépend
   /// d'un fait que le dossier ne porte pas (option de l'art. 4, art. 5 et 6).
   attestationRegime String?
