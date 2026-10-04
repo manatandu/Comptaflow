@@ -70,6 +70,7 @@ export class FacturationController {
       journalId: dto.journalId,
       compteGestionId: dto.compteGestionId ?? null,
       comptesParLigne: dto.comptesParLigne,
+      dateReception: dto.dateReception ?? null,
     });
   }
 

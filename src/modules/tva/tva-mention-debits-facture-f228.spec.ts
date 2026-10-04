@@ -121,7 +121,14 @@ describe('F228 · la mention de l’art. 60 se LIT sur la facture d’achat enre
     const { s, findMany } = service([achat({ date: '2026-03-10', tva: 160_000, fournisseur: AUTORISE, piece: null })]);
     await s.declaration('t1', MARS, FIN_MARS);
     const appel = findMany.mock.calls.find(([arg]) => (arg.where?.compte as { OR?: unknown })?.OR);
-    expect(appel?.[0].select.ecriture.select.facture.select).toEqual({ nature: true, sens: true, mentionTvaDebits: true });
+    expect(appel?.[0].select.ecriture.select.facture.select).toEqual({
+      nature: true,
+      sens: true,
+      mentionTvaDebits: true,
+      // Ligne A21 · les deux dates d'une facture reçue, pour le délai de l'art. 37 al. 2.
+      dateFacture: true,
+      dateReception: true,
+    });
   });
 
   it('une anticipation dont la facture d’achat PORTE la mention est dite prouvée par la pièce', async () => {

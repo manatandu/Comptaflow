@@ -565,8 +565,9 @@ describe('L’état détaillé ne lit QUE les factures d’achat', () => {
     await svc.etatDetaille('t', '2026-09');
     const ou = ((prisma.facture as Faux).findMany as jest.Mock).mock.calls[0][0].where;
     expect(ou.sens).toBe(SensFacture.ACHAT);
-    expect(ou.dateFacture.gte).toEqual(new Date(Date.UTC(2026, 8, 1)));
-    expect(ou.dateFacture.lt).toEqual(new Date(Date.UTC(2026, 9, 1)));
+    // Ligne A21 · le mois de la RÉCEPTION, à défaut celui de la facture.
+    const mois = { gte: new Date(Date.UTC(2026, 8, 1)), lt: new Date(Date.UTC(2026, 9, 1)) };
+    expect(ou.OR).toEqual([{ dateReception: mois }, { dateReception: null, dateFacture: mois }]);
   });
 
   it('prend le FOURNISSEUR sur l’émetteur, jamais sur la contrepartie', async () => {

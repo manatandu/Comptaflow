@@ -2073,7 +2073,9 @@ export class TauxTvaService {
               // exige. Son SENS et sa MENTION DES DÉBITS prouvent, sur un
               // achat, l'autorisation du fournisseur (décret art. 60, audit
               // final F228).
-              facture: { select: { nature: true, sens: true, mentionTvaDebits: true } },
+              // Et ses DEUX DATES (ligne A21) · une facture reçue s'écrit à sa
+              // réception, le délai de l'art. 37 al. 2 court de l'exigibilité.
+              facture: { select: { nature: true, sens: true, mentionTvaDebits: true, dateFacture: true, dateReception: true } },
               // DEUX contreparties sont lues sur la même écriture, et pour
               // trois questions différentes : la ligne de TIERS lettrée dit
               // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
@@ -2444,10 +2446,40 @@ export class TauxTvaService {
           // répartissent au centime, la dernière recevant le reste, pour que la
           // somme des parts rende la taxe de la ligne exactement.
           const montants = TauxTvaService.montantsDesTranches(montant, tranches);
+          /*
+            LA FACTURE D'ACHAT DATÉE À SA RÉCEPTION (ligne A21). Son écriture
+            prend la date de réception (AUDCIF art. 16, al. 2) · la taxe y est
+            déduite, dans le mois où le dossier détient la pièce sans laquelle
+            elle ne se déduit pas (O.-L. n° 10/001, art. 38, 1°, « doit
+            figurer [...] sur une facture normalisée »), et l'art. 102 du
+            décret n° 011/42 impute sur le mois « le total de taxes supportées
+            en amont pour lesquelles le droit à déduction a pris naissance »,
+            né plus tôt compris. Ce report est permis, dans une borne · « Le
+            droit à déduction est exercé jusqu'au 31 décembre de l'année qui
+            suit celle au cours de laquelle la taxe est devenue exigible »
+            (art. 37 al. 2), exigibilité lue « chez l'assujetti », qui
+            « s'entend du fournisseur de biens ou du prestataire de services »
+            (décret, art. 96). Le délai ne court donc PAS de la réception · le
+            mesurer sur la date de l'écriture l'allongerait d'autant que la
+            facture a mis à arriver. Pour une taxe datée au fait générateur ou
+            au débit (chez le fournisseur, art. 25, 1° et art. 26), la date de
+            la FACTURE est le jalon le plus ancien que le dossier tienne · c'est
+            elle qui borne le délai, et une taxe déchue n'entre plus dans la
+            déduction de la période (« acquise définitivement au Trésor
+            public »). Datée à l'encaissement (art. 25, 2°), l'exigibilité est
+            le règlement, que la réception ne déplace pas. Sans date de
+            réception (pièce d'avant A21), rien ne change.
+          */
+          const factureRecue =
+            !estCollecte && base === 'FAIT_GENERATEUR' && l.ecriture.facture?.sens === SensFacture.ACHAT && l.ecriture.facture.dateReception
+              ? l.ecriture.facture
+              : null;
           tranches.forEach(({ date, auPaiement }, i) => {
             const exigible = montants[i];
-            if (!estCollecte && date && date < limiteDecheance) {
+            const dateDuDelai = date && factureRecue && !auPaiement && factureRecue.dateFacture < date ? factureRecue.dateFacture : date;
+            if (!estCollecte && dateDuDelai && dateDuDelai < limiteDecheance) {
               tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + exigible);
+              if (dateDuDelai !== date) return;
             }
             if (!date || date < dateDebut || date > dateFin) return;
             if (auPaiement) {
