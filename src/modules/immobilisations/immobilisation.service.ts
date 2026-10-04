@@ -94,7 +94,8 @@ import {
   motifRefusMiseEnServiceAvantIncorporation,
   motifRefusPlafond,
 } from './couts-emprunt-incorpores';
-import { imputationSurEcart, natureReevaluable } from './reevaluation-bilan';
+import { COMPTE_PROVISION_SPECIALE, COMPTE_REPRISE_PROVISION_SPECIALE, imputationSurEcart, natureReevaluable } from './reevaluation-bilan';
+import { lignesSortDeLEcart, motifRefusCompteReserve, sortDesEcarts, supplementDeLaDotation, vueDeLExercice, type SortDeLEcart } from './reevaluation-suites';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 import { CriteresDeclares, criteresRetenus, estFraisDeveloppement, motifRefusFraisDeveloppement } from './frais-developpement';
@@ -200,6 +201,19 @@ export interface LigneTableauAmortissement {
   dotationPassee: boolean;
   /** Sorti dans l'exercice · sa dotation est celle qui a été passée, rien de plus (F30). */
   sortiLe: string | null;
+  /**
+   * Ligne A15 · la hausse (ou l'élimination, méthode 2) du cumul par la
+   * réévaluation de l'exercice, passée à sa clôture · cumul N = cumul N-1 +
+   * dotation + cet ajustement.
+   */
+  ajustementReevaluation: number;
+  /**
+   * Ligne A15, loi n° 23/053 art. 135 · les amortissements pratiqués après la
+   * réévaluation · le produit des k' antérieurs, la part de la dotation qu'ils
+   * dégagent (ch. 28 § 4.2.2) et la reprise de l'exercice opérée sur l'écart
+   * (154 au 861, annuelle et à la sortie). Null pour un bien jamais réévalué.
+   */
+  reevaluation: { produitAnterieur: number; supplement: number; repriseEcart: number } | null;
 }
 
 /**
@@ -990,6 +1004,7 @@ export class ImmobilisationService {
           datePieceSortie: null,
           ecritureSortieId: null,
           ecritureProduitCessionId: null,
+          ecritureSortieEcartReevaluationId: null,
         },
       });
     } catch {
@@ -998,6 +1013,97 @@ export class ImmobilisationService {
           'les écritures de sortie de ce bien et son statut avant toute nouvelle tentative.',
       );
     }
+  }
+
+  /**
+   * LIGNE A15 · CE QUE DEVIENT L'ÉCART DE RÉÉVALUATION D'UN BIEN QUI SORT
+   * (`reevaluation-suites.ts`, `sortDesEcarts`, qui porte les textes). Rend
+   * les lignes de l'écriture à passer, les lignes de réévaluation qu'elle
+   * solde, et ce qui n'est PAS passé, avec son motif. Refuse avant le verrou
+   * la sortie qui doit transférer un 106 sans réserve choisie, ou vers un
+   * compte qui n'en est pas une.
+   */
+  private async sortDeLEcartALaSortie(
+    tenantId: string,
+    id: string,
+    referentiel: Referentiel,
+    dto: Pick<SortieImmobilisation, 'type' | 'compteReserveEcartId'>,
+  ) {
+    const lignesReevaluation = await this.prisma.ligneReevaluationBilan.findMany({
+      where: { tenantId, immobilisationId: id, ecart: { gt: 0 } },
+      select: { id: true, compteEcart: true, ecart: true, provisionReprise: true, ecartImpute: true, ecartTransfere: true },
+      orderBy: { id: 'asc' },
+    });
+    const vide = { lignes: [] as Array<{ compteId: string; debit: number; credit: number }>, passes: [] as SortDeLEcart[], nonPasses: [] as SortDeLEcart[], restitution: null };
+    if (lignesReevaluation.length === 0) return vide;
+    const sorts = sortDesEcarts({
+      referentiel: referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL',
+      cession: dto.type === TypeSortie.CESSION,
+      lignes: lignesReevaluation.map((l) => ({
+        id: l.id,
+        compteEcart: l.compteEcart,
+        ecart: Number(l.ecart),
+        provisionReprise: Number(l.provisionReprise),
+        ecartImpute: Number(l.ecartImpute),
+        ecartTransfere: Number(l.ecartTransfere),
+      })),
+    });
+    const passes = sorts.filter((s) => s.traitement !== 'NON_PASSE');
+    const nonPasses = sorts.filter((s) => s.traitement === 'NON_PASSE');
+    const { reserve, reprise } = lignesSortDeLEcart(passes);
+    const lignes: Array<{ compteId: string; debit: number; credit: number }> = [];
+    let compteReserve: { id: string; numero: string } | null = null;
+    if (reserve.length > 0) {
+      const reserveChoisie = dto.compteReserveEcartId
+        ? await this.prisma.compte.findFirst({
+            where: { id: dto.compteReserveEcartId, tenantId },
+            select: { id: true, numero: true, estActif: true, typeCompte: true },
+          })
+        : null;
+      if (dto.compteReserveEcartId && !reserveChoisie) throw new BadRequestException('Réserve introuvable pour ce dossier.');
+      const total = reserve.reduce((t, r) => t + r.montant, 0);
+      const refus = motifRefusCompteReserve(reserveChoisie?.numero);
+      if (refus) {
+        throw new BadRequestException(
+          `Ce bien porte ${total.toFixed(2)} d'écart de réévaluation au 106 · ${refus}`,
+        );
+      }
+      if (reserveChoisie!.typeCompte !== TypeCompteDetailTotal.DETAIL || !reserveChoisie!.estActif) {
+        throw new BadRequestException(`Le compte ${reserveChoisie!.numero} n'est pas un compte de détail actif · choisissez la réserve où l'écart s'inscrit.`);
+      }
+      compteReserve = { id: reserveChoisie!.id, numero: reserveChoisie!.numero };
+      for (const r of reserve) {
+        const compteEcart = await this.compteDeSortie(tenantId, r.compteEcart);
+        lignes.push({ compteId: compteEcart.id, debit: r.montant, credit: 0 }, { compteId: compteReserve.id, debit: 0, credit: r.montant });
+      }
+    }
+    if (reprise > 0) {
+      const [c154, c861] = await Promise.all([
+        this.compteDeSortie(tenantId, COMPTE_PROVISION_SPECIALE),
+        this.compteDeSortie(tenantId, COMPTE_REPRISE_PROVISION_SPECIALE),
+      ]);
+      lignes.push({ compteId: c154.id, debit: reprise, credit: 0 }, { compteId: c861.id, debit: 0, credit: reprise });
+    }
+    const cession = dto.type === TypeSortie.CESSION;
+    return {
+      lignes,
+      passes,
+      nonPasses,
+      restitution: {
+        transfereReserve: reserve.reduce((t, r) => Math.round((t + r.montant) * 100) / 100, 0),
+        compteReserve: compteReserve?.numero ?? null,
+        repris861: reprise,
+        nonPasses: nonPasses.map((s) => ({ compteEcart: s.compteEcart, montant: s.montant, motif: s.motif })),
+        // Le résultat FISCAL n'est pas tenu ici · dit, jamais retraité
+        // (`catalogue-retraitements.ts`, le logiciel ne qualifie pas).
+        fiscal:
+          cession && reserve.length > 0
+            ? 'Fiscalement, la loi n° 23/053 veut la réduction de la plus-value compensée par la réintégration du solde ' +
+              'de l’écart du bien cédé (art. 133, al. 3), et la plus-value de réévaluation devient imposable quand le bien ' +
+              'est aliéné (art. 19) · réintégration au résultat fiscal, non passée par OmegaX.'
+            : null,
+      },
+    };
   }
 
   private async trouver(tenantId: string, id: string) {
@@ -2846,9 +2952,39 @@ export class ImmobilisationService {
         consommationsUniteOeuvre: {
           select: { exerciceId: true, unitesConsommees: true, exercice: { select: { dateFin: true } } },
         },
+        // LIGNE A15 · les réévaluations qui ont changé la fiche (écart non nul ·
+        // les autres ne l'ont pas touchée), pour relire le bien tel qu'il était
+        // à cet exercice (`vueDeLExercice`) et dire ce que la réévaluation laisse
+        // à son annuité (loi n° 23/053, art. 135).
+        lignesReevaluation: {
+          where: { ecart: { gt: 0 } },
+          select: {
+            coefficientRetenu: true,
+            brutAvant: true,
+            brutApres: true,
+            amortissementsAvant: true,
+            amortissementsApres: true,
+            reevaluation: { select: { dateReevaluation: true } },
+          },
+        },
+        ecritureSortieEcartReevaluation: {
+          select: { lignes: { select: { credit: true, compte: { select: { numero: true } } } } },
+        },
       },
       orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
     });
+    // Les reprises de l'exercice opérées sur l'écart (art. 135, al. 2) · la
+    // reprise annuelle du 154, sa part par bien (`detail`), RELUE, jamais
+    // recalculée. Lue seulement si un bien porte une réévaluation.
+    const unBienReevalue = immos.some((i) => (i.lignesReevaluation ?? []).length > 0);
+    const repriseAnnuelle = unBienReevalue
+      ? await this.prisma.repriseProvisionReevaluation.findFirst({ where: { tenantId, exerciceId: exercice.id }, select: { detail: true } })
+      : null;
+    const repriseEcartParBien = new Map<string, number>();
+    for (const d of (Array.isArray(repriseAnnuelle?.detail) ? repriseAnnuelle!.detail : []) as Array<{ immobilisationId?: string; montant?: number }>) {
+      if (!d?.immobilisationId) continue;
+      repriseEcartParBien.set(d.immobilisationId, Math.round(((repriseEcartParBien.get(d.immobilisationId) ?? 0) + Number(d.montant ?? 0)) * 100) / 100);
+    }
 
     const arrondir = (x: number) => Math.round(x * 100) / 100;
     const moisDeLExercice: Array<{ annee: number; mois: number }> = [];
@@ -2872,6 +3008,7 @@ export class ImmobilisationService {
         cumulN: number;
         depreciations: number;
         net: number;
+        ajustementReevaluation: number;
       }
     >();
 
@@ -2890,10 +3027,27 @@ export class ImmobilisationService {
 
     for (const immo of immos) {
       const dotationsAnterieures = immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateFin);
+      const vue = vueDeLExercice(
+        (immo.lignesReevaluation ?? []).map((l) => ({
+          dateReevaluation: l.reevaluation.dateReevaluation,
+          coefficientRetenu: Number(l.coefficientRetenu),
+          brutAvant: Number(l.brutAvant),
+          brutApres: Number(l.brutApres),
+          amortissementsAvant: Number(l.amortissementsAvant),
+          amortissementsApres: Number(l.amortissementsApres),
+        })),
+        exercice,
+      );
+      // LE CUMUL D'OUVERTURE EST CELUI DE L'OUVERTURE (ligne A15) · sans la
+      // réévaluation de l'exercice, passée à sa clôture, ni les postérieures.
       const cumulN1 = arrondir(
         dotationsAnterieures.reduce((t, d) => t + Number(d.montant), 0) +
-          amortissementsHorsDotations(immo),
+          amortissementsHorsDotations(immo) -
+          vue.ajustementCumulExercice -
+          vue.cumulPosterieur,
       );
+      const valeurBruteALExercice = arrondir(Number(immo.valeurOrigine) - vue.brutPosterieur);
+      const valeurResiduelleALExercice = Number(immo.valeurResiduelle) / vue.produitPosterieur;
 
       // La dotation retenue est celle DÉJÀ PASSÉE si elle l'a été · un tableau
       // qui recalculerait ce qui est comptabilisé afficherait autre chose que
@@ -2968,7 +3122,7 @@ export class ImmobilisationService {
         if (dernierServi >= 0) parMois[dernierServi] = arrondir(parMois[dernierServi] + (dotation - cumul));
       }
 
-      const cumulN = arrondir(cumulN1 + dotation);
+      const cumulN = arrondir(cumulN1 + dotation + vue.ajustementCumulExercice);
       // Les 29 à la clôture de l'exercice, celui-ci compris (audit final F131).
       const depreciations = arrondir(
         this.cumulDepreciation(
@@ -2977,8 +3131,8 @@ export class ImmobilisationService {
             .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
         ),
       );
-      const net = arrondir(Number(immo.valeurOrigine) - cumulN - depreciations);
-      const base = this.baseAmortissable(Number(immo.valeurOrigine), Number(immo.valeurResiduelle));
+      const net = arrondir(valeurBruteALExercice - cumulN - depreciations);
+      const base = this.baseAmortissable(valeurBruteALExercice, valeurResiduelleALExercice);
 
       // RANGÉ AU COMPTE OÙ LE BIEN EST INSCRIT À LA CLÔTURE · un bien non
       // achevé figure ici pour sa valeur brute et nette, au 2x9 où la balance
@@ -2999,12 +3153,24 @@ export class ImmobilisationService {
           cumulN: 0,
           depreciations: 0,
           net: 0,
+          ajustementReevaluation: 0,
         };
+      // La reprise du 154 passée À LA SORTIE du bien dans l'exercice · lue sur
+      // son écriture (le 86 crédité), jamais recalculée.
+      const repriseSortie =
+        immo.dateSortie && immo.dateSortie >= exercice.dateDebut && immo.dateSortie <= exercice.dateFin
+          ? arrondir(
+              (immo.ecritureSortieEcartReevaluation?.lignes ?? [])
+                .filter((l) => l.compte.numero.startsWith('86'))
+                .reduce((t, l) => t + Number(l.credit), 0),
+            )
+          : 0;
+      const repriseEcart = arrondir((repriseEcartParBien.get(immo.id) ?? 0) + repriseSortie);
       groupe.lignes.push({
         id: immo.id,
         designation: immo.designation,
         dateAcquisition: immo.dateAcquisition.toISOString().slice(0, 10),
-        valeurBrute: Number(immo.valeurOrigine),
+        valeurBrute: valeurBruteALExercice,
         // Le taux, pas seulement la durée · c'est ce que leur tableau affiche,
         // et c'est ce qu'on relit pour vérifier une annuité de tête.
         taux: immo.dureeAmortissementAns > 0 ? arrondir(100 / immo.dureeAmortissementAns) : 0,
@@ -3018,6 +3184,17 @@ export class ImmobilisationService {
         // Rien n'est « à passer » sur un bien sorti · sa sortie a tout passé.
         dotationPassee: Boolean(dejaPassee) || sortiDansLExercice,
         sortiLe: sortiDansLExercice && immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
+        ajustementReevaluation: vue.ajustementCumulExercice,
+        reevaluation:
+          Math.abs(vue.produitAnterieur - 1) > 1e-9 || Math.abs(vue.ajustementCumulExercice) > EPSILON || repriseEcart > EPSILON
+            ? {
+                produitAnterieur: vue.produitAnterieur,
+                supplement: supplementDeLaDotation(arrondir(dotation), (immo.lignesReevaluation ?? [])
+                  .filter((l) => l.reevaluation.dateReevaluation < exercice.dateDebut)
+                  .map((l) => Number(l.coefficientRetenu))),
+                repriseEcart,
+              }
+            : null,
       });
       parMois.forEach((m, i) => {
         groupe.parMois[i] = arrondir(groupe.parMois[i] + m);
@@ -3027,6 +3204,7 @@ export class ImmobilisationService {
       groupe.cumulN = arrondir(groupe.cumulN + cumulN);
       groupe.depreciations = arrondir(groupe.depreciations + depreciations);
       groupe.net = arrondir(groupe.net + net);
+      groupe.ajustementReevaluation = arrondir(groupe.ajustementReevaluation + vue.ajustementCumulExercice);
       groupes.set(cle, groupe);
     }
 
@@ -3046,6 +3224,12 @@ export class ImmobilisationService {
         cumulN: arrondir(listeGroupes.reduce((t, g) => t + g.cumulN, 0)),
         depreciations: arrondir(listeGroupes.reduce((t, g) => t + g.depreciations, 0)),
         net: arrondir(listeGroupes.reduce((t, g) => t + g.net, 0)),
+        ajustementReevaluation: arrondir(listeGroupes.reduce((t, g) => t + g.ajustementReevaluation, 0)),
+        // Art. 135 · les totaux de ce que la réévaluation laisse à l'exercice.
+        supplementReevaluation: arrondir(
+          listeGroupes.reduce((t, g) => t + g.lignes.reduce((u, l) => u + (l.reevaluation?.supplement ?? 0), 0), 0),
+        ),
+        repriseEcart: arrondir(listeGroupes.reduce((t, g) => t + g.lignes.reduce((u, l) => u + (l.reevaluation?.repriseEcart ?? 0), 0), 0)),
       },
     };
   }
@@ -3662,6 +3846,7 @@ export class ImmobilisationService {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         cessionCourante: dto.cessionCourante,
+        compteReserveEcartId: dto.compteReserveEcartId,
       } as SortieImmobilisation);
     } catch (err) {
       await this.retirerRemplacant(tenantId, remplacant.id, dto.designation);
@@ -4033,6 +4218,7 @@ export class ImmobilisationService {
         // Ligne A14 · l'échange est une des natures de cession de la fiche du
         // compte 81 ; la pièce est celle de l'acquisition, qu'il porte déjà.
         natureSortie: 'ECHANGE',
+        compteReserveEcartId: dto.compteReserveEcartId,
       }, { depuisEchange: true });
       return { nouveau, sortie, libelle, valeurOrigine: valeur };
     } catch (err) {
@@ -4371,6 +4557,14 @@ export class ImmobilisationService {
         ? await this.compteDeSortie(tenantId, comptes.produitCession)
         : null;
 
+    // LIGNE A15 · LE SORT DE L'ÉCART DE RÉÉVALUATION DU BIEN SORTI
+    // (`reevaluation-suites.ts`, `sortDesEcarts`) · résolu ici, avant le
+    // verrou, comme tout refus. La plus-value ou moins-value se calcule déjà
+    // sur la valeur réévaluée, que la fiche porte (loi n° 23/053, art. 132
+    // al. 2 ; ch. 28 § 6, « en appliquant aux valeurs réévaluées les principes
+    // généraux »).
+    const sortEcart = await this.sortDeLEcartALaSortie(tenantId, id, referentiel, dto);
+
     // Verrou par écriture conditionnelle (même risque de course que
     // passerDotation, trouvé en l'approfondissant · deux sorties simultanées
     // sur le même bien liraient toutes deux EN_SERVICE et posteraient
@@ -4453,24 +4647,66 @@ export class ImmobilisationService {
         ecritureProduitId = ecritureProduit.id;
       }
 
+      // LIGNE A15 · l'écart de réévaluation sort avec le bien, par une
+      // écriture À PART, sous la même pièce · ch. 28 § 6 (106 vers une réserve
+      // non distribuable) et loi n° 23/053, art. 133 al. 3 (154 repris au 861
+      // à la cession). Jamais mêlée à la sortie de l'actif · elle touche les
+      // capitaux propres, pas le résultat de cession.
+      let ecritureEcartId: string | null = null;
+      if (sortEcart.lignes.length > 0) {
+        const ecritureEcart = await this.ecritureService.creer(tenantId, userId, {
+          exerciceId: dto.exerciceId,
+          journalId: dto.journalId,
+          date: dto.dateSortie,
+          libelle: `Écart de réévaluation du bien sorti · ${immo.designation}`.slice(0, 200),
+          reference: referencePiece,
+          lignes: sortEcart.lignes,
+        });
+        ecrituresPosees.push(ecritureEcart.id);
+        ecritureEcartId = ecritureEcart.id;
+      }
+
       // statut/dateSortie/prixCession déjà posés par le verrou ci-dessus ;
       // il ne reste que l'écriture de sortie, connue seulement une fois postée.
-      const immobilisation = await this.prisma.immobilisation.update({
-        where: { id },
-        // L'écriture du produit de cession est RETENUE par la fiche (audit
-        // final F130) · supprimée depuis le journal, elle laissait le bien
-        // porter un prix que rien ne justifiait plus.
-        data: {
-          ecritureSortieId: ecritureSortie.id,
-          ecritureProduitCessionId: ecritureProduitId,
-          // Lot 15 · la reprise en stock se garde avec sa source, sur la fiche.
-          ...(compteStockRecupere && valeurRecuperee > 0
-            ? { valeurMaterielRecupere: valeurRecuperee, sourceMaterielRecupere: dto.sourceMaterielRecupere!.trim().slice(0, 1000) }
-            : {}),
-        },
-        include: { dotations: true },
-      });
-      return versImmobilisation(immobilisation);
+      // La fiche et les lignes de réévaluation qu'elle solde changent ENSEMBLE ·
+      // une ligne marquée soldée sans l'écriture qui la solde (ou l'inverse)
+      // repasserait l'écart, ou le perdrait.
+      // Sans écart à solder, la seule fiche change · aucune transaction.
+      const poserLaSortie = async (tx: Prisma.TransactionClient | PrismaService) => {
+        for (const s of sortEcart.passes) {
+          await tx.ligneReevaluationBilan.update({
+            where: { id: s.ligneId },
+            data:
+              s.traitement === 'RESERVE'
+                ? { ecartTransfere: { increment: s.montant } }
+                : { provisionReprise: { increment: s.montant } },
+          });
+        }
+        return tx.immobilisation.update({
+          where: { id },
+          // L'écriture du produit de cession est RETENUE par la fiche (audit
+          // final F130) · supprimée depuis le journal, elle laissait le bien
+          // porter un prix que rien ne justifiait plus.
+          data: {
+            ecritureSortieId: ecritureSortie.id,
+            ecritureProduitCessionId: ecritureProduitId,
+            ecritureSortieEcartReevaluationId: ecritureEcartId,
+            // Lot 15 · la reprise en stock se garde avec sa source, sur la fiche.
+            ...(compteStockRecupere && valeurRecuperee > 0
+              ? { valeurMaterielRecupere: valeurRecuperee, sourceMaterielRecupere: dto.sourceMaterielRecupere!.trim().slice(0, 1000) }
+              : {}),
+          },
+          include: { dotations: true },
+        });
+      };
+      const immobilisation =
+        sortEcart.passes.length > 0 ? await transactionJournalisee(this.prisma, poserLaSortie) : await poserLaSortie(this.prisma);
+      return {
+        ...versImmobilisation(immobilisation),
+        // Ce qui a été passé, ce qui ne l'a pas été et pourquoi · un écart
+        // laissé au 106 ou au 154 se DIT, jamais en silence.
+        ecartReevaluation: sortEcart.lignes.length > 0 || sortEcart.nonPasses.length > 0 ? sortEcart.restitution : null,
+      };
     } catch (err) {
       await this.defaireSortie(tenantId, id, immo.designation, ecrituresPosees, dotationPoseeId);
       throw err;

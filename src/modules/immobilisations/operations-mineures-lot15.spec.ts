@@ -359,6 +359,8 @@ function harnais(
       }),
     },
     dotationAmortissement: { create: jest.fn().mockResolvedValue({ id: 'dot1' }), delete: jest.fn() },
+    // Ligne A15 · aucun bien réévalué ici · la sortie ne lit aucun écart.
+    ligneReevaluationBilan: { findMany: jest.fn().mockResolvedValue([]) },
   };
   let n = 0;
   const ecritures = {

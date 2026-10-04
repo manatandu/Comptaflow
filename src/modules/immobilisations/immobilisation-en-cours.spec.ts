@@ -392,6 +392,8 @@ describe('les écritures du module visent le compte où le bien est inscrit', ()
         update: jest.fn().mockResolvedValue({ ...immo }),
       },
       exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e26', dateDebut: D('2026-01-01'), dateFin: D('2026-12-31') }) },
+      // Ligne A15 · aucun bien réévalué ici · la sortie ne lit aucun écart.
+      ligneReevaluationBilan: { findMany: jest.fn().mockResolvedValue([]) },
       compte: { findUnique: jest.fn(({ where }: { where: { tenantId_numero: { numero: string } } }) => Promise.resolve({ id: `n${where.tenantId_numero.numero}` })) },
     };
     const svc = new ImmobilisationService(prisma as never, { creer } as never);
@@ -540,6 +542,8 @@ describe('tableau des amortissements · le bien non achevé est rangé sous son 
         {
           tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: 'NORMAL', jeuEtatsFinanciersSycebnl: null }) },
           exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e26', dateDebut: D('2026-01-01'), dateFin: D('2026-12-31') }) },
+      // Ligne A15 · aucun bien réévalué ici · la sortie ne lit aucun écart.
+      ligneReevaluationBilan: { findMany: jest.fn().mockResolvedValue([]) },
           immobilisation: { findMany: jest.fn().mockResolvedValue([b]) },
         } as never,
         {} as never,

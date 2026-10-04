@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import {
   JeuEtatsFinanciersSycebnl,
   MethodeReevaluationLibre,
+  SystemeComptableSyscohada,
+  TypeCompteDetailTotal,
   ModeAmortissement,
   NatureRevisionPlan,
   Prisma,
@@ -32,6 +34,11 @@ import {
   type BienAReevaluer,
   type ResultatBien,
 } from './reevaluation-bilan';
+import { posteDuBien, supplementDeLaDotation, RACINES_RESERVE_NON_DISTRIBUABLE } from './reevaluation-suites';
+import { correspond } from '../etats-financiers/etats-financiers.communs';
+import { NOTES_SYSCOHADA_1 } from '../etats-financiers-syscohada/correspondance-notes-syscohada-1';
+import { NOTES_ASSOCIATIONS } from '../notes-annexes/correspondance-notes-associations';
+import { comptesProposes } from '../comptes/comptes-proposes';
 
 const EPSILON = 0.005;
 const n = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
@@ -683,5 +690,394 @@ export class ReevaluationBilanService {
       }
       throw err;
     }
+  }
+
+  /** Le jeu du dossier a-t-il une note des réévaluations, et laquelle (NOTE 3E, 5H). */
+  private async noteDuJeu(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, jeuEtatsFinanciersSycebnl: true, systemeComptableSyscohada: true, nom: true },
+    });
+    const syscohada = tenant.referentiel === Referentiel.SYSCOHADA;
+    const codeNote = syscohada
+      ? tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
+        ? null
+        : '3E'
+      : tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS
+        ? '5H'
+        : null;
+    // Les postes du bilan se lisent sur la note des immobilisations brutes du
+    // jeu (NOTE 3A, NOTE 5B), par la règle même du calcul · aucun numéro ici.
+    const rubriques = (syscohada ? NOTES_SYSCOHADA_1 : NOTES_ASSOCIATIONS).find((x) => x.code === (syscohada ? '3A' : '5B'))?.rubriques ?? [];
+    return { tenant, syscohada, codeNote, rubriques };
+  }
+
+  /**
+   * LA NOTE DES RÉÉVALUATIONS (ligne A15) · ce que les textes demandent aux
+   * notes annexes, servi des réévaluations du module, jamais écrit dans la note
+   * à la place du cabinet (comme les coûts d'emprunt, décision D1).
+   *
+   * AUDCIF Titre VIII ch. 28 § 8 · « la nature et la date de la ou des
+   * réévaluation(s) ; les montants en coûts historiques des éléments
+   * réévalués, par postes du bilan ; les amortissements supplémentaires
+   * résultant de la réévaluation ; le traitement fiscal de l'écart de
+   * réévaluation et des amortissements supplémentaires ; […] la méthode de
+   * réévaluation utilisée ». NOTE 3E au SYSCOHADA (Titre IX ch. 6) ; NOTE 5H
+   * des associations au SYCEBNL (Partie 4 ch. 2 · « Montants en coûts
+   * historiques | Montants réévalués | Écarts et provisions spéciales
+   * réévaluation »). Loi n° 23/053, art. 135 · « Les amortissements pratiqués
+   * après la réévaluation doivent figurer au tableau des amortissements et aux
+   * notes annexes », avec « les reprises de l'exercice opérées sur l'écart ».
+   *
+   * Le jeu « projets de développement » et les deux SMT n'ont aucune note de
+   * réévaluation · elle est dite sans objet, jamais inventée. Le montant de
+   * l'écart incorporé au capital (à la dotation) n'est pas tenu par le module ·
+   * sa rubrique reste à la saisie du cabinet.
+   */
+  async noteReevaluations(tenantId: string, exerciceId: string) {
+    const exercice = await this.exerciceDuDossier(tenantId, exerciceId);
+    const { tenant, syscohada, codeNote, rubriques } = await this.noteDuJeu(tenantId);
+    if (!codeNote) {
+      return {
+        referentiel: tenant.referentiel,
+        codeNote: null,
+        motifSansObjet: syscohada
+          ? 'Le Système minimal de trésorerie n’a pas de note des réévaluations (AUDCIF Titre X).'
+          : 'Ce jeu d’états du SYCEBNL n’a pas de note des réévaluations (Partie 4 · seule la NOTE 5H des associations la porte).',
+        reevaluations: [],
+        postes: [],
+        sortis: [],
+        total: null,
+        tronque: false,
+      };
+    }
+
+    const reevaluations = await this.prisma.reevaluationBilan.findMany({
+      where: { tenantId, dateReevaluation: { lte: exercice.dateFin } },
+      select: {
+        id: true,
+        type: true,
+        methodeLibre: true,
+        neutraliteFiscale: true,
+        dateReevaluation: true,
+        decision: true,
+        traitementFiscal: true,
+        methodeEvaluation: true,
+        totalEcart: true,
+      },
+      orderBy: { dateReevaluation: 'asc' },
+      take: PLAFOND_PERIMETRE,
+    });
+    // LES BIENS RÉÉVALUÉS ENCORE À L'ACTIF à l'ouverture · ceux sortis dans
+    // l'exercice y restent, leur reprise est « de l'exercice » (art. 135).
+    const lignes = await this.prisma.ligneReevaluationBilan.findMany({
+      where: {
+        tenantId,
+        ecart: { gt: 0 },
+        reevaluation: { dateReevaluation: { lte: exercice.dateFin } },
+        immobilisation: { OR: [{ dateSortie: null }, { dateSortie: { gte: exercice.dateDebut } }] },
+      },
+      select: {
+        id: true,
+        brutAvant: true,
+        valeurReevaluee: true,
+        ecart: true,
+        compteEcart: true,
+        coefficientRetenu: true,
+        reevaluation: { select: { dateReevaluation: true } },
+        immobilisation: {
+          select: {
+            id: true,
+            designation: true,
+            dateSortie: true,
+            natureSortie: true,
+            compteImmobilisation: { select: { numero: true } },
+            dotations: { where: { exerciceId: exercice.id }, select: { montant: true } },
+            ecritureSortieEcartReevaluation: {
+              select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
+            },
+          },
+        },
+      },
+      orderBy: [{ immobilisationId: 'asc' }, { id: 'asc' }],
+      take: PLAFOND_PERIMETRE + 1,
+    });
+    const reprise = await this.prisma.repriseProvisionReevaluation.findFirst({
+      where: { tenantId, exerciceId: exercice.id },
+      select: { detail: true },
+    });
+    const repriseParBien = new Map<string, number>();
+    for (const d of (Array.isArray(reprise?.detail) ? reprise!.detail : []) as Array<{ immobilisationId?: string; montant?: number }>) {
+      if (d?.immobilisationId) repriseParBien.set(d.immobilisationId, centimes((repriseParBien.get(d.immobilisationId) ?? 0) + n(d.montant)));
+    }
+
+    const lues = lignes.slice(0, PLAFOND_PERIMETRE);
+    const parBien = new Map<string, typeof lues>();
+    for (const l of lues) parBien.set(l.immobilisation.id, [...(parBien.get(l.immobilisation.id) ?? []), l]);
+
+    type Poste = {
+      poste: string;
+      biens: number;
+      coutHistorique: number;
+      valeurReevaluee: number;
+      ecart106: number;
+      provision154: number;
+      amortissementsSupplementaires: number;
+      repriseExercice: number;
+    };
+    const postes = new Map<string, Poste>();
+    const sortis: Array<{
+      immobilisationId: string;
+      designation: string;
+      dateSortie: string;
+      nature: string | null;
+      transfereReserve: number;
+      reprise861: number;
+    }> = [];
+    for (const chaine of parBien.values()) {
+      const tri = [...chaine].sort((a, b) => a.reevaluation.dateReevaluation.getTime() - b.reevaluation.dateReevaluation.getTime());
+      const bien = tri[0].immobilisation;
+      // Seules les réévaluations ANTÉRIEURES à l'exercice ont multiplié sa
+      // dotation · celle de l'exercice de réévaluation se passe avant elle
+      // (art. 63 ; ch. 28 § 3.2).
+      const anterieurs = tri.filter((l) => l.reevaluation.dateReevaluation < exercice.dateDebut).map((l) => n(l.coefficientRetenu));
+      const dotation = bien.dotations[0] ? n(bien.dotations[0].montant) : 0;
+      const lignesSortie = bien.ecritureSortieEcartReevaluation?.lignes ?? [];
+      const reprise861Sortie = centimes(lignesSortie.filter((x) => x.compte.numero.startsWith('86')).reduce((t, x) => t + n(x.credit), 0));
+      const transfere = centimes(lignesSortie.filter((x) => x.compte.numero.startsWith('106')).reduce((t, x) => t + n(x.debit), 0));
+      if (bien.dateSortie && bien.dateSortie <= exercice.dateFin) {
+        sortis.push({
+          immobilisationId: bien.id,
+          designation: bien.designation,
+          dateSortie: bien.dateSortie.toISOString().slice(0, 10),
+          nature: bien.natureSortie ?? null,
+          transfereReserve: transfere,
+          reprise861: reprise861Sortie,
+        });
+      }
+      const libelle = posteDuBien(bien.compteImmobilisation.numero, rubriques, correspond);
+      const p: Poste = postes.get(libelle) ?? {
+        poste: libelle,
+        biens: 0,
+        coutHistorique: 0,
+        valeurReevaluee: 0,
+        ecart106: 0,
+        provision154: 0,
+        amortissementsSupplementaires: 0,
+        repriseExercice: 0,
+      };
+      p.biens += 1;
+      // Le COÛT HISTORIQUE est la valeur brute AVANT la première réévaluation ·
+      // la valeur d'entrée d'une seconde porte déjà la première (§ 4.2.1.1).
+      p.coutHistorique = centimes(p.coutHistorique + n(tri[0].brutAvant));
+      // Le montant réévalué est celui de la DERNIÈRE réévaluation du bien.
+      p.valeurReevaluee = centimes(p.valeurReevaluee + n(tri[tri.length - 1].valeurReevaluee));
+      for (const l of tri) {
+        if (l.compteEcart?.startsWith('154')) p.provision154 = centimes(p.provision154 + n(l.ecart));
+        else if (l.compteEcart?.startsWith('106')) p.ecart106 = centimes(p.ecart106 + n(l.ecart));
+      }
+      p.amortissementsSupplementaires = centimes(p.amortissementsSupplementaires + supplementDeLaDotation(dotation, anterieurs));
+      p.repriseExercice = centimes(p.repriseExercice + (repriseParBien.get(bien.id) ?? 0) + reprise861Sortie);
+      postes.set(libelle, p);
+    }
+    const liste = [...postes.values()];
+    const somme = (k: Exclude<keyof Poste, 'poste'>) => centimes(liste.reduce((t, p) => t + p[k], 0));
+    return {
+      referentiel: tenant.referentiel,
+      codeNote,
+      motifSansObjet: null,
+      reevaluations: reevaluations.map((r) => ({
+        id: r.id,
+        type: r.type,
+        methodeLibre: r.methodeLibre,
+        neutraliteFiscale: r.neutraliteFiscale,
+        dateReevaluation: r.dateReevaluation.toISOString().slice(0, 10),
+        decision: r.decision,
+        traitementFiscal: r.traitementFiscal,
+        methodeEvaluation: r.methodeEvaluation,
+        totalEcart: n(r.totalEcart),
+      })),
+      postes: liste,
+      sortis,
+      total: liste.length
+        ? {
+            biens: somme('biens'),
+            coutHistorique: somme('coutHistorique'),
+            valeurReevaluee: somme('valeurReevaluee'),
+            ecart106: somme('ecart106'),
+            provision154: somme('provision154'),
+            amortissementsSupplementaires: somme('amortissementsSupplementaires'),
+            repriseExercice: somme('repriseExercice'),
+          }
+        : null,
+      tronque: lignes.length > PLAFOND_PERIMETRE,
+    };
+  }
+
+  /**
+   * LES ÉLÉMENTS DE LA DÉCLARATION SPÉCIALE (ligne A15) · loi n° 23/053,
+   * art. 136 · « une déclaration spéciale de résultat de la réévaluation »,
+   * « au plus tard le 30 avril » ; art. 137 · « La déclaration spéciale et ses
+   * annexes établies par catégorie d'immobilisations sont faites sur le modèle
+   * des imprimés du Conseil Permanent de la Comptabilité au Congo ».
+   *
+   * LE MODÈLE DU CPCC N'EST PAS AU CORPUS · cette édition RASSEMBLE ce que la
+   * réévaluation enregistrée porte, par catégorie (celles que la décision a
+   * déclarées pour une réévaluation légale ; pour une libre, qui n'en déclare
+   * pas, le poste du bilan), et le dit · elle n'est pas l'imprimé. Le dépôt est
+   * un fait externe · rien ici ne le constate ni ne le présume (art. 138).
+   */
+  async declarationSpeciale(tenantId: string, exerciceId: string) {
+    const exercice = await this.exerciceDuDossier(tenantId, exerciceId);
+    const { tenant, rubriques } = await this.noteDuJeu(tenantId);
+    const mentions = {
+      echeance: 'Dépôt au plus tard le 30 avril (loi n° 23/053, art. 136).',
+      modele:
+        'Le modèle des imprimés du Conseil Permanent de la Comptabilité au Congo (art. 137) n’est pas au corpus · ' +
+        'cette édition en rassemble les éléments par catégorie d’immobilisations, elle n’est pas l’imprimé.',
+      depot: 'OmegaX ne dépose rien et ne sait pas si la déclaration l’a été · l’astreinte de l’art. 138 n’est jamais calculée.',
+    };
+    const bornes = { dateDebut: exercice.dateDebut.toISOString().slice(0, 10), dateFin: exercice.dateFin.toISOString().slice(0, 10) };
+    const reevaluation = await this.prisma.reevaluationBilan.findFirst({
+      where: { tenantId, exerciceId: exercice.id },
+      include: {
+        lignes: {
+          include: {
+            immobilisation: {
+              select: { id: true, designation: true, numeroInventaire: true, dateAcquisition: true, compteImmobilisation: { select: { numero: true } } },
+            },
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+    if (!reevaluation) return { dossier: tenant.nom, exercice: bornes, reevaluation: null, categories: [], total: null, mentions };
+
+    const declarees = (Array.isArray(reevaluation.categories) ? reevaluation.categories : []) as Array<{
+      cle: string;
+      libelle: string;
+      coefficient: number;
+      source: string;
+    }>;
+    type Ligne = {
+      immobilisationId: string;
+      designation: string;
+      numeroInventaire: string | null;
+      compte: string;
+      dateAcquisition: string;
+      brutAvant: number;
+      amortissementsAvant: number;
+      valeurNetteAvant: number;
+      coefficient: number | null;
+      coefficientRetenu: number;
+      valeurActuelle: number | null;
+      valeurReevaluee: number;
+      brutApres: number;
+      amortissementsApres: number;
+      ecart: number;
+      compteEcart: string | null;
+      motifNonReevalue: string | null;
+    };
+    const parCategorie = new Map<string, { cle: string; libelle: string; coefficient: number | null; source: string | null; lignes: Ligne[] }>();
+    for (const l of reevaluation.lignes) {
+      const decl = reevaluation.type === TypeReevaluation.LEGALE ? declarees.find((c) => c.cle === l.categorie) : undefined;
+      const poste = posteDuBien(l.immobilisation.compteImmobilisation.numero, rubriques, correspond);
+      // Un bien gardé à sa valeur (élément monétaire, bien déprécié…) n'a pas de
+      // catégorie · rangé sous son poste, avec son motif, jamais omis (art. 130).
+      const cle = decl ? `categorie:${decl.cle}` : `poste:${poste}`;
+      const g = parCategorie.get(cle) ?? {
+        cle,
+        libelle: decl ? decl.libelle : poste,
+        coefficient: decl ? n(decl.coefficient) : null,
+        source: decl ? decl.source : null,
+        lignes: [],
+      };
+      g.lignes.push({
+        immobilisationId: l.immobilisation.id,
+        designation: l.immobilisation.designation,
+        numeroInventaire: l.immobilisation.numeroInventaire ?? null,
+        compte: l.immobilisation.compteImmobilisation.numero,
+        dateAcquisition: l.immobilisation.dateAcquisition.toISOString().slice(0, 10),
+        brutAvant: n(l.brutAvant),
+        amortissementsAvant: n(l.amortissementsAvant),
+        valeurNetteAvant: n(l.valeurNetteAvant),
+        coefficient: l.coefficient === null ? null : n(l.coefficient),
+        coefficientRetenu: n(l.coefficientRetenu),
+        valeurActuelle: l.valeurActuelle === null ? null : n(l.valeurActuelle),
+        valeurReevaluee: n(l.valeurReevaluee),
+        brutApres: n(l.brutApres),
+        amortissementsApres: n(l.amortissementsApres),
+        ecart: n(l.ecart),
+        compteEcart: l.compteEcart,
+        motifNonReevalue: l.motifNonReevalue,
+      });
+      parCategorie.set(cle, g);
+    }
+    const totaux = (ls: Ligne[]) => ({
+      brutAvant: centimes(ls.reduce((t, x) => t + x.brutAvant, 0)),
+      amortissementsAvant: centimes(ls.reduce((t, x) => t + x.amortissementsAvant, 0)),
+      valeurNetteAvant: centimes(ls.reduce((t, x) => t + x.valeurNetteAvant, 0)),
+      valeurReevaluee: centimes(ls.reduce((t, x) => t + x.valeurReevaluee, 0)),
+      brutApres: centimes(ls.reduce((t, x) => t + x.brutApres, 0)),
+      amortissementsApres: centimes(ls.reduce((t, x) => t + x.amortissementsApres, 0)),
+      ecart: centimes(ls.reduce((t, x) => t + x.ecart, 0)),
+    });
+    const categories = [...parCategorie.values()].map((g) => ({ ...g, total: totaux(g.lignes) }));
+    return {
+      dossier: tenant.nom,
+      exercice: bornes,
+      reevaluation: {
+        id: reevaluation.id,
+        type: reevaluation.type,
+        methodeLibre: reevaluation.methodeLibre,
+        neutraliteFiscale: reevaluation.neutraliteFiscale,
+        dateReevaluation: reevaluation.dateReevaluation.toISOString().slice(0, 10),
+        decision: reevaluation.decision,
+        traitementFiscal: reevaluation.traitementFiscal,
+        methodeEvaluation: reevaluation.methodeEvaluation,
+        totalEcart: n(reevaluation.totalEcart),
+      },
+      categories,
+      total: totaux(categories.flatMap((c) => c.lignes)),
+      mentions,
+    };
+  }
+
+  /**
+   * LES RÉSERVES NON DISTRIBUABLES QUI PEUVENT RECEVOIR L'ÉCART D'UN BIEN
+   * SORTI (SYSCOHADA seul, ch. 28 § 6) · comptes de détail actifs sous 111,
+   * 112 et 113 (`RACINES_RESERVE_NON_DISTRIBUABLE`). Liste de choix · retenus
+   * ou utilisés (`comptes-proposes.ts`). Au SYCEBNL, vide et dit pourquoi.
+   */
+  async comptesReserve(tenantId: string, retenus = false) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    if (tenant.referentiel !== Referentiel.SYSCOHADA) {
+      return {
+        comptes: [],
+        nonRetenus: 0,
+        motifVide: 'Au SYCEBNL, le sort de l’écart de réévaluation d’un bien sorti n’est pas écrit · aucune réserve n’est proposée.',
+      };
+    }
+    const plan = await this.prisma.compte.findMany({
+      where: {
+        tenantId,
+        estActif: true,
+        typeCompte: TypeCompteDetailTotal.DETAIL,
+        OR: RACINES_RESERVE_NON_DISTRIBUABLE.map((r) => ({ numero: { startsWith: r } })),
+      },
+      select: { id: true, numero: true, intitule: true, estRetenu: true },
+      orderBy: { numero: 'asc' },
+    });
+    const { proposes, ecartes } = retenus ? await comptesProposes(this.prisma, tenantId, plan) : { proposes: plan, ecartes: 0 };
+    return {
+      comptes: proposes.map((c) => ({ id: c.id, numero: c.numero, intitule: c.intitule })),
+      nonRetenus: ecartes,
+      motifVide:
+        proposes.length > 0
+          ? null
+          : ecartes > 0
+            ? 'Aucune réserve sous 111, 112 ou 113 n’est retenue · retenez-la dans Plan comptable.'
+            : 'Aucune réserve sous 111, 112 ou 113 n’est ouverte au plan · ouvrez-la dans Plan comptable.',
+    };
   }
 }

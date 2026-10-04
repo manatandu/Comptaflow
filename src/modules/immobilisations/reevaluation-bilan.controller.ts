@@ -40,6 +40,31 @@ export class ReevaluationBilanController {
     return this.service.propositionRepriseProvision(user.tenantId, exerciceId);
   }
 
+  /**
+   * Ligne A15 · ce que les notes annexes doivent montrer (ch. 28 § 8 ; loi
+   * n° 23/053, art. 135), servi en lecture seule à côté de la NOTE 3E ou 5H.
+   */
+  @Get('reevaluation-bilan/note')
+  note(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.noteReevaluations(user.tenantId, exerciceId);
+  }
+
+  /** Ligne A15 · les éléments de la déclaration spéciale (loi n° 23/053, art. 136 et 137), une édition. */
+  @Get('reevaluation-bilan/declaration-speciale')
+  declarationSpeciale(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.declarationSpeciale(user.tenantId, exerciceId);
+  }
+
+  /** Ligne A15 · les réserves non distribuables qui reçoivent l'écart d'un bien sorti (ch. 28 § 6). */
+  @Get('reevaluation-bilan/comptes-reserve')
+  comptesReserve(
+    @CurrentUser() user: AuthenticatedUser,
+    // Liste de choix · seules les réserves retenues ou utilisées (comptes-proposes.ts).
+    @Query('retenus') retenus?: string,
+  ) {
+    return this.service.comptesReserve(user.tenantId, retenus === 'true');
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('reevaluation-bilan/reprise-provision')
   passerReprise(@CurrentUser() user: AuthenticatedUser, @Body() dto: RepriseProvisionReevaluationDto) {

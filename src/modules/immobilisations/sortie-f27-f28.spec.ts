@@ -96,6 +96,8 @@ function harnais(
       delete: dotationSupprimee,
     },
     ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    // Ligne A15 · aucun bien réévalué ici · la sortie ne lit aucun écart.
+    ligneReevaluationBilan: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: {
       delete: jest.fn().mockImplementation(({ where }: { where: { id: string } }) => {
         supprimees.push(where.id);
@@ -221,6 +223,8 @@ describe('F28 · un refus ne laisse jamais le bien sorti sans écriture', () => 
         datePieceSortie: null,
         ecritureSortieId: null,
         ecritureProduitCessionId: null,
+        // Ligne A15 · l'écriture qui solde l'écart de réévaluation aussi.
+        ecritureSortieEcartReevaluationId: null,
       },
     });
   });
@@ -262,7 +266,7 @@ describe('F130 · l’écriture du produit de cession est retenue par la fiche',
     const produit = ecrituresPostees.find((e) => e.libelle.startsWith('Produit de cession'))!;
     const sortieE = ecrituresPostees.find((e) => e.libelle.startsWith('Cession'))!;
     expect(prisma.immobilisation.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({ data: { ecritureSortieId: sortieE.id, ecritureProduitCessionId: produit.id } }),
+      expect.objectContaining({ data: { ecritureSortieId: sortieE.id, ecritureProduitCessionId: produit.id, ecritureSortieEcartReevaluationId: null } }),
     );
   });
 

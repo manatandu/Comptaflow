@@ -51,6 +51,9 @@ export const LISTES_DE_COMPTES: Readonly<Record<string, RegimeListeDeComptes>> =
   '/immobilisations/comptes-du-bien': { regime: 'retenus' },
   '/immobilisations/contreparties-acquisition': { regime: 'retenus' },
   '/immobilisations/comptes-fonds-projet': { regime: 'retenus' },
+  // Ligne A15 · le choix ENTRE trois racines de natures distinctes (111, 112,
+  // 113 · réserves indisponibles de la fiche du compte 11), filtré.
+  '/immobilisations/reevaluation-bilan/comptes-reserve': { regime: 'retenus' },
   '/immobilisations/subventions-rattachees/octrois': {
     regime: 'texte',
     motif:
