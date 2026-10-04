@@ -45,8 +45,31 @@ const SALARIE = {
   contrats: [CONTRAT],
 };
 
-function service(opts: { salarie?: unknown; actif?: unknown } = {}) {
+type AvanceDouble = {
+  id: string;
+  tenantId: string;
+  salarieId: string;
+  type: string;
+  categoriePret: string | null;
+  dateOctroi: Date;
+  montantFc: Prisma.Decimal;
+  objet: string;
+  referenceActe: string | null;
+  dateFin: Date | null;
+  retenues: { montantFc: Prisma.Decimal; bulletin: { statut: string } }[];
+};
+
+function service(opts: { salarie?: unknown; actif?: unknown; avances?: AvanceDouble[] } = {}) {
   const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'b-1', ...data }));
+  // A18 · LA DOUBLURE HONORE LE `where` · dossier, salarié et liste d'id ·
+  // une avance d'un autre salarié ne doit jamais entrer dans la proposition.
+  const avances = opts.avances ?? [];
+  const correspond = (a: AvanceDouble, where: Record<string, unknown>) =>
+    (where.tenantId === undefined || a.tenantId === where.tenantId) &&
+    (where.salarieId === undefined || a.salarieId === where.salarieId) &&
+    (where.id === undefined ||
+      (typeof where.id === 'string' ? a.id === where.id : ((where.id as { in: string[] }).in ?? []).includes(a.id)));
+  const retenuesCreees: { avanceId: string; montantFc: number }[] = [];
   const bulletinFindFirst = jest.fn().mockImplementation(({ where }) => {
     if (where.statut) return Promise.resolve(opts.actif ?? null);
     const data = create.mock.calls.at(-1)?.[0].data ?? {};
@@ -57,10 +80,31 @@ function service(opts: { salarie?: unknown; actif?: unknown } = {}) {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYCEBNL' }) },
     versionBaremePaie: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     bulletinPaie: { findFirst: bulletinFindFirst, aggregate: jest.fn().mockResolvedValue({ _max: { numero: 41 } }), create, update: jest.fn() },
+    avanceSalaire: {
+      findMany: jest.fn().mockImplementation(({ where, take }) => {
+        const l = avances.filter((a) => correspond(a, where));
+        return Promise.resolve(typeof take === 'number' ? l.slice(0, take) : l);
+      }),
+      findFirstOrThrow: jest.fn().mockImplementation(({ where }) => {
+        const a = avances.find((x) => correspond(x, where));
+        return a ? Promise.resolve(a) : Promise.reject(new Error('introuvable'));
+      }),
+    },
+    retenueAvanceBulletin: {
+      findMany: jest.fn().mockImplementation(({ where }) =>
+        Promise.resolve(
+          (avances.find((a) => a.id === where.avanceId && a.tenantId === where.tenantId)?.retenues ?? []).map((r) => ({ ...r })),
+        ),
+      ),
+      create: jest.fn().mockImplementation(({ data }) => {
+        retenuesCreees.push({ avanceId: data.avanceId, montantFc: data.montantFc });
+        return Promise.resolve(data);
+      }),
+    },
   };
   prisma.$executeRaw = jest.fn().mockResolvedValue(0);
   prisma.$transaction = (fn: (tx: unknown) => unknown) => fn(prisma);
-  return { svc: new PersonnelService(prisma as unknown as PrismaService), create, prisma };
+  return { svc: new PersonnelService(prisma as unknown as PrismaService), create, prisma, retenuesCreees };
 }
 
 /** Licenciement, dispense de préavis par l'employeur, trois ans, 10 000 FC par jour. */
@@ -361,5 +405,145 @@ describe('A8 (B2) · ancienneté et mois non couverts exigés à l’ÉMISSION, 
     void anneesAnciennete;
     const erreurs = await validate(plainToInstance(DecompteFinalDtoClasse, reste));
     expect(JSON.stringify(erreurs)).not.toContain(MOTIF_ANCIENNETE_EXIGEE);
+  });
+});
+
+describe('A18 · décompte final · avances et prêts proposés, gratification stipulée, indemnité stipulée', () => {
+  const avance = (over: Partial<AvanceDouble>): AvanceDouble => ({
+    id: 'av-1',
+    tenantId: 't-1',
+    salarieId: 's-1',
+    type: 'AVANCE',
+    categoriePret: null,
+    dateOctroi: d('2026-02-10'),
+    montantFc: new Prisma.Decimal(300_000),
+    objet: 'Avance sur salaire',
+    referenceActe: null,
+    dateFin: null,
+    retenues: [],
+    ...over,
+  });
+  const AVANCES = [
+    avance({}),
+    // Un prêt de 400 000 déjà remboursé de 150 000 par un bulletin émis ; un
+    // bulletin annulé ne compte pas (sa retenue n'a pas eu lieu).
+    avance({
+      id: 'pr-1',
+      type: 'PRET',
+      categoriePret: 'AUTRE',
+      dateOctroi: d('2025-11-01'),
+      montantFc: new Prisma.Decimal(400_000),
+      objet: 'Prêt personnel',
+      retenues: [
+        { montantFc: new Prisma.Decimal(150_000), bulletin: { statut: 'EMIS' } },
+        { montantFc: new Prisma.Decimal(90_000), bulletin: { statut: 'ANNULE' } },
+      ],
+    }),
+    // L'avance d'un AUTRE salarié · jamais proposée.
+    avance({ id: 'av-autre', salarieId: 's-2', montantFc: new Prisma.Decimal(999_000) }),
+    avance({ id: 'sa-1', type: 'SAISIE_ARRET', referenceActe: 'RS 12', montantFc: new Prisma.Decimal(80_000), objet: 'Créancier' }),
+  ];
+
+  it('propose les soldes relus au registre, avances puis prêts, sans la saisie ni le voisin', async () => {
+    const { svc } = service({ avances: AVANCES });
+    const p = await svc.proposerRetenuesDecompte('t-1', 's-1', emission());
+    expect(p.retenues.map((r) => [r.avanceId, r.littera, r.soldeFc, r.montantProposeFc])).toEqual([
+      ['av-1', 'c', 300_000, 300_000],
+      ['pr-1', 'f', 250_000, 250_000],
+    ]);
+    expect(p.saisiesNonProposees.map((s) => s.avanceId)).toEqual(['sa-1']);
+    expect(p.netDisponibleFc).toBeGreaterThan(550_000);
+    expect(p.motifsNetNonChiffre).toEqual([]);
+    expect(p.tronque).toBe(false);
+  });
+
+  it('borne la proposition au net du décompte · un net négatif ne se paie pas', async () => {
+    const gros = [avance({ id: 'pr-gros', type: 'PRET', categoriePret: 'AUTRE', montantFc: new Prisma.Decimal(5_000_000) })];
+    const { svc } = service({ avances: gros });
+    const p = await svc.proposerRetenuesDecompte('t-1', 's-1', emission());
+    const net = p.netDisponibleFc as number;
+    expect(p.retenues[0].montantProposeFc).toBeCloseTo(net, 2);
+    expect(p.resteNonRetenuFc).toBeCloseTo(5_000_000 - net, 2);
+    expect(p.retenues[0].reserve).toContain('Ramenée');
+  });
+
+  it('un décompte non chiffré rend ses motifs, jamais un net nul · la proposition reste le solde', async () => {
+    const { svc } = service({ avances: AVANCES });
+    const p = await svc.proposerRetenuesDecompte('t-1', 's-1', emission({ gratificationFc: undefined }));
+    expect(p.netDisponibleFc).toBeNull();
+    expect(p.motifsNetNonChiffre.length).toBeGreaterThan(0);
+    expect(p.retenues[0].montantProposeFc).toBe(300_000);
+  });
+
+  it('émet le décompte avec les retenues confirmées · net diminué, retenues inscrites, solde restant averti', async () => {
+    const { svc: sans } = service({ avances: AVANCES });
+    const { svc, create, retenuesCreees } = service({ avances: AVANCES });
+    const p = await sans.proposerRetenuesDecompte('t-1', 's-1', emission());
+    // Le cabinet confirme l'avance entière et 100 000 du prêt seulement.
+    const relu = await svc.emettreDecompteFinal(
+      't-1',
+      'u-1',
+      's-1',
+      emission({}, { retenuesAvances: [{ avanceId: 'av-1', montantFc: 300_000 }, { avanceId: 'pr-1', montantFc: 100_000 }] }),
+    );
+    const data = create.mock.calls[0][0].data;
+    expect(data.netAPayerFc).toBeCloseTo((p.netDisponibleFc as number) - 400_000, 2);
+    expect(retenuesCreees).toEqual([
+      { avanceId: 'av-1', montantFc: 300_000 },
+      { avanceId: 'pr-1', montantFc: 100_000 },
+    ]);
+    expect(relu.avertissements.some((a: string) => a.includes('150000.00 FC restent dus'))).toBe(true);
+    expect(data.calcul.reservesDecompteEmis.join(' ')).toContain("l'article 112, f) autorise");
+  });
+
+  it('refuse une retenue au-delà du solde · le trop-retenu est une réduction de rémunération (art. 112)', async () => {
+    const { svc, create } = service({ avances: AVANCES });
+    await expect(
+      svc.emettreDecompteFinal('t-1', 'u-1', 's-1', emission({}, { retenuesAvances: [{ avanceId: 'pr-1', montantFc: 260_000 }] })),
+    ).rejects.toThrow(/dépasse le solde restant dû \(250000\.00 FC\)/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('refuse une période de gratification qui dépasse la fin du contrat', async () => {
+    const { svc } = service();
+    await expect(
+      svc.emettreDecompteFinal(
+        't-1',
+        'u-1',
+        's-1',
+        emission({ gratificationStipulee: { montantAnnuelFc: 1_200_000, source: 'Contrat', debutPeriode: '2026-01-01', finPeriode: '2026-06-30' } }),
+      ),
+    ).rejects.toThrow(/après la fin du contrat \(2026-05-31\)/);
+  });
+
+  it("émet la gratification confirmée et l'indemnité stipulée · 6612 et 6614 à la passation", async () => {
+    const { svc, create } = service();
+    await svc.emettreDecompteFinal(
+      't-1',
+      'u-1',
+      's-1',
+      emission({
+        gratificationStipulee: { montantAnnuelFc: 1_200_000, source: 'Contrat, art. 6', debutPeriode: '2026-01-01', finPeriode: '2026-05-31' },
+        gratificationFc: 500_000,
+        indemniteStipulee: { montantFc: 400_000, source: 'Convention collective, art. 40' },
+      }),
+    );
+    const data = create.mock.calls[0][0].data;
+    expect(data.calcul.decompte.propositionGratification).toEqual(expect.objectContaining({ montantFc: 500_000, moisEntiers: 5 }));
+    const b: BulletinAComptabiliser = {
+      id: 'b-1',
+      numero: data.numero,
+      nomComplet: data.nomComplet,
+      statut: 'EMIS',
+      ecritureId: null,
+      netAPayerFc: data.netAPayerFc,
+      entree: data.entree,
+      calcul: data.calcul,
+    };
+    const prop = propositionPaieDuMois('2026-05', 'SYCEBNL', [b]);
+    expect(prop.refus).toEqual([]);
+    // 350 000 de préavis + 400 000 stipulés, au même compte de fin de contrat.
+    expect(prop.lignes.find((l) => l.compte === '66140000')).toEqual(expect.objectContaining({ sens: 'DEBIT', montantFc: 750_000 }));
+    expect(prop.lignes.find((l) => l.compte === '66120000')).toEqual(expect.objectContaining({ sens: 'DEBIT', montantFc: 500_000 }));
   });
 });

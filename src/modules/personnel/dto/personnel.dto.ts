@@ -603,6 +603,40 @@ export class ParametresCotisationsDto {
  * constatée) se DÉCLARENT · la durée et le sens de l'indemnité en dépendent
  * (Code du travail, art. 63, 64, 69 à 71).
  */
+/**
+ * A18 · LA GRATIFICATION STIPULÉE · déclarée par le cabinet (contrat, avenant,
+ * convention collective), jamais présumée. Son prorata est PROPOSÉ par le
+ * moteur (`decompte-retenues-stipulations.ts`), et le cabinet le confirme dans
+ * `gratificationFc`. La source manquante est refusée par le moteur, en motif
+ * nommé, plutôt que par un message de validation.
+ */
+export class GratificationStipuleeDto {
+  @IsNumber()
+  @Min(0)
+  montantAnnuelFc!: number;
+
+  @IsString()
+  @MaxLength(300)
+  source!: string;
+
+  @IsDateString()
+  debutPeriode!: string;
+
+  @IsDateString()
+  finPeriode!: string;
+}
+
+/** A18 · L'INDEMNITÉ DE FIN DE CONTRAT STIPULÉE · recopiée avec sa source, jamais calculée. */
+export class IndemniteStipuleeDto {
+  @IsNumber()
+  @Min(0)
+  montantFc!: number;
+
+  @IsString()
+  @MaxLength(300)
+  source!: string;
+}
+
 export class DecompteFinalDto {
   @IsInt()
   @Min(0)
@@ -764,6 +798,16 @@ export class DecompteFinalDto {
   @IsNumber()
   @Min(0)
   gratificationFc?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GratificationStipuleeDto)
+  gratificationStipulee?: GratificationStipuleeDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IndemniteStipuleeDto)
+  indemniteStipulee?: IndemniteStipuleeDto;
 
   /** Mois de la cessation, AAAA-MM · il choisit la grille de la colonne 19. */
   @IsOptional()
