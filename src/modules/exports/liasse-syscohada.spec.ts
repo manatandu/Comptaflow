@@ -13,6 +13,11 @@ import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
 import { NOM_BALANCE } from './theme-etafi';
 
+// Chaque cas construit la liasse entière puis la relit par ExcelJS · sous une
+// suite chargée l'un d'eux a dépassé les cinq secondes par défaut de Jest
+// (2026-10-04), sans qu'aucune assertion ait changé.
+jest.setTimeout(30000);
+
 /**
  * LIASSE SYSCOHADA · vérification de bout en bout sur un dossier synthétique
  * ÉQUILIBRÉ. Les moteurs SYSCOHADA RÉELS (bilan du Titre IX ch. 3, compte de
