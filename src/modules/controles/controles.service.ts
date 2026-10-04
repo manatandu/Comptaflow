@@ -2803,7 +2803,10 @@ export class ControlesService {
     const lignes106 = await this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, numero: { startsWith: '106' } },
-        ecriture: { tenantId, exerciceId, reevaluationBilan: null },
+        // Ligne A15 · l'écriture qui transfère le 106 d'un bien sorti à une
+        // réserve est, elle aussi, celle du module · comptée, son débit
+        // masquerait un crédit posé à la main sur le même compte.
+        ecriture: { tenantId, exerciceId, reevaluationBilan: null, immobilisationSortieEcartReevaluation: null },
       },
       select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
     });

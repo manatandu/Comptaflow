@@ -72,6 +72,10 @@ interface LigneAmort {
   dotationPassee: boolean;
   /** Sorti dans l'exercice · sa dotation est celle que la sortie a passée (audit F30). */
   sortiLe: string | null;
+  /** Ligne A15 · la hausse du cumul par la réévaluation de l'exercice, passée à sa clôture. */
+  ajustementReevaluation?: number;
+  /** Ligne A15 · ce que la réévaluation laisse à l'annuité, servi par le serveur (null sans réévaluation). */
+  reevaluation?: { produitAnterieur: number; supplement: number; repriseEcart: number } | null;
 }
 
 interface GroupeAmort {
@@ -90,7 +94,17 @@ interface TableauAmort {
   exercice: { dateDebut: string; dateFin: string };
   mois: Array<{ cle: string; libelle: string }>;
   groupes: GroupeAmort[];
-  totaux: { parMois: number[]; dotation: number; cumulN1: number; cumulN: number; depreciations: number; net: number };
+  totaux: {
+    parMois: number[];
+    dotation: number;
+    cumulN1: number;
+    cumulN: number;
+    depreciations: number;
+    net: number;
+    ajustementReevaluation?: number;
+    supplementReevaluation?: number;
+    repriseEcart?: number;
+  };
 }
 
 /**
@@ -359,6 +373,12 @@ export function TableauxImmobilisationsPage({ ongletPilote }: { ongletPilote?: '
                     {l.sortiLe && (
                       <span className="text-text-dim italic"> · sorti le {new Date(l.sortiLe).toLocaleDateString('fr-FR')}</span>
                     )}
+                    {l.reevaluation && (
+                      <span className="text-text-dim italic" title="Bien réévalué · voir le cadre sous le tableau">
+                        {' '}
+                        · réévalué
+                      </span>
+                    )}
                     {!l.dotationPassee && (
                       <span className="text-warning italic" title="Dotation calculée, pas encore comptabilisée">
                         {' '}
@@ -421,6 +441,75 @@ export function TableauxImmobilisationsPage({ ongletPilote }: { ongletPilote?: '
         </div>
       )}
 
+      {onglet === 'amortissements' && amort && <AmortissementsApresReevaluation amort={amort} />}
+
+    </div>
+  );
+}
+
+/**
+ * LIGNE A15 · LES AMORTISSEMENTS APRÈS RÉÉVALUATION, sous le tableau · loi
+ * n° 23/053, art. 135 (« Les amortissements pratiqués après la réévaluation
+ * doivent figurer au tableau des amortissements […] Ces tableaux doivent faire
+ * apparaître les reprises de l'exercice opérées sur l'écart de réévaluation ») ;
+ * AUDCIF Titre VIII ch. 28 § 4.2.2. Chaque montant est SERVI par le serveur,
+ * aucun n'est recalculé ici. Rien n'apparaît sans bien réévalué.
+ */
+function AmortissementsApresReevaluation({ amort }: { amort: TableauAmort }) {
+  const lignes = amort.groupes.flatMap((g) => g.lignes.filter((l) => l.reevaluation));
+  if (lignes.length === 0) return null;
+  return (
+    <div className="border border-border bg-surface shadow-posee mt-3">
+      <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-alt text-[11.5px] font-bold border-b border-border-dark">
+        Amortissements après réévaluation
+        <Aide
+          titre="Amortissements après réévaluation"
+          texte={
+            "À compter de la réévaluation, l'annuité se calcule sur les valeurs réévaluées, au plan initialement retenu · elle " +
+            'est égale à l’annuité prévue multipliée par le coefficient retenu. La part due à la réévaluation et les reprises ' +
+            'de l’exercice opérées sur l’écart (provision spéciale reprise au 861, à la clôture ou à la sortie du bien) ' +
+            'figurent au tableau des amortissements. La hausse du cumul de l’exercice de réévaluation est passée à sa ' +
+            'clôture · le cumul N la comprend, le cumul N-1 non.'
+          }
+          source="Loi n° 23/053, art. 133 et 135 · AUDCIF Titre VIII ch. 28 § 4.2.2 et § 4.2.4.2"
+        />
+      </div>
+      {/* Le défilement se pose autour du TABLEAU, jamais sur la racine. */}
+      <div className="overflow-x-auto">
+      <table className="w-full text-[11.5px]">
+        <thead>
+          <tr>
+            <th className="text-left px-3.5 py-1.5">Bien</th>
+            <th className="text-right px-2 py-1.5">Coefficient retenu</th>
+            <th className="text-right px-2 py-1.5">Dotation N</th>
+            <th className="text-right px-2 py-1.5">Dont réévaluation</th>
+            <th className="text-right px-2 py-1.5">Hausse du cumul à la clôture</th>
+            <th className="text-right px-3.5 py-1.5">Reprise sur l’écart</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lignes.map((l) => (
+            <tr key={l.id} className="border-t border-border">
+              <td className="px-3.5 py-1">{l.designation}</td>
+              {/* Un coefficient n'est pas un montant · il garde sa précision (§ 9 ter). */}
+              <td className="px-2 py-1 text-right">{l.reevaluation!.produitAnterieur.toLocaleString('fr-FR', { maximumFractionDigits: 6 })}</td>
+              <td className="px-2 py-1 text-right">{montant(l.dotation)}</td>
+              <td className="px-2 py-1 text-right">{montant(l.reevaluation!.supplement)}</td>
+              <td className="px-2 py-1 text-right">{montant(l.ajustementReevaluation ?? null)}</td>
+              <td className="px-3.5 py-1 text-right">{montant(l.reevaluation!.repriseEcart)}</td>
+            </tr>
+          ))}
+          <tr className="border-t border-border font-bold">
+            <td className="px-3.5 py-1">Total</td>
+            <td />
+            <td />
+            <td className="px-2 py-1 text-right">{montant(amort.totaux.supplementReevaluation ?? null)}</td>
+            <td className="px-2 py-1 text-right">{montant(amort.totaux.ajustementReevaluation ?? null)}</td>
+            <td className="px-3.5 py-1 text-right">{montant(amort.totaux.repriseEcart ?? null)}</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
     </div>
   );
 }

@@ -1949,6 +1949,22 @@ ch. 3 § 2.5). Le pillage n'est nommé par aucun texte · déclaré en vol. L'é
 par son geste seul ; la vente seule porte un prix. Référence et date de la pièce
 EXIGÉES à la route (art. 17, 3° et 5°), nature au libellé, référence sur les
 écritures ; nulles pour les gestes internes qui portent leur pièce.
+SUITES DE LA RÉÉVALUATION (ligne A15, 2026-10-04, `reevaluation-suites.ts`) ·
+NOTE 3E (SYSCOHADA normal) et 5H (associations) reçoivent un encadré en
+LECTURE SEULE (ch. 28 § 8), projets et SMT sans objet ; le tableau des
+amortissements relit le bien TEL QU'IL ÉTAIT à l'exercice (`vueDeLExercice` ·
+hausse du cumul de l'exercice de réévaluation passée à sa clôture, jamais au
+cumul d'ouverture ; réévaluations postérieures retranchées) et dit la part de
+l'annuité due à la réévaluation et la reprise de l'exercice sur l'écart (loi
+n° 23/053, art. 135) ; déclaration spéciale ÉDITÉE par catégorie (art. 136,
+137), modèle CPCC hors corpus dit, jamais dite déposée. À LA SORTIE · 106 au
+SYSCOHADA transféré à une réserve non distribuable CHOISIE sous 111, 112 ou 1138
+(ch. 28 § 6 ; fiche du compte 11, le 118 des réserves libres refusé), toute
+sortie ; 154 repris au 861 à la CESSION seule (art. 133 al. 3 ; fiche du compte
+15) ; 154 hors service et 106 du SYCEBNL NON PASSÉS, motif rendu (textes en
+tension, ou muets) ; écriture à part sous la pièce, RETENUE
+(`ecritureSortieEcartReevaluationId`) ; le fiscal (art. 133 al. 3, art. 19) dit,
+jamais retraité.
 
 **Approche par composants.** Un composant est une immobilisation à part entière
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec son

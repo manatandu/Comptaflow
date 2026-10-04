@@ -119,6 +119,8 @@ function harnais(jeu: JeuEtatsFinanciersSycebnl | null = null, referentiel: Refe
       findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve({ id: where.id, numero: '48520000' })),
     },
     dotationAmortissement: { create: jest.fn().mockResolvedValue({ id: 'dot1' }), delete: jest.fn() },
+    // Ligne A15 · aucun bien réévalué ici · la sortie ne lit aucun écart.
+    ligneReevaluationBilan: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { deleteMany: jest.fn() },
     ecriture: { delete: jest.fn() },
   };

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -38,6 +38,37 @@ export class ReevaluationBilanController {
   @Get('reevaluation-bilan/reprise-provision')
   propositionReprise(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.service.propositionRepriseProvision(user.tenantId, exerciceId);
+  }
+
+  /**
+   * Ligne A15 · ce que les notes annexes doivent montrer (ch. 28 § 8 ; loi
+   * n° 23/053, art. 135), servi en lecture seule à côté de la NOTE 3E ou 5H.
+   */
+  @Get('reevaluation-bilan/note')
+  note(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.noteReevaluations(user.tenantId, exerciceId);
+  }
+
+  /** Ligne A15 · les éléments de la déclaration spéciale (loi n° 23/053, art. 136 et 137), une édition. */
+  @Get('reevaluation-bilan/declaration-speciale')
+  declarationSpeciale(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.service.declarationSpeciale(user.tenantId, exerciceId);
+  }
+
+  /** Ligne A15 · ce que la sortie du bien fera de son écart de réévaluation (ch. 28 § 6 ; loi n° 23/053, art. 133 al. 3). */
+  @Get('reevaluation-bilan/ecart-a-la-sortie')
+  ecartALaSortie(@CurrentUser() user: AuthenticatedUser, @Query('immobilisationId', new ParseUUIDPipe({ version: '4' })) immobilisationId: string) {
+    return this.service.ecartALaSortie(user.tenantId, immobilisationId);
+  }
+
+  /** Ligne A15 · les réserves non distribuables qui reçoivent l'écart d'un bien sorti (ch. 28 § 6). */
+  @Get('reevaluation-bilan/comptes-reserve')
+  comptesReserve(
+    @CurrentUser() user: AuthenticatedUser,
+    // Liste de choix · seules les réserves retenues ou utilisées (comptes-proposes.ts).
+    @Query('retenus') retenus?: string,
+  ) {
+    return this.service.comptesReserve(user.tenantId, retenus === 'true');
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

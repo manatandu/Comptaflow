@@ -439,6 +439,11 @@ export class RenouvelerComposantDto {
   @IsDateString()
   dateRenouvellement!: string;
 
+  /** Ligne A15 · la réserve qui reçoit l'écart de réévaluation (106) de l'ancien composant (ch. 28 § 6). */
+  @IsOptional()
+  @IsUUID('4')
+  compteReserveEcartId?: string;
+
   @IsUUID('4')
   exerciceId!: string;
 
@@ -578,6 +583,16 @@ export class SortirImmobilisationDto {
 
   @IsDateString()
   datePieceSortie!: string;
+
+  /**
+   * Ligne A15 · la RÉSERVE NON DISTRIBUABLE qui reçoit le solde de l'écart de
+   * réévaluation (106) du bien sorti (AUDCIF Titre VIII ch. 28 § 6),
+   * SYSCOHADA seul, choisie sous 111, 112 ou 1138 (`reevaluation-suites.ts`).
+   * Exigée seulement quand le bien porte un tel solde.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  compteReserveEcartId?: string;
 }
 
 /**
@@ -913,6 +928,15 @@ export class DeclarerOptionLocationAcquisitionDto {
   @IsOptional()
   @IsBoolean()
   cessionCourante?: boolean;
+
+  /**
+   * Ligne A15 · non-levée d'un bien réévalué dont l'écart est au 106 · la
+   * réserve non distribuable qui reçoit le solde à sa sortie (AUDCIF Titre
+   * VIII ch. 28 § 6), transmise à `sortir`.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  compteReserveEcartId?: string;
 }
 
 /** La reprise au 799 d'une subvention en nature, pour un exercice. */
@@ -939,6 +963,11 @@ export class RepriseSubventionDto {
 export class EchangerImmobilisationDto {
   @IsDateString()
   dateEchange!: string;
+
+  /** Ligne A15 · la réserve qui reçoit l'écart de réévaluation (106) du bien donné (ch. 28 § 6). */
+  @IsOptional()
+  @IsUUID('4')
+  compteReserveEcartId?: string;
 
   @IsUUID('4')
   exerciceId!: string;

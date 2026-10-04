@@ -32,6 +32,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   // crédirentier, écart des redevances) · retirée seule, la fiche se dirait
   // soldée sans l'écriture, et le solde ne pourrait plus se repasser.
   'Immobilisation.ecritureSoldeDetteAleatoireId',
+  // Ligne A15 · le sort de l'écart de réévaluation à la sortie du bien
+  // (transfert du 106 à une réserve, reprise du 154 au 861) · retirée seule,
+  // les lignes de réévaluation se diraient soldées sans l'écriture qui le fait.
+  'Immobilisation.ecritureSortieEcartReevaluationId',
   'DotationAmortissement.ecritureId',
   'DepreciationImmobilisation.ecritureId',
   'ReclassementImmobilisation.ecritureId',

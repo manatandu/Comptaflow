@@ -1705,6 +1705,7 @@ model Ecriture {
   immobilisationProduitCession Immobilisation?             @relation("ImmoEcritureProduitCession")
   immobilisationMiseEnService  Immobilisation?             @relation("ImmoEcritureMiseEnService")
   immobilisationSoldeDette     Immobilisation?             @relation("ImmoEcritureSoldeDette")
+  immobilisationSortieEcartReevaluation Immobilisation?    @relation("ImmoEcritureSortieEcartReevaluation")
   dotationAmortissement        DotationAmortissement?
   depreciationImmobilisation   DepreciationImmobilisation? @relation("DepreciationEcriture")
 
@@ -4242,6 +4243,15 @@ model Immobilisation {
   dateSoldeDetteAleatoire       DateTime?
   ecritureSoldeDetteAleatoireId String?                     @unique
   ecritureSoldeDetteAleatoire   Ecriture?                   @relation("ImmoEcritureSoldeDette", fields: [ecritureSoldeDetteAleatoireId], references: [id], onDelete: Restrict)
+
+  /// LIGNE A15 · le sort de l'écart de réévaluation d'un bien SORTI (AUDCIF
+  /// Titre VIII ch. 28 § 6 ; loi n° 23/053, art. 133 al. 3) · transfert du 106
+  /// à une réserve non distribuable, reprise du reste du 154 au 861 à la
+  /// cession. RETENUE · retirée seule, les lignes de réévaluation se diraient
+  /// soldées (`ecartTransfere`, `provisionReprise`) sans l'écriture qui les
+  /// solde, et le 106 ou le 154 garderait un écart d'un bien parti.
+  ecritureSortieEcartReevaluationId String?   @unique
+  ecritureSortieEcartReevaluation   Ecriture? @relation("ImmoEcritureSortieEcartReevaluation", fields: [ecritureSortieEcartReevaluationId], references: [id], onDelete: Restrict)
 
   // LOT 15 · RÉSERVE DE PROPRIÉTÉ, une INFORMATION de fiche. Le bien entre à
   // l'actif comme si l'entité en était propriétaire (AUDCIF Titre VIII ch. 9,
@@ -9126,6 +9136,9 @@ model LigneReevaluationBilan {
   provisionReprise    Decimal  @default(0) @db.Decimal(18, 2)
   /// Écart (106) · les pertes de valeur déjà imputées (ch. 12 § 2.5).
   ecartImpute         Decimal  @default(0) @db.Decimal(18, 2)
+  /// Ligne A15 · écart (106) transféré à une réserve non distribuable à la
+  /// sortie du bien (AUDCIF Titre VIII ch. 28 § 6).
+  ecartTransfere      Decimal  @default(0) @db.Decimal(18, 2)
 
   @@unique([reevaluationId, immobilisationId])
   @@index([tenantId, immobilisationId])
