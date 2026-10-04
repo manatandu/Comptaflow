@@ -33,7 +33,23 @@ bien achevé. La placer sous le bon poste exige soit un virement 29x9 vers 29x
 (aucun texte), soit reprise et dotation à la même clôture (le module n'en
 admet qu'une par exercice).
 
-## Relevé 2 · prix global avec fonds de commerce · À FAIRE
+## Relevé 2 · prix global avec fonds de commerce · FAIT
+
+Textes lus · AUDCIF Titre VIII ch. 2 § 7.2.1 (« L'élément résiduel non affecté
+à un compte spécifique est inscrit au débit du compte 2151 Fonds
+commercial ») ; Titre VII, fiche du compte 21 (« 215 Fonds commercial », sans
+subdivision) ; plan SYSCOHADA de la compétence (`215 Fonds commercial`, seul) ;
+semis `21500000`. SYCEBNL · ni 215 ni 216 (refus serveur inchangé, option
+masquée à l'écran hors SYSCOHADA).
+
+Constat · serveur juste (fiche au 21500000 seulement s'il reste un reliquat),
+écran faux · il mettait toujours le 21500000 dans l'intersection des
+contreparties et saisissait sa durée même sans reliquat. Correction ·
+`client/src/lib/prix-global.ts` lit le reliquat au centime (null tant qu'un
+montant manque, jamais zéro), le fonds n'est visé que si le reliquat est
+positif ou pas encore lisible, le reliquat est dit, la durée n'est demandée
+et envoyée qu'avec un fonds qui naît ; le serveur refuse une durée du fonds
+commercial sans reliquat ou hors fonds de commerce (déclaration sans fiche).
 
 ## Relevé 3 · 787 du Guide contre 72 de l'AUDCIF · À FAIRE
 

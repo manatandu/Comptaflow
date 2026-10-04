@@ -4646,6 +4646,11 @@ export class ImmobilisationService {
     if (dto.nature === 'ENSEMBLE') {
       if (!dto.fondement) throw new BadRequestException('Indiquez la méthode de ventilation retenue (AUDCIF art. 38).');
       if ((dto.stocks?.length ?? 0) > 0) throw new BadRequestException("Des stocks ne se reprennent qu'avec un fonds de commerce.");
+      // Une déclaration que personne ne lirait se refuse (ligne A22) · la durée
+      // du fonds commercial n'a pas de fiche à porter hors d'un fonds de commerce.
+      if (dto.dureeFondsCommercialAns != null) {
+        throw new BadRequestException("La durée du fonds commercial ne se déclare qu'avec un fonds de commerce.");
+      }
       if (dto.fondement !== 'ACTE' && !dto.sourceValeurs?.trim()) {
         throw new BadRequestException("Indiquez d'où viennent les valeurs retenues · la modalité est mentionnée aux Notes annexes (AUDCIF art. 38).");
       }
@@ -4681,6 +4686,14 @@ export class ImmobilisationService {
       dto.biens.forEach((b, i) =>
         aCreer.push({ compteImmobilisationId: b.compteImmobilisationId, numero: numeros[i], designation: b.designation, montant: Number(b.montant), dureeAmortissementAns: b.dureeAmortissementAns, dateMiseEnService: b.dateMiseEnService }),
       );
+      // LIGNE A22 · sans reliquat, aucun fonds commercial ne naît (ch. 2
+      // § 7.2.1, « l'élément RÉSIDUEL ») · une durée déclarée pour lui n'aurait
+      // aucune fiche à porter, et l'écran qui la saisissait le laissait croire.
+      if (!(v.fondsCommercial > 0) && dto.dureeFondsCommercialAns != null) {
+        throw new BadRequestException(
+          "Les éléments séparables et les stocks épuisent le prix · aucun fonds commercial ne s'inscrit, sa durée ne se déclare pas (AUDCIF Titre VIII ch. 2 § 7.2.1).",
+        );
+      }
       if (v.fondsCommercial > 0) {
         /*
           LE FONDS COMMERCIAL « N'EST PAS AMORTISSABLE » EN PRINCIPE, « sa durée
