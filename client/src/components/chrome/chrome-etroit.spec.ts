@@ -234,7 +234,10 @@ describe('menu « État » à 360 px', () => {
     // « Analyse des comptes », sans changer le total.
     // Le 2026-10-01, « Immobilisations et amortissements » a quitté ce menu : ses
     // deux tableaux sont des onglets de la fenêtre Immobilisations.
-    expect(tous).toHaveLength(30);
+    // Le 2026-10-04 (ligne A20), la comptabilité de gestion est entrée sous
+    // « Suivi et prévision », à côté du simulateur · un coût, un seuil, une
+    // répartition en OD analytiques, rien au livre-journal. Les bornes tiennent.
+    expect(tous).toHaveLength(31);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber

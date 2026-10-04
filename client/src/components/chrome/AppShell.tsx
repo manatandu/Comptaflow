@@ -481,6 +481,10 @@ export function AppShell() {
             // Priorité 6 · un prévu tiré d'un exercice de référence, comparé au
             // réalisé. Aucune écriture, seules les hypothèses sont gardées.
             { label: 'Simulateur budgétaire', chemin: '/simulations-budgetaires', onClick: () => navigate('/simulations-budgetaires') },
+            // Ligne A20 · coûts, clés de répartition et seuil, définitions
+            // d'OmegaX ; la répartition passe des OD analytiques, jamais une
+            // écriture au livre-journal.
+            { label: 'Comptabilité de gestion', chemin: '/comptabilite-gestion', onClick: () => navigate('/comptabilite-gestion') },
           ],
         },
         {
