@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { EcartReevaluationSortie } from './EcartReevaluationSortie';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { montant } from '../lib/montants';
@@ -52,6 +53,8 @@ export function EchangeImmobilisation({
   const [fournisseurId, setFournisseurId] = useState('');
   const [creanceId, setCreanceId] = useState('');
   const [courante, setCourante] = useState(false);
+  // Ligne A15 · la réserve qui reçoit l'écart (106) du bien donné, si le serveur l'exige.
+  const [compteReserve, setCompteReserve] = useState('');
   // null tant que la liste n'est pas lue · « aucun » ne se dit que d'une liste lue.
   const [fournisseurs, setFournisseurs] = useState<ContrepartieAdmise[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -103,6 +106,7 @@ export function EchangeImmobilisation({
         compteImmobilisationId: compteBienId,
         designation,
         dureeAmortissementAns: duree ? Number(duree) : undefined,
+        ...(compteReserve ? { compteReserveEcartId: compteReserve } : {}),
       });
       onFait();
     } catch (err) {
@@ -202,6 +206,8 @@ export function EchangeImmobilisation({
           Cession courante
         </label>
         )}
+        {/* L'échange est une cession · le bien donné sort avec son écart. */}
+        <EcartReevaluationSortie immobilisationId={immobilisationId} type="CESSION" compteReserve={compteReserve} setCompteReserve={setCompteReserve} />
       </div>
       {erreur && <div className="text-[11.5px] text-danger mt-2">{erreur}</div>}
       <div className="flex gap-2 mt-3">

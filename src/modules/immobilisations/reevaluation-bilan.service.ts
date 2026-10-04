@@ -34,7 +34,7 @@ import {
   type BienAReevaluer,
   type ResultatBien,
 } from './reevaluation-bilan';
-import { posteDuBien, supplementDeLaDotation, RACINES_RESERVE_NON_DISTRIBUABLE } from './reevaluation-suites';
+import { posteDuBien, sortDesEcarts, supplementDeLaDotation, RACINES_RESERVE_NON_DISTRIBUABLE } from './reevaluation-suites';
 import { correspond } from '../etats-financiers/etats-financiers.communs';
 import { NOTES_SYSCOHADA_1 } from '../etats-financiers-syscohada/correspondance-notes-syscohada-1';
 import { NOTES_ASSOCIATIONS } from '../notes-annexes/correspondance-notes-associations';
@@ -1078,6 +1078,38 @@ export class ReevaluationBilanService {
           : ecartes > 0
             ? 'Aucune réserve sous 111, 112 ou 113 n’est retenue · retenez-la dans Plan comptable.'
             : 'Aucune réserve sous 111, 112 ou 113 n’est ouverte au plan · ouvrez-la dans Plan comptable.',
+    };
+  }
+
+  /**
+   * CE QUE LA SORTIE D'UN BIEN FERA DE SON ÉCART (ligne A15) · lu avant la
+   * sortie, pour que l'écran demande la réserve quand il le faut et dise ce
+   * qui ne sera pas passé, dans les deux cas (cession, mise hors service).
+   * Même règle que la sortie elle-même (`sortDesEcarts`), jamais une seconde.
+   */
+  async ecartALaSortie(tenantId: string, immobilisationId: string) {
+    const [tenant, bien] = await Promise.all([
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.immobilisation.findFirst({ where: { id: immobilisationId, tenantId }, select: { id: true } }),
+    ]);
+    if (!bien) throw new BadRequestException('Immobilisation introuvable pour ce dossier.');
+    const lignes = await this.prisma.ligneReevaluationBilan.findMany({
+      where: { tenantId, immobilisationId, ecart: { gt: 0 } },
+      select: { id: true, compteEcart: true, ecart: true, provisionReprise: true, ecartImpute: true, ecartTransfere: true },
+      orderBy: { id: 'asc' },
+    });
+    const referentiel = tenant.referentiel === Referentiel.SYSCOHADA ? 'SYSCOHADA' : 'SYCEBNL';
+    const lues = lignes.map((l) => ({
+      id: l.id,
+      compteEcart: l.compteEcart,
+      ecart: n(l.ecart),
+      provisionReprise: n(l.provisionReprise),
+      ecartImpute: n(l.ecartImpute),
+      ecartTransfere: n(l.ecartTransfere),
+    }));
+    return {
+      cession: sortDesEcarts({ referentiel, cession: true, lignes: lues }),
+      miseHorsService: sortDesEcarts({ referentiel, cession: false, lignes: lues }),
     };
   }
 }

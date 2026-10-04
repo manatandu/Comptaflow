@@ -3,6 +3,8 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { CoutsEmpruntEnNote } from '../components/CoutsEmpruntEnNote';
+import { ReevaluationsEnNote } from '../components/ReevaluationsEnNote';
+import { NOTE_DES_REEVALUATIONS } from '../lib/reevaluation-suites';
 import { NOTE_INFORMATIONS_OBLIGATOIRES } from '../lib/couts-emprunt-en-note';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
@@ -338,6 +340,12 @@ function NotesAnnexesSycebnlPage() {
                 en lecture seule. */}
             {codeSelectionne === (jeuProjet ? NOTE_INFORMATIONS_OBLIGATOIRES.PROJETS : NOTE_INFORMATIONS_OBLIGATOIRES.ASSOCIATIONS) && (
               <CoutsEmpruntEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYCEBNL" />
+            )}
+            {/* Ligne A15 · les réévaluations du module montrées à côté des
+                rubriques libres de la NOTE 5H des associations, en lecture
+                seule (le jeu des projets n'a pas de note des réévaluations). */}
+            {!jeuProjet && codeSelectionne === NOTE_DES_REEVALUATIONS.ASSOCIATIONS && (
+              <ReevaluationsEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYCEBNL" />
             )}
           </div>
         </div>

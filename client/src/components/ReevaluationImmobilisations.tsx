@@ -96,10 +96,15 @@ export function ReevaluationImmobilisations({
   exerciceId,
   journaux,
   onFait,
+  onImprimerDeclaration,
+  preparationDeclaration = false,
 }: {
   exerciceId: string | undefined;
   journaux: Journal[];
   onFait: () => void;
+  /** Ligne A15 · imprime les éléments de la déclaration spéciale (loi n° 23/053, art. 136 et 137). */
+  onImprimerDeclaration?: () => void;
+  preparationDeclaration?: boolean;
 }) {
   const { peutEcrire } = useAuth();
   // null tant que rien n'est lu · « aucun bien » ne se dit que sur une liste lue.
@@ -239,6 +244,17 @@ export function ReevaluationImmobilisations({
           }
           source="AUDCIF art. 35, 62 à 65 ; Titre VIII ch. 28, ch. 12 § 2.5, ch. 16 § 2.6 ; SYCEBNL Partie 3 ch. 1 § 2.1.1.3 ; loi n° 23/053, art. 129 à 138"
         />
+        {existante && onImprimerDeclaration && (
+          <button
+            type="button"
+            disabled={preparationDeclaration}
+            onClick={onImprimerDeclaration}
+            title="Éléments de la déclaration spéciale, par catégorie d'immobilisations · le modèle des imprimés du CPCC n'est pas au corpus"
+            className="ml-auto border border-border-dark bg-surface text-[11px] font-semibold px-2.5 py-0.5 disabled:opacity-50"
+          >
+            {preparationDeclaration ? '…' : 'Déclaration spéciale'}
+          </button>
+        )}
         {peutEcrire && !ouvert && perimetre && !existante && !perimetre.exerciceClos && perimetre.biens.length > 0 && (
           <button type="button" onClick={() => setOuvert(true)} className="ml-auto bg-sel text-white text-[11px] font-semibold px-2.5 py-0.5">
             Réévaluer

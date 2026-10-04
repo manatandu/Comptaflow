@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { CoutsEmpruntEnNote } from '../components/CoutsEmpruntEnNote';
+import { ReevaluationsEnNote } from '../components/ReevaluationsEnNote';
+import { NOTE_DES_REEVALUATIONS } from '../lib/reevaluation-suites';
 import { NOTE_INFORMATIONS_OBLIGATOIRES } from '../lib/couts-emprunt-en-note';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
@@ -346,6 +348,11 @@ function NotesSyscohadaSystemeNormal() {
                 rubriques libres B et D de la NOTE 2, en lecture seule. */}
             {codeSelectionne === NOTE_INFORMATIONS_OBLIGATOIRES.SYSCOHADA && (
               <CoutsEmpruntEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYSCOHADA" />
+            )}
+            {/* Ligne A15 · les réévaluations du module montrées à côté des
+                rubriques libres de la NOTE 3E, en lecture seule. */}
+            {codeSelectionne === NOTE_DES_REEVALUATIONS.SYSCOHADA && (
+              <ReevaluationsEnNote exerciceId={exerciceCourant?.id ?? null} referentiel="SYSCOHADA" />
             )}
           </div>
         </div>

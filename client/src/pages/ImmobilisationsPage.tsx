@@ -25,6 +25,10 @@ import { ParametresDemantelement, ProvisionDemantelement } from '../components/D
 import { ReevaluationImmobilisations } from '../components/ReevaluationImmobilisations';
 import { PlafondRepriseDepreciation } from '../components/PlafondRepriseDepreciation';
 import { EchangeImmobilisation } from '../components/EchangeImmobilisation';
+import { EcartReevaluationSortie } from '../components/EcartReevaluationSortie';
+import { DeclarationSpecialeImprimee } from '../components/DeclarationSpeciale';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import type { DeclarationSpeciale } from '../lib/reevaluation-suites';
 import { corpsCreation, saisieInitiale } from '../lib/location-acquisition';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
@@ -289,6 +293,19 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
   // logiciel demande. SYSCOHADA seul, comme au serveur.
   const [sCessionCourante, setSCessionCourante] = useState(false);
   const [sCompteFonds, setSCompteFonds] = useState('');
+  // Ligne A15 · la réserve non distribuable qui reçoit l'écart (106) d'un bien
+  // réévalué qui sort, demandée seulement quand le serveur l'exige.
+  const [sCompteReserve, setSCompteReserve] = useState('');
+  // Ligne A15 · L'ÉDITION DE LA DÉCLARATION SPÉCIALE, lue au serveur puis seule
+  // imprimée (la fenêtre porte `avec-edition` tant qu'elle existe), retirée
+  // après la boîte d'impression · une lecture refusée se dit, rien n'est imprimé.
+  const [declaration, setDeclaration] = useState<DeclarationSpeciale | null>(null);
+  const [preparationDeclaration, setPreparationDeclaration] = useState(false);
+  useEffect(() => {
+    const retirer = () => setDeclaration(null);
+    window.addEventListener('afterprint', retirer);
+    return () => window.removeEventListener('afterprint', retirer);
+  }, []);
   // Fin de projet (SYCEBNL Partie 3 ch. 3 § 2.5) · la liste des fonds 162 à
   // 164 est SERVIE, lue à l'ouverture de la sortie ; null tant qu'elle n'est
   // pas lue, jamais confondu avec une liste vide.
@@ -636,7 +653,9 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     setErreur(null);
     setEnvoi(true);
     try {
-      await api.post(`/immobilisations/${immoId}/sortie`, {
+      const resultat = await api.post<{
+        ecartReevaluation?: { transfereReserve: number; repris861: number; nonPasses: Array<{ compteEcart: string; montant: number; motif: string | null }> } | null;
+      }>(`/immobilisations/${immoId}/sortie`, {
         dateSortie: sDateSortie,
         type: sType,
         natureSortie,
@@ -651,15 +670,23 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         ...(sType === 'MISE_HORS_SERVICE' && Number(sValeurRecuperee) > 0
           ? { valeurMaterielRecupere: Number(sValeurRecuperee), compteStockRecupereId: sCompteStock, sourceMaterielRecupere: sSourceRecuperee }
           : {}),
+        ...(sCompteReserve ? { compteReserveEcartId: sCompteReserve } : {}),
       });
       setSortieOuvertePour(null);
+      setSCompteReserve('');
       setSPrixCession('');
       setSValeurRecuperee('');
       setSSourceRecuperee('');
       setSNature('');
       setSRefPiece('');
       setSDatePiece('');
-      setInfo('Sortie enregistrée.');
+      // Un écart laissé au 106 ou au 154 se DIT après la sortie, jamais en silence.
+      const nonPasses = resultat?.ecartReevaluation?.nonPasses ?? [];
+      setInfo(
+        nonPasses.length > 0
+          ? `Sortie enregistrée · écart de réévaluation non passé : ${nonPasses.map((x) => `${x.compteEcart} ${montant(x.montant)}`).join(', ')}.`
+          : 'Sortie enregistrée.',
+      );
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de sortir cette immobilisation');
@@ -755,8 +782,10 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
         coutRenouvellement: Number(rCout),
         dureeAmortissementAns: Number(rDuree),
         compteContrepartieId: rContrepartie,
+        ...(sCompteReserve ? { compteReserveEcartId: sCompteReserve } : {}),
       });
       setRenouvellementOuvertPour(null);
+      setSCompteReserve('');
       setRDesignation('');
       setRCout('');
       setInfo('Composant renouvelé · l’ancien est sorti de l’actif et le nouveau porté au même principal.');
@@ -912,8 +941,34 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
     </div>
   );
 
+  const imprimerDeclaration = () => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setPreparationDeclaration(true);
+    api
+      .get<DeclarationSpeciale>(`/immobilisations/reevaluation-bilan/declaration-speciale?exerciceId=${encodeURIComponent(exerciceCourant.id)}`)
+      .then(
+        (d) => {
+          if (!d.reevaluation) {
+            setErreur('Aucune réévaluation enregistrée sur cet exercice · rien à déclarer.');
+            return;
+          }
+          setDeclaration(d);
+          window.setTimeout(() => window.print(), 50);
+        },
+        (e: Error) => setErreur(e instanceof ApiError ? e.message : 'L’édition n’a pas pu être préparée.'),
+      )
+      .finally(() => setPreparationDeclaration(false));
+  };
+
   return (
-    <div className="p-2">
+    <div className={`p-2 ${declaration ? 'avec-edition' : ''}`}>
+      {declaration && (
+        <>
+          <EnteteImpression titre="Déclaration spéciale de réévaluation" sousTitre="Éléments par catégorie d’immobilisations" />
+          <DeclarationSpecialeImprimee d={declaration} />
+        </>
+      )}
       {barreOnglets}
       {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}
 
@@ -2042,6 +2097,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]"
                         />
                       </label>
+                      {/* L'ancien composant sort en mise hors service, avec son écart. */}
+                      <EcartReevaluationSortie
+                        immobilisationId={immo.id}
+                        type="MISE_HORS_SERVICE"
+                        compteReserve={sCompteReserve}
+                        setCompteReserve={setSCompteReserve}
+                      />
                     </div>
                     <div className="flex gap-2 mt-3">
                       <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Renouveler'}</button>
@@ -2316,6 +2378,12 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
                           )}
                         </>
                       )}
+                      <EcartReevaluationSortie
+                        immobilisationId={immo.id}
+                        type={sType}
+                        compteReserve={sCompteReserve}
+                        setCompteReserve={setSCompteReserve}
+                      />
                     </div>
                     <div className="flex gap-2 mt-3">
                       <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Confirmer la sortie'}</button>
@@ -2402,7 +2470,13 @@ export function ImmobilisationsPage({ vueInitiale = 'biens' }: { vueInitiale?: V
             )}
             <BiensSousReserveDePropriete exerciceId={exerciceCourant?.id} syscohada={syscohada} />
             {/* Lot 14 · la réévaluation porte sur TOUT le parc (art. 62), jamais sur un bien · rangée parmi les opérations. */}
-            <ReevaluationImmobilisations exerciceId={exerciceCourant?.id} journaux={journaux} onFait={() => void charger()} />
+            <ReevaluationImmobilisations
+              exerciceId={exerciceCourant?.id}
+              journaux={journaux}
+              onFait={() => void charger()}
+              onImprimerDeclaration={imprimerDeclaration}
+              preparationDeclaration={preparationDeclaration}
+            />
           </div>
           {!peutEcrire && (
             <div className="hidden peer-empty:block text-[11.5px] text-text-dim px-1 py-2">

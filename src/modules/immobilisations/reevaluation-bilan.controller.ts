@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -53,6 +53,12 @@ export class ReevaluationBilanController {
   @Get('reevaluation-bilan/declaration-speciale')
   declarationSpeciale(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.service.declarationSpeciale(user.tenantId, exerciceId);
+  }
+
+  /** Ligne A15 · ce que la sortie du bien fera de son écart de réévaluation (ch. 28 § 6 ; loi n° 23/053, art. 133 al. 3). */
+  @Get('reevaluation-bilan/ecart-a-la-sortie')
+  ecartALaSortie(@CurrentUser() user: AuthenticatedUser, @Query('immobilisationId', new ParseUUIDPipe({ version: '4' })) immobilisationId: string) {
+    return this.service.ecartALaSortie(user.tenantId, immobilisationId);
   }
 
   /** Ligne A15 · les réserves non distribuables qui reçoivent l'écart d'un bien sorti (ch. 28 § 6). */
